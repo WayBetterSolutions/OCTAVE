@@ -835,10 +835,36 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("MediaRoom.qml").createObject(stackView, {
-                                        stackView: bottomBar.stackView
-                                    })
-                                    stackView.push(page)
+                                    // Check if current page is MediaRoom, if so go to MediaPlayer
+                                    var currentItem = stackView.currentItem
+                                    if (currentItem && currentItem.objectName === "mediaRoom") {
+                                        var component = Qt.createComponent("MediaPlayer.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            stackView.push(page)
+                                        }
+                                    } else if (currentItem && currentItem.objectName === "mediaPlayer") {
+                                        // If on MediaPlayer, go back to MediaRoom
+                                        var component = Qt.createComponent("MediaRoom.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView
+                                            })
+                                            stackView.push(page)
+                                        }
+                                    } else {
+                                        // Otherwise, go to MediaRoom
+                                        var component = Qt.createComponent("MediaRoom.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView
+                                            })
+                                            stackView.push(page)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1747,10 +1773,36 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("MediaRoom.qml").createObject(stackView, {
-                                        stackView: bottomBar.stackView
-                                    })
-                                    stackView.push(page)
+                                    // Check if current page is MediaRoom, if so go to MediaPlayer
+                                    var currentItem = stackView.currentItem
+                                    if (currentItem && currentItem.objectName === "mediaRoom") {
+                                        var component = Qt.createComponent("MediaPlayer.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            stackView.push(page)
+                                        }
+                                    } else if (currentItem && currentItem.objectName === "mediaPlayer") {
+                                        // If on MediaPlayer, go back to MediaRoom
+                                        var component = Qt.createComponent("MediaRoom.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView
+                                            })
+                                            stackView.push(page)
+                                        }
+                                    } else {
+                                        // Otherwise, go to MediaRoom
+                                        var component = Qt.createComponent("MediaRoom.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView
+                                            })
+                                            stackView.push(page)
+                                        }
+                                    }
                                 }
                             }
                         }

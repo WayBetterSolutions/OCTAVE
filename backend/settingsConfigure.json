@@ -8,7 +8,7 @@
     "backgroundGrid": "Normal",
     "screenWidth": 1276,
     "screenHeight": 756,
-    "backgroundBlurRadius": 20,
+    "backgroundBlurRadius": 50,
     "uiScale": 0.7000000000000001,
     "obdParameters": {
         "COOLANT_TEMP": true,
@@ -34,14 +34,10 @@
     },
     "obdBluetoothPort": "/dev/rfcomm0",
     "obdFastMode": true,
-    "mediaFolder": "/home/rob/Music/The Great Outdoors",
+    "mediaFolder": "C:\\Users\\Robde\\Music\\Bangers & Mash",
     "showBackgroundOverlay": true,
     "fuelTankCapacity": 19.0,
-    "directoryHistory": [
-        "/home/rob/Music/The Great Outdoors",
-        "C:\\Users\\Redto\\Music",
-        "C:\\Users\\Robde\\Music\\Bangers & Mash"
-    ],
+    "directoryHistory": [],
     "homeOBDParameters": [
         "TIMING_ADVANCE",
         "FUEL_LEVEL",

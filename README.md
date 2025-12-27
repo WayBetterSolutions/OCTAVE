@@ -16,7 +16,6 @@ Visit us at [WayBetterEngineering](https://www.waybetterengineering.com/) to fol
 
 ## Features
 - **Media Player**: Can play MP3 files, switch between playlists, music library stats, ability to shuffle songs, metadata integration including album art
-- **Equalizer**: 10-band system-level equalizer (requires APO for Windows, EasyEffects for Linux, and EQ for Mac)
 - **OBD-II Integration**: Real-time vehicle diagnostics with customizable dashboards
 - **Customizable UI**: Built-in custom themes with ability to create your own, all icons are SVG-based and easy to change to what you want, also has UI scaling for fine-tuning your needs
 - **Cross-Platform**: Compatible with Windows, Linux, and macOS
@@ -24,7 +23,6 @@ Visit us at [WayBetterEngineering](https://www.waybetterengineering.com/) to fol
 ## Screenshots
 ![Home Page](frontend/assets/readme/home_page.png)
 ![Media Page](frontend/assets/readme/media_room.png)
-![Equalizer Page](frontend/assets/readme/equalizer_page.png)
 ![OBD Page](frontend/assets/readme/obd_page.png)
 
 ## System Requirements
@@ -32,7 +30,7 @@ Visit us at [WayBetterEngineering](https://www.waybetterengineering.com/) to fol
 
 ## Installation
 
-**Requirements:** Python 3.8+ and Git
+**Requirements:** Python 3.8+
 
 ### Windows
 
@@ -45,8 +43,6 @@ venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 ```
-
-**Optional:** Install [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) for equalizer support.
 
 ---
 
@@ -62,9 +58,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-**Optional:**
-- For OBD-II Bluetooth support: `sudo usermod -a -G dialout $USER` (log out and back in after)
-- For equalizer support: `flatpak install flathub com.github.wwmm.easyeffects`
+**Optional:** For OBD-II Bluetooth support: `sudo usermod -a -G dialout $USER` (log out and back in after)
 
 ---
 
@@ -79,8 +73,6 @@ source venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
-
-**Optional:** Install [eqMac](https://eqmac.app/) for equalizer support.
 
 ---
 

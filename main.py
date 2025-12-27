@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QApplication
 from backend.clock import Clock
 from backend.settings_manager import SettingsManager
 from backend.media_manager import MediaManager
-from backend.equalizer_manager import EqualizerManager  # Import the equalizer manager
 from backend.svg_manager import SVGManager
 from backend.obd_manager import OBDManager
 
@@ -36,15 +35,6 @@ engine.rootContext().setContextProperty("clock", clock)
 # Media Manager
 media_manager = MediaManager()
 engine.rootContext().setContextProperty("mediaManager", media_manager)
-
-# Equalizer Manager - initialize with a reference to media_manager
-equalizer_manager = EqualizerManager(media_manager)
-engine.rootContext().setContextProperty("equalizerManager", equalizer_manager)
-
-# Connect equalizer to media manager (if the connection method exists)
-if hasattr(media_manager, 'connect_equalizer'):
-    media_manager.connect_equalizer(equalizer_manager)
-
 
 # SVG Manager
 svg_manager = SVGManager()

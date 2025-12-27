@@ -7,17 +7,6 @@ import os
 import random
 import re
 
-# Check if audio processing libraries are available
-try:
-    import numpy as np
-    import sounddevice as sd
-    import scipy.signal as signal
-    AUDIO_PROCESSING_AVAILABLE = True
-except ImportError:
-    AUDIO_PROCESSING_AVAILABLE = False
-    print("Warning: numpy, scipy, or sounddevice not available. Equalizer will be visual-only.")
-
-
 class MediaManager(QObject):
     playbackStateChanged = Signal(int)
     playStateChanged = Signal(bool)
@@ -94,9 +83,6 @@ class MediaManager(QObject):
         self._position_timer.timeout.connect(self._update_position)
         self._position_timer.start()
         
-        # Set up equalizer support
-        self._setup_equalizer_support()
-        
         # Create media and temp directories if they don't exist
         self._ensure_directories()
         
@@ -113,57 +99,8 @@ class MediaManager(QObject):
                 self._player.stop()
             if self._position_timer:
                 self._position_timer.stop()
-            
-            # Clean up audio processor if active
-            if hasattr(self, '_audio_processor') and self._audio_processor:
-                self._audio_processor.stop()
         except:
             pass  # Avoid errors during shutdown
-    
-    def _setup_equalizer_support(self):
-        """Set up support for equalizer integration"""
-        try:
-            # Add a placeholder for equalizer manager
-            self._equalizer_manager = None
-            
-            # Flag to indicate if equalizer is active
-            self._equalizer_active = False
-            
-            # Audio processor for real-time processing
-            self._audio_processor = None
-        except Exception as e:
-            print(f"Error setting up equalizer support: {e}")
-    
-    def connect_equalizer(self, equalizer_manager):
-        """Connect an equalizer manager to this media manager"""
-        try:
-            self._equalizer_manager = equalizer_manager
-            self._equalizer_active = True
-            
-            # If audio processing is available, initialize the audio processor
-            if AUDIO_PROCESSING_AVAILABLE and hasattr(equalizer_manager, '_audio_processor'):
-                self._audio_processor = equalizer_manager._audio_processor
-                
-                # Connect to playback state changes to control audio processor
-                self.playStateChanged.connect(self._handle_playback_state_for_equalizer)
-        
-        except Exception as e:
-            print(f"Error connecting equalizer: {e}")
-    
-    def _handle_playback_state_for_equalizer(self, is_playing):
-        """Handle playback state changes for equalizer"""
-        if not hasattr(self, '_audio_processor') or not self._audio_processor:
-            return
-            
-        try:
-            if is_playing:
-                # Start audio processor when playback starts
-                self._audio_processor.start()
-            else:
-                # Stop audio processor when playback stops
-                self._audio_processor.stop()
-        except Exception as e:
-            print(f"Error handling playback state for equalizer: {e}")
     
     def _ensure_directories(self):
         """Ensure required directories exist"""
@@ -511,11 +448,7 @@ class MediaManager(QObject):
                 self._emit_metadata(filename)
                 self.get_formatted_duration(filename)
                 print(f"Now playing: {filename} from {'shuffled' if self._shuffle else 'alphabetical'} playlist at position {self._current_index}")
-                
-                # Start audio processor if available and connected
-                if self._equalizer_active and hasattr(self, '_audio_processor') and self._audio_processor:
-                    self._audio_processor.start()
-                    
+
             except Exception as e:
                 print(f"Playback error: {e}")
         else:
@@ -563,10 +496,6 @@ class MediaManager(QObject):
         self._is_playing = False
         self.playStateChanged.emit(False)
         
-        # Stop audio processor if available
-        if self._equalizer_active and hasattr(self, '_audio_processor') and self._audio_processor:
-            self._audio_processor.stop()
-        
     @Slot()
     def toggle_play(self):
         # Handle case when no source is set
@@ -581,19 +510,11 @@ class MediaManager(QObject):
             self._player.pause()
             self._is_paused = True
             self._is_playing = False
-            
-            # Stop audio processor if available
-            if self._equalizer_active and hasattr(self, '_audio_processor') and self._audio_processor:
-                self._audio_processor.stop()
         else:
             self._player.play()
             self._is_paused = False
             self._is_playing = True
-            
-            # Start audio processor if available
-            if self._equalizer_active and hasattr(self, '_audio_processor') and self._audio_processor:
-                self._audio_processor.start()
-            
+
         self.playStateChanged.emit(self._is_playing)
             
     @Slot(result=bool)
@@ -749,50 +670,19 @@ class MediaManager(QObject):
                     self._is_playing = False
                     self._is_paused = True
                     self.playStateChanged.emit(False)
-                    
-                    # Stop audio processor if needed
-                    if self._equalizer_active and hasattr(self, '_audio_processor') and self._audio_processor:
-                        self._audio_processor.stop()
         else:
             print(f"Warning: Directory {directory} does not exist or is not a directory")
-            if os.path.exists(directory) and os.path.isdir(directory):
-                old_dir = self.media_dir
-                self.media_dir = directory
-                
-                # Clear caches that depend on the previous directory
-                self._metadata_cache = {}
-                self._album_art_cache = {}
-                self._access_count = {}
-                
-                # Refresh media files
-                self.get_media_files()
-                
-                # If currently playing, try to continue with same file or reset
-                current_file = self.get_current_file()
-                if self._is_playing and current_file and os.path.exists(os.path.join(self.media_dir, current_file)):
-                    self.play_file(current_file)
-                elif self._is_playing:
-                    # Was playing but file not in new directory - play first available file
-                    files = self.get_media_files()
-                    if files:
-                        self.play_file(files[0])
-                    else:
-                        self._player.stop()
-                        self._is_playing = False
-                        self._is_paused = True
-                        self.playStateChanged.emit(False)
-                        
-                        # Stop audio processor if needed
-                        if self._equalizer_active and hasattr(self, '_audio_processor') and self._audio_processor:
-                            self._audio_processor.stop()
-            else:
-                print(f"Warning: Directory {directory} does not exist or is not a directory")
             
     @Slot(result=str)
     def get_default_media_dir(self):
         """Return the default media directory path"""
         return self.default_media_dir
-        
+
+    @Slot(result=str)
+    def get_media_folder_name(self):
+        """Return just the folder name of the current media directory"""
+        return os.path.basename(self.media_dir)
+
     def _calculate_all_stats(self):
         """Calculate all statistics at once and cache the results"""
         if self._stats_cache["is_valid"]:

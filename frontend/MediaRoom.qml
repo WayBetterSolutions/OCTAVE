@@ -7,6 +7,7 @@ import "." as App
 
 Item {
     id: mediaRoom
+    objectName: "mediaRoom"
     property StackView stackView
     property ApplicationWindow mainWindow
 
@@ -36,8 +37,6 @@ Item {
         var seconds = Math.floor((ms % 60000) / 1000)
         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
     }
-
-    
 
     Rectangle {
         id: mainContent        
@@ -125,129 +124,6 @@ Item {
                     currentSongText.text = currentFile
                 }
                 isShuffleEnabled = mediaManager.is_shuffled()
-            }
-        }     
-
-        Button { //mediaplayer button
-            id: mediaPlayerButton
-            implicitHeight: App.Spacing.mediaRoomMediaPlayerButtonHeight
-            implicitWidth: App.Spacing.mediaRoomMediaPlayerButtonWidth
-            background: null
-            anchors {
-                left: parent.left
-                top: parent.top
-                margins: 0
-            }
-
-            contentItem: Item {
-                Image {
-                    id: leftArrowImage
-                    anchors.centerIn: parent
-                    source: "./assets/left_arrow.svg"
-                    fillMode: Image.PreserveAspectFit
-                    width: parent.width
-                    height: parent.height
-                    smooth: true
-                    antialiasing: true
-                    sourceSize: Qt.size(width * 2, height * 2)
-                    mipmap: true
-                    visible: false
-                }
-                ColorOverlay {
-                    anchors.fill: leftArrowImage
-                    source: leftArrowImage
-                    color: App.Style.mediaRoomLeftButton
-                }
-            }
-
-
-            onClicked: {
-                var component = Qt.createComponent("MediaPlayer.qml")
-
-                function createAndPushPage() {
-                    var page = component.createObject(stackView, {
-                        stackView: mediaRoom.stackView,
-                        mainWindow: stackView.parent.Window.window
-                    })
-                    if (page) {
-                        stackView.push(page)
-                    } else {
-                        console.error("Error creating MediaPlayer page")
-                    }
-                }
-
-                if (component.status === Component.Error) {
-                    console.error("Error loading MediaPlayer:", component.errorString())
-                } else if (component.status === Component.Ready) {
-                    createAndPushPage()
-                } else {
-                    component.statusChanged.connect(function() {
-                        if (component.status === Component.Ready) {
-                            createAndPushPage()
-                        }
-                    })
-                }
-            }
-        }
-
-        Button { //equalizerbutton
-            id: equalizerControlButton
-            implicitHeight: App.Spacing.mediaRoomEqualizerButtonHeight
-            implicitWidth: App.Spacing.mediaRoomEqualizerButtonWidth
-            background: null
-            anchors {
-                right: parent.right
-                top: parent.top
-                margins: 0
-            }
-
-            contentItem: Item {
-                Image {
-                    id: rightArrowImage
-                    anchors.centerIn: parent
-                    source: "./assets/right_arrow.svg"
-                    fillMode: Image.PreserveAspectFit
-                    width: parent.width 
-                    height: parent.height 
-                    smooth: true
-                    antialiasing: true
-                    sourceSize: Qt.size(width * 2, height * 2)
-                    mipmap: true
-                    visible: false
-                }
-                ColorOverlay {
-                    anchors.fill: rightArrowImage
-                    source: rightArrowImage
-                    color: App.Style.mediaRoomRightButton
-                }
-            }
-
-            onClicked: {
-                var component = Qt.createComponent("EqualizerControl.qml")
-
-                function createAndPushPage() {
-                    var page = component.createObject(stackView, {
-                        stackView: mediaRoom.stackView,
-                        mediaManager: mediaManager
-                    })
-                    if (page) {
-                        stackView.push(page)
-                    } else {
-                        console.error("Error creating EqualizerControl page")
-                    }
-                }
-
-                if (component.status === Component.Error) {
-                    console.error("Error loading EqualizerControl:", component.errorString())
-                } else if (component.status === Component.Ready) {
-                    createAndPushPage()
-                } else {
-                    component.statusChanged.connect(function() {
-                        if (component.status === Component.Ready) {
-                            createAndPushPage()
-                        }
-                    })
-                }
             }
         }
 

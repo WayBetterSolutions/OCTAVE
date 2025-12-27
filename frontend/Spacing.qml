@@ -70,10 +70,6 @@ QtObject {
     property real mediaRoomControlsContainerHeight: .6
     
     // Media room buttons
-    property real mediaRoomMediaPlayerButtonWidthPercent: .1
-    property real mediaRoomMediaPlayerButtonHeightPercent: .1
-    property real mediaRoomEqualizerButtonWidthPercent: .1
-    property real mediaRoomEqualizerButtonHeightPercent: .1
     property real mediaRoomPreviousButtonHeightPercent: .1
     property real mediaRoomPreviousButtonWidthPercent: .1
     property real mediaRoomPlayButtonHeightPercent: .3
@@ -197,10 +193,6 @@ QtObject {
     property int bottomBarNavButtonHeight: scaledSize(applicationHeight * bottomBarNavButtonHeightPercent)
     
     // ===== Calculated Dimensions - Media Room =====
-    property int mediaRoomMediaPlayerButtonWidth: scaledSize(applicationWidth * mediaRoomMediaPlayerButtonWidthPercent)
-    property int mediaRoomMediaPlayerButtonHeight: scaledSize(applicationHeight * mediaRoomMediaPlayerButtonHeightPercent)
-    property int mediaRoomEqualizerButtonWidth: scaledSize(applicationWidth * mediaRoomEqualizerButtonWidthPercent)
-    property int mediaRoomEqualizerButtonHeight: scaledSize(applicationHeight * mediaRoomEqualizerButtonHeightPercent)
     property int mediaRoomMargin: scaledSize(Math.min(applicationWidth, applicationHeight) * mediaRoomMarginPercent)
     property int mediaRoomSpacing: scaledSize(Math.min(applicationWidth, applicationHeight) * mediaRoomSpacingPercent)
     property int mediaRoomBetweenButton: scaledSize(Math.min(applicationWidth, applicationHeight) * mediaRoomBetweenButtonPercent)
