@@ -913,24 +913,24 @@ Item {
                         ColumnLayout {
                             width: parent.width
 
-                            // Media Folder
+                            // Music Library Folder
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
-                                
+
                                 SettingLabel {
-                                    text: "Media Source Folder"
+                                    text: "Music Library Folder"
                                 }
-                                
+
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: App.Spacing.rowSpacing
-                                    
+
                                     SettingsTextField {
                                         id: mediaFolderField
                                         Layout.fillWidth: true
                                         text: settingsManager ? settingsManager.mediaFolder : ""
-                                        
+
                                         // Update when setting changes externally
                                         Connections {
                                             target: settingsManager
@@ -938,227 +938,52 @@ Item {
                                                 mediaFolderField.text = settingsManager.mediaFolder
                                             }
                                         }
-                                        
+
                                         onEditingFinished: {
                                             if (text.trim() !== "" && settingsManager) {
                                                 settingsManager.save_media_folder(text)
                                             }
                                         }
                                     }
-                                    
-                                    // Save directory button
-                                    Button {
-                                        id: saveDirectoryButton
-                                        Layout.preferredWidth: 80
-                                        implicitHeight: mediaFolderField.height
-                                        
-                                        background: Rectangle {
-                                            color: parent.pressed ? Qt.darker(App.Style.accent, 1.4) : 
-                                                parent.hovered ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                            radius: 6
-                                            border.width: 1
-                                            border.color: Qt.darker(App.Style.accent, 1.3)
-                                        }
-                                        
-                                        contentItem: Item {
-                                            anchors.fill: parent
-                                            
-                                            Image {
-                                                id: saveIcon
-                                                source: "assets/save_button.svg"
-                                                sourceSize.width: 24
-                                                sourceSize.height: 24
-                                                anchors.centerIn: parent
-                                                
-                                                // Optional: Add color overlay to tint the SVG to match button text color
-                                                ColorOverlay {
-                                                    anchors.fill: parent
-                                                    source: parent
-                                                    color: "white"
-                                                }
-                                            }
-                                        }
-                                        
-                                        ToolTip.visible: hovered
-                                        ToolTip.text: "Save current directory to quick access list"
-                                        ToolTip.delay: 300
-                                        
-                                        onClicked: {
-                                            if (settingsManager && mediaFolderField.text.trim() !== "") {
-                                                settingsManager.save_to_directory_history(mediaFolderField.text)
-                                            }
-                                        }
-                                    }
-                                    
-                                    // Delete current folder button - Always visible if text field has content
-                                    Button {
-                                        id: deleteCurrentButton
-                                        Layout.preferredWidth: 80
-                                        implicitHeight: mediaFolderField.height
-                                        visible: mediaFolderField.text.trim() !== ""
-                                        
-                                        background: Rectangle {
-                                            color: parent.pressed ? Qt.darker("#ff6666", 1.2) : 
-                                                parent.hovered ? Qt.darker("#ff6666", 1.1) : "#ff6666"
-                                            radius: 6
-                                            border.width: 1
-                                            border.color: Qt.darker("#ff6666", 1.3)
-                                        }
-                                        
-                                        contentItem: Item {
-                                            anchors.fill: parent
-                                            
-                                            Image {
-                                                id: deleteIcon
-                                                source: "assets/delete_button.svg"
-                                                sourceSize.width: 24
-                                                sourceSize.height: 24
-                                                anchors.centerIn: parent
-                                                
-                                                // Optional: Add color overlay to tint the SVG to match button text color
-                                                ColorOverlay {
-                                                    anchors.fill: parent
-                                                    source: parent
-                                                    color: "white"
-                                                }
-                                            }
-                                        }
-                                        
-                                        ToolTip.visible: hovered
-                                        ToolTip.text: "Remove current directory from saved list"
-                                        ToolTip.delay: 300
-                                        
-                                        onClicked: {
-                                            if (settingsManager && mediaFolderField.text.trim() !== "") {
-                                                settingsManager.remove_from_directory_history(mediaFolderField.text)
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                // Saved Directories Section - Simplified Chips
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: App.Spacing.rowSpacing
-                                    Layout.topMargin: App.Spacing.rowSpacing
-                                    
-                                    SettingLabel {
-                                        text: "Saved Media Directories"
-                                        font.pixelSize: App.Spacing.overallText * 0.9
-                                    }
-                                    
-                                    // Flow layout for directory chips
-                                    Flow {
-                                        id: directoriesFlow
-                                        Layout.fillWidth: true
-                                        spacing: App.Spacing.overallSpacing
-                                        Layout.preferredHeight: childrenRect.height
-                                        Layout.maximumHeight: 180
-                                        
-                                        // Empty state message when no directories
+
+                                    // Scan library button
+                                    Rectangle {
+                                        id: scanLibraryButton
+                                        Layout.preferredWidth: 70
+                                        Layout.preferredHeight: mediaFolderField.height
+                                        color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
+                                               scanMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                                        radius: 6
+                                        border.width: 1
+                                        border.color: Qt.darker(App.Style.accent, 1.3)
+
                                         Text {
-                                            visible: !settingsManager || !settingsManager.directoryHistory || settingsManager.directoryHistory.length === 0
-                                            text: "No saved directories yet"
-                                            color: App.Style.secondaryTextColor
-                                            font.pixelSize: App.Spacing.overallText * 0.9
-                                            font.italic: true
-                                            width: parent.width
-                                            height: 40
-                                            verticalAlignment: Text.AlignVCenter
+                                            anchors.centerIn: parent
+                                            text: "Scan"
+                                            color: "white"
+                                            font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
                                         }
-                                        
-                                        // Directory chips
-                                        Repeater {
-                                            model: settingsManager ? settingsManager.directoryHistory : []
-                                            
-                                            delegate: Rectangle {
-                                                id: directoryChip
-                                                property bool isActive: settingsManager && settingsManager.mediaFolder === modelData
-                                                property bool isHovered: false
-                                                
-                                                // Calculate width based on text width
-                                                width: directoryText.contentWidth + App.Spacing.overallSpacing * 3
-                                                height: App.Spacing.formElementHeight * 0.8
-                                                radius: height / 2
-                                                
-                                                // Use accent color for active directory
-                                                color: isActive ? App.Style.accent : isHovered ? Qt.darker(App.Style.hoverColor, 1.1) : App.Style.hoverColor
-                                                
-                                                // Add subtle border
-                                                border.width: 1
-                                                border.color: isActive ? Qt.darker(App.Style.accent, 1.2) :
-                                                            Qt.rgba(App.Style.primaryTextColor.r, 
-                                                                    App.Style.primaryTextColor.g, 
-                                                                    App.Style.primaryTextColor.b, 0.1)
-                                                                    
-                                                // Animation for scale changes
-                                                scale: isHovered ? 1.05 : 1.0
-                                                
-                                                Behavior on scale {
-                                                    NumberAnimation { 
-                                                        duration: 100
-                                                        easing.type: Easing.OutCubic
-                                                    }
-                                                }
-                                                
-                                                // Transition for color changes
-                                                Behavior on color {
-                                                    ColorAnimation { duration: 150 }
-                                                }
-                                                
-                                                // Directory name with elide
-                                                Text {
-                                                    id: directoryText
-                                                    anchors.centerIn: parent
-                                                    text: {
-                                                        // Extract just the folder name for display
-                                                        const parts = modelData.split(/[/\\]/)
-                                                        const folderName = parts[parts.length - 1]
-                                                        return folderName || modelData
-                                                    }
-                                                    color: directoryChip.isActive ? "white" : App.Style.primaryTextColor
-                                                    font.pixelSize: App.Spacing.overallText * 0.8
-                                                    font.bold: directoryChip.isActive
-                                                    elide: Text.ElideRight
-                                                    
-                                                    // Show the full path on hover
-                                                    ToolTip.visible: directoryChip.isHovered
-                                                    ToolTip.text: modelData
-                                                    ToolTip.delay: 500
-                                                    
-                                                    // Transition for text color
-                                                    Behavior on color {
-                                                        ColorAnimation { duration: 150 }
-                                                    }
-                                                }
-                                                
-                                                // Click to use this directory
-                                                MouseArea {
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    onEntered: directoryChip.isHovered = true
-                                                    onExited: directoryChip.isHovered = false
-                                                    onClicked: {
-                                                        if (settingsManager) {
-                                                            settingsManager.save_media_folder(modelData)
-                                                        }
-                                                    }
-                                                }
-                                                
-                                                // Update active state when media folder changes
-                                                Connections {
-                                                    target: settingsManager
-                                                    function onMediaFolderChanged() {
-                                                        directoryChip.isActive = settingsManager && settingsManager.mediaFolder === modelData
-                                                    }
+
+                                        MouseArea {
+                                            id: scanMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                if (mediaManager) {
+                                                    mediaManager.scan_library()
                                                 }
                                             }
                                         }
+
+                                        ToolTip.visible: scanMouseArea.containsMouse
+                                        ToolTip.text: "Rescan library for playlists"
+                                        ToolTip.delay: 300
                                     }
                                 }
-                                
+
                                 SettingDescription {
-                                    text: "Type or paste the full path to the folder containing your music files. Save frequently used directories for quick access."
+                                    text: "Each subfolder becomes a playlist. MP3s in the root go to 'Unsorted'."
                                 }
                             }
                             

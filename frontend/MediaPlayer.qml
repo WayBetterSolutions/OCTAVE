@@ -15,14 +15,9 @@ Item {
     property real listViewPosition: 0
     property bool isPaused: false
     
-    // Add property for current library name
-    property string currentLibraryName: {
-        if (settingsManager && settingsManager.mediaFolder) {
-            const parts = settingsManager.mediaFolder.split(/[/\\]/)
-            return parts[parts.length - 1] || "Music Library"
-        }
-        return "Music Library"
-    }
+    // Playlist properties
+    property var playlistNames: []
+    property string currentPlaylistName: ""
 
     // Sorting properties
     property bool sortByTitleAscending: true
@@ -46,6 +41,10 @@ Item {
     // Initialize component
     Component.onCompleted: {
         if (mediaManager) {
+            // Load playlist names
+            playlistNames = mediaManager.get_playlist_names()
+            currentPlaylistName = mediaManager.get_current_playlist_name()
+
             mediaManager.get_media_files()
             var currentFile = mediaManager.get_current_file()
             if (currentFile) {
@@ -91,14 +90,136 @@ Item {
                 anchors.leftMargin: App.Spacing.overallMargin * 4
                 anchors.rightMargin: App.Spacing.overallMargin * 4
                 spacing: App.Spacing.overallMargin * 4
-                
-                // Library title
-                Text {
+
+                // Custom playlist dropdown (avoids native style issues)
+                Item {
+                    id: playlistDropdownContainer
+                    Layout.preferredWidth: Math.min(300, parent.width * 0.4)
+                    Layout.preferredHeight: App.Spacing.formElementHeight
+
+                    Rectangle {
+                        id: playlistDropdown
+                        anchors.fill: parent
+                        color: dropdownMouseArea.containsMouse ? Qt.lighter(App.Style.hoverColor, 1.1) : App.Style.hoverColor
+                        radius: 6
+                        border.width: 1
+                        border.color: Qt.rgba(App.Style.primaryTextColor.r,
+                                              App.Style.primaryTextColor.g,
+                                              App.Style.primaryTextColor.b, 0.2)
+
+                        // Display text
+                        Text {
+                            id: dropdownText
+                            anchors.left: parent.left
+                            anchors.right: dropdownArrow.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: App.Spacing.overallMargin * 2
+                            text: currentPlaylistName || "Select Playlist"
+                            color: App.Style.primaryTextColor
+                            font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.3
+                            font.bold: true
+                            elide: Text.ElideRight
+                        }
+
+                        // Dropdown arrow
+                        Text {
+                            id: dropdownArrow
+                            anchors.right: parent.right
+                            anchors.rightMargin: App.Spacing.overallMargin * 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: playlistPopup.visible ? "\u25B2" : "\u25BC"
+                            color: App.Style.secondaryTextColor
+                            font.pixelSize: App.Spacing.overallText * 0.8
+                        }
+
+                        MouseArea {
+                            id: dropdownMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                if (playlistPopup.visible) {
+                                    playlistPopup.close()
+                                } else {
+                                    playlistPopup.open()
+                                }
+                            }
+                        }
+                    }
+
+                    // Popup menu - outside the Rectangle for proper layering
+                    Popup {
+                        id: playlistPopup
+                        parent: playlistDropdownContainer
+                        y: playlistDropdown.height + 2
+                        width: playlistDropdown.width
+                        height: Math.min(playlistColumn.implicitHeight + 16, 300)
+                        padding: 8
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                        background: Rectangle {
+                            color: App.Style.backgroundColor
+                            border.color: Qt.rgba(App.Style.primaryTextColor.r,
+                                                  App.Style.primaryTextColor.g,
+                                                  App.Style.primaryTextColor.b, 0.3)
+                            border.width: 1
+                            radius: 6
+                        }
+
+                        contentItem: Flickable {
+                            clip: true
+                            contentHeight: playlistColumn.implicitHeight
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            Column {
+                                id: playlistColumn
+                                width: parent.width
+                                spacing: 2
+
+                                Repeater {
+                                    model: playlistNames
+
+                                    Rectangle {
+                                        width: playlistColumn.width
+                                        height: App.Spacing.formElementHeight
+                                        color: itemMouseArea.containsMouse ? App.Style.accent : "transparent"
+                                        radius: 4
+
+                                        Text {
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: App.Spacing.overallMargin
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: modelData
+                                            color: itemMouseArea.containsMouse ? "white" : App.Style.primaryTextColor
+                                            font.pixelSize: App.Spacing.overallText
+                                            font.bold: modelData === currentPlaylistName
+                                        }
+
+                                        MouseArea {
+                                            id: itemMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                if (mediaManager && modelData) {
+                                                    mediaManager.select_playlist(modelData)
+                                                }
+                                                playlistPopup.close()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                active: true
+                                policy: ScrollBar.AsNeeded
+                            }
+                        }
+                    }
+                }
+
+                // Spacer
+                Item {
                     Layout.fillWidth: true
-                    text: currentLibraryName
-                    color: App.Style.primaryTextColor
-                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.4
-                    font.bold: true
                 }
             }
         }
@@ -683,27 +804,25 @@ Item {
     // Connect to mediaManager signals
     Connections {
         target: mediaManager
-        
+
         // Media list updated
         function onMediaListChanged(files) {
-            if (mediaFiles.length !== files.length) {
-                console.log("Media list updated: " + files.length + " files");
-                mediaFiles = files;
-                
-                if (currentSortColumn !== "none") {
-                    sortMediaFiles();
-                } else {
-                    updateTimer.restart();
-                }
+            console.log("Media list updated: " + files.length + " files");
+            mediaFiles = files;
+
+            if (currentSortColumn !== "none") {
+                sortMediaFiles();
+            } else {
+                updateTimer.restart();
             }
         }
-        
+
         // Current media changed
         function onCurrentMediaChanged(filename) {
             lastPlayedSong = filename
             updateTimer.restart()
         }
-        
+
         // Play state changed
         function onPlayStateChanged(isPlaying) {
             isPaused = !isPlaying
@@ -715,32 +834,29 @@ Item {
             }
             updateTimer.restart()
         }
-        
+
         // Statistics updates
         function onTotalDurationChanged(duration) {
             totalDurationText.text = duration
         }
-        
+
         function onAlbumCountChanged(count) {
             albumCountText.text = count
         }
-        
+
         function onArtistCountChanged(count) {
             artistCountText.text = count
         }
-    }
-    
-    // Update library name when media folder changes
-    Connections {
-        target: settingsManager
-        function onMediaFolderChanged() {
-            // Extract folder name from full path
-            if (settingsManager && settingsManager.mediaFolder) {
-                const parts = settingsManager.mediaFolder.split(/[/\\]/)
-                currentLibraryName = parts[parts.length - 1] || "Music Library"
-            } else {
-                currentLibraryName = "Music Library"
-            }
+
+        // Playlist updates
+        function onPlaylistsChanged() {
+            console.log("Playlists changed")
+            playlistNames = mediaManager.get_playlist_names()
+        }
+
+        function onCurrentPlaylistChanged(name) {
+            console.log("Current playlist changed to: " + name)
+            currentPlaylistName = name
         }
     }
 }

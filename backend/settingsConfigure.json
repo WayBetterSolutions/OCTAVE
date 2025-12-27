@@ -7,7 +7,7 @@
     "clockSize": 35,
     "backgroundGrid": "Normal",
     "screenWidth": 1276,
-    "screenHeight": 756,
+    "screenHeight": 792,
     "backgroundBlurRadius": 50,
     "uiScale": 0.7000000000000001,
     "obdParameters": {
@@ -34,7 +34,7 @@
     },
     "obdBluetoothPort": "/dev/rfcomm0",
     "obdFastMode": true,
-    "mediaFolder": "C:\\Users\\Robde\\Music\\Bangers & Mash",
+    "mediaFolder": "C:\\Users\\robde\\OneDrive\\_Projects\\Music",
     "showBackgroundOverlay": true,
     "fuelTankCapacity": 19.0,
     "directoryHistory": [],

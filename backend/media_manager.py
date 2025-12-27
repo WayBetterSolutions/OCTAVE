@@ -22,6 +22,8 @@ class MediaManager(QObject):
     totalDurationChanged = Signal(str)  # Formatted duration string
     albumCountChanged = Signal(int)     # Number of unique albums
     artistCountChanged = Signal(int)    # Number of unique artists
+    playlistsChanged = Signal()         # When playlist list updates
+    currentPlaylistChanged = Signal(str)  # When active playlist changes
     
     
     def __init__(self):
@@ -71,6 +73,12 @@ class MediaManager(QObject):
             "artist_count": 0,
             "is_valid": False
         }
+
+        # Playlist management
+        self._library_root = ""                   # Main source folder
+        self._playlists = {}                      # Dict: name -> {path, files, song_count}
+        self._playlist_names = []                 # List of playlist names
+        self._current_playlist_name = ""          # Active playlist
         
         # Connect signals
         self._player.durationChanged.connect(self.durationChanged.emit)
@@ -633,14 +641,148 @@ class MediaManager(QObject):
         """Return current shuffle state"""
         return self._shuffle
 
+    # ==================== Playlist Management ====================
+
+    @Slot()
+    def scan_library(self):
+        """Scan the library root for subfolders (playlists) and their MP3s"""
+        if not self._library_root or not os.path.exists(self._library_root):
+            print(f"Library root not set or doesn't exist: {self._library_root}")
+            return
+
+        print(f"Scanning library at: {self._library_root}")
+
+        # Clear existing caches
+        self._playlists = {}
+        self._playlist_names = []
+        self._metadata_cache = {}
+        self._album_art_cache = {}
+        self._access_count = {}
+        self.invalidate_stats_cache()
+
+        # First, check for root-level MP3s (goes to "Unsorted" playlist)
+        root_mp3s = []
+        try:
+            for item in os.listdir(self._library_root):
+                item_path = os.path.join(self._library_root, item)
+                if os.path.isfile(item_path) and item.lower().endswith('.mp3'):
+                    root_mp3s.append(item)
+        except Exception as e:
+            print(f"Error scanning root for MP3s: {e}")
+
+        if root_mp3s:
+            self._playlists["Unsorted"] = {
+                "name": "Unsorted",
+                "path": self._library_root,
+                "files": root_mp3s,
+                "song_count": len(root_mp3s)
+            }
+            self._playlist_names.append("Unsorted")
+            print(f"Found {len(root_mp3s)} unsorted MP3s in root")
+
+        # Now scan each immediate subfolder as a playlist
+        try:
+            for item in os.listdir(self._library_root):
+                subfolder_path = os.path.join(self._library_root, item)
+                if os.path.isdir(subfolder_path):
+                    mp3_files = []
+                    try:
+                        for f in os.listdir(subfolder_path):
+                            if f.lower().endswith('.mp3'):
+                                mp3_files.append(f)
+                    except Exception as e:
+                        print(f"Error scanning subfolder {item}: {e}")
+                        continue
+
+                    if mp3_files:  # Only create playlist if it has MP3s
+                        self._playlists[item] = {
+                            "name": item,
+                            "path": subfolder_path,
+                            "files": mp3_files,
+                            "song_count": len(mp3_files)
+                        }
+                        self._playlist_names.append(item)
+                        print(f"Found playlist '{item}' with {len(mp3_files)} songs")
+        except Exception as e:
+            print(f"Error scanning library subfolders: {e}")
+
+        # Sort playlist names alphabetically (but keep Unsorted first if present)
+        if "Unsorted" in self._playlist_names:
+            self._playlist_names.remove("Unsorted")
+            self._playlist_names.sort(key=str.lower)
+            self._playlist_names.insert(0, "Unsorted")
+        else:
+            self._playlist_names.sort(key=str.lower)
+
+        print(f"Library scan complete. Found {len(self._playlist_names)} playlists")
+
+        # Emit signal
+        self.playlistsChanged.emit()
+
+    @Slot(str)
+    def set_library_root(self, path):
+        """Set the main library folder and scan for playlists"""
+        if path and os.path.exists(path) and os.path.isdir(path):
+            self._library_root = path
+            print(f"Library root set to: {path}")
+            self.scan_library()
+
+            # Auto-select first playlist if available
+            if self._playlist_names:
+                self.select_playlist(self._playlist_names[0])
+        else:
+            print(f"Invalid library path: {path}")
+
+    @Slot(result=list)
+    def get_playlist_names(self):
+        """Return list of all playlist names"""
+        return self._playlist_names
+
+    @Slot(str)
+    def select_playlist(self, name):
+        """Select a playlist and load its songs"""
+        if name not in self._playlists:
+            print(f"Playlist not found: {name}")
+            return
+
+        print(f"Selecting playlist: {name}")
+
+        self._current_playlist_name = name
+        playlist = self._playlists[name]
+
+        # Update media_dir to playlist path for existing methods
+        self.media_dir = playlist["path"]
+
+        # Reset current playlist to sorted files
+        self._current_playlist = sorted(
+            playlist["files"],
+            key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower())
+        )
+        self._current_index = 0
+
+        # Clear stats cache for new playlist
+        self.invalidate_stats_cache()
+
+        # Clear metadata cache if switching playlists (different folder)
+        self._metadata_cache = {}
+
+        # Emit signals
+        self.currentPlaylistChanged.emit(name)
+        self.mediaListChanged.emit(self._current_playlist)
+
+    @Slot(result=str)
+    def get_current_playlist_name(self):
+        """Return current playlist name"""
+        return self._current_playlist_name
+
     @Slot(QObject)
     def connect_settings_manager(self, settings_manager):
         self._settings_manager = settings_manager
-        # Update media directory from settings
+        # Set library root from settings and scan for playlists
         if self._settings_manager:
-            self.update_media_directory(self._settings_manager.mediaFolder)
+            self.set_library_root(self._settings_manager.mediaFolder)
             # Connect to future changes
-            self._settings_manager.mediaFolderChanged.connect(self.update_media_directory)
+            self._settings_manager.mediaFolderChanged.connect(self.set_library_root)
             
     def update_media_directory(self, directory):
         if os.path.exists(directory) and os.path.isdir(directory):
