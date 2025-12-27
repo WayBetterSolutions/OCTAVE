@@ -32,129 +32,55 @@ Visit us at [WayBetterEngineering](https://www.waybetterengineering.com/) to fol
 
 ## Installation
 
-### Prerequisites
-- Python 3.8 or newer
-- All required packages listed in the [requirements.txt](requirements.txt) file
+**Requirements:** Python 3.8+ and Git
+
+### Windows
+
+Open Command Prompt or PowerShell and run:
+```cmd
+git clone https://github.com/waybetterengineering/octave.git
+cd octave
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+**Optional:** Install [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) for equalizer support.
 
 ---
 
-### Windows Installation
+### Linux
 
-1. Open Command Prompt as administrator or PowerShell with elevated privileges:
-   ```powershell
-   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-   ```
+Open a terminal and run:
+```bash
+git clone https://github.com/waybetterengineering/octave.git
+cd octave
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
 
-2. Navigate to your desired installation location:
-   ```cmd
-   cd C:\Users\YourUserName\Documents
-   ```
-
-3. Clone the repository and enter the directory:
-   ```cmd
-   git clone https://github.com/waybetterengineering/octave.git
-   cd octave
-   ```
-
-4. Create and activate a virtual environment:
-   ```cmd
-   python -m venv venv
-   venv\Scripts\activate
-   ```
-
-5. Install dependencies:
-   ```cmd
-   pip install -r requirements.txt
-   pip install --upgrade numpy pint
-   ```
-
-6. For equalizer support, install Equalizer APO for system-wide equalizer support.
-
-7. Launch the application:
-   ```cmd
-   python main.py
-   ```
+**Optional:**
+- For OBD-II Bluetooth support: `sudo usermod -a -G dialout $USER` (log out and back in after)
+- For equalizer support: `flatpak install flathub com.github.wwmm.easyeffects`
 
 ---
 
-### Linux Installation
+### macOS
 
-1. Open a terminal window.
+Open Terminal and run:
+```bash
+git clone https://github.com/waybetterengineering/octave.git
+cd octave
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
 
-2. Navigate to your desired installation location:
-   ```bash
-   cd ~/Documents
-   ```
-
-3. Clone the repository and enter the directory:
-   ```bash
-   git clone https://github.com/waybetterengineering/octave.git
-   cd octave
-   ```
-
-4. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   ```
-
-5. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   pip install --upgrade numpy pint
-   ```
-
-6. For OBD support, ensure you have permissions to access the Bluetooth device:
-   ```bash
-   sudo usermod -a -G dialout $USER
-   ```
-   (You may need to log out and back in for this to take effect.)
-
-7. For equalizer functionality, install EasyEffects:
-   ```bash
-   flatpak install flathub com.github.wwmm.easyeffects
-   ```
-
-8. Launch the application:
-   ```bash
-   python main.py
-   ```
-
----
-
-### macOS Installation
-
-1. Open Terminal.
-
-2. Navigate to your desired installation location:
-   ```bash
-   cd ~/Documents
-   ```
-
-3. Clone the repository and enter the directory:
-   ```bash
-   git clone https://github.com/waybetterengineering/octave.git
-   cd octave
-   ```
-
-4. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate
-   ```
-
-5. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   pip install --upgrade numpy pint
-   ```
-
-6. For equalizer support, consider installing eqMac.
-
-7. Launch the application:
-   ```bash
-   python main.py
-   ```
+**Optional:** Install [eqMac](https://eqmac.app/) for equalizer support.
 
 ---
 
