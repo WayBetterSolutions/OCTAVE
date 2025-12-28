@@ -480,17 +480,25 @@ Rectangle {
                             }
                             
                             property int currentValue: 0
-                            
+
                             Component.onCompleted: {
                                 if (settingsManager) {
-                                    var volumeValue = settingsManager.startUpVolume
-                                    currentValue = Math.round(Math.sqrt(volumeValue) * 100)
-                                    mediaManager.setVolume(volumeValue)
+                                    // Use the unified currentVolume from settings
+                                    currentValue = settingsManager.currentVolume
+                                    var logVolume = Math.pow(currentValue / 100, 2.0)
+
+                                    // Apply startup volume to local media
+                                    mediaManager.setVolume(logVolume)
+
+                                    // Apply startup volume to Spotify if connected
+                                    if (spotifyManager && spotifyManager.is_connected()) {
+                                        spotifyManager.set_volume(currentValue)
+                                    }
                                 } else {
                                     currentValue = 10
                                     mediaManager.setVolume(0.1)
                                 }
-                                
+
                                 updateMuteButtonImage()
 
                                 if (mediaManager) {
@@ -595,8 +603,20 @@ Rectangle {
                                                 volumeControl.currentValue = value
                                                 var normalizedValue = value / 100
                                                 var logVolume = Math.pow(normalizedValue, 2.0)
+
+                                                // Update unified volume in settings
+                                                if (settingsManager) {
+                                                    settingsManager.setCurrentVolume(Math.round(value))
+                                                }
+
+                                                // Apply to local media
                                                 mediaManager.setVolume(logVolume)
-                                                
+
+                                                // Apply to Spotify if connected
+                                                if (spotifyManager && spotifyManager.is_connected()) {
+                                                    spotifyManager.set_volume(Math.round(value))
+                                                }
+
                                                 if (value > 0 && muteButton.isMuted) {
                                                     muteButton.isMuted = false
                                                     mediaManager.toggle_mute()
@@ -1045,9 +1065,15 @@ Rectangle {
                     }
                 }
 
-                // Spotify shuffle state connection
+                // Spotify connection and shuffle state
                 Connections {
                     target: spotifyManager
+                    function onConnectionStateChanged(connected) {
+                        // When Spotify connects, apply Octave's current volume to it
+                        if (connected && settingsManager) {
+                            spotifyManager.set_volume(settingsManager.currentVolume)
+                        }
+                    }
                     function onShuffleStateChanged(enabled) {
                         if (useSpotify) {
                             bottomBar.isShuffleEnabled = enabled
@@ -1469,14 +1495,22 @@ Rectangle {
                             
                             Component.onCompleted: {
                                 if (settingsManager) {
-                                    var volumeValue = settingsManager.startUpVolume
-                                    currentValue = Math.round(Math.sqrt(volumeValue) * 100)
-                                    mediaManager.setVolume(volumeValue)
+                                    // Use the unified currentVolume from settings
+                                    currentValue = settingsManager.currentVolume
+                                    var logVolume = Math.pow(currentValue / 100, 2.0)
+
+                                    // Apply startup volume to local media
+                                    mediaManager.setVolume(logVolume)
+
+                                    // Apply startup volume to Spotify if connected
+                                    if (spotifyManager && spotifyManager.is_connected()) {
+                                        spotifyManager.set_volume(currentValue)
+                                    }
                                 } else {
                                     currentValue = 10
                                     mediaManager.setVolume(0.1)
                                 }
-                                
+
                                 updateMuteButtonImageVertical()
 
                                 if (mediaManager) {
@@ -1581,8 +1615,20 @@ Rectangle {
                                                 volumeControlVertical.currentValue = value
                                                 var normalizedValue = value / 100
                                                 var logVolume = Math.pow(normalizedValue, 2.0)
+
+                                                // Update unified volume in settings
+                                                if (settingsManager) {
+                                                    settingsManager.setCurrentVolume(Math.round(value))
+                                                }
+
+                                                // Apply to local media
                                                 mediaManager.setVolume(logVolume)
-                                                
+
+                                                // Apply to Spotify if connected
+                                                if (spotifyManager && spotifyManager.is_connected()) {
+                                                    spotifyManager.set_volume(Math.round(value))
+                                                }
+
                                                 if (value > 0 && muteButtonVertical.isMuted) {
                                                     muteButtonVertical.isMuted = false
                                                     mediaManager.toggle_mute()
@@ -1590,7 +1636,7 @@ Rectangle {
                                                 updateMuteButtonImageVertical()
                                             }
                                         }
-                                        
+
                                         // Circular touch area
                                         Item {
                                             id: touchAreaContainerVertical
@@ -2034,9 +2080,15 @@ Rectangle {
                     }
                 }
 
-                // Spotify shuffle state connection for vertical layout
+                // Spotify connection and shuffle state for vertical layout
                 Connections {
                     target: spotifyManager
+                    function onConnectionStateChanged(connected) {
+                        // When Spotify connects, apply Octave's current volume to it
+                        if (connected && settingsManager) {
+                            spotifyManager.set_volume(settingsManager.currentVolume)
+                        }
+                    }
                     function onShuffleStateChanged(enabled) {
                         if (useSpotify) {
                             bottomBar.isShuffleEnabled = enabled

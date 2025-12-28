@@ -299,13 +299,16 @@ Item {
                     // Volume change logic
                     onValueChanged: {
                         volumeControl.currentValue = value
+                        var normalizedValue = value / 100
+                        var logVolume = Math.pow(normalizedValue, 2.0)
 
-                        if (useSpotify && spotifyManager) {
-                            // Set Spotify volume directly (0-100)
-                            spotifyManager.set_volume(Math.round(value))
-                        } else if (mediaManager) {
-                            var normalizedValue = value / 100
-                            var logVolume = Math.pow(normalizedValue, 2.0)
+                        // Update unified volume in settings
+                        if (settingsManager) {
+                            settingsManager.setCurrentVolume(Math.round(value))
+                        }
+
+                        // Apply to local media
+                        if (mediaManager) {
                             mediaManager.setVolume(logVolume)
 
                             // Unmute if volume was raised from zero
@@ -313,6 +316,11 @@ Item {
                                 volumeControl.isMuted = false
                                 mediaManager.toggle_mute()
                             }
+                        }
+
+                        // Apply to Spotify if connected
+                        if (spotifyManager && spotifyManager.is_connected()) {
+                            spotifyManager.set_volume(Math.round(value))
                         }
 
                         // Update icon
@@ -335,14 +343,17 @@ Item {
                 id: volumeControl
                 property int currentValue: 0
                 property bool isMuted: mediaManager ? mediaManager.is_muted() : false
-                
+
                 Component.onCompleted: {
-                    if (mediaManager) {
+                    // Use the unified volume from Octave settings
+                    if (settingsManager) {
+                        currentValue = settingsManager.currentVolume
+                    } else if (mediaManager) {
                         var volume = mediaManager.getVolume()
                         currentValue = Math.round(Math.sqrt(volume) * 100)
-                        isMuted = mediaManager.is_muted()
-                        topVolumeControl.updateVolumeIcon()
                     }
+                    isMuted = mediaManager ? mediaManager.is_muted() : false
+                    topVolumeControl.updateVolumeIcon()
                 }
             }
             
@@ -1141,29 +1152,17 @@ Item {
             // Update play button to show paused state (since we paused before switching)
             playButtonImage.source = "./assets/play_button.svg"
 
-            // Update duration, position, shuffle, and volume from the new source
+            // Update duration, position, and shuffle from the new source
             if (nowUseSpotify) {
                 mediaRoom.duration = spotifyManager.get_duration()
                 mediaRoom.position = spotifyManager.get_position()
                 progressSlider.value = mediaRoom.position
                 isShuffleEnabled = spotifyManager.is_shuffled()
-
-                // Update volume from Spotify
-                var spotifyVolume = spotifyManager.get_volume()
-                volumeControl.currentValue = spotifyVolume
-                volumeSlider.value = spotifyVolume
-                topVolumeControl.updateVolumeIcon()
             } else if (mediaManager) {
                 mediaRoom.duration = mediaManager.get_duration()
                 mediaRoom.position = mediaManager.get_position()
                 progressSlider.value = mediaRoom.position
                 isShuffleEnabled = mediaManager.is_shuffled()
-
-                // Update volume from local media
-                var localVolume = Math.round(Math.sqrt(mediaManager.getVolume()) * 100)
-                volumeControl.currentValue = localVolume
-                volumeSlider.value = localVolume
-                topVolumeControl.updateVolumeIcon()
 
                 // Also update the local song text if we have a current file
                 var currentFile = mediaManager.get_current_file()
@@ -1171,6 +1170,10 @@ Item {
                     currentSongText.text = currentFile
                 }
             }
+
+            // Volume stays unified from Octave settings - no need to change it when switching sources
+            // The unified volume is already applied to both sources
+            topVolumeControl.updateVolumeIcon()
         }
     }
 }

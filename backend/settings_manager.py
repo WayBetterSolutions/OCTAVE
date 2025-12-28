@@ -31,6 +31,7 @@ class SettingsManager(QObject):
     spotifyCredentialsChanged = Signal()
     mediaSourceChanged = Signal(str)  # "local" or "spotify"
     lastSettingsSectionChanged = Signal(str)
+    currentVolumeChanged = Signal(int)  # Unified volume (0-100) for both local and Spotify
 
     def __init__(self):
         super().__init__()
@@ -129,6 +130,10 @@ class SettingsManager(QObject):
         # Media source preference: "local" or "spotify"
         self._media_source = self._settings.get("mediaSource", "local")
 
+        # Current volume (0-100) - unified volume for both local and Spotify
+        # Initialize from startUpVolume, converted to 0-100 scale
+        self._current_volume = int(round((self._start_volume ** 0.5) * 100))
+
         # Last settings section visited
         self._last_settings_section = self._settings.get("lastSettingsSection", self._default_settings["lastSettingsSection"])
 
@@ -200,7 +205,18 @@ class SettingsManager(QObject):
     @Property(float, notify=startUpVolumeChanged)
     def startUpVolume(self):
         return self._start_volume
-    
+
+    @Property(int, notify=currentVolumeChanged)
+    def currentVolume(self):
+        return self._current_volume
+
+    @Slot(int)
+    def setCurrentVolume(self, volume):
+        """Set the unified volume (0-100) for both local and Spotify"""
+        if self._current_volume != volume:
+            self._current_volume = volume
+            self.currentVolumeChanged.emit(volume)
+
     @Property(bool, notify=showClockChanged)
     def showClock(self):
         return self._show_clock
