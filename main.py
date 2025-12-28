@@ -35,6 +35,7 @@ engine.rootContext().setContextProperty("clock", clock)
 
 # Media Manager
 media_manager = MediaManager()
+media_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("mediaManager", media_manager)
 
 # SVG Manager
@@ -51,7 +52,12 @@ spotify_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("spotifyManager", spotify_manager)
 
 # Add the cleanup connection after creating media_manager:
-app.aboutToQuit.connect(media_manager._clear_temp_files)
+def cleanup_on_quit():
+    """Save state and cleanup before app exits"""
+    media_manager._save_playback_state()
+    media_manager._clear_temp_files()
+
+app.aboutToQuit.connect(cleanup_on_quit)
 
 # Update the path to Main.qml
 qml_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "Main.qml")

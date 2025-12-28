@@ -1034,7 +1034,46 @@ Item {
                             }
 
                             SettingsDivider {}
-                            
+
+                            // Auto-Play on Startup
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Auto-Play on Startup"
+                                }
+
+                                SettingsToggle {
+                                    id: autoPlayToggle
+                                    Layout.fillWidth: true
+                                    text: "Automatically resume playback when app starts"
+                                    checked: settingsManager ? settingsManager.autoPlayOnStartup : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: {
+                                        if (settingsManager) {
+                                            settingsManager.save_auto_play_on_startup(checked)
+                                        }
+                                    }
+
+                                    // Update when setting changes externally
+                                    Connections {
+                                        target: settingsManager
+                                        function onAutoPlayOnStartupChanged() {
+                                            autoPlayToggle.checked = settingsManager.autoPlayOnStartup
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "When enabled, the app will resume playing from where you left off"
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             // Media Room Background Blur Effect
                             ColumnLayout {
                                 Layout.fillWidth: true

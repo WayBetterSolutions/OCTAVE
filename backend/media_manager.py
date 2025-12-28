@@ -102,6 +102,8 @@ class MediaManager(QObject):
     def __del__(self):
         """Clean up resources on destruction"""
         try:
+            # Save playback state before shutdown
+            self._save_playback_state()
             self._clear_temp_files()
             if self._player:
                 self._player.stop()
@@ -503,21 +505,25 @@ class MediaManager(QObject):
         self._is_paused = True
         self._is_playing = False
         self.playStateChanged.emit(False)
+        # Save playback state when paused
+        self._save_playback_state()
         
     @Slot()
     def toggle_play(self):
         # Handle case when no source is set
         if not self._player.source().isValid():
-            current_file = self.get_current_file() 
+            current_file = self.get_current_file()
             if current_file:
                 self.play_file(current_file)
                 return
-        
+
         # Rest of method remains the same
         if self._is_playing:
             self._player.pause()
             self._is_paused = True
             self._is_playing = False
+            # Save playback state when pausing
+            self._save_playback_state()
         else:
             self._player.play()
             self._is_paused = False
@@ -783,7 +789,85 @@ class MediaManager(QObject):
             self.set_library_root(self._settings_manager.mediaFolder)
             # Connect to future changes
             self._settings_manager.mediaFolderChanged.connect(self.set_library_root)
-            
+
+            # Restore last playback state after library is scanned
+            QTimer.singleShot(500, self._restore_playback_state)
+
+    def _restore_playback_state(self):
+        """Restore last played song and position from settings"""
+        if not self._settings_manager:
+            return
+
+        last_song = self._settings_manager.get_last_played_song()
+        last_position = self._settings_manager.get_last_played_position()
+        last_playlist = self._settings_manager.get_last_played_playlist()
+        auto_play = self._settings_manager.get_auto_play_on_startup()
+
+        print(f"Restoring playback state: song={last_song}, position={last_position}, playlist={last_playlist}, auto_play={auto_play}")
+
+        if not last_song:
+            return
+
+        # Select the playlist if it exists
+        if last_playlist and last_playlist in self._playlists:
+            self.select_playlist(last_playlist)
+
+        # Check if the song exists in the current playlist
+        if last_song not in self._current_playlist:
+            print(f"Last played song '{last_song}' not found in current playlist")
+            return
+
+        # Set up the player with the last song
+        file_path = os.path.join(self.media_dir, last_song)
+        if not os.path.exists(file_path):
+            print(f"Last played file not found: {file_path}")
+            return
+
+        # Find the song's index in the playlist
+        self._current_index = self._current_playlist.index(last_song)
+
+        # Load the song
+        url = QUrl.fromLocalFile(file_path)
+        self._player.setSource(url)
+
+        # Emit signals to update UI
+        self.currentMediaChanged.emit(last_song)
+        self._emit_metadata(last_song)
+        self.get_formatted_duration(last_song)
+
+        # Set position after a small delay to ensure media is loaded
+        if last_position > 0:
+            QTimer.singleShot(100, lambda: self._player.setPosition(last_position))
+
+        # Auto-play if enabled
+        if auto_play:
+            QTimer.singleShot(200, self._player.play)
+            QTimer.singleShot(200, lambda: self._set_playing_state(True))
+
+        print(f"Playback state restored: {last_song} at position {last_position}ms")
+
+    def _set_playing_state(self, is_playing):
+        """Helper to set playing state and emit signal"""
+        self._is_playing = is_playing
+        self._is_paused = not is_playing
+        self.playStateChanged.emit(is_playing)
+
+    def _save_playback_state(self):
+        """Save current playback state to settings"""
+        if not self._settings_manager:
+            return
+
+        current_song = self.get_current_file()
+        current_position = self._player.position()
+        current_playlist = self._current_playlist_name
+
+        if current_song:
+            self._settings_manager.save_playback_state(
+                current_song,
+                current_position,
+                current_playlist
+            )
+
     def update_media_directory(self, directory):
         if os.path.exists(directory) and os.path.isdir(directory):
             old_dir = self.media_dir

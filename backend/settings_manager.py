@@ -32,6 +32,10 @@ class SettingsManager(QObject):
     mediaSourceChanged = Signal(str)  # "local" or "spotify"
     lastSettingsSectionChanged = Signal(str)
     currentVolumeChanged = Signal(int)  # Unified volume (0-100) for both local and Spotify
+    autoPlayOnStartupChanged = Signal(bool)
+    lastPlayedSongChanged = Signal(str)
+    lastPlayedPositionChanged = Signal(int)
+    lastPlayedPlaylistChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -86,6 +90,10 @@ class SettingsManager(QObject):
             "mediaSource": "local",
             "mediaFolder": "",
             "customThemes": {},
+            "autoPlayOnStartup": False,
+            "lastPlayedSong": "",
+            "lastPlayedPosition": 0,
+            "lastPlayedPlaylist": "",
         }
             
     
@@ -129,6 +137,12 @@ class SettingsManager(QObject):
 
         # Media source preference: "local" or "spotify"
         self._media_source = self._settings.get("mediaSource", "local")
+
+        # Auto-play and resume settings
+        self._auto_play_on_startup = self._settings.get("autoPlayOnStartup", False)
+        self._last_played_song = self._settings.get("lastPlayedSong", "")
+        self._last_played_position = self._settings.get("lastPlayedPosition", 0)
+        self._last_played_playlist = self._settings.get("lastPlayedPlaylist", "")
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -621,6 +635,86 @@ class SettingsManager(QObject):
         new_source = "spotify" if self._media_source == "local" else "local"
         self.set_media_source(new_source)
 
+    # ==================== Auto Play & Resume Settings ====================
+
+    @Property(bool, notify=autoPlayOnStartupChanged)
+    def autoPlayOnStartup(self):
+        """Get auto-play on startup setting"""
+        return self._auto_play_on_startup
+
+    @Slot(result=bool)
+    def get_auto_play_on_startup(self):
+        """Get auto-play on startup setting"""
+        return self._auto_play_on_startup
+
+    @Slot(bool)
+    def save_auto_play_on_startup(self, enabled):
+        """Save auto-play on startup setting"""
+        print(f"Saving auto-play on startup: {enabled}")
+        self._auto_play_on_startup = enabled
+        self.update_setting("autoPlayOnStartup", enabled, self.autoPlayOnStartupChanged)
+
+    @Property(str, notify=lastPlayedSongChanged)
+    def lastPlayedSong(self):
+        """Get last played song filename"""
+        return self._last_played_song
+
+    @Slot(result=str)
+    def get_last_played_song(self):
+        """Get last played song filename"""
+        return self._last_played_song
+
+    @Slot(str)
+    def save_last_played_song(self, filename):
+        """Save last played song filename"""
+        self._last_played_song = filename
+        self.update_setting("lastPlayedSong", filename, self.lastPlayedSongChanged)
+
+    @Property(int, notify=lastPlayedPositionChanged)
+    def lastPlayedPosition(self):
+        """Get last played position in milliseconds"""
+        return self._last_played_position
+
+    @Slot(result=int)
+    def get_last_played_position(self):
+        """Get last played position in milliseconds"""
+        return self._last_played_position
+
+    @Slot(int)
+    def save_last_played_position(self, position_ms):
+        """Save last played position in milliseconds"""
+        self._last_played_position = position_ms
+        self.update_setting("lastPlayedPosition", position_ms, self.lastPlayedPositionChanged)
+
+    @Property(str, notify=lastPlayedPlaylistChanged)
+    def lastPlayedPlaylist(self):
+        """Get last played playlist name"""
+        return self._last_played_playlist
+
+    @Slot(result=str)
+    def get_last_played_playlist(self):
+        """Get last played playlist name"""
+        return self._last_played_playlist
+
+    @Slot(str)
+    def save_last_played_playlist(self, playlist_name):
+        """Save last played playlist name"""
+        self._last_played_playlist = playlist_name
+        self.update_setting("lastPlayedPlaylist", playlist_name, self.lastPlayedPlaylistChanged)
+
+    @Slot(str, int, str)
+    def save_playback_state(self, song, position_ms, playlist):
+        """Save all playback state at once (used when pausing/stopping)"""
+        self._last_played_song = song
+        self._last_played_position = position_ms
+        self._last_played_playlist = playlist
+
+        settings = self.load_settings()
+        settings["lastPlayedSong"] = song
+        settings["lastPlayedPosition"] = position_ms
+        settings["lastPlayedPlaylist"] = playlist
+        self.save_settings(settings)
+
     # ==================== Last Settings Section ====================
 
     @Property(str, notify=lastSettingsSectionChanged)
@@ -712,3 +806,15 @@ class SettingsManager(QObject):
 
         self._show_bottom_bar_media_controls = self._default_settings["showBottomBarMediaControls"]
         self.showBottomBarMediaControlsChanged.emit(self._show_bottom_bar_media_controls)
+
+        self._auto_play_on_startup = self._default_settings["autoPlayOnStartup"]
+        self.autoPlayOnStartupChanged.emit(self._auto_play_on_startup)
+
+        self._last_played_song = self._default_settings["lastPlayedSong"]
+        self.lastPlayedSongChanged.emit(self._last_played_song)
+
+        self._last_played_position = self._default_settings["lastPlayedPosition"]
+        self.lastPlayedPositionChanged.emit(self._last_played_position)
+
+        self._last_played_playlist = self._default_settings["lastPlayedPlaylist"]
+        self.lastPlayedPlaylistChanged.emit(self._last_played_playlist)
