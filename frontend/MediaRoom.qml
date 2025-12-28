@@ -160,7 +160,11 @@ Item {
 
 
         Component.onCompleted: {
-            if (mediaManager) {
+            if (useSpotify && spotifyManager) {
+                mediaRoom.duration = spotifyManager.get_duration()
+                mediaRoom.position = spotifyManager.get_position()
+                isShuffleEnabled = spotifyManager.is_shuffled()
+            } else if (mediaManager) {
                 mediaRoom.duration = mediaManager.get_duration()
                 mediaRoom.position = mediaManager.get_position()
                 var currentFile = mediaManager.get_current_file()
@@ -1040,7 +1044,9 @@ Item {
             currentSongText.text = filename
         }
         function onShuffleStateChanged(enabled) {
-            isShuffleEnabled = enabled
+            if (!useSpotify) {
+                isShuffleEnabled = enabled
+            }
         }
     }
 
@@ -1094,9 +1100,7 @@ Item {
             mediaRoom.duration = spotifyManager.get_duration()
         }
 
-        function onShuffleStateChanged(enabled) {
-            isShuffleEnabled = enabled
-        }
+        // Note: onShuffleStateChanged is handled in the always-active Connections block below
 
         function onVolumeChanged(volume) {
             if (!volumeSlider.pressed) {
@@ -1118,6 +1122,12 @@ Item {
             // If Spotify disconnects while in Spotify mode, switch to local
             if (!connected && settingsManager && settingsManager.mediaSource === "spotify") {
                 settingsManager.set_media_source("local")
+            }
+        }
+
+        function onShuffleStateChanged(enabled) {
+            if (useSpotify) {
+                isShuffleEnabled = enabled
             }
         }
     }

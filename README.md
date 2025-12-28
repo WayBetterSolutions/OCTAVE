@@ -150,5 +150,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 
 ## License
-Copyright © 2025 Way Better Solutions
+Copyright © 2025 Way Better Solutions 
 This software is released under the MIT License.

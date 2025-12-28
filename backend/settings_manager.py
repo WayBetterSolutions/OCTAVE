@@ -27,6 +27,7 @@ class SettingsManager(QObject):
     homeOBDParametersChanged = Signal()
     customThemesChanged = Signal()
     bottomBarOrientationChanged = Signal(str)
+    showBottomBarMediaControlsChanged = Signal(bool)
     spotifyCredentialsChanged = Signal()
     mediaSourceChanged = Signal(str)  # "local" or "spotify"
     lastSettingsSectionChanged = Signal(str)
@@ -53,6 +54,7 @@ class SettingsManager(QObject):
             "obdAutoReconnectAttempts": 0,  # 0 = disabled, 1-10 = number of attempts
             "showBackgroundOverlay": True,
             "bottomBarOrientation": "bottom",
+            "showBottomBarMediaControls": True,
             "fuelTankCapacity": 15.0,  # Add fuel tank capacity setting in gallons
             "obdParameters": {
                 "COOLANT_TEMP": True,
@@ -118,6 +120,7 @@ class SettingsManager(QObject):
         self._fuel_tank_capacity = self._settings.get("fuelTankCapacity", self._default_settings["fuelTankCapacity"])
         self._home_obd_parameters = self._settings.get("homeOBDParameters", self._default_settings["homeOBDParameters"])
         self._bottom_bar_orientation = self._settings.get("bottomBarOrientation", self._default_settings["bottomBarOrientation"])
+        self._show_bottom_bar_media_controls = self._settings.get("showBottomBarMediaControls", self._default_settings["showBottomBarMediaControls"])
 
         # Spotify credentials (stored separately for security)
         self._spotify_client_id = self._settings.get("spotifyClientId", "")
@@ -177,7 +180,11 @@ class SettingsManager(QObject):
     @Property(str, notify=bottomBarOrientationChanged)
     def bottomBarOrientation(self):
         return self._bottom_bar_orientation
-       
+
+    @Property(bool, notify=showBottomBarMediaControlsChanged)
+    def showBottomBarMediaControls(self):
+        return self._show_bottom_bar_media_controls
+
     @Property(int, notify=backgroundBlurRadiusChanged)
     def backgroundBlurRadius(self):
         return self._background_blur_radius
@@ -470,7 +477,13 @@ class SettingsManager(QObject):
         print(f"Saving bottom bar orientation: {orientation}")
         self._bottom_bar_orientation = orientation
         self.update_setting("bottomBarOrientation", orientation, self.bottomBarOrientationChanged)
-        
+
+    @Slot(bool)
+    def save_show_bottom_bar_media_controls(self, show):
+        print(f"Saving show bottom bar media controls: {show}")
+        self._show_bottom_bar_media_controls = show
+        self.update_setting("showBottomBarMediaControls", show, self.showBottomBarMediaControlsChanged)
+
     @Slot(result='QVariantList')
     def get_home_obd_parameters(self):
         """Return the list of OBD parameters to display on home screen"""
@@ -680,3 +693,6 @@ class SettingsManager(QObject):
             
         self._bottom_bar_orientation = self._default_settings["bottomBarOrientation"]
         self.bottomBarOrientationChanged.emit(self._bottom_bar_orientation)
+
+        self._show_bottom_bar_media_controls = self._default_settings["showBottomBarMediaControls"]
+        self.showBottomBarMediaControlsChanged.emit(self._show_bottom_bar_media_controls)

@@ -1687,7 +1687,40 @@ Item {
                             }
 
                             SettingsDivider {}
-                            
+
+                            ColumnLayout { // Bottom Bar Media Controls
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Bottom Bar Media Controls"
+                                }
+
+                                SettingsToggle {
+                                    id: bottomBarMediaControlsToggle
+                                    Layout.fillWidth: true
+                                    text: "Show media controls on the bottom bar"
+                                    checked: settingsManager ? settingsManager.showBottomBarMediaControls : true
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: {
+                                        if (settingsManager) {
+                                            settingsManager.save_show_bottom_bar_media_controls(checked)
+                                        }
+                                    }
+
+                                    Connections {
+                                        target: settingsManager
+                                        function onShowBottomBarMediaControlsChanged() {
+                                            bottomBarMediaControlsToggle.checked = settingsManager.showBottomBarMediaControls
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             ColumnLayout { // Screen Dimensions
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
@@ -4054,20 +4087,11 @@ Item {
                                     }
                                 }
 
-                                
-                                // Version with proper spacing
-                                Text {
-                                    id: versionText
-                                    text: "Release Candidate 2"
-                                    color: App.Style.secondaryTextColor
-                                    font.pixelSize: App.Spacing.overallText * 1.2
-                                    Layout.fillWidth: true
-                                }
-                                
+
                                 // Description text
                                 Text {
                                     id: descriptionText
-                                    text: "Welcome to OCTAVE, an open-source, cross-platform telematics system for an augmented vehicle experience. Developed by WayBetterEngineering, our mission is simple: we make things better.\n\nThis software is designed to provide a seamless interface for vehicle systems, media playback, navigation, and more."
+                                    text: "Welcome to OCTAVE, an open-source, cross-platform telematics system for an augmented vehicle experience. Developed by Way Better Solutions, our mission is simple: we make things better.\n\nThis software is designed to provide a seamless interface for vehicle systems, media playback, navigation, and more."
                                     wrapMode: Text.WordWrap
                                     color: App.Style.primaryTextColor
                                     font.pixelSize: App.Spacing.overallText
@@ -4095,7 +4119,7 @@ Item {
                                 
                                 // GitHub link
                                 Text {
-                                    text: "<a href='https://github.com/waybetterengineering/octave'>github.com/waybetterengineering/octave</a>"
+                                    text: "<a href='https://github.com/WayBetterSolutions/OCTAVE'>github.com/WayBetterSolutions/OCTAVE</a>"
                                     color: App.Style.accent
                                     linkColor: App.Style.accent
                                     font.pixelSize: App.Spacing.overallText
@@ -4104,7 +4128,7 @@ Item {
                                 }
                                 
                                 Text {
-                                    text: "Copyright © 2025 WayBetterEngineering"
+                                    text: "Copyright © 2025 Way Better Solutions"
                                     color: App.Style.primaryTextColor
                                     font.pixelSize: App.Spacing.overallText
                                     Layout.fillWidth: true
