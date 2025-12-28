@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 backend/temp/
 .claude/
+
+# Spotify credentials and cache
+backend/settingsConfigure.json
+backend/.spotify_token_cache

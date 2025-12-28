@@ -91,6 +91,11 @@ Item {
                 anchors.rightMargin: App.Spacing.overallMargin * 4
                 spacing: App.Spacing.overallMargin * 4
 
+                // Spacer to push dropdown to the right
+                Item {
+                    Layout.fillWidth: true
+                }
+
                 // Custom playlist dropdown (avoids native style issues)
                 Item {
                     id: playlistDropdownContainer
@@ -215,11 +220,6 @@ Item {
                             }
                         }
                     }
-                }
-
-                // Spacer
-                Item {
-                    Layout.fillWidth: true
                 }
             }
         }
@@ -746,6 +746,19 @@ Item {
                                 anchors.fill: parent
                                 onClicked: {
                                     if (mediaManager) {
+                                        // If Spotify is playing, pause it and switch to local
+                                        if (spotifyManager && spotifyManager.is_connected()) {
+                                            if (spotifyManager.is_playing()) {
+                                                spotifyManager.pause()
+                                            }
+                                        }
+
+                                        // Switch to local source
+                                        if (settingsManager && settingsManager.mediaSource !== "local") {
+                                            settingsManager.set_media_source("local")
+                                        }
+
+                                        // Play the selected file
                                         mediaManager.play_file(modelData)
                                         lastPlayedSong = modelData
                                         stackView.push("MediaRoom.qml", {

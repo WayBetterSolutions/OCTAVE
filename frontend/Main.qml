@@ -19,7 +19,7 @@ ApplicationWindow {
     property bool showClock: settingsManager ? settingsManager.showClock : true
     property bool clockFormat24Hour: settingsManager ? settingsManager.clockFormat24Hour : true
     property int clockSize: settingsManager ? settingsManager.clockSize : 18
-    property string lastSettingsSection: "deviceSettings"
+    property string lastSettingsSection: settingsManager ? settingsManager.lastSettingsSection : "deviceSettings"
 
     // Screen dimension properties
     property int screenWidth: settingsManager ? settingsManager.screenWidth : 1280

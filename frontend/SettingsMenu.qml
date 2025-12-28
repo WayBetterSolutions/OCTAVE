@@ -12,7 +12,7 @@ Item {
     required property string initialSection
     
     property string currentSection: initialSection
-    
+
     component SettingLabel: Label {
         color: App.Style.primaryTextColor
         font.pixelSize: App.Spacing.overallText
@@ -810,6 +810,10 @@ Item {
                                 onClicked: {
                                     currentSection = section
                                     mainWindow.lastSettingsSection = section
+                                    // Persist to settings
+                                    if (settingsManager) {
+                                        settingsManager.set_last_settings_section(section)
+                                    }
                                 }
                                 hoverEnabled: true
                                 
@@ -871,7 +875,7 @@ Item {
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                         clip: true
-                        
+
                         ColumnLayout {
                             width: parent.width
 
@@ -909,7 +913,7 @@ Item {
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                         clip: true
-                        
+
                         ColumnLayout {
                             width: parent.width
 
@@ -1128,16 +1132,361 @@ Item {
                                     }
                                 }
                             }
-                            
+
+                            SettingsDivider {}
+
+                            // Spotify Connect Section
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Spotify Connect"
+                                }
+
+                                SettingDescription {
+                                    text: spotifyManager && spotifyManager.is_connected()
+                                        ? "Connected to Spotify"
+                                        : "Control Spotify playback from this app. Get credentials from developer.spotify.com"
+                                    color: spotifyManager && spotifyManager.is_connected() ? App.Style.accent : App.Style.secondaryTextColor
+                                }
+
+                                // Client ID field
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: "Client ID"
+                                        color: App.Style.secondaryTextColor
+                                        font.pixelSize: App.Spacing.overallText - 2
+                                    }
+
+                                    SettingsTextField {
+                                        id: spotifyClientIdField
+                                        Layout.fillWidth: true
+                                        text: settingsManager ? settingsManager.get_spotify_client_id() : ""
+
+                                        onTextEdited: {
+                                            // Auto-save when text changes
+                                            if (settingsManager) {
+                                                settingsManager.save_spotify_credentials(
+                                                    text.trim(),
+                                                    spotifyClientSecretField.text.trim()
+                                                )
+                                            }
+                                        }
+
+                                        Connections {
+                                            target: settingsManager
+                                            function onSpotifyCredentialsChanged() {
+                                                spotifyClientIdField.text = settingsManager.get_spotify_client_id()
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Client Secret field
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: "Client Secret"
+                                        color: App.Style.secondaryTextColor
+                                        font.pixelSize: App.Spacing.overallText - 2
+                                    }
+
+                                    SettingsTextField {
+                                        id: spotifyClientSecretField
+                                        Layout.fillWidth: true
+                                        text: settingsManager ? settingsManager.get_spotify_client_secret() : ""
+                                        echoMode: TextInput.Password
+
+                                        onTextEdited: {
+                                            // Auto-save when text changes
+                                            if (settingsManager) {
+                                                settingsManager.save_spotify_credentials(
+                                                    spotifyClientIdField.text.trim(),
+                                                    text.trim()
+                                                )
+                                            }
+                                        }
+
+                                        Connections {
+                                            target: settingsManager
+                                            function onSpotifyCredentialsChanged() {
+                                                spotifyClientSecretField.text = settingsManager.get_spotify_client_secret()
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Action buttons row
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: App.Spacing.overallSpacing
+
+                                    // Connect button (only when not connected)
+                                    Rectangle {
+                                        id: spotifyConnectButton
+                                        width: spotifyConnectText.width + App.Spacing.overallSpacing * 3
+                                        height: App.Spacing.formElementHeight
+                                        visible: spotifyManager && !spotifyManager.is_connected()
+                                        color: spotifyConnectMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
+                                               spotifyConnectMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                                        radius: height / 2
+
+                                        Text {
+                                            id: spotifyConnectText
+                                            anchors.centerIn: parent
+                                            text: "Connect to Spotify"
+                                            color: "white"
+                                            font.pixelSize: App.Spacing.overallText
+                                        }
+
+                                        MouseArea {
+                                            id: spotifyConnectMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (spotifyManager) {
+                                                    spotifyManager.authenticate()
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Disconnect button (only when connected)
+                                    Rectangle {
+                                        id: spotifyDisconnectButton
+                                        width: spotifyDisconnectText.width + App.Spacing.overallSpacing * 3
+                                        height: App.Spacing.formElementHeight
+                                        visible: spotifyManager && spotifyManager.is_connected()
+                                        color: spotifyDisconnectMouseArea.pressed ? Qt.darker("#e74c3c", 1.4) :
+                                               spotifyDisconnectMouseArea.containsMouse ? Qt.darker("#e74c3c", 1.2) : "#e74c3c"
+                                        radius: height / 2
+
+                                        Text {
+                                            id: spotifyDisconnectText
+                                            anchors.centerIn: parent
+                                            text: "Disconnect"
+                                            color: "white"
+                                            font.pixelSize: App.Spacing.overallText
+                                        }
+
+                                        MouseArea {
+                                            id: spotifyDisconnectMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (spotifyManager) {
+                                                    spotifyManager.disconnect()
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Refresh devices button (only when connected)
+                                    Rectangle {
+                                        id: spotifyRefreshButton
+                                        width: spotifyRefreshText.width + App.Spacing.overallSpacing * 3
+                                        height: App.Spacing.formElementHeight
+                                        visible: spotifyManager && spotifyManager.is_connected()
+                                        color: spotifyRefreshMouseArea.pressed ? Qt.darker(App.Style.hoverColor, 1.4) :
+                                               spotifyRefreshMouseArea.containsMouse ? Qt.darker(App.Style.hoverColor, 1.2) : App.Style.hoverColor
+                                        radius: height / 2
+                                        border.width: 1
+                                        border.color: Qt.rgba(App.Style.primaryTextColor.r,
+                                                            App.Style.primaryTextColor.g,
+                                                            App.Style.primaryTextColor.b, 0.1)
+
+                                        Text {
+                                            id: spotifyRefreshText
+                                            anchors.centerIn: parent
+                                            text: "Refresh Devices"
+                                            color: App.Style.primaryTextColor
+                                            font.pixelSize: App.Spacing.overallText
+                                        }
+
+                                        MouseArea {
+                                            id: spotifyRefreshMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (spotifyManager) {
+                                                    spotifyManager.refresh_devices()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Connection status / error display
+                                Text {
+                                    id: spotifyStatusText
+                                    Layout.fillWidth: true
+                                    visible: text !== ""
+                                    color: text.startsWith("Error") ? "#e74c3c" : App.Style.accent
+                                    font.pixelSize: App.Spacing.overallText - 2
+                                    wrapMode: Text.WordWrap
+
+                                    Connections {
+                                        target: spotifyManager
+                                        function onConnectionStateChanged(connected) {
+                                            spotifyStatusText.text = connected ? "Successfully connected to Spotify!" : ""
+                                            spotifyAuthUrlText.visible = false
+                                            // Refresh devices when connected to populate the list
+                                            if (connected && spotifyManager) {
+                                                spotifyManager.refresh_devices()
+                                            }
+                                        }
+                                        function onErrorOccurred(error) {
+                                            spotifyStatusText.text = "Error: " + error
+                                        }
+                                        function onAuthUrlReady(url) {
+                                            spotifyAuthUrlText.text = url
+                                            spotifyAuthUrlText.visible = true
+                                            spotifyStatusText.text = "Click the link below to authenticate:"
+                                        }
+                                    }
+                                }
+
+                                // Clickable auth URL (fallback if browser doesn't open)
+                                Text {
+                                    id: spotifyAuthUrlText
+                                    Layout.fillWidth: true
+                                    visible: false
+                                    color: App.Style.accent
+                                    font.pixelSize: App.Spacing.overallText - 2
+                                    font.underline: true
+                                    wrapMode: Text.WrapAnywhere
+                                    elide: Text.ElideMiddle
+                                    maximumLineCount: 2
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Qt.openUrlExternally(spotifyAuthUrlText.text)
+                                        }
+                                    }
+
+                                    ToolTip.visible: authUrlMouseArea.containsMouse
+                                    ToolTip.text: "Click to open in browser"
+                                    ToolTip.delay: 300
+
+                                    MouseArea {
+                                        id: authUrlMouseArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            Qt.openUrlExternally(spotifyAuthUrlText.text)
+                                        }
+                                    }
+                                }
+
+                                // Available devices list (when connected)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    visible: spotifyManager && spotifyManager.is_connected()
+                                    spacing: App.Spacing.overallSpacing
+
+                                    Text {
+                                        text: "Available Devices"
+                                        color: App.Style.secondaryTextColor
+                                        font.pixelSize: App.Spacing.overallText
+                                    }
+
+                                    // Chip-style device selector (like theme chips)
+                                    Flow {
+                                        Layout.fillWidth: true
+                                        spacing: App.Spacing.overallSpacing
+
+                                        Repeater {
+                                            id: spotifyDevicesRepeater
+                                            model: spotifyManager ? spotifyManager.get_devices() : []
+
+                                            Rectangle {
+                                                id: deviceChip
+                                                width: deviceChipText.width + App.Spacing.overallSpacing * 3
+                                                height: App.Spacing.formElementHeight * 0.8
+                                                radius: height / 2
+                                                color: modelData.is_active ? App.Style.accent : App.Style.hoverColor
+                                                border.width: modelData.is_active ? 0 : 1
+                                                border.color: Qt.rgba(App.Style.primaryTextColor.r,
+                                                                    App.Style.primaryTextColor.g,
+                                                                    App.Style.primaryTextColor.b, 0.1)
+
+                                                Text {
+                                                    id: deviceChipText
+                                                    anchors.centerIn: parent
+                                                    text: modelData.name
+                                                    color: modelData.is_active ? "white" : App.Style.primaryTextColor
+                                                    font.pixelSize: App.Spacing.overallText
+                                                }
+
+                                                MouseArea {
+                                                    id: deviceChipMouseArea
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (spotifyManager && !modelData.is_active) {
+                                                            spotifyManager.set_active_device(modelData.id)
+                                                        }
+                                                    }
+                                                    onEntered: deviceChip.scale = 1.05
+                                                    onExited: deviceChip.scale = 1.0
+                                                }
+
+                                                Behavior on scale {
+                                                    NumberAnimation { duration: 100 }
+                                                }
+
+                                                // Subtle shadow for active device
+                                                layer.enabled: modelData.is_active
+                                                layer.effect: DropShadow {
+                                                    horizontalOffset: 0
+                                                    verticalOffset: 2
+                                                    radius: 4.0
+                                                    samples: 9
+                                                    color: Qt.rgba(0, 0, 0, 0.2)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Connections {
+                                        target: spotifyManager
+                                        function onDevicesChanged(devices) {
+                                            spotifyDevicesRepeater.model = devices
+                                        }
+                                    }
+
+                                    Text {
+                                        visible: spotifyDevicesRepeater.count === 0
+                                        text: "No devices found. Open Spotify on a device first."
+                                        color: App.Style.secondaryTextColor
+                                        font.pixelSize: App.Spacing.overallText
+                                        font.italic: true
+                                    }
+                                }
+                            }
+
                             Item { Layout.fillHeight: true } // Spacer
                         }
                     }
-                    
+
                     ScrollView { // Display Settings Page
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                         clip: true
-                        
+
                         ColumnLayout {
                             width: parent.width
 
@@ -2715,11 +3064,11 @@ Item {
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                         clip: true
-                        
+
                         ColumnLayout {
                             width: parent.width
                             spacing: App.Spacing.sectionSpacing
-                            
+
                             // OBD Connection
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -3561,10 +3910,10 @@ Item {
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                         clip: true
-                        
+
                         ColumnLayout {
                             width: parent.width
-                            
+
                             // Show Clock Toggle - Using the new toggle
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -3655,11 +4004,11 @@ Item {
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
                         clip: true
-                        
+
                         ColumnLayout {
                             width: parent.width
                             spacing: 0
-                            
+
                             // Use a GridLayout for better control over positioning
                             GridLayout {
                                 Layout.fillWidth: true

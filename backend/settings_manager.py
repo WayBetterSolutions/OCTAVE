@@ -26,8 +26,11 @@ class SettingsManager(QObject):
     directoryHistoryChanged = Signal()
     homeOBDParametersChanged = Signal()
     customThemesChanged = Signal()
-    bottomBarOrientationChanged = Signal(str) 
-    
+    bottomBarOrientationChanged = Signal(str)
+    spotifyCredentialsChanged = Signal()
+    mediaSourceChanged = Signal(str)  # "local" or "spotify"
+    lastSettingsSectionChanged = Signal(str)
+
     def __init__(self):
         super().__init__()
         self.backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -35,7 +38,7 @@ class SettingsManager(QObject):
         
         self._default_settings = {
             "deviceName": "Default Device",
-            "themeSetting": "Dark",
+            "themeSetting": "CosmicVoyager",
             "startUpVolume": 0.1,
             "showClock": True,
             "clockFormat24Hour": True,
@@ -44,7 +47,7 @@ class SettingsManager(QObject):
             "screenWidth": 1280,
             "screenHeight": 720,
             "backgroundBlurRadius": 40,
-            "uiScale": 1.0,
+            "uiScale": 0.6,
             "obdBluetoothPort": "/dev/rfcomm0",
             "obdFastMode": True,
             "obdAutoReconnectAttempts": 0,  # 0 = disabled, 1-10 = number of attempts
@@ -74,6 +77,12 @@ class SettingsManager(QObject):
                 "IGNITION_TIMING": True,
             },
             "homeOBDParameters": ["SPEED", "RPM", "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE"],
+            "lastSettingsSection": "deviceSettings",
+            "spotifyClientId": "",
+            "spotifyClientSecret": "",
+            "mediaSource": "local",
+            "mediaFolder": "",
+            "customThemes": {},
         }
             
     
@@ -110,8 +119,16 @@ class SettingsManager(QObject):
         self._home_obd_parameters = self._settings.get("homeOBDParameters", self._default_settings["homeOBDParameters"])
         self._bottom_bar_orientation = self._settings.get("bottomBarOrientation", self._default_settings["bottomBarOrientation"])
 
+        # Spotify credentials (stored separately for security)
+        self._spotify_client_id = self._settings.get("spotifyClientId", "")
+        self._spotify_client_secret = self._settings.get("spotifyClientSecret", "")
 
-        
+        # Media source preference: "local" or "spotify"
+        self._media_source = self._settings.get("mediaSource", "local")
+
+        # Last settings section visited
+        self._last_settings_section = self._settings.get("lastSettingsSection", self._default_settings["lastSettingsSection"])
+
         # Handle OBD parameters with a default if not present
         if "obdParameters" in self._settings:
             self._obd_parameters = self._settings["obdParameters"]
@@ -499,6 +516,107 @@ class SettingsManager(QObject):
             del settings["customThemes"][name]
             self.save_settings(settings)
             self.customThemesChanged.emit()
+
+    # ==================== Spotify Credentials ====================
+
+    @Slot(result=str)
+    def get_spotify_client_id(self):
+        """Get Spotify client ID"""
+        return self._spotify_client_id
+
+    @Slot(result=str)
+    def get_spotify_client_secret(self):
+        """Get Spotify client secret"""
+        return self._spotify_client_secret
+
+    @Slot(result=bool)
+    def has_spotify_credentials(self):
+        """Check if Spotify credentials are configured"""
+        return bool(self._spotify_client_id and self._spotify_client_secret)
+
+    @Slot(str, str)
+    def save_spotify_credentials(self, client_id, client_secret):
+        """Save Spotify API credentials"""
+        print(f"Saving Spotify credentials")
+        self._spotify_client_id = client_id
+        self._spotify_client_secret = client_secret
+
+        settings = self.load_settings()
+        settings["spotifyClientId"] = client_id
+        settings["spotifyClientSecret"] = client_secret
+        self.save_settings(settings)
+
+        self.spotifyCredentialsChanged.emit()
+
+    @Slot()
+    def clear_spotify_credentials(self):
+        """Clear saved Spotify credentials"""
+        self._spotify_client_id = ""
+        self._spotify_client_secret = ""
+
+        settings = self.load_settings()
+        settings["spotifyClientId"] = ""
+        settings["spotifyClientSecret"] = ""
+        self.save_settings(settings)
+
+        self.spotifyCredentialsChanged.emit()
+
+    # ==================== Media Source ====================
+
+    @Property(str, notify=mediaSourceChanged)
+    def mediaSource(self):
+        """Get current media source preference: 'local' or 'spotify'"""
+        return self._media_source
+
+    @Slot(result=str)
+    def get_media_source(self):
+        """Get current media source preference"""
+        return self._media_source
+
+    @Slot(str)
+    def set_media_source(self, source):
+        """Set media source preference: 'local' or 'spotify'"""
+        if source not in ("local", "spotify"):
+            return
+
+        if source != self._media_source:
+            self._media_source = source
+            settings = self.load_settings()
+            settings["mediaSource"] = source
+            self.save_settings(settings)
+            self.mediaSourceChanged.emit(source)
+
+    @Slot()
+    def toggle_media_source(self):
+        """Toggle between local and spotify"""
+        new_source = "spotify" if self._media_source == "local" else "local"
+        self.set_media_source(new_source)
+
+    # ==================== Last Settings Section ====================
+
+    @Property(str, notify=lastSettingsSectionChanged)
+    def lastSettingsSection(self):
+        """Get last visited settings section"""
+        return self._last_settings_section
+
+    @Slot(result=str)
+    def get_last_settings_section(self):
+        """Get last visited settings section"""
+        return self._last_settings_section
+
+    @Slot(str)
+    def set_last_settings_section(self, section):
+        """Set last visited settings section"""
+        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "about"]
+        if section not in valid_sections:
+            return
+
+        if section != self._last_settings_section:
+            self._last_settings_section = section
+            settings = self.load_settings()
+            settings["lastSettingsSection"] = section
+            self.save_settings(settings)
+            self.lastSettingsSectionChanged.emit(section)
 
     @Slot()
     def reset_to_defaults(self):

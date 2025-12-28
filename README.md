@@ -16,6 +16,7 @@ Visit us at [WayBetterEngineering](https://www.waybetterengineering.com/) to fol
 
 ## Features
 - **Media Player**: Can play MP3 files, switch between playlists, music library stats, ability to shuffle songs, metadata integration including album art
+- **Spotify Integration**: Control Spotify playback on any connected device (phone, desktop, etc.)
 - **OBD-II Integration**: Real-time vehicle diagnostics with customizable dashboards
 - **Customizable UI**: Built-in custom themes with ability to create your own, all icons are SVG-based and easy to change to what you want, also has UI scaling for fine-tuning your needs
 - **Cross-Platform**: Compatible with Windows, Linux, and macOS
@@ -73,6 +74,57 @@ source venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
+
+---
+
+## Troubleshooting
+
+### NumPy/Pint Compatibility Issue
+If you encounter an error like `AttributeError: module 'numpy' has no attribute 'cumproduct'`, this is due to a compatibility issue between the `pint` library (a dependency of `obd`) and newer versions of NumPy. Fix it by upgrading pint:
+```bash
+pip install --upgrade pint
+```
+
+---
+
+## Spotify Setup
+
+OCTAVE can control Spotify playback on any of your connected devices (phone, computer, etc.). Here's how to set it up:
+
+### Step 1: Create a Spotify Developer App
+
+1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+2. Log in with your Spotify account
+3. Click **Create App**
+4. Fill in the details:
+   - **App name**: OCTAVE (or whatever you like)
+   - **App description**: Car infotainment controller
+   - **Redirect URI**: `http://127.0.0.1:8888/callback` *(important: enter this exactly)*
+5. Check the box to agree to the terms
+6. Click **Save**
+
+### Step 2: Get Your Credentials
+
+1. Open your newly created app in the dashboard
+2. Click **Settings**
+3. Copy your **Client ID** and **Client Secret**
+
+### Step 3: Configure OCTAVE
+
+1. Open OCTAVE and go to **Settings**
+2. Scroll down to the **Spotify** section
+3. Paste your **Client ID** and **Client Secret**
+4. Click **Connect to Spotify**
+5. A browser window will open - log in and authorize the app
+
+### Step 4: Start Playing
+
+1. Open Spotify on your phone or computer and start playing music
+2. In OCTAVE, go to the **Media Room**
+3. Click the **Local/Spotify** toggle button to switch to Spotify mode
+4. Use the playback controls to control your music
+
+**Note**: OCTAVE acts as a remote controller for Spotify. The music plays on your connected Spotify device (phone, desktop app, etc.), not through OCTAVE directly.
 
 ---
 

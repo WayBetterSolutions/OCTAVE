@@ -13,6 +13,7 @@ from backend.settings_manager import SettingsManager
 from backend.media_manager import MediaManager
 from backend.svg_manager import SVGManager
 from backend.obd_manager import OBDManager
+from backend.spotify_manager import SpotifyManager
 
 # Check system type
 import platform
@@ -43,6 +44,11 @@ engine.rootContext().setContextProperty("svgManager", svg_manager)
 # OBD Manager
 obd_manager = OBDManager(settings_manager)
 engine.rootContext().setContextProperty("obdManager", obd_manager)
+
+# Spotify Manager
+spotify_manager = SpotifyManager()
+spotify_manager.connect_settings_manager(settings_manager)
+engine.rootContext().setContextProperty("spotifyManager", spotify_manager)
 
 # Add the cleanup connection after creating media_manager:
 app.aboutToQuit.connect(media_manager._clear_temp_files)

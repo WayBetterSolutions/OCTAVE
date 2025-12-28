@@ -32,6 +32,50 @@ Item {
     
     property bool isShuffleEnabled: false
 
+    // Spotify integration - use Spotify when user chooses it AND it's connected
+    property bool useSpotify: settingsManager && settingsManager.mediaSource === "spotify" &&
+                              spotifyManager && spotifyManager.is_connected()
+
+    // Check if Spotify is available (connected) for showing toggle
+    property bool spotifyAvailable: spotifyManager && spotifyManager.is_connected()
+
+    // Trigger to force property re-evaluation when Spotify track changes
+    property int spotifyTrackVersion: 0
+
+    // Track info that works for both local and Spotify
+    property string currentTrackName: {
+        // Reference spotifyTrackVersion to trigger re-evaluation
+        var _ = spotifyTrackVersion
+        if (useSpotify && spotifyManager && spotifyManager.get_current_track_name()) {
+            return spotifyManager.get_current_track_name()
+        }
+        return currentSongText.text ? currentSongText.text.replace('.mp3', '') : ""
+    }
+
+    property string currentArtist: {
+        var _ = spotifyTrackVersion
+        if (useSpotify && spotifyManager && spotifyManager.get_current_artist()) {
+            return spotifyManager.get_current_artist()
+        }
+        return currentSongText.text ? (mediaManager ? mediaManager.get_band(currentSongText.text) : "Unknown Artist") : "Unknown Artist"
+    }
+
+    property string currentAlbum: {
+        var _ = spotifyTrackVersion
+        if (useSpotify && spotifyManager && spotifyManager.get_current_album()) {
+            return spotifyManager.get_current_album()
+        }
+        return currentSongText.text ? (mediaManager ? mediaManager.get_album(currentSongText.text) : "Unknown Album") : "Unknown Album"
+    }
+
+    property string currentAlbumArt: {
+        var _ = spotifyTrackVersion
+        if (useSpotify && spotifyManager && spotifyManager.get_current_album_art()) {
+            return spotifyManager.get_current_album_art()
+        }
+        return currentSongText.text ? (mediaManager ? mediaManager.get_album_art(currentSongText.text) || "./assets/missing_art.png" : "./assets/missing_art.png") : "./assets/missing_art.png"
+    }
+
     function formatTime(ms) {
         var minutes = Math.floor(ms / 60000)
         var seconds = Math.floor((ms % 60000) / 1000)
@@ -251,21 +295,24 @@ Item {
                     // Volume change logic
                     onValueChanged: {
                         volumeControl.currentValue = value
-                        
-                        if (mediaManager) {
+
+                        if (useSpotify && spotifyManager) {
+                            // Set Spotify volume directly (0-100)
+                            spotifyManager.set_volume(Math.round(value))
+                        } else if (mediaManager) {
                             var normalizedValue = value / 100
                             var logVolume = Math.pow(normalizedValue, 2.0)
                             mediaManager.setVolume(logVolume)
-                            
+
                             // Unmute if volume was raised from zero
                             if (value > 0 && volumeControl.isMuted) {
                                 volumeControl.isMuted = false
                                 mediaManager.toggle_mute()
                             }
-                            
-                            // Update icon
-                            topVolumeControl.updateVolumeIcon()
                         }
+
+                        // Update icon
+                        topVolumeControl.updateVolumeIcon()
                     }
                 }
                 
@@ -400,7 +447,13 @@ Item {
                             MouseArea {
                                 id: prevMouseArea
                                 anchors.fill: parent
-                                onClicked: mediaManager.previous_track()
+                                onClicked: {
+                                    if (useSpotify) {
+                                        spotifyManager.previous_track()
+                                    } else {
+                                        mediaManager.previous_track()
+                                    }
+                                }
                             }
                         }
 
@@ -416,8 +469,12 @@ Item {
                                     anchors.centerIn: parent
                                     width: parent.width
                                     height: parent.height
-                                    source: mediaManager && mediaManager.is_playing() ? 
-                                        "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                    source: {
+                                        var isPlaying = useSpotify ?
+                                            (spotifyManager && spotifyManager.is_playing()) :
+                                            (mediaManager && mediaManager.is_playing())
+                                        return isPlaying ? "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                    }
                                     sourceSize: Qt.size(width * 2, height * 2)
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
@@ -433,18 +490,24 @@ Item {
                                     layer.enabled: true
                                     layer.effect: DropShadow {
                                         transparentBorder: true
-                                        horizontalOffset: 4       
-                                        verticalOffset: 4         
-                                        radius: 8.0               
-                                        samples: 17               
-                                        color: "#B0000000"        
+                                        horizontalOffset: 4
+                                        verticalOffset: 4
+                                        radius: 8.0
+                                        samples: 17
+                                        color: "#B0000000"
                                     }
                                 }
                             }
                             MouseArea {
                                 id: playMouseArea
                                 anchors.fill: parent
-                                onClicked: mediaManager.toggle_play()
+                                onClicked: {
+                                    if (useSpotify) {
+                                        spotifyManager.toggle_play()
+                                    } else {
+                                        mediaManager.toggle_play()
+                                    }
+                                }
                             }
                         }
                         
@@ -488,7 +551,13 @@ Item {
                             MouseArea {
                                 id: nextMouseArea
                                 anchors.fill: parent
-                                onClicked: mediaManager.next_track()
+                                onClicked: {
+                                    if (useSpotify) {
+                                        spotifyManager.next_track()
+                                    } else {
+                                        mediaManager.next_track()
+                                    }
+                                }
                             }
                         }
                     }
@@ -518,9 +587,7 @@ Item {
                         Image {
                             id: albumArtImage
                             anchors.fill: parent
-                            source: currentSongText.text ?
-                                (mediaManager ? mediaManager.get_album_art(currentSongText.text) || "./assets/missing_art.png" : "./assets/missing_art.png") :
-                                "./assets/missing_art.png"
+                            source: currentAlbumArt
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             antialiasing: true
@@ -556,7 +623,7 @@ Item {
             Item {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                height: App.Spacing.mediaRoomMetaDataSongText
+                height: Math.ceil(App.Spacing.mediaRoomMetaDataSongText * 1.4)
 
                 Flickable {
                     id: songTitleFlickable
@@ -570,8 +637,8 @@ Item {
 
                     Text {
                         id: songTitleText
-                        y: (parent.height - height) / 2
-                        text: currentSongText.text ? currentSongText.text.replace('.mp3', '') : "No track selected"
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: currentTrackName || "No track selected"
                         color: App.Style.metadataColor
                         font.pixelSize: App.Spacing.mediaRoomMetaDataSongText
                         font.bold: true
@@ -608,7 +675,7 @@ Item {
             Item {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter
-                height: App.Spacing.mediaRoomMetaDataBandText + 6
+                height: Math.ceil(App.Spacing.mediaRoomMetaDataBandText * 1.4)
 
                 Flickable {
                     id: metadataFlickable
@@ -622,13 +689,11 @@ Item {
 
                     Row {
                         id: metadataRow
-                        y: (parent.height - height) / 2
+                        anchors.verticalCenter: parent.verticalCenter
                         spacing: 10
 
                         Text {
-                            text: currentSongText.text ?
-                                (mediaManager ? mediaManager.get_band(currentSongText.text) : "Unknown Artist") :
-                                "Unknown Artist"
+                            text: currentArtist
                             color: App.Style.metadataColor
                             font.pixelSize: App.Spacing.mediaRoomMetaDataBandText
                             opacity: 0.7
@@ -640,9 +705,7 @@ Item {
                             opacity: 0.8
                         }
                         Text {
-                            text: currentSongText.text ?
-                                (mediaManager ? mediaManager.get_album(currentSongText.text) : "Unknown Album") :
-                                "Unknown Album"
+                            text: currentAlbum
                             color: App.Style.metadataColor
                             font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
                             opacity: 0.8
@@ -734,7 +797,13 @@ Item {
                     MouseArea {
                         id: shuffleMouseArea
                         anchors.fill: parent
-                        onClicked: mediaManager.toggle_shuffle()
+                        onClicked: {
+                            if (useSpotify) {
+                                spotifyManager.toggle_shuffle()
+                            } else {
+                                mediaManager.toggle_shuffle()
+                            }
+                        }
                     }
                 }
 
@@ -813,7 +882,11 @@ Item {
                         onReleased: function(mouse) {
                             progressSlider.pressed = false
                             userSeeking = false
-                            mediaManager.set_position(progressSlider.value)
+                            if (useSpotify) {
+                                spotifyManager.set_position(progressSlider.value)
+                            } else {
+                                mediaManager.set_position(progressSlider.value)
+                            }
                             mediaRoom.position = progressSlider.value
                             mouse.accepted = false
                         }
@@ -824,7 +897,11 @@ Item {
                             userSeeking = true
                         } else {
                             userSeeking = false
-                            mediaManager.set_position(value)
+                            if (useSpotify) {
+                                spotifyManager.set_position(value)
+                            } else {
+                                mediaManager.set_position(value)
+                            }
                             mediaRoom.position = value
                         }
                     }
@@ -843,60 +920,247 @@ Item {
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     Layout.minimumWidth: 40  // Added minimum width for consistent layout
                 }
+
+                // Source toggle button (Local/Spotify)
+                Control {
+                    id: sourceToggleButton
+                    visible: spotifyAvailable  // Only show when Spotify is connected
+                    implicitWidth: App.Spacing.mediaRoomShuffleButtonWidth * 1.8
+                    implicitHeight: App.Spacing.mediaRoomShuffleButtonHeight
+                    background: Rectangle {
+                        color: useSpotify ? "#1DB954" : App.Style.mediaRoomToggleShade
+                        radius: height / 2
+                        border.color: useSpotify ? "#1DB954" : App.Style.secondaryTextColor
+                        border.width: 1
+                    }
+                    contentItem: Text {
+                        text: useSpotify ? "Spotify" : "Local"
+                        color: useSpotify ? "white" : App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.mediaRoomSliderDurationText * 0.9
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    MouseArea {
+                        id: sourceToggleMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            // Pause current source before switching
+                            if (useSpotify) {
+                                // Currently on Spotify, pause it before switching to local
+                                if (spotifyManager && spotifyManager.is_playing()) {
+                                    spotifyManager.pause()
+                                }
+                            } else {
+                                // Currently on local, pause it before switching to Spotify
+                                if (mediaManager && mediaManager.is_playing()) {
+                                    mediaManager.pause()
+                                }
+                            }
+
+                            // Toggle the source
+                            if (settingsManager) {
+                                settingsManager.toggle_media_source()
+                            }
+                        }
+                    }
+                    ToolTip.visible: sourceToggleMouseArea.containsMouse
+                    ToolTip.text: useSpotify ? "Switch to local files" : "Switch to Spotify"
+                    ToolTip.delay: 500
+                }
+
+                // Spotify connect button (show when credentials exist but not connected)
+                Control {
+                    id: spotifyConnectButton
+                    visible: !spotifyAvailable && spotifyManager && spotifyManager.has_credentials()
+                    implicitWidth: App.Spacing.mediaRoomShuffleButtonWidth * 1.8
+                    implicitHeight: App.Spacing.mediaRoomShuffleButtonHeight
+                    background: Rectangle {
+                        color: spotifyConnectMouseArea.containsMouse ? "#1DB954" : "#1a1a1a"
+                        radius: height / 2
+                        border.color: "#1DB954"
+                        border.width: 1
+                    }
+                    contentItem: Text {
+                        text: "Connect"
+                        color: spotifyConnectMouseArea.containsMouse ? "white" : "#1DB954"
+                        font.pixelSize: App.Spacing.mediaRoomSliderDurationText * 0.9
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    MouseArea {
+                        id: spotifyConnectMouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            if (spotifyManager) {
+                                spotifyManager.authenticate()
+                            }
+                        }
+                    }
+                    ToolTip.visible: spotifyConnectMouseArea.containsMouse
+                    ToolTip.text: "Connect to Spotify (opens browser)"
+                    ToolTip.delay: 500
+                }
             }
         }
     }
 
+    // Local media manager connections (only apply when not using Spotify)
     Connections {
         target: mediaManager
+        enabled: !useSpotify
+
         function onPlayStateChanged(playing) {
-            playButtonImage.source = playing ? 
+            playButtonImage.source = playing ?
                 "./assets/pause_button.svg" : "./assets/play_button.svg"
             if (playing) {
                 mediaRoom.duration = mediaManager.get_duration()
                 mediaRoom.position = mediaManager.get_position()
             }
         }
-        
+
         function onDurationChanged(duration) {
             mediaRoom.duration = duration
         }
-        
+
         function onPositionChanged(position) {
             if (!userSeeking) {
                 mediaRoom.position = position
                 progressSlider.value = position
             }
         }
-        
+
         function onCurrentMediaChanged(filename) {
             playButtonImage.source = "./assets/pause_button.svg"
             mediaRoom.position = 0
             progressSlider.value = 0
-            currentSongText.text = filename            
+            currentSongText.text = filename
         }
         function onShuffleStateChanged(enabled) {
             isShuffleEnabled = enabled
         }
     }
-    
+
     Connections {
         target: mediaManager
         function onMuteChanged(muted) {
             volumeControl.isMuted = muted
-            // Fix: use the proper object path
             topVolumeControl.updateVolumeIcon()
         }
-        
+
         function onVolumeChanged(volume) {
-            // Only update if not being changed by user
             if (!volumeSlider.pressed) {
                 var volumePercent = Math.round(Math.sqrt(volume) * 100)
                 volumeControl.currentValue = volumePercent
                 volumeSlider.value = volumePercent
             }
-            // Fix: use the proper object path
             topVolumeControl.updateVolumeIcon()
+        }
+    }
+
+    // Spotify playback connections (only apply when using Spotify)
+    Connections {
+        target: spotifyManager
+        enabled: useSpotify
+
+        function onPlayStateChanged(playing) {
+            playButtonImage.source = playing ?
+                "./assets/pause_button.svg" : "./assets/play_button.svg"
+        }
+
+        function onDurationChanged(duration) {
+            mediaRoom.duration = duration
+        }
+
+        function onPositionChanged(position) {
+            if (!userSeeking) {
+                mediaRoom.position = position
+                progressSlider.value = position
+            }
+        }
+
+        function onCurrentTrackChanged(title, artist, album, artUrl) {
+            // Increment version to force re-evaluation of computed properties
+            mediaRoom.spotifyTrackVersion++
+
+            // Reset position for new track
+            mediaRoom.position = 0
+            progressSlider.value = 0
+
+            // Update duration
+            mediaRoom.duration = spotifyManager.get_duration()
+        }
+
+        function onShuffleStateChanged(enabled) {
+            isShuffleEnabled = enabled
+        }
+
+        function onVolumeChanged(volume) {
+            if (!volumeSlider.pressed) {
+                volumeControl.currentValue = volume
+                volumeSlider.value = volume
+                topVolumeControl.updateVolumeIcon()
+            }
+        }
+    }
+
+    // Spotify connection state (always active to track availability)
+    Connections {
+        target: spotifyManager
+
+        function onConnectionStateChanged(connected) {
+            // Update spotifyAvailable when connection state changes
+            mediaRoom.spotifyAvailable = connected
+
+            // If Spotify disconnects while in Spotify mode, switch to local
+            if (!connected && settingsManager && settingsManager.mediaSource === "spotify") {
+                settingsManager.set_media_source("local")
+            }
+        }
+    }
+
+    // Settings manager connection for media source changes
+    Connections {
+        target: settingsManager
+        function onMediaSourceChanged(source) {
+            var nowUseSpotify = (source === "spotify" && spotifyManager && spotifyManager.is_connected())
+
+            // Update play button to show paused state (since we paused before switching)
+            playButtonImage.source = "./assets/play_button.svg"
+
+            // Update duration, position, shuffle, and volume from the new source
+            if (nowUseSpotify) {
+                mediaRoom.duration = spotifyManager.get_duration()
+                mediaRoom.position = spotifyManager.get_position()
+                progressSlider.value = mediaRoom.position
+                isShuffleEnabled = spotifyManager.is_shuffled()
+
+                // Update volume from Spotify
+                var spotifyVolume = spotifyManager.get_volume()
+                volumeControl.currentValue = spotifyVolume
+                volumeSlider.value = spotifyVolume
+                topVolumeControl.updateVolumeIcon()
+            } else if (mediaManager) {
+                mediaRoom.duration = mediaManager.get_duration()
+                mediaRoom.position = mediaManager.get_position()
+                progressSlider.value = mediaRoom.position
+                isShuffleEnabled = mediaManager.is_shuffled()
+
+                // Update volume from local media
+                var localVolume = Math.round(Math.sqrt(mediaManager.getVolume()) * 100)
+                volumeControl.currentValue = localVolume
+                volumeSlider.value = localVolume
+                topVolumeControl.updateVolumeIcon()
+
+                // Also update the local song text if we have a current file
+                var currentFile = mediaManager.get_current_file()
+                if (currentFile) {
+                    currentSongText.text = currentFile
+                }
+            }
         }
     }
 }

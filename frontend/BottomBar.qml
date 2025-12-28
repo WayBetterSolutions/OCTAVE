@@ -8,6 +8,10 @@ import "." as App
 Rectangle {
     id: bottomBar
     property bool isVertical: settingsManager && settingsManager.bottomBarOrientation === "side"
+
+    // Spotify integration - use Spotify when user chooses it AND it's connected
+    property bool useSpotify: settingsManager && settingsManager.mediaSource === "spotify" &&
+                              spotifyManager && spotifyManager.is_connected()
     
     
     Component.onCompleted: {
@@ -311,7 +315,9 @@ Rectangle {
                         // Shuffle button
                         Control {
                             id: shuffleButton
-                            property bool isShuffleEnabled: mediaManager ? mediaManager.is_shuffled() : false
+                            property bool isShuffleEnabled: useSpotify ?
+                                (spotifyManager ? spotifyManager.is_shuffled() : false) :
+                                (mediaManager ? mediaManager.is_shuffled() : false)
                             implicitWidth: App.Spacing.bottomBarShuffleButtonWidth
                             implicitHeight: App.Spacing.bottomBarShuffleButtonHeight
                             Layout.alignment: Qt.AlignVCenter
@@ -369,7 +375,13 @@ Rectangle {
                                 MouseArea {
                                     id: mouseAreaShuffle
                                     anchors.fill: parent
-                                    onClicked: mediaManager.toggle_shuffle()
+                                    onClicked: {
+                                        if (useSpotify) {
+                                            spotifyManager.toggle_shuffle()
+                                        } else {
+                                            mediaManager.toggle_shuffle()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1014,7 +1026,31 @@ Rectangle {
                         updateMuteButtonImage()
                     }
                     function onShuffleStateChanged(enabled) {
+                        if (!useSpotify) {
+                            shuffleButton.isShuffleEnabled = enabled
+                        }
+                    }
+                }
+
+                // Spotify shuffle state connection
+                Connections {
+                    target: spotifyManager
+                    enabled: useSpotify
+                    function onShuffleStateChanged(enabled) {
                         shuffleButton.isShuffleEnabled = enabled
+                    }
+                }
+
+                // Update shuffle state when media source changes
+                Connections {
+                    target: settingsManager
+                    function onMediaSourceChanged(source) {
+                        var nowUseSpotify = (source === "spotify" && spotifyManager && spotifyManager.is_connected())
+                        if (nowUseSpotify) {
+                            shuffleButton.isShuffleEnabled = spotifyManager.is_shuffled()
+                        } else if (mediaManager) {
+                            shuffleButton.isShuffleEnabled = mediaManager.is_shuffled()
+                        }
                     }
                 }
 
@@ -1266,7 +1302,9 @@ Rectangle {
                         // Shuffle button
                         Control {
                             id: shuffleButtonVertical
-                            property bool isShuffleEnabled: mediaManager ? mediaManager.is_shuffled() : false
+                            property bool isShuffleEnabled: useSpotify ?
+                                (spotifyManager ? spotifyManager.is_shuffled() : false) :
+                                (mediaManager ? mediaManager.is_shuffled() : false)
                             Layout.alignment: Qt.AlignHCenter
                             Layout.preferredWidth: App.Spacing.bottomBarShuffleButtonWidth
                             Layout.preferredHeight: App.Spacing.bottomBarShuffleButtonHeight
@@ -1323,7 +1361,13 @@ Rectangle {
                                 MouseArea {
                                     id: mouseAreaShuffleVertical
                                     anchors.fill: parent
-                                    onClicked: mediaManager.toggle_shuffle()
+                                    onClicked: {
+                                        if (useSpotify) {
+                                            spotifyManager.toggle_shuffle()
+                                        } else {
+                                            mediaManager.toggle_shuffle()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1970,10 +2014,34 @@ Rectangle {
                         updateMuteButtonImageVertical()
                     }
                     function onShuffleStateChanged(enabled) {
+                        if (!useSpotify) {
+                            shuffleButtonVertical.isShuffleEnabled = enabled
+                        }
+                    }
+                }
+
+                // Spotify shuffle state connection for vertical layout
+                Connections {
+                    target: spotifyManager
+                    enabled: useSpotify
+                    function onShuffleStateChanged(enabled) {
                         shuffleButtonVertical.isShuffleEnabled = enabled
                     }
                 }
-                
+
+                // Update shuffle state when media source changes (vertical)
+                Connections {
+                    target: settingsManager
+                    function onMediaSourceChanged(source) {
+                        var nowUseSpotify = (source === "spotify" && spotifyManager && spotifyManager.is_connected())
+                        if (nowUseSpotify) {
+                            shuffleButtonVertical.isShuffleEnabled = spotifyManager.is_shuffled()
+                        } else if (mediaManager) {
+                            shuffleButtonVertical.isShuffleEnabled = mediaManager.is_shuffled()
+                        }
+                    }
+                }
+
                 // SVG update connection for vertical layout
                 Connections {
                     target: svgManager
