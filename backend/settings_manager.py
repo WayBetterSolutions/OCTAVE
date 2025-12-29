@@ -519,30 +519,6 @@ class SettingsManager(QObject):
         """Return the list of OBD parameters to display on home screen"""
         return self._home_obd_parameters
     
-    @Slot(str, str)
-    def save_custom_theme(self, name, theme_json):
-        """Save a custom theme with the given name"""
-        print(f"Saving custom theme: {name}")
-        
-        # Load current settings to not overwrite other changes
-        settings = self.load_settings()
-        
-        # Make sure customThemes exists in settings
-        if "customThemes" not in settings:
-            settings["customThemes"] = {}
-        
-        # Parse the theme from JSON
-        theme_obj = json.loads(theme_json)
-        
-        # Save the theme
-        settings["customThemes"][name] = theme_obj
-        
-        # Save the updated settings
-        self.save_settings(settings)
-        
-        # Emit the change signal
-        self.customThemesChanged.emit()
-        
     @Slot(str, result=str)
     def get_custom_theme(self, name):
         """Get a custom theme by name as JSON string"""
@@ -550,15 +526,6 @@ class SettingsManager(QObject):
         if "customThemes" in settings and name in settings["customThemes"]:
             return json.dumps(settings["customThemes"][name])
         return "{}"
-
-    @Slot(str)
-    def delete_custom_theme(self, name):
-        """Delete a custom theme by name"""
-        settings = self.load_settings()
-        if "customThemes" in settings and name in settings["customThemes"]:
-            del settings["customThemes"][name]
-            self.save_settings(settings)
-            self.customThemesChanged.emit()
 
     # ==================== Spotify Credentials ====================
 

@@ -125,6 +125,13 @@ QtObject {
     // ===== Main Menu Properties =====
     property real mainMenuOBDTextPercent: 0.075
     property real mainMenuOBDDataPercent: 0.1
+    property real mainMenuSongTextPercent: 0.045
+    property real mainMenuArtistTextPercent: 0.035
+    property real mainMenuTimeTextPercent: 0.028
+    property real mainMenuPlayButtonPercent: 0.12
+    property real mainMenuNavButtonPercent: 0.085
+    property real mainMenuSliderHeightPercent: 0.01
+    property real mainMenuSliderHandlePercent: 0.03
     
     // ===== Core scaling functions =====
     /**
@@ -241,4 +248,11 @@ QtObject {
 
     property int mainMenuOBDTextSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuOBDTextPercent)
     property int mainMenuOBDDataSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuOBDDataPercent)
+    property int mainMenuSongTextSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuSongTextPercent)
+    property int mainMenuArtistTextSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuArtistTextPercent)
+    property int mainMenuTimeTextSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuTimeTextPercent)
+    property int mainMenuPlayButtonSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuPlayButtonPercent)
+    property int mainMenuNavButtonSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuNavButtonPercent)
+    property int mainMenuSliderHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuSliderHeightPercent)
+    property int mainMenuSliderHandleSize: scaledSize(Math.min(applicationWidth, applicationHeight) * mainMenuSliderHandlePercent)
 }

@@ -88,20 +88,20 @@ Item {
         }
     }
     
-    // Layout
+    // Layout - Single column, 4 rows (stacked vertically)
     GridLayout {
         id: gridLayout
         anchors.fill: parent
         anchors.margins: 10
         columnSpacing: 10
         rowSpacing: 10
-        columns: 2
+        columns: 1
         
         // Statically create displays
         Repeater {
             id: obdRepeater
             model: {
-                // Use the settings if available, or default to standard params
+                // Use the settings if available, or default to 4 standard params (stacked vertically)
                 if (settingsManager && settingsManager.get_home_obd_parameters) {
                     return settingsManager.get_home_obd_parameters()
                 } else {
@@ -164,29 +164,29 @@ Item {
                     anchors.fill: parent
                     anchors.margins: 5
                     spacing: 5
-                    
+
                     Text {
                         text: info.title.toUpperCase()
                         font.pixelSize: App.Spacing.mainMenuOBDTextSize
                         color: App.Style.secondaryTextColor
-                        Layout.alignment: Qt.AlignHCenter
+                        Layout.alignment: Qt.AlignLeft
                     }
-                    
+
                     Text {
                         text: value.toFixed(1) + " " + info.unit
                         font.pixelSize: App.Spacing.mainMenuOBDDataSize
                         font.bold: true
                         color: App.Style.primaryTextColor
-                        Layout.alignment: Qt.AlignHCenter
+                        Layout.alignment: Qt.AlignLeft
                     }
-                    
+
                     Rectangle {
                         Layout.fillWidth: true
                         height: 8
                         color: App.Style.backgroundColor
                         radius: 4
                         Layout.topMargin: 2
-                        
+
                         Rectangle {
                             width: Math.max(4, parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
                             height: parent.height

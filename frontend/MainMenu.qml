@@ -14,6 +14,19 @@ Item {
     width: parent ? parent.width : 0
     height: parent ? parent.height : 0
 
+    // Media content properties
+    property string currentFile: ""
+    property string currentArt: ""
+    property string currentTitle: ""
+    property string currentArtist: ""
+    property string currentAlbum: ""
+
+    function formatTime(ms) {
+        var minutes = Math.floor(ms / 60000)
+        var seconds = Math.floor((ms % 60000) / 1000)
+        return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+    }
+
     // Dark background with subtle gradient
     Rectangle {
         id: backgroundRect
@@ -24,280 +37,427 @@ Item {
         }
     }
 
-    // Main content area
-    ColumnLayout {
+    // Main content area - Horizontal layout: Media on left (1/3), OBD on right (2/3)
+    RowLayout {
         anchors.fill: parent
-        spacing: 0
+        anchors.margins: 10
+        spacing: 10
 
-
-        // Main dashboard area
-        RowLayout {
-            Layout.fillWidth: true
+        // ========== LEFT SECTION: Media Controls (1/3 of width) ==========
+        Rectangle {
+            id: mediaSection
+            Layout.preferredWidth: parent.width * 0.33
             Layout.fillHeight: true
-            Layout.margins: 10
-            spacing: 10
+            color: "transparent"
+            radius: 8
+            clip: true
 
-            // Now Playing section
+            // Album art blur background (like MediaRoom)
+            Item {
+                id: backgroundContainer
+                anchors.fill: parent
+                z: -1
+
+                Image {
+                    id: backgroundArtImage
+                    anchors.fill: parent
+                    source: mainMenu.currentArt || "./assets/missing_art.png"
+                    fillMode: Image.PreserveAspectCrop
+                    opacity: 1
+                    layer.enabled: true
+                    layer.effect: GaussianBlur {
+                        radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
+                        samples: Math.min(32, Math.max(1, radius))
+                        deviation: radius / 2.5
+                        transparentBorder: false
+                    }
+                }
+
+                // Dark overlay for readability
+                Rectangle {
+                    id: colorOverlay
+                    anchors.fill: parent
+                    color: "#C0000000"
+                    opacity: 1.0
+                }
+            }
+
+            // Border overlay (on top of blur)
             Rectangle {
-                Layout.fillHeight: true
-                Layout.preferredWidth: parent.width * 0.5 - 10
-                color: App.Style.backgroundColor
+                anchors.fill: parent
+                color: "transparent"
                 border.color: App.Style.accent
                 border.width: 2
-                radius: 5
+                radius: 8
+                z: 10
+            }
 
-                // Header
-                Rectangle {
-                    id: nowPlayingHeader
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                }
+            // Media content - vertical layout for narrow panel
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 15
+                spacing: 10
 
-                // Album art and song info
+                // Album Art (top, centered)
                 Item {
-                    id: mediaContentArea
-                    anchors.top: nowPlayingHeader.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    anchors.margins: 10
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: parent.width - 30
+                    Layout.alignment: Qt.AlignHCenter
 
-                    // Variables to track current media
-                    property string currentFile: ""
-                    property string currentArt: ""
-                    property string currentTitle: ""
-                    property string currentArtist: ""
-                    property string currentAlbum: ""
+                    Image {
+                        id: albumArtImage
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width, parent.height)
+                        height: width
+                        source: mainMenu.currentArt || "./assets/missing_art.png"
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: true
 
-                    // Album art container
-                    Item {
-                        id: albumArtContainer
-                        anchors.top: parent.top
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        height: parent.height * 0.6
-
-
-                        // Album art image
-                        Image {
-                            id: albumArtImage
-                            anchors.fill: parent
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            cache: true  // Enable caching to prevent flicker
-                            source: mediaContentArea.currentArt || "./assets/missing_art.png"
-                            
-                            // When the image is loaded, fade it in
-                            onStatusChanged: {
-                                if (status === Image.Ready) {
-                                    opacity = 1;
-                                }
-                            }
-                            
-                            // Add a reload function
-                            function reload() {
-                                if (mediaManager && mediaContentArea.currentFile) {
-                                    var artUrl = mediaManager.get_album_art(mediaContentArea.currentFile);
-                                    if (artUrl && artUrl !== mediaContentArea.currentArt) {
-                                        mediaContentArea.currentArt = ""; // Force a refresh
-                                        mediaContentArea.currentArt = artUrl;
-                                    }
-                                }
-                            }
-
+                        layer.enabled: true
+                        layer.effect: DropShadow {
+                            transparentBorder: true
+                            horizontalOffset: 4
+                            verticalOffset: 4
+                            radius: 12.0
+                            samples: 25
+                            color: "#A0000000"
                         }
                     }
+                }
 
-                    // Song info section - Make text bigger
-                    ColumnLayout {
-                        anchors.top: albumArtContainer.bottom
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 10
-                        spacing: 8
-                        visible: mediaContentArea.currentFile !== ""
+                // Song title with scrolling (like MediaRoom)
+                Item {
+                    id: songTitleContainer
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
+                    height: Math.ceil(App.Spacing.mainMenuSongTextSize * 1.4)
 
-                        // Song title - Bigger text
+                    Flickable {
+                        id: songTitleFlickable
+                        anchors.centerIn: parent
+                        width: Math.min(songTitleText.width, parent.width)
+                        height: parent.height
+                        contentWidth: songTitleText.width
+                        contentHeight: parent.height
+                        clip: true
+                        flickableDirection: Flickable.HorizontalFlick
+
                         Text {
                             id: songTitleText
-                            text: mediaContentArea.currentTitle
-                            color: App.Style.primaryTextColor
-                            font.pixelSize: 24  // Increased from 18
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: mainMenu.currentTitle || "No track playing"
+                            color: App.Style.metadataColor
+                            font.pixelSize: App.Spacing.mainMenuSongTextSize
                             font.bold: true
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignHCenter
-                            horizontalAlignment: Text.AlignHCenter
-                            maximumLineCount: 2
-                            wrapMode: Text.WordWrap
                         }
 
-                        // Artist & Album - Bigger text
-                        Text {
-                            id: artistAlbumText
-                            text: mediaContentArea.currentArtist + " • " + mediaContentArea.currentAlbum
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: 20  // Increased from 14
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignHCenter
-                            horizontalAlignment: Text.AlignHCenter
-                            maximumLineCount: 2
-                            wrapMode: Text.WordWrap
-                        }
-                        
-                        // Duration/seek bar
-                        Rectangle {
-                            id: miniSeekBarContainer
-                            Layout.fillWidth: true
-                            height: 40
-                            color: "transparent"
-                            
-                            RowLayout {
-                                anchors.fill: parent
-                                spacing: 5
-                                
-                                Text {
-                                    id: miniPositionText
-                                    text: "0:00"
-                                    color: App.Style.secondaryTextColor
-                                    font.pixelSize: 12
-                                }
-                                
-                                Slider {
-                                    id: miniProgressSlider
-                                    Layout.fillWidth: true
-                                    from: 0
-                                    to: 1
-                                    value: 0
-                                    enabled: mediaManager && mediaManager.get_duration() > 0
-                                    
-                                    property bool userSeeking: false
-                                    
-                                    background: Rectangle {
-                                        x: miniProgressSlider.leftPadding
-                                        y: miniProgressSlider.topPadding + miniProgressSlider.availableHeight / 2 - height / 2
-                                        width: miniProgressSlider.availableWidth
-                                        height: 4
-                                        radius: 2
-                                        color: App.Style.secondaryTextColor
-                                        
-                                        Rectangle {
-                                            width: miniProgressSlider.visualPosition * parent.width
-                                            height: parent.height
-                                            radius: 2
-                                            color: App.Style.accent
-                                        }
-                                    }
-                                    
-                                    handle: Rectangle {
-                                        x: miniProgressSlider.leftPadding + miniProgressSlider.visualPosition * (miniProgressSlider.availableWidth - width)
-                                        y: miniProgressSlider.topPadding + miniProgressSlider.availableHeight / 2 - height / 2
-                                        width: 12
-                                        height: 12
-                                        radius: 6
-                                        color: miniProgressSlider.pressed ? "#666666" : "#808080"
-                                        visible: true
-                                    }
-                                    
-                                    onPressedChanged: {
-                                        if (pressed) {
-                                            userSeeking = true;
-                                        } else {
-                                            userSeeking = false;
-                                            if (mediaManager) {
-                                                mediaManager.set_position(value);
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                Text {
-                                    id: miniDurationText
-                                    text: "0:00"
-                                    color: App.Style.secondaryTextColor
-                                    font.pixelSize: 12
+                        Timer {
+                            id: songScrollTimer
+                            interval: 3000
+                            running: songTitleText.width > songTitleContainer.width
+                            repeat: true
+                            onTriggered: {
+                                if (songTitleFlickable.contentX === 0) {
+                                    songScrollAnimation.to = songTitleText.width - songTitleFlickable.width
+                                    songScrollAnimation.start()
+                                } else {
+                                    songScrollAnimation.to = 0
+                                    songScrollAnimation.start()
                                 }
                             }
                         }
-                    }
 
-
-                    // Function to update media information
-                    function updateMedia() {
-                        if (mediaManager) {
-                            var filename = mediaManager.get_current_file();
-                            if (filename) {
-                                // Update current file
-                                mediaContentArea.currentFile = filename;
-                                
-                                // Update title
-                                mediaContentArea.currentTitle = filename.replace('.mp3', '');
-                                
-                                // Update artist and album
-                                mediaContentArea.currentArtist = mediaManager.get_band(filename);
-                                mediaContentArea.currentAlbum = mediaManager.get_album(filename);
-
-                                mediaContentArea.currentArt = mediaManager.get_album_art(filename);
-                            }
+                        NumberAnimation {
+                            id: songScrollAnimation
+                            target: songTitleFlickable
+                            property: "contentX"
+                            duration: 5000
+                            easing.type: Easing.InOutQuad
+                            onFinished: songScrollTimer.restart()
                         }
-                    }
-
-                    // Load media on creation
-                    Component.onCompleted: {
-                        // Use timer to delay loading until MediaManager is fully initialized
-                        initialLoadTimer.start();
                     }
                 }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        if (mediaContentArea.currentFile !== "") {
-                            stackView.push("MediaRoom.qml", {
-                                stackView: mainMenu.stackView
-                            });
-                        } else {
-                            stackView.push("MediaPlayer.qml", {
-                                stackView: stackView,
-                                mainWindow: mainWindow
-                            });
+                // Artist & Album with scrolling (like MediaRoom)
+                Item {
+                    id: metadataContainer
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
+                    height: Math.ceil(App.Spacing.mainMenuArtistTextSize * 1.4)
+
+                    Flickable {
+                        id: metadataFlickable
+                        anchors.centerIn: parent
+                        width: Math.min(metadataRow.width, parent.width)
+                        height: parent.height
+                        contentWidth: metadataRow.width
+                        contentHeight: parent.height
+                        clip: true
+                        flickableDirection: Flickable.HorizontalFlick
+
+                        Row {
+                            id: metadataRow
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 8
+
+                            Text {
+                                text: mainMenu.currentFile ? mainMenu.currentArtist : "Select a song"
+                                color: App.Style.metadataColor
+                                font.pixelSize: App.Spacing.mainMenuArtistTextSize
+                                opacity: 0.7
+                            }
+                            Text {
+                                text: mainMenu.currentFile ? "•" : ""
+                                color: App.Style.metadataColor
+                                font.pixelSize: App.Spacing.mainMenuArtistTextSize
+                                opacity: 0.8
+                            }
+                            Text {
+                                text: mainMenu.currentFile ? mainMenu.currentAlbum : ""
+                                color: App.Style.metadataColor
+                                font.pixelSize: App.Spacing.mainMenuArtistTextSize
+                                opacity: 0.8
+                            }
                         }
+
+                        Timer {
+                            id: metadataScrollTimer
+                            interval: 3000
+                            running: metadataRow.width > metadataContainer.width
+                            repeat: true
+                            onTriggered: {
+                                if (metadataFlickable.contentX === 0) {
+                                    metadataScrollAnimation.to = metadataRow.width - metadataFlickable.width
+                                    metadataScrollAnimation.start()
+                                } else {
+                                    metadataScrollAnimation.to = 0
+                                    metadataScrollAnimation.start()
+                                }
+                            }
+                        }
+
+                        NumberAnimation {
+                            id: metadataScrollAnimation
+                            target: metadataFlickable
+                            property: "contentX"
+                            duration: 5000
+                            easing.type: Easing.InOutQuad
+                            onFinished: metadataScrollTimer.restart()
+                        }
+                    }
+                }
+
+                // Spacer
+                Item { Layout.fillHeight: true }
+
+                // Media Controls Row
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: App.Spacing.mainMenuNavButtonSize * 0.5
+
+                    // Previous Button
+                    Control {
+                        implicitHeight: App.Spacing.mainMenuNavButtonSize
+                        implicitWidth: App.Spacing.mainMenuNavButtonSize
+                        background: Rectangle { color: "transparent" }
+                        contentItem: Item {
+                            Image {
+                                id: previousButtonImage
+                                anchors.centerIn: parent
+                                width: parent.width
+                                height: parent.height
+                                source: "./assets/previous_button.svg"
+                                sourceSize: Qt.size(width * 2, height * 2)
+                                fillMode: Image.PreserveAspectFit
+                                visible: false
+                            }
+                            ColorOverlay {
+                                anchors.fill: previousButtonImage
+                                source: previousButtonImage
+                                color: App.Style.mediaRoomPreviousButton
+                                opacity: prevMouseArea.pressed ? 0.7 : 1.0
+                                layer.enabled: true
+                                layer.effect: DropShadow {
+                                    transparentBorder: true
+                                    horizontalOffset: 2
+                                    verticalOffset: 2
+                                    radius: 4.0
+                                    samples: 9
+                                    color: "#80000000"
+                                }
+                            }
+                        }
+                        MouseArea {
+                            id: prevMouseArea
+                            anchors.fill: parent
+                            onClicked: mediaManager.previous_track()
+                        }
+                    }
+
+                    // Play/Pause Button
+                    Control {
+                        implicitHeight: App.Spacing.mainMenuPlayButtonSize
+                        implicitWidth: App.Spacing.mainMenuPlayButtonSize
+                        background: Rectangle { color: "transparent" }
+                        contentItem: Item {
+                            Image {
+                                id: playButtonImage
+                                anchors.centerIn: parent
+                                width: parent.width
+                                height: parent.height
+                                source: mediaManager && mediaManager.is_playing() ?
+                                        "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                sourceSize: Qt.size(width * 2, height * 2)
+                                fillMode: Image.PreserveAspectFit
+                                visible: false
+                            }
+                            ColorOverlay {
+                                anchors.fill: playButtonImage
+                                source: playButtonImage
+                                color: App.Style.mediaRoomPlayButton
+                                opacity: playMouseArea.pressed ? 0.7 : 1.0
+                                layer.enabled: true
+                                layer.effect: DropShadow {
+                                    transparentBorder: true
+                                    horizontalOffset: 2
+                                    verticalOffset: 2
+                                    radius: 6.0
+                                    samples: 13
+                                    color: "#80000000"
+                                }
+                            }
+                        }
+                        MouseArea {
+                            id: playMouseArea
+                            anchors.fill: parent
+                            onClicked: mediaManager.toggle_play()
+                        }
+                    }
+
+                    // Next Button
+                    Control {
+                        implicitHeight: App.Spacing.mainMenuNavButtonSize
+                        implicitWidth: App.Spacing.mainMenuNavButtonSize
+                        background: Rectangle { color: "transparent" }
+                        contentItem: Item {
+                            Image {
+                                id: nextButtonImage
+                                anchors.centerIn: parent
+                                width: parent.width
+                                height: parent.height
+                                source: "./assets/next_button.svg"
+                                sourceSize: Qt.size(width * 2, height * 2)
+                                fillMode: Image.PreserveAspectFit
+                                visible: false
+                            }
+                            ColorOverlay {
+                                anchors.fill: nextButtonImage
+                                source: nextButtonImage
+                                color: App.Style.mediaRoomNextButton
+                                opacity: nextMouseArea.pressed ? 0.7 : 1.0
+                                layer.enabled: true
+                                layer.effect: DropShadow {
+                                    transparentBorder: true
+                                    horizontalOffset: 2
+                                    verticalOffset: 2
+                                    radius: 4.0
+                                    samples: 9
+                                    color: "#80000000"
+                                }
+                            }
+                        }
+                        MouseArea {
+                            id: nextMouseArea
+                            anchors.fill: parent
+                            onClicked: mediaManager.next_track()
+                        }
+                    }
+                }
+
+                // Progress Bar
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Text {
+                        id: positionText
+                        text: "0:00"
+                        color: App.Style.secondaryTextColor
+                        font.pixelSize: App.Spacing.mainMenuTimeTextSize
+                        Layout.minimumWidth: App.Spacing.mainMenuTimeTextSize * 2.5
+                    }
+
+                    Slider {
+                        id: progressSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 1
+                        value: 0
+                        enabled: mediaManager && mediaManager.get_duration() > 0
+
+                        property bool userSeeking: false
+
+                        background: Rectangle {
+                            x: progressSlider.leftPadding
+                            y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
+                            width: progressSlider.availableWidth
+                            height: App.Spacing.mainMenuSliderHeight
+                            radius: height / 2
+                            color: App.Style.secondaryTextColor
+
+                            Rectangle {
+                                width: progressSlider.visualPosition * parent.width
+                                height: parent.height
+                                radius: height / 2
+                                color: App.Style.accent
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: progressSlider.leftPadding + progressSlider.visualPosition * (progressSlider.availableWidth - width)
+                            y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
+                            width: App.Spacing.mainMenuSliderHandleSize
+                            height: App.Spacing.mainMenuSliderHandleSize
+                            radius: width / 2
+                            color: progressSlider.pressed ? App.Style.accent : App.Style.primaryTextColor
+                            visible: true
+                        }
+
+                        onPressedChanged: {
+                            if (pressed) {
+                                userSeeking = true
+                            } else {
+                                userSeeking = false
+                                if (mediaManager) {
+                                    mediaManager.set_position(value)
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        id: durationText
+                        text: "0:00"
+                        color: App.Style.secondaryTextColor
+                        font.pixelSize: App.Spacing.mainMenuTimeTextSize
+                        Layout.minimumWidth: App.Spacing.mainMenuTimeTextSize * 2.5
                     }
                 }
             }
 
-            // Vehicle Status section in MainMenu.qml
-            Rectangle {
-                Layout.fillHeight: true
-                Layout.fillWidth: true
-                color: "transparent"
-                border.color: App.Style.accent
-                border.width: 2
-                radius: 5
-
-                // Header
-                Rectangle {
-                    id: vehicleHeader
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                }
-
-                // Use the HomeOBDView component
-                HomeOBDView {
-                    anchors.top: vehicleHeader.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        stackView.push("OBDMenu.qml", {
+            // Click to open MediaRoom/MediaPlayer
+            MouseArea {
+                anchors.fill: parent
+                z: -1
+                onClicked: {
+                    if (mainMenu.currentFile !== "") {
+                        stackView.push("MediaRoom.qml", {
+                            stackView: mainMenu.stackView
+                        })
+                    } else {
+                        stackView.push("MediaPlayer.qml", {
                             stackView: stackView,
                             mainWindow: mainWindow
                         })
@@ -305,95 +465,109 @@ Item {
                 }
             }
         }
+
+        // ========== RIGHT SECTION: OBD (2/3 of width) ==========
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            color: "transparent"
+            border.color: App.Style.accent
+            border.width: 2
+            radius: 8
+
+            // Use the HomeOBDView component (stacked vertically)
+            HomeOBDView {
+                anchors.fill: parent
+                anchors.margins: 5
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    stackView.push("OBDMenu.qml", {
+                        stackView: stackView,
+                        mainWindow: mainWindow
+                    })
+                }
+            }
+        }
     }
-    
+
     // Timer for initial delayed loading of media data
     Timer {
         id: initialLoadTimer
-        interval: 0  // Half second delay to ensure MediaManager is ready
+        interval: 0
         repeat: false
         running: false
         onTriggered: {
-            mediaContentArea.updateMedia();
+            updateMedia()
+        }
+    }
+
+    // Function to update media information
+    function updateMedia() {
+        if (mediaManager) {
+            var filename = mediaManager.get_current_file()
+            if (filename) {
+                mainMenu.currentFile = filename
+                mainMenu.currentTitle = filename.replace('.mp3', '')
+                mainMenu.currentArtist = mediaManager.get_band(filename)
+                mainMenu.currentAlbum = mediaManager.get_album(filename)
+                mainMenu.currentArt = mediaManager.get_album_art(filename)
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        initialLoadTimer.start()
+        if (obdManager && obdManager.refresh_values) {
+            obdManager.refresh_values()
         }
     }
 
     // Media Connections
     Connections {
         target: mediaManager
-    
-        
-        function onMetadataChanged(title, artist, album) {
-            mediaContentArea.updateMedia();
-            mediaContentArea.currentTitle = title;
-            mediaContentArea.currentArtist = artist;
-            mediaContentArea.currentAlbum = album;
-        }
-    }
 
-    // Media Connections - consolidate into one section
-    Connections {
-        target: mediaManager
-        
         function onMetadataChanged(title, artist, album) {
-            mediaContentArea.updateMedia();
-            mediaContentArea.currentTitle = title;
-            mediaContentArea.currentArtist = artist;
-            mediaContentArea.currentAlbum = album;
+            updateMedia()
+            mainMenu.currentTitle = title
+            mainMenu.currentArtist = artist
+            mainMenu.currentAlbum = album
         }
-        
+
         function onPositionChanged(position) {
-            if (!miniProgressSlider.userSeeking) {
-                miniProgressSlider.value = position;
-                
-                // Format and update position text
-                var minutes = Math.floor(position / 60000);
-                var seconds = Math.floor((position % 60000) / 1000);
-                miniPositionText.text = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+            if (!progressSlider.userSeeking) {
+                progressSlider.value = position
+                positionText.text = formatTime(position)
             }
         }
-        
+
         function onDurationChanged(duration) {
-            miniProgressSlider.to = duration > 0 ? duration : 1;
-            
-            // Format and update duration text
-            var minutes = Math.floor(duration / 60000);
-            var seconds = Math.floor((duration % 60000) / 1000);
-            miniDurationText.text = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
+            progressSlider.to = duration > 0 ? duration : 1
+            durationText.text = formatTime(duration)
         }
-        
+
         function onCurrentMediaChanged(filename) {
-            // Update time displays when media changes
             if (mediaManager) {
-                // Update duration
-                var duration = mediaManager.get_duration();
-                var durationMinutes = Math.floor(duration / 60000);
-                var durationSeconds = Math.floor((duration % 60000) / 1000);
-                miniDurationText.text = durationMinutes + ":" + (durationSeconds < 10 ? "0" : "") + durationSeconds;
-                
-                // Reset position to 0
-                miniPositionText.text = "0:00";
+                var duration = mediaManager.get_duration()
+                durationText.text = formatTime(duration)
+                positionText.text = "0:00"
             }
+        }
+
+        function onPlayStateChanged(playing) {
+            playButtonImage.source = playing ?
+                "./assets/pause_button.svg" : "./assets/play_button.svg"
         }
     }
 
-    // Add this connection in MainMenu.qml
+    // OBD Settings connection
     Connections {
         target: settingsManager
         function onHomeOBDParametersChanged() {
-            // Force refresh of OBD values when the parameters change
             if (obdManager && obdManager.refresh_values) {
                 obdManager.refresh_values()
-            }
-        }
-    }
-    
-    Component.onCompleted: {
-
-        if (obdManager) {
-            // Refresh OBD values if available
-            if (obdManager.refresh_values) {
-                obdManager.refresh_values();
             }
         }
     }
