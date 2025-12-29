@@ -93,8 +93,8 @@ OCTAVE can control Spotify playback on any of your connected devices (phone, com
 
 ### Step 1: Create a Spotify Developer App
 
-1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-2. Log in with your Spotify account
+1. Log in with your Spotify account
+2. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
 3. Click **Create App**
 4. Fill in the details:
    - **App name**: OCTAVE (or whatever you like)
