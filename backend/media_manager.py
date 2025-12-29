@@ -79,7 +79,11 @@ class MediaManager(QObject):
         self._playlists = {}                      # Dict: name -> {path, files, song_count}
         self._playlist_names = []                 # List of playlist names
         self._current_playlist_name = ""          # Active playlist
-        
+
+        # All Music playlist support - maps filename to full path for multi-folder playlist
+        self._all_music_file_paths = {}           # Dict: filename -> full directory path
+        self._is_all_music_active = False         # True when "All Music" playlist is selected
+
         # Connect signals
         self._player.durationChanged.connect(self.durationChanged.emit)
         self._player.positionChanged.connect(self.positionChanged.emit)
@@ -143,33 +147,36 @@ class MediaManager(QObject):
         """Cache metadata for a file to reduce disk operations"""
         if filename in self._metadata_cache:
             return
-            
+
         try:
-            file_path = os.path.join(self.media_dir, filename)
-            
+            # Use helper to get correct file path (handles All Music multi-folder)
+            file_path = self._get_file_path(filename)
+            display_name = self._get_original_filename(filename)
+
             # Manage cache size
             if len(self._metadata_cache) >= self._metadata_cache_max:
                 # Remove oldest entry
                 self._metadata_cache.pop(next(iter(self._metadata_cache)))
-                
+
             # Read metadata once
             audio = ID3(file_path)
             mp3 = MP3(file_path)
-            
+
             # Store all required metadata at once
             self._metadata_cache[filename] = {
                 "artist": self._extract_id3_text(audio.get('TPE1'), "Unknown Artist"),
                 "album": self._extract_id3_text(audio.get('TALB'), "Unknown Album"),
-                "title": self._extract_id3_text(audio.get('TIT2'), filename.replace('.mp3', '')),
+                "title": self._extract_id3_text(audio.get('TIT2'), display_name.replace('.mp3', '')),
                 "duration": int(mp3.info.length)
             }
         except Exception as e:
             print(f"Metadata caching error for {filename}: {e}")
             # Set fallback values
+            display_name = self._get_original_filename(filename)
             self._metadata_cache[filename] = {
                 "artist": "Unknown Artist",
                 "album": "Unknown Album",
-                "title": filename.replace('.mp3', ''),
+                "title": display_name.replace('.mp3', ''),
                 "duration": 0
             }
     
@@ -336,8 +343,8 @@ class MediaManager(QObject):
             # Manage cache BEFORE adding new entry
             self._manage_cache(album_id)
 
-            # Extract and cache new album art
-            file_path = os.path.join(self.media_dir, filename)
+            # Extract and cache new album art - use helper for correct path
+            file_path = self._get_file_path(filename)
             audio = ID3(file_path)
             
             found_apic = False
@@ -444,8 +451,8 @@ class MediaManager(QObject):
             else:
                 return
         
-        # Play the file
-        file_path = os.path.join(self.media_dir, filename)
+        # Play the file - use helper for correct path (handles All Music)
+        file_path = self._get_file_path(filename)
         if os.path.exists(file_path):
             try:
                 url = QUrl.fromLocalFile(file_path)
@@ -454,7 +461,7 @@ class MediaManager(QObject):
                 self._is_playing = True
                 self._is_paused = False
                 self.playStateChanged.emit(True)
-                self.currentMediaChanged.emit(filename)  
+                self.currentMediaChanged.emit(filename)
                 self._emit_metadata(filename)
                 self.get_formatted_duration(filename)
                 print(f"Now playing: {filename} from {'shuffled' if self._shuffle else 'alphabetical'} playlist at position {self._current_index}")
@@ -664,7 +671,12 @@ class MediaManager(QObject):
         self._metadata_cache = {}
         self._album_art_cache = {}
         self._access_count = {}
+        self._all_music_file_paths = {}
+        self._is_all_music_active = False
         self.invalidate_stats_cache()
+
+        # Collect all MP3s for "All Music" playlist
+        all_music_files = []
 
         # First, check for root-level MP3s (goes to "Unsorted" playlist)
         root_mp3s = []
@@ -673,6 +685,9 @@ class MediaManager(QObject):
                 item_path = os.path.join(self._library_root, item)
                 if os.path.isfile(item_path) and item.lower().endswith('.mp3'):
                     root_mp3s.append(item)
+                    # Track for All Music - store the directory path for this file
+                    self._all_music_file_paths[item] = self._library_root
+                    all_music_files.append(item)
         except Exception as e:
             print(f"Error scanning root for MP3s: {e}")
 
@@ -696,6 +711,13 @@ class MediaManager(QObject):
                         for f in os.listdir(subfolder_path):
                             if f.lower().endswith('.mp3'):
                                 mp3_files.append(f)
+                                # Track for All Music - handle duplicate filenames by appending folder
+                                unique_name = f
+                                if f in self._all_music_file_paths:
+                                    # Duplicate filename - make it unique by prefixing with folder name
+                                    unique_name = f"{item} - {f}"
+                                self._all_music_file_paths[unique_name] = subfolder_path
+                                all_music_files.append(unique_name)
                     except Exception as e:
                         print(f"Error scanning subfolder {item}: {e}")
                         continue
@@ -712,13 +734,27 @@ class MediaManager(QObject):
         except Exception as e:
             print(f"Error scanning library subfolders: {e}")
 
-        # Sort playlist names alphabetically (but keep Unsorted first if present)
+        # Create "All Music" playlist if we have any songs
+        if all_music_files:
+            self._playlists["All Music"] = {
+                "name": "All Music",
+                "path": self._library_root,  # Base path (individual files use _all_music_file_paths)
+                "files": all_music_files,
+                "song_count": len(all_music_files),
+                "is_combined": True  # Flag to indicate this is a combined playlist
+            }
+            print(f"Created 'All Music' playlist with {len(all_music_files)} total songs")
+
+        # Sort playlist names alphabetically, but keep "All Music" first, then "Unsorted"
         if "Unsorted" in self._playlist_names:
             self._playlist_names.remove("Unsorted")
-            self._playlist_names.sort(key=str.lower)
+        self._playlist_names.sort(key=str.lower)
+
+        # Insert special playlists at the beginning
+        if "Unsorted" in self._playlists:
             self._playlist_names.insert(0, "Unsorted")
-        else:
-            self._playlist_names.sort(key=str.lower)
+        if "All Music" in self._playlists:
+            self._playlist_names.insert(0, "All Music")
 
         print(f"Library scan complete. Found {len(self._playlist_names)} playlists")
 
@@ -756,8 +792,17 @@ class MediaManager(QObject):
         self._current_playlist_name = name
         playlist = self._playlists[name]
 
-        # Update media_dir to playlist path for existing methods
-        self.media_dir = playlist["path"]
+        # Check if this is the "All Music" combined playlist
+        self._is_all_music_active = playlist.get("is_combined", False)
+
+        if self._is_all_music_active:
+            # For "All Music", we don't set a single media_dir since files span multiple folders
+            # The _all_music_file_paths dict handles finding the correct path for each file
+            self.media_dir = self._library_root  # Default to library root
+            print(f"All Music playlist active - files span multiple directories")
+        else:
+            # Update media_dir to playlist path for existing methods
+            self.media_dir = playlist["path"]
 
         # Reset current playlist to sorted files
         self._current_playlist = sorted(
@@ -780,6 +825,33 @@ class MediaManager(QObject):
     def get_current_playlist_name(self):
         """Return current playlist name"""
         return self._current_playlist_name
+
+    def _get_file_path(self, filename):
+        """Get the full file path for a filename, handling All Music multi-folder playlist"""
+        if self._is_all_music_active and filename in self._all_music_file_paths:
+            # For All Music, look up the directory from our mapping
+            directory = self._all_music_file_paths[filename]
+            # Handle renamed files (prefixed with folder name for duplicates)
+            if " - " in filename and not os.path.exists(os.path.join(directory, filename)):
+                # Extract the original filename after the prefix
+                original_filename = filename.split(" - ", 1)[1]
+                return os.path.join(directory, original_filename)
+            return os.path.join(directory, filename)
+        else:
+            # Standard case - use media_dir
+            return os.path.join(self.media_dir, filename)
+
+    def _get_original_filename(self, filename):
+        """Get the original filename (without folder prefix for All Music duplicates)"""
+        if self._is_all_music_active and " - " in filename:
+            # Check if this is a renamed duplicate by seeing if original exists in mapping
+            parts = filename.split(" - ", 1)
+            if len(parts) == 2:
+                potential_original = parts[1]
+                # If the original filename also exists in the mapping, this was renamed
+                if potential_original in self._all_music_file_paths:
+                    return potential_original
+        return filename
 
     @Slot(QObject)
     def connect_settings_manager(self, settings_manager):
@@ -817,8 +889,8 @@ class MediaManager(QObject):
             print(f"Last played song '{last_song}' not found in current playlist")
             return
 
-        # Set up the player with the last song
-        file_path = os.path.join(self.media_dir, last_song)
+        # Set up the player with the last song - use helper for correct path
+        file_path = self._get_file_path(last_song)
         if not os.path.exists(file_path):
             print(f"Last played file not found: {file_path}")
             return
@@ -884,7 +956,7 @@ class MediaManager(QObject):
             
             # If currently playing, try to continue with same file or reset
             current_file = self.get_current_file()
-            if self._is_playing and current_file and os.path.exists(os.path.join(self.media_dir, current_file)):
+            if self._is_playing and current_file and os.path.exists(self._get_file_path(current_file)):
                 self.play_file(current_file)
             elif self._is_playing:
                 # Was playing but file not in new directory - play first available file
