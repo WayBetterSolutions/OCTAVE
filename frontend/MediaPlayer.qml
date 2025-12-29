@@ -19,6 +19,48 @@ Item {
     property var playlistNames: []
     property string currentPlaylistName: ""
 
+    // Spotify playlist properties
+    property bool spotifyConnected: spotifyManager && spotifyManager.is_connected()
+    property var spotifyPlaylistNames: []
+    property var spotifyTracks: []
+    property var spotifyTrackNames: []
+    property string currentSpotifyPlaylistName: ""
+    property bool isSpotifyPlaylist: false  // true if currently viewing a Spotify playlist
+    property int playlistRefreshCounter: 0  // Incremented to force delegate rebindings
+
+    // Cached playback state to avoid constant re-evaluation in delegates
+    property string currentSpotifyTrackName: spotifyManager ? spotifyManager.get_current_track_name() : ""
+    property bool spotifyIsPlaying: false
+
+    // Initial scroll position (calculated before render)
+    property real initialScrollPosition: -1
+
+    // Force model refresh when switching between local and Spotify playlists
+    onIsSpotifyPlaylistChanged: {
+        console.log("isSpotifyPlaylist changed to: " + isSpotifyPlaylist)
+        playlistRefreshCounter++  // Force delegates to re-evaluate bindings
+        updateTimer.restart()
+    }
+
+    // Combined playlists for unified dropdown
+    property var combinedPlaylists: {
+        var list = []
+        // Add local playlists first
+        for (var i = 0; i < playlistNames.length; i++) {
+            list.push({ name: playlistNames[i], type: "local" })
+        }
+        // Add Spotify playlists if connected
+        if (spotifyConnected && spotifyPlaylistNames.length > 0) {
+            for (var j = 0; j < spotifyPlaylistNames.length; j++) {
+                list.push({ name: spotifyPlaylistNames[j], type: "spotify" })
+            }
+        }
+        return list
+    }
+
+    // Get the display name for the dropdown
+    property string displayPlaylistName: isSpotifyPlaylist ? currentSpotifyPlaylistName : currentPlaylistName
+
     // Sorting properties
     property bool sortByTitleAscending: true
     property bool sortByAlbumAscending: true
@@ -38,6 +80,22 @@ Item {
         }
     }
 
+    // Calculate initial scroll position for a given track
+    function calculateScrollPosition(trackName, model) {
+        if (!trackName || model.length === 0) return -1
+
+        for (var i = 0; i < model.length; i++) {
+            if (model[i] === trackName) {
+                var itemHeight = App.Spacing.mediaPlayerRowHeight * 1.4 + 6
+                // Estimate list height (will be corrected when ListView is ready)
+                var listHeight = 600
+                var targetY = (i * itemHeight) - (listHeight / 2) + (itemHeight / 2)
+                return Math.max(0, targetY)
+            }
+        }
+        return -1
+    }
+
     // Initialize component
     Component.onCompleted: {
         if (mediaManager) {
@@ -50,8 +108,37 @@ Item {
             if (currentFile) {
                 lastPlayedSong = currentFile
                 isPaused = !mediaManager.is_playing()
+                // Pre-calculate scroll position for local files
+                initialScrollPosition = calculateScrollPosition(currentFile, mediaFiles)
             }
             updateTimer.restart()
+        }
+
+        // Load Spotify playlists if connected
+        if (spotifyConnected && spotifyManager) {
+            spotifyPlaylistNames = spotifyManager.get_spotify_playlist_names()
+
+            // Check if we should restore Spotify playlist state
+            // If Spotify is the current media source and has a playlist loaded, show it
+            if (settingsManager && settingsManager.mediaSource === "spotify" &&
+                spotifyManager.has_spotify_playlist_loaded()) {
+
+                console.log("Restoring Spotify playlist state")
+                isSpotifyPlaylist = true
+                currentSpotifyPlaylistName = spotifyManager.get_current_spotify_playlist_name()
+                currentSpotifyTrackName = spotifyManager.get_current_track_name()
+
+                // Load the tracks for display
+                var playlistId = spotifyManager.get_current_spotify_playlist_id()
+                if (playlistId) {
+                    spotifyManager.select_spotify_playlist(playlistId)
+                }
+            }
+        }
+
+        // For local files, apply scroll position after a brief delay to ensure ListView is ready
+        if (!isSpotifyPlaylist && initialScrollPosition >= 0) {
+            scrollToCurrentTimer.restart()
         }
     }
 
@@ -63,9 +150,49 @@ Item {
         onTriggered: {
             listViewPosition = mediaListView.contentY
             mediaListView.model = []
-            mediaListView.model = mediaFiles
+            // Use correct model based on current mode
+            mediaListView.model = isSpotifyPlaylist ? spotifyTrackNames : mediaFiles
             mediaListView.contentY = listViewPosition
         }
+    }
+
+    // Function to scroll to the currently playing track (instant, no animation)
+    function scrollToCurrentTrack() {
+        var currentTrackName = ""
+        var model = []
+
+        if (isSpotifyPlaylist) {
+            currentTrackName = currentSpotifyTrackName
+            model = spotifyTrackNames
+        } else {
+            currentTrackName = lastPlayedSong
+            model = mediaFiles
+        }
+
+        if (!currentTrackName || model.length === 0) return
+
+        // Find the index of the current track
+        for (var i = 0; i < model.length; i++) {
+            if (model[i] === currentTrackName) {
+                // Calculate the content position to center this item
+                var itemHeight = App.Spacing.mediaPlayerRowHeight * 1.4 + 6  // height + spacing
+                var targetY = (i * itemHeight) - (mediaListView.height / 2) + (itemHeight / 2)
+                // Clamp to valid range
+                targetY = Math.max(0, Math.min(targetY, mediaListView.contentHeight - mediaListView.height))
+                // Set position directly (instant, no animation)
+                mediaListView.contentY = targetY
+                console.log("Scrolled to track at index: " + i)
+                break
+            }
+        }
+    }
+
+    // Timer to scroll to current track after model is loaded
+    Timer {
+        id: scrollToCurrentTimer
+        interval: 50  // Minimal delay, just enough for model to populate
+        repeat: false
+        onTriggered: scrollToCurrentTrack()
     }
 
     // Main content
@@ -119,8 +246,8 @@ Item {
                             anchors.right: dropdownArrow.left
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.leftMargin: App.Spacing.overallMargin * 2
-                            text: currentPlaylistName || "Select Playlist"
-                            color: App.Style.primaryTextColor
+                            text: displayPlaylistName || "Select Playlist"
+                            color: isSpotifyPlaylist ? "#1DB954" : App.Style.primaryTextColor
                             font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.3
                             font.bold: true
                             elide: Text.ElideRight
@@ -181,22 +308,45 @@ Item {
                                 spacing: 2
 
                                 Repeater {
-                                    model: playlistNames
+                                    model: combinedPlaylists
 
                                     Rectangle {
                                         width: playlistColumn.width
                                         height: App.Spacing.formElementHeight
-                                        color: itemMouseArea.containsMouse ? App.Style.accent : "transparent"
+                                        color: itemMouseArea.containsMouse ?
+                                            (modelData.type === "spotify" ? "#1DB954" : App.Style.accent) :
+                                            "transparent"
                                         radius: 4
 
-                                        Text {
-                                            anchors.left: parent.left
+                                        RowLayout {
+                                            anchors.fill: parent
                                             anchors.leftMargin: App.Spacing.overallMargin
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: modelData
-                                            color: itemMouseArea.containsMouse ? "white" : App.Style.primaryTextColor
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.bold: modelData === currentPlaylistName
+                                            anchors.rightMargin: App.Spacing.overallMargin
+                                            spacing: App.Spacing.overallMargin
+
+                                            // Spotify indicator circle
+                                            Rectangle {
+                                                visible: modelData.type === "spotify"
+                                                width: 8
+                                                height: 8
+                                                radius: 4
+                                                color: itemMouseArea.containsMouse ? "white" : "#1DB954"
+                                            }
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: modelData.name
+                                                color: {
+                                                    if (itemMouseArea.containsMouse) {
+                                                        return "white"
+                                                    }
+                                                    return modelData.type === "spotify" ? "#1DB954" : App.Style.primaryTextColor
+                                                }
+                                                font.pixelSize: App.Spacing.overallText
+                                                font.bold: (modelData.type === "local" && modelData.name === currentPlaylistName) ||
+                                                           (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
+                                                elide: Text.ElideRight
+                                            }
                                         }
 
                                         MouseArea {
@@ -204,8 +354,37 @@ Item {
                                             anchors.fill: parent
                                             hoverEnabled: true
                                             onClicked: {
-                                                if (mediaManager && modelData) {
-                                                    mediaManager.select_playlist(modelData)
+                                                console.log("Playlist selected: " + modelData.name + ", type: " + modelData.type)
+                                                if (modelData.type === "spotify") {
+                                                    // Set Spotify mode FIRST before loading tracks
+                                                    mediaPlayer.isSpotifyPlaylist = true
+                                                    mediaPlayer.currentSpotifyPlaylistName = modelData.name
+                                                    console.log("isSpotifyPlaylist set to: " + mediaPlayer.isSpotifyPlaylist)
+
+                                                    // Switch media source
+                                                    if (settingsManager) {
+                                                        settingsManager.set_media_source("spotify")
+                                                    }
+                                                    // Get playlist ID and select it (this will load tracks and emit signal)
+                                                    if (spotifyManager) {
+                                                        var playlistId = spotifyManager.get_spotify_playlist_id(modelData.name)
+                                                        console.log("Spotify playlist ID: " + playlistId)
+                                                        if (playlistId) {
+                                                            spotifyManager.select_spotify_playlist(playlistId)
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Switch to local mode FIRST
+                                                    mediaPlayer.isSpotifyPlaylist = false
+                                                    console.log("isSpotifyPlaylist set to: " + mediaPlayer.isSpotifyPlaylist)
+
+                                                    // Switch media source
+                                                    if (settingsManager) {
+                                                        settingsManager.set_media_source("local")
+                                                    }
+                                                    if (mediaManager && modelData.name) {
+                                                        mediaManager.select_playlist(modelData.name)
+                                                    }
                                                 }
                                                 playlistPopup.close()
                                             }
@@ -253,8 +432,8 @@ Item {
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                     }
                     Text {
-                        text: mediaFiles.length
-                        color: App.Style.secondaryTextColor
+                        text: isSpotifyPlaylist ? spotifyTrackNames.length : mediaFiles.length
+                        color: isSpotifyPlaylist ? "#1DB954" : App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                         font.bold: true
                     }
@@ -262,6 +441,7 @@ Item {
 
                 // Number of Albums
                 RowLayout {
+                    visible: !isSpotifyPlaylist
                     spacing: App.Spacing.overallMargin
                     Text {
                         text: "Albums:"
@@ -279,6 +459,7 @@ Item {
 
                 // Number of Artists
                 RowLayout {
+                    visible: !isSpotifyPlaylist
                     spacing: App.Spacing.overallMargin
                     Text {
                         text: "Artists:"
@@ -296,6 +477,7 @@ Item {
 
                 // Total Duration
                 RowLayout {
+                    visible: !isSpotifyPlaylist
                     spacing: App.Spacing.overallMargin
                     Text {
                         text: "Total:"
@@ -306,6 +488,24 @@ Item {
                         id: totalDurationText
                         text: mediaManager ? mediaManager.get_total_duration() : "--:--:--"
                         color: App.Style.secondaryTextColor
+                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                        font.bold: true
+                    }
+                }
+
+                // Spotify indicator when viewing Spotify playlist
+                RowLayout {
+                    visible: isSpotifyPlaylist
+                    spacing: App.Spacing.overallMargin
+                    Rectangle {
+                        width: 10
+                        height: 10
+                        radius: 5
+                        color: "#1DB954"
+                    }
+                    Text {
+                        text: "Spotify Playlist"
+                        color: "#1DB954"
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                         font.bold: true
                     }
@@ -444,34 +644,52 @@ Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
-                    model: mediaFiles
+                    model: isSpotifyPlaylist ? spotifyTrackNames : mediaFiles
                     cacheBuffer: height * 0.5
                     displayMarginBeginning: 40
                     displayMarginEnd: 40
                     reuseItems: true
-                    
+
                     // Add spacing between items
                     spacing: 6
+
+                    // Set initial position when ListView geometry is ready
+                    onHeightChanged: {
+                        if (height > 0 && initialScrollPosition >= 0) {
+                            // Recalculate with actual height and apply
+                            scrollToCurrentTrack()
+                            initialScrollPosition = -1  // Only do this once
+                        }
+                    }
 
                     // List item delegate
                     delegate: Item {
                         id: delegate
                         width: ListView.view.width
                         height: App.Spacing.mediaPlayerRowHeight * 1.4
-                        visible: y >= mediaListView.contentY - height && 
+                        visible: y >= mediaListView.contentY - height &&
                                 y <= mediaListView.contentY + mediaListView.height
-                                
-                        // Active song properties
-                        property bool isCurrentSong: lastPlayedSong === modelData
-                        property bool isPlaying: isCurrentSong && mediaManager && mediaManager.is_playing()
-                        
-                        // Properties for album art
-                        property var albumArtSource: visible ? 
-                            (mediaManager ? 
-                                mediaManager.get_album_art(modelData) || 
-                                "./assets/missing_art.jpg" : 
-                                "./assets/missing_art.jpg") : 
-                            ""
+
+                        // Active song properties - check against Spotify current track when in Spotify mode
+                        // Bind directly to cached properties for stable updates without model refresh
+                        property bool isCurrentSong: mediaPlayer.isSpotifyPlaylist
+                            ? (mediaPlayer.currentSpotifyTrackName === modelData)
+                            : (lastPlayedSong === modelData)
+
+                        property bool isPlaying: mediaPlayer.isSpotifyPlaylist
+                            ? (isCurrentSong && mediaPlayer.spotifyIsPlaying)
+                            : (isCurrentSong && !isPaused)
+
+                        // Properties for album art - conditionally fetch from Spotify or local
+                        property var albumArtSource: {
+                            // Reference playlistRefreshCounter to force rebinding
+                            var _ = mediaPlayer.playlistRefreshCounter
+                            if (!visible) return ""
+                            if (mediaPlayer.isSpotifyPlaylist && spotifyManager) {
+                                return spotifyManager.get_spotify_track_image(modelData) || "./assets/missing_art.png"
+                            }
+                            return mediaManager ? (mediaManager.get_album_art(modelData) || "./assets/missing_art.png") : "./assets/missing_art.png"
+                        }
                         
                         // Generate consistent value based on song name
                         property real randomValue: {
@@ -682,7 +900,11 @@ Item {
                                             // Song title
                                             Text {
                                                 Layout.fillWidth: true
-                                                text: modelData.replace('.mp3', '')
+                                                // Reference playlistRefreshCounter to force rebinding when mode changes
+                                                text: {
+                                                    var _ = mediaPlayer.playlistRefreshCounter
+                                                    return mediaPlayer.isSpotifyPlaylist ? modelData : modelData.replace('.mp3', '')
+                                                }
                                                 color: App.Style.primaryTextColor
                                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
                                                 font.bold: true
@@ -691,9 +913,14 @@ Item {
 
                                             // Duration
                                             Text {
-                                                text: mediaManager ? 
-                                                    mediaManager.get_formatted_duration(modelData) : 
-                                                    "0:00"
+                                                text: {
+                                                    // Reference playlistRefreshCounter to force rebinding
+                                                    var _ = mediaPlayer.playlistRefreshCounter
+                                                    if (mediaPlayer.isSpotifyPlaylist && spotifyManager) {
+                                                        return spotifyManager.get_spotify_track_duration_formatted(modelData)
+                                                    }
+                                                    return mediaManager ? mediaManager.get_formatted_duration(modelData) : "0:00"
+                                                }
                                                 color: App.Style.secondaryTextColor
                                                 font.pixelSize: App.Spacing.mediaPlayerSecondaryTextSize * 1.1
                                                 elide: Text.ElideRight
@@ -707,14 +934,19 @@ Item {
                                     Layout.preferredWidth: parent.width * 0.3
                                     Layout.fillHeight: true
                                     clip: true
-                                    
+
                                     Text {
                                         anchors.left: parent.left
                                         anchors.right: parent.right
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: mediaManager ? 
-                                            mediaManager.get_band(modelData) : 
-                                            "Unknown Artist"
+                                        text: {
+                                            // Reference playlistRefreshCounter to force rebinding
+                                            var _ = mediaPlayer.playlistRefreshCounter
+                                            if (mediaPlayer.isSpotifyPlaylist && spotifyManager) {
+                                                return spotifyManager.get_spotify_track_artist(modelData)
+                                            }
+                                            return mediaManager ? mediaManager.get_band(modelData) : "Unknown Artist"
+                                        }
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.mediaPlayerSecondaryTextSize * 1.2
                                         elide: Text.ElideRight
@@ -726,14 +958,19 @@ Item {
                                     Layout.preferredWidth: parent.width * 0.3
                                     Layout.fillHeight: true
                                     clip: true
-                                    
+
                                     Text {
                                         anchors.left: parent.left
                                         anchors.right: parent.right
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: mediaManager ? 
-                                            mediaManager.get_album(modelData) : 
-                                            "Unknown Album"
+                                        text: {
+                                            // Reference playlistRefreshCounter to force rebinding
+                                            var _ = mediaPlayer.playlistRefreshCounter
+                                            if (mediaPlayer.isSpotifyPlaylist && spotifyManager) {
+                                                return spotifyManager.get_spotify_track_album(modelData)
+                                            }
+                                            return mediaManager ? mediaManager.get_album(modelData) : "Unknown Album"
+                                        }
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.mediaPlayerSecondaryTextSize * 1.2
                                         elide: Text.ElideRight
@@ -745,25 +982,44 @@ Item {
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: {
-                                    if (mediaManager) {
-                                        // If Spotify is playing, pause it and switch to local
-                                        if (spotifyManager && spotifyManager.is_connected()) {
-                                            if (spotifyManager.is_playing()) {
+                                    console.log("Song clicked - isSpotifyPlaylist: " + mediaPlayer.isSpotifyPlaylist + ", modelData: " + modelData)
+                                    if (mediaPlayer.isSpotifyPlaylist) {
+                                        // Handle Spotify track playback
+                                        if (spotifyManager) {
+                                            // Pause local playback first
+                                            if (mediaManager && mediaManager.is_playing()) {
+                                                mediaManager.pause()
+                                            }
+
+                                            var uri = spotifyManager.get_spotify_track_uri(modelData)
+                                            console.log("Playing Spotify URI: " + uri)
+                                            if (uri) {
+                                                spotifyManager.play_uri(uri)
+                                            }
+                                            stackView.push("MediaRoom.qml", {
+                                                stackView: mediaPlayer.stackView
+                                            })
+                                        }
+                                    } else {
+                                        // Handle local file playback
+                                        if (mediaManager) {
+                                            // If Spotify is playing, pause it
+                                            if (spotifyManager && spotifyManager.is_connected() && spotifyManager.is_playing()) {
                                                 spotifyManager.pause()
                                             }
-                                        }
 
-                                        // Switch to local source
-                                        if (settingsManager && settingsManager.mediaSource !== "local") {
-                                            settingsManager.set_media_source("local")
-                                        }
+                                            // Switch to local source
+                                            if (settingsManager && settingsManager.mediaSource !== "local") {
+                                                settingsManager.set_media_source("local")
+                                            }
 
-                                        // Play the selected file
-                                        mediaManager.play_file(modelData)
-                                        lastPlayedSong = modelData
-                                        stackView.push("MediaRoom.qml", {
-                                            stackView: mediaPlayer.stackView
-                                        })
+                                            // Play the selected file
+                                            mediaManager.play_file(modelData)
+                                            lastPlayedSong = modelData
+                                            stackView.push("MediaRoom.qml", {
+                                                stackView: mediaPlayer.stackView
+                                            })
+                                        }
                                     }
                                 }
                             }
@@ -870,6 +1126,64 @@ Item {
         function onCurrentPlaylistChanged(name) {
             console.log("Current playlist changed to: " + name)
             currentPlaylistName = name
+        }
+    }
+
+    // Connect to spotifyManager signals
+    Connections {
+        target: spotifyManager
+
+        function onPlaylistsChanged(playlists) {
+            console.log("Spotify playlists changed: " + playlists.length + " playlists")
+            spotifyPlaylistNames = spotifyManager.get_spotify_playlist_names()
+        }
+
+        function onSpotifyTracksChanged(tracks) {
+            console.log("Spotify tracks changed: " + tracks.length + " tracks")
+            console.log("isSpotifyPlaylist at signal time: " + mediaPlayer.isSpotifyPlaylist)
+            spotifyTracks = tracks
+            // Extract track names for the model
+            var names = []
+            for (var i = 0; i < tracks.length; i++) {
+                names.push(tracks[i].name)
+                if (i < 3) {
+                    console.log("Track " + i + ": " + tracks[i].name + " by " + tracks[i].artist)
+                }
+            }
+            spotifyTrackNames = names
+            console.log("spotifyTrackNames length: " + spotifyTrackNames.length)
+            updateTimer.restart()
+            // Scroll to current track after model updates
+            scrollToCurrentTimer.restart()
+        }
+
+        function onCurrentSpotifyPlaylistChanged(name) {
+            console.log("Current Spotify playlist changed to: " + name)
+            currentSpotifyPlaylistName = name
+        }
+
+        function onConnectionStateChanged(connected) {
+            console.log("Spotify connection state changed: " + connected)
+            if (connected) {
+                spotifyPlaylistNames = spotifyManager.get_spotify_playlist_names()
+            } else {
+                spotifyPlaylistNames = []
+                // If viewing Spotify playlist, reset to local
+                if (isSpotifyPlaylist) {
+                    isSpotifyPlaylist = false
+                    spotifyTrackNames = []
+                }
+            }
+        }
+
+        function onCurrentTrackChanged(title, artist, album, artUrl) {
+            // Update cached track name - delegates will automatically update via binding
+            currentSpotifyTrackName = title
+        }
+
+        function onPlayStateChanged(playing) {
+            // Update cached play state - delegates will automatically update via binding
+            spotifyIsPlaying = playing
         }
     }
 }

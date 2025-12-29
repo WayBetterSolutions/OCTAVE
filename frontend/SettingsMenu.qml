@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Controls.Material 2.15
+import QtQuick.Dialogs
 import "." as App
 
 Item {
@@ -10,8 +11,25 @@ Item {
     required property var stackView
     required property var mainWindow
     required property string initialSection
-    
+
     property string currentSection: initialSection
+
+    // Folder dialog for selecting music library folder
+    FolderDialog {
+        id: folderDialog
+        title: "Select Music Library Folder"
+        onAccepted: {
+            // Convert from file:/// URL to local path
+            var path = selectedFolder.toString()
+            if (path.startsWith("file:///")) {
+                path = path.substring(8)  // Remove "file:///"
+            }
+            mediaFolderField.text = path
+            if (settingsManager) {
+                settingsManager.save_media_folder(path)
+            }
+        }
+    }
 
     component SettingLabel: Label {
         color: App.Style.primaryTextColor
@@ -948,6 +966,39 @@ Item {
                                                 settingsManager.save_media_folder(text)
                                             }
                                         }
+                                    }
+
+                                    // Browse button
+                                    Rectangle {
+                                        id: browseButton
+                                        Layout.preferredWidth: 85
+                                        Layout.preferredHeight: mediaFolderField.height
+                                        color: browseMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
+                                               browseMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                                        radius: 6
+                                        border.width: 1
+                                        border.color: Qt.darker(App.Style.accent, 1.3)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "Browse"
+                                            color: "white"
+                                            font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: browseMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                folderDialog.open()
+                                            }
+                                        }
+
+                                        ToolTip.visible: browseMouseArea.containsMouse
+                                        ToolTip.text: "Browse for music folder"
+                                        ToolTip.delay: 300
                                     }
 
                                     // Scan library button

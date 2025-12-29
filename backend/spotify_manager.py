@@ -39,6 +39,8 @@ class SpotifyManager(QObject):
 
     # Playlist/library signals
     playlistsChanged = Signal(list)  # List of user playlists
+    spotifyTracksChanged = Signal(list)  # Tracks from selected playlist
+    currentSpotifyPlaylistChanged = Signal(str)  # Current playlist name
 
     # Auth flow signal
     authUrlReady = Signal(str)  # URL for user to visit for OAuth
@@ -59,6 +61,11 @@ class SpotifyManager(QObject):
         self._current_position_ms = 0
         self._is_shuffled = False
         self._current_volume = 100  # Volume 0-100
+
+        # Spotify playlist tracks state
+        self._spotify_tracks = []
+        self._current_spotify_playlist_id = ""
+        self._current_spotify_playlist_name = ""
 
         # Credentials (loaded from settings)
         self._client_id = ""
@@ -396,7 +403,27 @@ class SpotifyManager(QObject):
             return
         try:
             if uri.startswith('spotify:track:'):
-                self._sp.start_playback(device_id=self._active_device_id, uris=[uri])
+                # If we have a current playlist context, play within that context
+                if self._current_spotify_playlist_id:
+                    playlist_uri = f"spotify:playlist:{self._current_spotify_playlist_id}"
+                    # Find the offset of this track in the playlist
+                    offset = None
+                    for i, track in enumerate(self._spotify_tracks):
+                        if track.get('uri') == uri:
+                            offset = i
+                            break
+
+                    if offset is not None:
+                        self._sp.start_playback(
+                            device_id=self._active_device_id,
+                            context_uri=playlist_uri,
+                            offset={"position": offset}
+                        )
+                    else:
+                        # Track not found in playlist, play standalone
+                        self._sp.start_playback(device_id=self._active_device_id, uris=[uri])
+                else:
+                    self._sp.start_playback(device_id=self._active_device_id, uris=[uri])
             else:
                 # Album or playlist
                 self._sp.start_playback(device_id=self._active_device_id, context_uri=uri)
@@ -513,6 +540,117 @@ class SpotifyManager(QObject):
         except Exception as e:
             print(f"Spotify get playlist tracks error: {e}")
             return []
+
+    @Slot(str)
+    def select_spotify_playlist(self, playlist_id):
+        """Select a Spotify playlist and load its tracks"""
+        print(f"select_spotify_playlist called with ID: {playlist_id}")
+        if not self._sp:
+            print("Error: Spotify client not connected")
+            return
+
+        # Find playlist name from stored playlists
+        playlist_name = ""
+        for p in self._playlists:
+            if p['id'] == playlist_id:
+                playlist_name = p['name']
+                break
+
+        print(f"Found playlist name: {playlist_name}")
+
+        # Load tracks
+        self._spotify_tracks = self.get_playlist_tracks(playlist_id)
+        self._current_spotify_playlist_id = playlist_id
+        self._current_spotify_playlist_name = playlist_name
+
+        print(f"Loaded {len(self._spotify_tracks)} tracks")
+        if self._spotify_tracks:
+            print(f"First track: {self._spotify_tracks[0]}")
+
+        # Emit signals
+        self.spotifyTracksChanged.emit(self._spotify_tracks)
+        self.currentSpotifyPlaylistChanged.emit(playlist_name)
+
+    @Slot(result=list)
+    def get_spotify_playlist_names(self):
+        """Return list of playlist names"""
+        return [p['name'] for p in self._playlists]
+
+    @Slot(result=list)
+    def get_spotify_tracks(self):
+        """Return currently loaded Spotify playlist tracks"""
+        return self._spotify_tracks
+
+    @Slot(result=str)
+    def get_current_spotify_playlist_name(self):
+        """Return current Spotify playlist name"""
+        return self._current_spotify_playlist_name
+
+    @Slot(str, result=str)
+    def get_spotify_track_artist(self, track_name):
+        """Get artist for a track by name"""
+        for track in self._spotify_tracks:
+            if track['name'] == track_name:
+                return track.get('artist', 'Unknown Artist')
+        return 'Unknown Artist'
+
+    @Slot(str, result=str)
+    def get_spotify_track_album(self, track_name):
+        """Get album for a track by name"""
+        for track in self._spotify_tracks:
+            if track['name'] == track_name:
+                return track.get('album', 'Unknown Album')
+        return 'Unknown Album'
+
+    @Slot(str, result=str)
+    def get_spotify_track_image(self, track_name):
+        """Get album art URL for a track by name"""
+        for track in self._spotify_tracks:
+            if track['name'] == track_name:
+                return track.get('image', '')
+        return ''
+
+    @Slot(str, result=str)
+    def get_spotify_track_duration_formatted(self, track_name):
+        """Get formatted duration (MM:SS) for a track by name"""
+        for track in self._spotify_tracks:
+            if track['name'] == track_name:
+                duration_ms = track.get('duration_ms', 0)
+                minutes = duration_ms // 60000
+                seconds = (duration_ms % 60000) // 1000
+                return f"{minutes}:{seconds:02d}"
+        return "0:00"
+
+    @Slot(str, result=str)
+    def get_spotify_track_uri(self, track_name):
+        """Get Spotify URI for a track by name"""
+        for track in self._spotify_tracks:
+            if track['name'] == track_name:
+                return track.get('uri', '')
+        return ''
+
+    @Slot(str, result=str)
+    def get_spotify_playlist_id(self, playlist_name):
+        """Get playlist ID from playlist name"""
+        for p in self._playlists:
+            if p['name'] == playlist_name:
+                return p['id']
+        return ''
+
+    @Slot(result=str)
+    def get_current_spotify_playlist_id(self):
+        """Get the currently selected Spotify playlist ID"""
+        return self._current_spotify_playlist_id
+
+    @Slot(result=str)
+    def get_current_spotify_playlist_name(self):
+        """Get the currently selected Spotify playlist name"""
+        return self._current_spotify_playlist_name
+
+    @Slot(result=bool)
+    def has_spotify_playlist_loaded(self):
+        """Check if a Spotify playlist is currently loaded"""
+        return bool(self._current_spotify_playlist_id and self._spotify_tracks)
 
     # ==================== Playback State Polling ====================
 

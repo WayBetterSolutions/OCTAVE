@@ -201,7 +201,7 @@ Rectangle {
                                 MouseArea {
                                     id: mouseAreaPrev
                                     anchors.fill: parent
-                                    onClicked: mediaManager.previous_track()
+                                    onClicked: useSpotify ? spotifyManager.previous_track() : mediaManager.previous_track()
                                 }
                             }
                         }
@@ -320,7 +320,7 @@ Rectangle {
                                 MouseArea {
                                     id: mouseAreaNext
                                     anchors.fill: parent
-                                    onClicked: mediaManager.next_track()
+                                    onClicked: useSpotify ? spotifyManager.next_track() : mediaManager.next_track()
                                 }
                             }
                         }
@@ -1212,7 +1212,7 @@ Rectangle {
                                     MouseArea {
                                         id: mouseAreaPrevVertical
                                         anchors.fill: parent
-                                        onClicked: mediaManager.previous_track()
+                                        onClicked: useSpotify ? spotifyManager.previous_track() : mediaManager.previous_track()
                                     }
                                 }
                             }
@@ -1271,7 +1271,7 @@ Rectangle {
                                     MouseArea {
                                         id: mouseAreaNextVertical
                                         anchors.fill: parent
-                                        onClicked: mediaManager.next_track()
+                                        onClicked: useSpotify ? spotifyManager.next_track() : mediaManager.next_track()
                                     }
                                 }
                             }
