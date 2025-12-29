@@ -14,6 +14,10 @@ Item {
     width: parent ? parent.width : 0
     height: parent ? parent.height : 0
 
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Media content properties
     property string currentFile: ""
     property string currentArt: ""
@@ -150,6 +154,7 @@ Item {
                             color: App.Style.metadataColor
                             font.pixelSize: App.Spacing.mainMenuSongTextSize
                             font.bold: true
+                            font.family: mainMenu.globalFont
                         }
 
                         Timer {
@@ -205,18 +210,21 @@ Item {
                                 text: mainMenu.currentFile ? mainMenu.currentArtist : "Select a song"
                                 color: App.Style.metadataColor
                                 font.pixelSize: App.Spacing.mainMenuArtistTextSize
+                                font.family: mainMenu.globalFont
                                 opacity: 0.7
                             }
                             Text {
                                 text: mainMenu.currentFile ? "•" : ""
                                 color: App.Style.metadataColor
                                 font.pixelSize: App.Spacing.mainMenuArtistTextSize
+                                font.family: mainMenu.globalFont
                                 opacity: 0.8
                             }
                             Text {
                                 text: mainMenu.currentFile ? mainMenu.currentAlbum : ""
                                 color: App.Style.metadataColor
                                 font.pixelSize: App.Spacing.mainMenuArtistTextSize
+                                font.family: mainMenu.globalFont
                                 opacity: 0.8
                             }
                         }
@@ -386,6 +394,7 @@ Item {
                         text: "0:00"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mainMenuTimeTextSize
+                        font.family: mainMenu.globalFont
                         Layout.minimumWidth: App.Spacing.mainMenuTimeTextSize * 2.5
                     }
 
@@ -442,6 +451,7 @@ Item {
                         text: "0:00"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mainMenuTimeTextSize
+                        font.family: mainMenu.globalFont
                         Layout.minimumWidth: App.Spacing.mainMenuTimeTextSize * 2.5
                     }
                 }

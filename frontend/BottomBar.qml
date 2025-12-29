@@ -9,6 +9,10 @@ Rectangle {
     id: bottomBar
     property bool isVertical: settingsManager && settingsManager.bottomBarOrientation === "side"
 
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Spotify integration - use Spotify when user chooses it AND it's connected
     property bool useSpotify: settingsManager && settingsManager.mediaSource === "spotify" &&
                               spotifyManager && spotifyManager.is_connected()
@@ -477,6 +481,7 @@ Rectangle {
                                 color: App.Style.primaryTextColor
                                 font.pixelSize: App.Spacing.bottomBarVolumeText
                                 font.bold: true
+                                font.family: bottomBar.globalFont
                             }
                             
                             property int currentValue: 0
@@ -1012,6 +1017,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 visible: settingsManager ? settingsManager.showClock : true
                                 font.pixelSize: settingsManager ? settingsManager.clockSize : 18
+                                font.family: bottomBar.globalFont
                                 color: App.Style.clockTextColor
                             }
                             
@@ -1490,6 +1496,7 @@ Rectangle {
                                 color: App.Style.primaryTextColor
                                 font.pixelSize: App.Spacing.bottomBarVolumeText
                                 font.bold: true
+                                font.family: bottomBar.globalFont
                                 anchors.horizontalCenterOffset: -2  // Further adjust text position
                             }
                             
@@ -2010,6 +2017,7 @@ Rectangle {
                                 anchors.centerIn: parent
                                 visible: settingsManager ? settingsManager.showClock : true
                                 font.pixelSize: settingsManager ? settingsManager.clockSize : 18
+                                font.family: bottomBar.globalFont
                                 color: App.Style.clockTextColor
                                 text: clockTextVertical.text  // Get the time from the horizontal layout
                             }

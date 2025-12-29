@@ -6,7 +6,11 @@ import "." as App
 
 Item {
     id: homeOBDView
-    
+
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Properties - expanded to include all possible OBD parameters
     property var parameterInfo: {
         "SPEED": {title: "Speed", unit: "MPH", minValue: 0, maxValue: 160},
@@ -168,6 +172,7 @@ Item {
                     Text {
                         text: info.title.toUpperCase()
                         font.pixelSize: App.Spacing.mainMenuOBDTextSize
+                        font.family: homeOBDView.globalFont
                         color: App.Style.secondaryTextColor
                         Layout.alignment: Qt.AlignLeft
                     }
@@ -176,6 +181,7 @@ Item {
                         text: value.toFixed(1) + " " + info.unit
                         font.pixelSize: App.Spacing.mainMenuOBDDataSize
                         font.bold: true
+                        font.family: homeOBDView.globalFont
                         color: App.Style.primaryTextColor
                         Layout.alignment: Qt.AlignLeft
                     }

@@ -14,6 +14,10 @@ Item {
 
     property string currentSection: initialSection
 
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Folder dialog for selecting music library folder
     FolderDialog {
         id: folderDialog
@@ -34,12 +38,14 @@ Item {
     component SettingLabel: Label {
         color: App.Style.primaryTextColor
         font.pixelSize: App.Spacing.overallText
+        font.family: settingsMenu.globalFont
         Layout.fillWidth: true
     }
-    
+
     component SettingDescription: Text {
         color: App.Style.secondaryTextColor
         font.pixelSize: App.Spacing.overallText * 0.8
+        font.family: settingsMenu.globalFont
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
     }
@@ -137,9 +143,10 @@ Item {
             color: App.Style.primaryTextColor
             verticalAlignment: Text.AlignVCenter
             leftPadding: control.indicator.width + control.spacing
+            font.family: settingsMenu.globalFont
         }
     }
-    
+
     component SettingsRadio: RadioButton {
         id: control
         
@@ -171,6 +178,7 @@ Item {
             leftPadding: control.indicator.width + control.spacing
             elide: Text.ElideRight
             width: control.width - control.indicator.width - control.spacing - 10
+            font.family: settingsMenu.globalFont
         }
     }
 
@@ -205,6 +213,7 @@ Item {
                     font.pixelSize: 22
                     color: "white"
                     anchors.centerIn: parent
+                    font.family: settingsMenu.globalFont
                 }
                 
                 // Add a mouseover effect
@@ -223,6 +232,7 @@ Item {
                 font.pixelSize: App.Spacing.overallText
                 Layout.fillWidth: true
                 elide: Text.ElideRight
+                font.family: settingsMenu.globalFont
             }
         }
         
@@ -331,9 +341,10 @@ Item {
                 text: control.displayText
                 color: App.Style.primaryTextColor
                 font.pixelSize: App.Spacing.overallText
+                font.family: settingsMenu.globalFont
                 elide: Text.ElideRight
                 verticalAlignment: Text.AlignVCenter
-                
+
                 anchors {
                     left: parent.left
                     leftMargin: 20  // Increased from 15
@@ -342,14 +353,15 @@ Item {
                     verticalCenter: parent.verticalCenter
                 }
             }
-            
+
             Text {
                 id: arrowText
                 text: "▼"
                 color: App.Style.primaryTextColor
                 font.pixelSize: App.Spacing.overallText * 0.8
+                font.family: settingsMenu.globalFont
                 verticalAlignment: Text.AlignVCenter
-                
+
                 anchors {
                     right: parent.right
                     rightMargin: 20  // Increased from 15
@@ -403,6 +415,7 @@ Item {
                         text: modelData
                         color: App.Style.primaryTextColor
                         font.pixelSize: App.Spacing.overallText
+                        font.family: settingsMenu.globalFont
                         leftPadding: 20  // Increased from 15
                         rightPadding: 20 // Increased from 15
                         verticalAlignment: Text.AlignVCenter
@@ -456,8 +469,9 @@ Item {
                 text: control.text
                 color: App.Style.primaryTextColor
                 font.pixelSize: App.Spacing.overallText * 1.1  // Increased text size
+                font.family: settingsMenu.globalFont
                 Layout.fillWidth: true
-                
+
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
@@ -516,11 +530,12 @@ Item {
                         text: control.checked ? "ON" : "OFF"
                         font.pixelSize: App.Spacing.overallText * 0.8  // Increased text size
                         font.bold: true
-                        color: control.checked ? control.activeColor : Qt.rgba(control.inactiveColor.r, 
-                                                                            control.inactiveColor.g, 
+                        font.family: settingsMenu.globalFont
+                        color: control.checked ? control.activeColor : Qt.rgba(control.inactiveColor.r,
+                                                                            control.inactiveColor.g,
                                                                             control.inactiveColor.b, 0.7)
                         visible: width < (parent.width - handle.width - 10)
-                        
+
                         Behavior on color { ColorAnimation { duration: 200 } }
                     }
                 }
@@ -639,8 +654,9 @@ Item {
                     text: modelData
                     color: modelData === control.currentValue ? "white" : App.Style.primaryTextColor
                     font.pixelSize: App.Spacing.overallText
+                    font.family: settingsMenu.globalFont
                 }
-                
+
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: true
@@ -695,6 +711,7 @@ Item {
                     text: modelData
                     color: modelData === control.currentValue ? "white" : App.Style.primaryTextColor
                     font.pixelSize: App.Spacing.overallText
+                    font.family: settingsMenu.globalFont
                 }
                 
                 MouseArea {
@@ -736,6 +753,7 @@ Item {
     component ValueDisplay: Text {
         color: App.Style.secondaryTextColor
         font.pixelSize: App.Spacing.overallText
+        font.family: settingsMenu.globalFont
         Layout.topMargin: 2
     }
     
@@ -819,6 +837,7 @@ Item {
                                 text: name
                                 color: currentSection === section ? App.Style.primaryTextColor : App.Style.secondaryTextColor
                                 font.pixelSize: App.Spacing.overallText*2
+                                font.family: settingsMenu.globalFont
                                 elide: Text.ElideRight
                             }
                             
@@ -988,6 +1007,7 @@ Item {
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
                                             font.bold: true
+                                            font.family: settingsMenu.globalFont
                                         }
 
                                         MouseArea {
@@ -1024,6 +1044,7 @@ Item {
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
                                             font.bold: true
+                                            font.family: settingsMenu.globalFont
                                         }
 
                                         MouseArea {
@@ -1256,6 +1277,7 @@ Item {
                                         text: "Client ID"
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.overallText - 2
+                                        font.family: settingsMenu.globalFont
                                     }
 
                                     SettingsTextField {
@@ -1291,6 +1313,7 @@ Item {
                                         text: "Client Secret"
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.overallText - 2
+                                        font.family: settingsMenu.globalFont
                                     }
 
                                     SettingsTextField {
@@ -1339,6 +1362,7 @@ Item {
                                             text: "Connect to Spotify"
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                         }
 
                                         MouseArea {
@@ -1370,6 +1394,7 @@ Item {
                                             text: "Disconnect"
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                         }
 
                                         MouseArea {
@@ -1405,6 +1430,7 @@ Item {
                                             text: "Refresh Devices"
                                             color: App.Style.primaryTextColor
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                         }
 
                                         MouseArea {
@@ -1428,6 +1454,7 @@ Item {
                                     visible: text !== ""
                                     color: text.startsWith("Error") ? "#e74c3c" : App.Style.accent
                                     font.pixelSize: App.Spacing.overallText - 2
+                                    font.family: settingsMenu.globalFont
                                     wrapMode: Text.WordWrap
 
                                     Connections {
@@ -1459,6 +1486,7 @@ Item {
                                     color: App.Style.accent
                                     font.pixelSize: App.Spacing.overallText - 2
                                     font.underline: true
+                                    font.family: settingsMenu.globalFont
                                     wrapMode: Text.WrapAnywhere
                                     elide: Text.ElideMiddle
                                     maximumLineCount: 2
@@ -1496,6 +1524,7 @@ Item {
                                         text: "Available Devices"
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                     }
 
                                     // Chip-style device selector (like theme chips)
@@ -1524,6 +1553,7 @@ Item {
                                                     text: modelData.name
                                                     color: modelData.is_active ? "white" : App.Style.primaryTextColor
                                                     font.pixelSize: App.Spacing.overallText
+                                                    font.family: settingsMenu.globalFont
                                                 }
 
                                                 MouseArea {
@@ -1569,6 +1599,7 @@ Item {
                                         text: "No devices found. Open Spotify on a device first."
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                         font.italic: true
                                     }
                                 }
@@ -1719,6 +1750,7 @@ Item {
                                         text: "Width:"
                                         color: App.Style.primaryTextColor
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                     }
                                     
                                     SettingsTextField {
@@ -1761,6 +1793,7 @@ Item {
                                         text: "Height:"
                                         color: App.Style.primaryTextColor
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                     }
 
                                     SettingsTextField {
@@ -1817,6 +1850,7 @@ Item {
                                             text: mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                             font.bold: true
                                         }
 
@@ -1858,6 +1892,7 @@ Item {
                                             text: "Maximize"
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                             font.bold: true
                                         }
 
@@ -1885,11 +1920,11 @@ Item {
                             ColumnLayout { // Theme Selection
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
-                                
+
                                 SettingLabel {
                                     text: "Theme"
                                 }
-                                
+
                                 // Update theme options when themes change
                                 Connections {
                                     target: App.Style
@@ -1905,7 +1940,7 @@ Item {
                                     Layout.fillWidth: true
                                     currentValue: settingsManager ? settingsManager.themeSetting : "Light"
                                     options: App.Style.getAllThemeNames()
-                                    
+
                                     onSelected: function(value) {
                                         if (settingsManager) {
                                             mainWindow.updateTheme(value)
@@ -1914,6 +1949,43 @@ Item {
                                             } catch (e) {
                                                 console.error("Error loading theme colors:", e)
                                             }
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            ColumnLayout { // Font Selection
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Font"
+                                }
+
+                                SettingDescription {
+                                    text: "Add .ttf or .otf font files to the fonts folder to see them here"
+                                }
+
+                                // Update font options when fonts change
+                                Connections {
+                                    target: App.Style
+                                    function onFontsUpdated() {
+                                        fontButton.options = App.Style.availableFonts
+                                    }
+                                }
+
+                                // Font selection chips
+                                SettingsChips {
+                                    id: fontButton
+                                    Layout.fillWidth: true
+                                    currentValue: settingsManager ? settingsManager.fontSetting : "System Default"
+                                    options: App.Style.availableFonts
+
+                                    onSelected: function(value) {
+                                        if (settingsManager) {
+                                            mainWindow.updateFont(value)
                                         }
                                     }
                                 }
@@ -2087,6 +2159,7 @@ Item {
                                                 text: obdManager ? obdManager.get_connection_status() : "Not Connected"
                                                 color: "white"
                                                 font.pixelSize: App.Spacing.overallText
+                                                font.family: settingsMenu.globalFont
                                                 font.bold: true
                                                 opacity: connectionStatusRect.connecting ? connectionStatusRect.pulseOpacity : 1.0
                                             }
@@ -2096,10 +2169,11 @@ Item {
                                         Text {
                                             id: detailText
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: obdManager && obdManager._connectionDetail ? 
+                                            text: obdManager && obdManager._connectionDetail ?
                                                 obdManager._connectionDetail : ""
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText * 0.7
+                                            font.family: settingsMenu.globalFont
                                             visible: text !== ""
                                             opacity: 0.9
                                         }
@@ -2204,6 +2278,7 @@ Item {
                                         color: "white"
                                         wrapMode: Text.WordWrap
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
@@ -2243,6 +2318,7 @@ Item {
                                         color: "white"
                                         wrapMode: Text.WordWrap
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
                                     }
@@ -2298,6 +2374,7 @@ Item {
                                         text: "e.g. /dev/rfcomm0"
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.overallText * 0.8
+                                        font.family: settingsMenu.globalFont
                                     }
                                 }
                                 
@@ -2366,6 +2443,7 @@ Item {
                                         text: autoReconnectSlider.value === 0 ? "Off" : autoReconnectSlider.value.toString()
                                         color: App.Style.primaryTextColor
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                         font.bold: true
                                         Layout.preferredWidth: 30
                                         horizontalAlignment: Text.AlignRight
@@ -2427,6 +2505,7 @@ Item {
                                             text: selectAllButton.text
                                             color: App.Style.primaryTextColor
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
@@ -2487,6 +2566,7 @@ Item {
                                             text: deselectAllButton.text
                                             color: App.Style.primaryTextColor
                                             font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
@@ -2523,6 +2603,7 @@ Item {
                                         text: "0 of 0 enabled"
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
                                         
                                         // Count enabled parameters
                                         function updateEnabledCount() {
@@ -2677,6 +2758,7 @@ Item {
                                                     text: modelData.name
                                                     color: App.Style.primaryTextColor
                                                     font.pixelSize: App.Spacing.overallText
+                                                    font.family: settingsMenu.globalFont
                                                     Layout.fillWidth: true
                                                     elide: Text.ElideRight
                                                 }
@@ -2900,6 +2982,7 @@ Item {
                                         id: glowText
                                         text: "OCTAVE"
                                         font.pixelSize: App.Spacing.overallText * 5
+                                        font.family: settingsMenu.globalFont
                                         font.bold: true
                                         color: App.Style.primaryTextColor
                                         opacity: 0.5
@@ -2920,6 +3003,7 @@ Item {
                                         id: titleText
                                         text: "OCTAVE"
                                         font.pixelSize: App.Spacing.overallText * 5
+                                        font.family: settingsMenu.globalFont
                                         font.bold: true
                                         color: App.Style.accent
                                         anchors.centerIn: parent
@@ -2935,6 +3019,7 @@ Item {
                                     wrapMode: Text.WordWrap
                                     color: App.Style.primaryTextColor
                                     font.pixelSize: App.Spacing.overallText
+                                    font.family: settingsMenu.globalFont
                                     Layout.fillWidth: true
                                     Layout.topMargin: App.Spacing.overallSpacing
                                 }
@@ -2953,6 +3038,7 @@ Item {
                                     text: "GitHub Repository"
                                     color: App.Style.primaryTextColor
                                     font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.family: settingsMenu.globalFont
                                     font.bold: true
                                     Layout.fillWidth: true
                                 }
@@ -2963,6 +3049,7 @@ Item {
                                     color: App.Style.accent
                                     linkColor: App.Style.accent
                                     font.pixelSize: App.Spacing.overallText
+                                    font.family: settingsMenu.globalFont
                                     Layout.fillWidth: true
                                     onLinkActivated: Qt.openUrlExternally(link)
                                 }
@@ -2971,6 +3058,7 @@ Item {
                                     text: "Copyright © 2025 Way Better Solutions"
                                     color: App.Style.primaryTextColor
                                     font.pixelSize: App.Spacing.overallText
+                                    font.family: settingsMenu.globalFont
                                     Layout.fillWidth: true
                                     Layout.topMargin: App.Spacing.overallSpacing
                                 }

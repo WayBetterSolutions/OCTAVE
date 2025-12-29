@@ -1,12 +1,20 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import Qt.labs.folderlistmodel 2.15
 import "." as App
 
 ApplicationWindow {
     id: mainWindow
     visible: true
     title: deviceName
+
+    // Store the system default font family at startup
+    property string systemDefaultFont: ""
+
+    // Global font setting - applies to all child components
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    font.family: App.Style.fontFamily !== "" ? App.Style.fontFamily : systemDefaultFont
 
     // Minimum window constraints
     minimumWidth: 400
@@ -20,6 +28,11 @@ ApplicationWindow {
     property bool clockFormat24Hour: settingsManager ? settingsManager.clockFormat24Hour : true
     property int clockSize: settingsManager ? settingsManager.clockSize : 18
     property string lastSettingsSection: settingsManager ? settingsManager.lastSettingsSection : "deviceSettings"
+    property string fontSetting: settingsManager ? settingsManager.fontSetting : "System Default"
+
+    // Font loading properties
+    property var loadedFonts: ({})
+    property var fontLoaders: []
 
     // Screen dimension properties
     property int screenWidth: settingsManager ? settingsManager.screenWidth : 1280
@@ -35,6 +48,11 @@ ApplicationWindow {
 
     // Initialize settings and theme
     Component.onCompleted: {
+        // Capture the system default font at startup (before any custom font is applied)
+        systemDefaultFont = font.family
+        // Also store it in Style for other components to use
+        App.Style.systemDefaultFont = font.family
+
         if (settingsManager) {
             // Load theme
             if (settingsManager.themeSetting) {
@@ -138,6 +156,13 @@ ApplicationWindow {
                 theme = settingsManager.themeSetting
             }
         }
+
+        function onFontSettingChanged() {
+            if (settingsManager) {
+                App.Style.setFont(settingsManager.fontSetting)
+                fontSetting = settingsManager.fontSetting
+            }
+        }
         
         function onBottomBarOrientationChanged() {
             if (settingsManager) {
@@ -212,6 +237,133 @@ ApplicationWindow {
         }
     }
 
+    // Font folder model to scan for available fonts
+    FolderListModel {
+        id: fontFolderModel
+        folder: Qt.resolvedUrl("assets/fonts")
+        nameFilters: ["*.ttf", "*.otf", "*.TTF", "*.OTF"]
+        showDirs: false
+        showHidden: false
+        sortField: FolderListModel.Name
+
+        onStatusChanged: {
+            console.log("Font folder status:", status, "count:", count, "folder:", folder)
+            if (status === FolderListModel.Ready) {
+                loadFontsFromFolder()
+            }
+        }
+
+        onCountChanged: {
+            console.log("Font folder count changed:", count)
+            if (status === FolderListModel.Ready && count > 0) {
+                loadFontsFromFolder()
+            }
+        }
+    }
+
+    // Dynamically created FontLoader instances
+    property var fontLoaderComponent: Component {
+        FontLoader {}
+    }
+
+    // Track pending font loads
+    property int pendingFontLoads: 0
+    property var pendingFontData: []
+
+    // Function to load fonts from the folder
+    function loadFontsFromFolder() {
+        console.log("Loading fonts from folder, count:", fontFolderModel.count)
+
+        // Clear previous loaders
+        for (var j = 0; j < fontLoaders.length; j++) {
+            fontLoaders[j].destroy()
+        }
+        fontLoaders = []
+        pendingFontData = []
+        pendingFontLoads = 0
+
+        if (fontFolderModel.count === 0) {
+            console.log("No fonts found in folder")
+            App.Style.registerFonts([], {})
+            return
+        }
+
+        pendingFontLoads = fontFolderModel.count
+
+        for (var i = 0; i < fontFolderModel.count; i++) {
+            var filePath = fontFolderModel.get(i, "fileUrl")
+            var fileName = fontFolderModel.get(i, "fileName")
+
+            // Create display name from filename (remove extension)
+            var displayName = fileName.replace(/\.(ttf|otf)$/i, "").replace(/[-_]/g, " ")
+
+            console.log("Creating FontLoader for:", fileName, "->", filePath)
+
+            // Create a FontLoader for this font
+            var loader = fontLoaderComponent.createObject(mainWindow, {
+                "source": filePath,
+                "objectName": displayName
+            })
+
+            fontLoaders.push(loader)
+
+            // Handle async loading
+            if (loader.status === FontLoader.Ready) {
+                onFontLoaded(loader, displayName)
+            } else if (loader.status === FontLoader.Loading) {
+                // Connect to status change
+                loader.statusChanged.connect(function() {
+                    var ld = loader
+                    var dn = displayName
+                    return function() {
+                        if (ld.status === FontLoader.Ready) {
+                            onFontLoaded(ld, dn)
+                        } else if (ld.status === FontLoader.Error) {
+                            console.warn("Failed to load font:", dn)
+                            pendingFontLoads--
+                            checkFontsComplete()
+                        }
+                    }
+                }())
+            } else {
+                console.warn("Font load error for:", fileName, "status:", loader.status)
+                pendingFontLoads--
+            }
+        }
+
+        // Check if all loaded synchronously
+        checkFontsComplete()
+    }
+
+    function onFontLoaded(loader, displayName) {
+        console.log("Font loaded:", displayName, "->", loader.name)
+        pendingFontData.push({ name: displayName, family: loader.name })
+        pendingFontLoads--
+        checkFontsComplete()
+    }
+
+    function checkFontsComplete() {
+        if (pendingFontLoads <= 0) {
+            var fontNames = []
+            var familyMap = {}
+
+            for (var i = 0; i < pendingFontData.length; i++) {
+                fontNames.push(pendingFontData[i].name)
+                familyMap[pendingFontData[i].name] = pendingFontData[i].family
+            }
+
+            console.log("All fonts loaded:", fontNames)
+
+            // Register fonts with Style
+            App.Style.registerFonts(fontNames, familyMap)
+
+            // Apply saved font setting
+            if (settingsManager && settingsManager.fontSetting) {
+                App.Style.setFont(settingsManager.fontSetting)
+            }
+        }
+    }
+
     // Settings update functions
     function updateDeviceName(newDeviceName) {
         if (settingsManager && newDeviceName.trim() !== "") {
@@ -225,6 +377,14 @@ ApplicationWindow {
             settingsManager.save_theme_setting(newTheme)
             App.Style.setTheme(newTheme)
             theme = newTheme
+        }
+    }
+
+    function updateFont(newFont) {
+        if (settingsManager) {
+            settingsManager.save_font_setting(newFont)
+            App.Style.setFont(newFont)
+            fontSetting = newFont
         }
     }
 

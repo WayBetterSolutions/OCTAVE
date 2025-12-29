@@ -9,10 +9,14 @@ Item {
     id: carMenu
     width: parent.width
     height: parent.height
-    
+
     // Required properties
     required property var stackView
     property var mainWindow
+
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
     
     // Simulation properties for accelerometer
     property real currentPitch: 0
@@ -329,6 +333,7 @@ Item {
                     color: "white"
                     font.pixelSize: 16
                     font.bold: true
+                    font.family: carMenu.globalFont
                 }
                 
                 // Digital readouts inside the gauge
@@ -355,14 +360,16 @@ Item {
                                 color: "white"
                                 font.pixelSize: 14
                                 font.bold: true
+                                font.family: carMenu.globalFont
                             }
-                            
+
                             Text {
                                 text: currentPitch.toFixed(1) + "°"
-                                color: Math.abs(currentPitch) > 30 ? "red" : 
+                                color: Math.abs(currentPitch) > 30 ? "red" :
                                       Math.abs(currentPitch) > 20 ? "yellow" : "lime"
                                 font.pixelSize: 14
                                 font.bold: true
+                                font.family: carMenu.globalFont
                             }
                         }
                     }
@@ -384,14 +391,16 @@ Item {
                                 color: "white"
                                 font.pixelSize: 14
                                 font.bold: true
+                                font.family: carMenu.globalFont
                             }
-                            
+
                             Text {
                                 text: currentRoll.toFixed(1) + "°"
-                                color: Math.abs(currentRoll) > 30 ? "red" : 
+                                color: Math.abs(currentRoll) > 30 ? "red" :
                                       Math.abs(currentRoll) > 20 ? "yellow" : "lime"
                                 font.pixelSize: 14
                                 font.bold: true
+                                font.family: carMenu.globalFont
                             }
                         }
                     }
@@ -418,6 +427,7 @@ Item {
                     color: "white"
                     font.pixelSize: 16
                     font.bold: true
+                    font.family: carMenu.globalFont
                 }
                 
                 // Ground line
@@ -519,9 +529,10 @@ Item {
                     model: [-60, -45, -30, -15, 0, 15, 30, 45, 60]
                     Text {
                         text: modelData + "°"
-                        color: Math.abs(modelData) > 30 ? "red" : 
+                        color: Math.abs(modelData) > 30 ? "red" :
                                Math.abs(modelData) > 20 ? "yellow" : "white"
                         font.pixelSize: 10
+                        font.family: carMenu.globalFont
                         x: parent.width / 2 - 10 + 70 * Math.sin(modelData * Math.PI / 180)
                         y: parent.height / 2 - 10 - 70 * Math.cos(modelData * Math.PI / 180)
                     }
@@ -557,10 +568,11 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: currentRoll.toFixed(1) + "°"
-                        color: Math.abs(currentRoll) > 30 ? "red" : 
+                        color: Math.abs(currentRoll) > 30 ? "red" :
                                Math.abs(currentRoll) > 20 ? "yellow" : "lime"
                         font.pixelSize: 16
                         font.bold: true
+                        font.family: carMenu.globalFont
                     }
                 }
             }
@@ -614,6 +626,7 @@ Item {
                         text: "Pitch"
                         color: "white"
                         font.pixelSize: 12
+                        font.family: carMenu.globalFont
                     }
                 }
                 
@@ -634,6 +647,7 @@ Item {
                         text: "Roll"
                         color: "white"
                         font.pixelSize: 12
+                        font.family: carMenu.globalFont
                     }
                 }
             }

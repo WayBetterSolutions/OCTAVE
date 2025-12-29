@@ -4,7 +4,42 @@ import QtQuick 2.15
 
 QtObject {
     property string currentTheme: "SolarizedLight"
-    
+    property string currentFont: "System Default"
+
+    // Available fonts (populated from Main.qml after scanning fonts folder)
+    property var availableFonts: ["System Default"]
+
+    // Map of font display names to their loaded font family names
+    property var fontFamilyMap: ({})
+
+    // System default font family (set by Main.qml at startup)
+    property string systemDefaultFont: ""
+
+    // The actual font family to use (resolved from currentFont)
+    // Always returns a valid font family name - systemDefaultFont for System Default, custom font family otherwise
+    property string fontFamily: currentFont === "System Default" ? systemDefaultFont : (fontFamilyMap[currentFont] || systemDefaultFont)
+
+    // Signal when fonts list is updated
+    signal fontsUpdated()
+
+    // Signal when font changes (for real-time updates)
+    signal fontChanged()
+
+    // Function to set the current font
+    function setFont(fontName) {
+        if (availableFonts.indexOf(fontName) !== -1 || fontName === "System Default") {
+            currentFont = fontName
+            fontChanged()
+        }
+    }
+
+    // Function to register available fonts (called from Main.qml)
+    function registerFonts(fontList, familyMap) {
+        availableFonts = ["System Default"].concat(fontList)
+        fontFamilyMap = familyMap
+        fontsUpdated()
+    }
+
     // This will store our custom themes that are loaded from settings
     property var customThemes: ({})
 

@@ -8,6 +8,7 @@ class SettingsManager(QObject):
     # Existing signals
     deviceNameChanged = Signal(str)
     themeSettingChanged = Signal(str)
+    fontSettingChanged = Signal(str)
     startUpVolumeChanged = Signal(str)
     showClockChanged = Signal(bool)
     clockFormatChanged = Signal(bool)
@@ -46,6 +47,7 @@ class SettingsManager(QObject):
         self._default_settings = {
             "deviceName": "Default Device",
             "themeSetting": "CosmicVoyager",
+            "fontSetting": "Google Sans",
             "startUpVolume": 0.1,
             "showClock": True,
             "clockFormat24Hour": True,
@@ -114,6 +116,7 @@ class SettingsManager(QObject):
         # Initialize existing settings
         self._device_name = self._settings.get("deviceName", self._default_settings["deviceName"])
         self._theme_setting = self._settings.get("themeSetting", self._default_settings["themeSetting"])
+        self._font_setting = self._settings.get("fontSetting", self._default_settings["fontSetting"])
         self._start_volume = self._settings.get("startUpVolume", self._default_settings["startUpVolume"])
         self._show_clock = self._settings.get("showClock", self._default_settings["showClock"])
         self._clock_format_24hour = self._settings.get("clockFormat24Hour", self._default_settings["clockFormat24Hour"])
@@ -221,6 +224,10 @@ class SettingsManager(QObject):
     def themeSetting(self):
         return self._theme_setting
 
+    @Property(str, notify=fontSettingChanged)
+    def fontSetting(self):
+        return self._font_setting
+
     @Property(float, notify=startUpVolumeChanged)
     def startUpVolume(self):
         return self._start_volume
@@ -320,6 +327,12 @@ class SettingsManager(QObject):
         print(f"Saving theme setting: {theme}")
         self._theme_setting = theme
         self.update_setting("themeSetting", theme, self.themeSettingChanged)
+
+    @Slot(str)
+    def save_font_setting(self, font):
+        print(f"Saving font setting: {font}")
+        self._font_setting = font
+        self.update_setting("fontSetting", font, self.fontSettingChanged)
         
     @Slot(float)
     def save_start_volume(self, volume):
@@ -746,7 +759,10 @@ class SettingsManager(QObject):
         
         self._theme_setting = self._default_settings["themeSetting"]
         self.themeSettingChanged.emit(self._theme_setting)
-        
+
+        self._font_setting = self._default_settings["fontSetting"]
+        self.fontSettingChanged.emit(self._font_setting)
+
         self._start_volume = self._default_settings["startUpVolume"]
         self.startUpVolumeChanged.emit(self._start_volume)
         

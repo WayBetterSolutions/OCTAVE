@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "." as App
 
 Item {
     id: clockMenu
@@ -8,6 +9,10 @@ Item {
     required property ApplicationWindow mainWindow
     width: parent.width
     height: parent.height
+
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
 
     Rectangle {
         anchors.fill: parent
@@ -24,7 +29,7 @@ Item {
                 color: "white"
                 font {
                     pixelSize: 72
-                    family: "Arial"
+                    family: clockMenu.globalFont
                     bold: true
                 }
             }
@@ -36,7 +41,7 @@ Item {
                 color: "#ecf0f1"
                 font {
                     pixelSize: 24
-                    family: "Arial"
+                    family: clockMenu.globalFont
                 }
             }
 

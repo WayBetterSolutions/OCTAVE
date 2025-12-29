@@ -8,6 +8,10 @@ Item {
     required property StackView stackView
     required property ApplicationWindow mainWindow
 
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Define background and accent colors based on screenshot
     property color backgroundColor: App.Style.obdBoxBackground 
     property color accentColor: App.Style.obdBarColor
@@ -138,14 +142,16 @@ Item {
                             text: modelData.title
                             color: accentColor
                             font.pixelSize: App.Spacing.overallText
+                            font.family: obdPage.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
-                        
+
                         Text {
                             text: ((paramValues[modelData.id] || 0.0).toFixed(1) + " " + modelData.unit)
                             color: textColor
                             font.pixelSize: App.Spacing.overallText
                             font.bold: true
+                            font.family: obdPage.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
                         

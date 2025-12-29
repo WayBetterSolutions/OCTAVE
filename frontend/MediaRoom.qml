@@ -11,6 +11,10 @@ Item {
     property StackView stackView
     property ApplicationWindow mainWindow
 
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Global colors
     property color backgroundColor: "black"
     property color transparentColor: "transparent"
@@ -334,6 +338,7 @@ Item {
                     text: Math.round(volumeSlider.value) + "%"
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
+                    font.family: mediaRoom.globalFont
                     Layout.minimumWidth: 40
                 }
             }
@@ -657,6 +662,7 @@ Item {
                         color: App.Style.metadataColor
                         font.pixelSize: App.Spacing.mediaRoomMetaDataSongText
                         font.bold: true
+                        font.family: mediaRoom.globalFont
                     }
 
                     Timer {
@@ -711,18 +717,21 @@ Item {
                             text: currentArtist
                             color: App.Style.metadataColor
                             font.pixelSize: App.Spacing.mediaRoomMetaDataBandText
+                            font.family: mediaRoom.globalFont
                             opacity: 0.7
                         }
                         Text {
                             text: "•"
                             color: App.Style.metadataColor
                             font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
+                            font.family: mediaRoom.globalFont
                             opacity: 0.8
                         }
                         Text {
                             text: currentAlbum
                             color: App.Style.metadataColor
                             font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
+                            font.family: mediaRoom.globalFont
                             opacity: 0.8
                         }
                     }
@@ -827,6 +836,7 @@ Item {
                     text: formatTime(mediaRoom.position)
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
+                    font.family: mediaRoom.globalFont
                     Layout.minimumWidth: 40  // Added minimum width for consistent layout
                 }
 
@@ -933,6 +943,7 @@ Item {
                     text: formatTime(mediaRoom.duration)
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
+                    font.family: mediaRoom.globalFont
                     Layout.minimumWidth: 40  // Added minimum width for consistent layout
                 }
 
@@ -953,6 +964,7 @@ Item {
                         color: useSpotify ? "white" : App.Style.primaryTextColor
                         font.pixelSize: App.Spacing.mediaRoomSliderDurationText * 0.9
                         font.bold: true
+                        font.family: mediaRoom.globalFont
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -1002,6 +1014,7 @@ Item {
                         color: spotifyConnectMouseArea.containsMouse ? "white" : "#1DB954"
                         font.pixelSize: App.Spacing.mediaRoomSliderDurationText * 0.9
                         font.bold: true
+                        font.family: mediaRoom.globalFont
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }

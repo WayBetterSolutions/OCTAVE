@@ -9,6 +9,10 @@ Item {
     required property StackView stackView
     required property ApplicationWindow mainWindow
 
+    // Global font binding for all text in this component
+    // fontFamily always returns a valid font (systemDefaultFont or custom font)
+    property string globalFont: App.Style.fontFamily
+
     // Core properties
     property var mediaFiles: []
     property string lastPlayedSong: ""
@@ -250,6 +254,7 @@ Item {
                             color: isSpotifyPlaylist ? "#1DB954" : App.Style.primaryTextColor
                             font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.3
                             font.bold: true
+                            font.family: mediaPlayer.globalFont
                             elide: Text.ElideRight
                         }
 
@@ -262,6 +267,7 @@ Item {
                             text: playlistPopup.visible ? "\u25B2" : "\u25BC"
                             color: App.Style.secondaryTextColor
                             font.pixelSize: App.Spacing.overallText * 0.8
+                            font.family: mediaPlayer.globalFont
                         }
 
                         MouseArea {
@@ -345,6 +351,7 @@ Item {
                                                 font.pixelSize: App.Spacing.overallText
                                                 font.bold: (modelData.type === "local" && modelData.name === currentPlaylistName) ||
                                                            (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
+                                                font.family: mediaPlayer.globalFont
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -430,12 +437,14 @@ Item {
                         text: "Songs:"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                        font.family: mediaPlayer.globalFont
                     }
                     Text {
                         text: isSpotifyPlaylist ? spotifyTrackNames.length : mediaFiles.length
                         color: isSpotifyPlaylist ? "#1DB954" : App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                         font.bold: true
+                        font.family: mediaPlayer.globalFont
                     }
                 }
 
@@ -447,6 +456,7 @@ Item {
                         text: "Albums:"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                        font.family: mediaPlayer.globalFont
                     }
                     Text {
                         id: albumCountText
@@ -454,6 +464,7 @@ Item {
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                         font.bold: true
+                        font.family: mediaPlayer.globalFont
                     }
                 }
 
@@ -465,6 +476,7 @@ Item {
                         text: "Artists:"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                        font.family: mediaPlayer.globalFont
                     }
                     Text {
                         id: artistCountText
@@ -472,6 +484,7 @@ Item {
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                         font.bold: true
+                        font.family: mediaPlayer.globalFont
                     }
                 }
 
@@ -483,6 +496,7 @@ Item {
                         text: "Total:"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                        font.family: mediaPlayer.globalFont
                     }
                     Text {
                         id: totalDurationText
@@ -490,6 +504,7 @@ Item {
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
                         font.bold: true
+                        font.family: mediaPlayer.globalFont
                     }
                 }
 
@@ -507,6 +522,7 @@ Item {
                         text: "Spotify Playlist"
                         color: "#1DB954"
                         font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                        font.family: mediaPlayer.globalFont
                         font.bold: true
                     }
                 }
@@ -572,10 +588,11 @@ Item {
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "TITLE " + (currentSortColumn === "title" ? 
+                                text: "TITLE " + (currentSortColumn === "title" ?
                                     (sortByTitleAscending ? "↑" : "↓") : "")
                                 color: App.Style.headerTextColor
                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
+                                font.family: mediaPlayer.globalFont
                                 font.bold: true
                             }
                         }
@@ -600,10 +617,11 @@ Item {
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "ARTIST " + (currentSortColumn === "artist" ? 
+                                text: "ARTIST " + (currentSortColumn === "artist" ?
                                     (sortByArtistAscending ? "↑" : "↓") : "")
                                 color: App.Style.headerTextColor
                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
+                                font.family: mediaPlayer.globalFont
                                 font.bold: true
                             }
                         }
@@ -628,10 +646,11 @@ Item {
 
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "ALBUM " + (currentSortColumn === "album" ? 
+                                text: "ALBUM " + (currentSortColumn === "album" ?
                                     (sortByAlbumAscending ? "↑" : "↓") : "")
                                 color: App.Style.headerTextColor
                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
+                                font.family: mediaPlayer.globalFont
                                 font.bold: true
                             }
                         }
@@ -907,6 +926,7 @@ Item {
                                                 }
                                                 color: App.Style.primaryTextColor
                                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
+                                                font.family: mediaPlayer.globalFont
                                                 font.bold: true
                                                 elide: Text.ElideRight
                                             }
@@ -923,6 +943,7 @@ Item {
                                                 }
                                                 color: App.Style.secondaryTextColor
                                                 font.pixelSize: App.Spacing.mediaPlayerSecondaryTextSize * 1.1
+                                                font.family: mediaPlayer.globalFont
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -949,6 +970,7 @@ Item {
                                         }
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.mediaPlayerSecondaryTextSize * 1.2
+                                        font.family: mediaPlayer.globalFont
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -973,6 +995,7 @@ Item {
                                         }
                                         color: App.Style.secondaryTextColor
                                         font.pixelSize: App.Spacing.mediaPlayerSecondaryTextSize * 1.2
+                                        font.family: mediaPlayer.globalFont
                                         elide: Text.ElideRight
                                     }
                                 }
@@ -1065,6 +1088,7 @@ Item {
                 text: "No songs found in media folder"
                 color: App.Style.primaryTextColor
                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.3
+                font.family: mediaPlayer.globalFont
                 visible: mediaListView.count === 0
             }
         }
