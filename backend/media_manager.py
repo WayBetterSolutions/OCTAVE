@@ -839,10 +839,10 @@ class MediaManager(QObject):
         if last_position > 0:
             QTimer.singleShot(100, lambda: self._player.setPosition(last_position))
 
-        # Auto-play if enabled
+        # Auto-play if enabled (delay allows audio system to fully initialize and avoid crackling)
         if auto_play:
-            QTimer.singleShot(200, self._player.play)
-            QTimer.singleShot(200, lambda: self._set_playing_state(True))
+            QTimer.singleShot(500, self._player.play)
+            QTimer.singleShot(500, lambda: self._set_playing_state(True))
 
         print(f"Playback state restored: {last_song} at position {last_position}ms")
 

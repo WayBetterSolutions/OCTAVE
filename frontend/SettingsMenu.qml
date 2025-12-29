@@ -971,15 +971,18 @@ Item {
                                     // Browse button
                                     Rectangle {
                                         id: browseButton
-                                        Layout.preferredWidth: 85
+                                        Layout.preferredWidth: browseButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 60
                                         Layout.preferredHeight: mediaFolderField.height
                                         color: browseMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
                                                browseMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
                                         radius: 6
                                         border.width: 1
                                         border.color: Qt.darker(App.Style.accent, 1.3)
+                                        clip: true
 
                                         Text {
+                                            id: browseButtonText
                                             anchors.centerIn: parent
                                             text: "Browse"
                                             color: "white"
@@ -1004,15 +1007,18 @@ Item {
                                     // Scan library button
                                     Rectangle {
                                         id: scanLibraryButton
-                                        Layout.preferredWidth: 70
+                                        Layout.preferredWidth: scanButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 50
                                         Layout.preferredHeight: mediaFolderField.height
                                         color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
                                                scanMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
                                         radius: 6
                                         border.width: 1
                                         border.color: Qt.darker(App.Style.accent, 1.3)
+                                        clip: true
 
                                         Text {
+                                            id: scanButtonText
                                             anchors.centerIn: parent
                                             text: "Scan"
                                             color: "white"
@@ -1713,20 +1719,19 @@ Item {
                                         text: "Width:"
                                         color: App.Style.primaryTextColor
                                         font.pixelSize: App.Spacing.overallText
-                                        Layout.preferredWidth: 70  // Increased from 60
                                     }
                                     
                                     SettingsTextField {
                                         id: screenWidth
-                                        Layout.preferredWidth: 120  // Increased from 100
+                                        Layout.preferredWidth: 120
                                         text: mainWindow.width
                                         horizontalAlignment: TextInput.AlignHCenter
                                         validator: IntValidator {
                                             bottom: 400
                                             top: 3840
                                         }
-                                        
-                                        onEditingFinished: {
+
+                                        function applyWidth() {
                                             if (text && settingsManager) {
                                                 const width = parseInt(text)
                                                 settingsManager.save_screen_width(width)
@@ -1734,6 +1739,9 @@ Item {
                                                 App.Spacing.updateDimensions(width, mainWindow.height)
                                             }
                                         }
+
+                                        onEditingFinished: applyWidth()
+                                        onActiveFocusChanged: if (!activeFocus) applyWidth()
                                         
                                         Connections {
                                             target: mainWindow
@@ -1753,20 +1761,19 @@ Item {
                                         text: "Height:"
                                         color: App.Style.primaryTextColor
                                         font.pixelSize: App.Spacing.overallText
-                                        Layout.preferredWidth: 70  // Increased from 60
                                     }
-                                    
+
                                     SettingsTextField {
                                         id: screenHeight
-                                        Layout.preferredWidth: 120  // Increased from 100
+                                        Layout.preferredWidth: 120
                                         text: mainWindow.height
                                         horizontalAlignment: TextInput.AlignHCenter
                                         validator: IntValidator {
                                             bottom: 300
                                             top: 2160
                                         }
-                                        
-                                        onEditingFinished: {
+
+                                        function applyHeight() {
                                             if (text && settingsManager) {
                                                 const height = parseInt(text)
                                                 settingsManager.save_screen_height(height)
@@ -1774,6 +1781,9 @@ Item {
                                                 App.Spacing.updateDimensions(mainWindow.width, height)
                                             }
                                         }
+
+                                        onEditingFinished: applyHeight()
+                                        onActiveFocusChanged: if (!activeFocus) applyHeight()
                                         
                                         Connections {
                                             target: mainWindow
@@ -1788,11 +1798,88 @@ Item {
                                             }
                                         }
                                     }
-                                    
+
+                                    Rectangle {
+                                        id: fullscreenButton
+                                        Layout.preferredWidth: fullscreenButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 80
+                                        Layout.preferredHeight: screenHeight.height
+                                        color: fullscreenMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
+                                               fullscreenMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                                        radius: 6
+                                        border.width: 1
+                                        border.color: Qt.darker(App.Style.accent, 1.3)
+                                        clip: true
+
+                                        Text {
+                                            id: fullscreenButtonText
+                                            anchors.centerIn: parent
+                                            text: mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
+                                            color: "white"
+                                            font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: fullscreenMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                if (mainWindow.visibility === Window.FullScreen) {
+                                                    mainWindow.visibility = Window.Windowed
+                                                    if (settingsManager) settingsManager.save_window_state("windowed")
+                                                } else {
+                                                    mainWindow.visibility = Window.FullScreen
+                                                    if (settingsManager) settingsManager.save_window_state("fullscreen")
+                                                }
+                                            }
+                                        }
+
+                                        ToolTip.visible: fullscreenMouseArea.containsMouse
+                                        ToolTip.text: mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
+                                        ToolTip.delay: 300
+                                    }
+
+                                    Rectangle {
+                                        id: borderlessButton
+                                        Layout.preferredWidth: borderlessButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 80
+                                        Layout.preferredHeight: screenHeight.height
+                                        color: borderlessMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
+                                               borderlessMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                                        radius: 6
+                                        border.width: 1
+                                        border.color: Qt.darker(App.Style.accent, 1.3)
+                                        clip: true
+
+                                        Text {
+                                            id: borderlessButtonText
+                                            anchors.centerIn: parent
+                                            text: "Maximize"
+                                            color: "white"
+                                            font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
+                                        }
+
+                                        MouseArea {
+                                            id: borderlessMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            onClicked: {
+                                                mainWindow.visibility = Window.Maximized
+                                                if (settingsManager) settingsManager.save_window_state("maximized")
+                                            }
+                                        }
+
+                                        ToolTip.visible: borderlessMouseArea.containsMouse
+                                        ToolTip.text: "Maximize window to fill screen"
+                                        ToolTip.delay: 300
+                                    }
+
                                     Item { Layout.fillWidth: true } // Spacer
                                 }
                             }
-                            
+
                             SettingsDivider {}
                             
                             ColumnLayout { // Theme Selection
@@ -2312,28 +2399,31 @@ Item {
                                         id: selectAllButton
                                         text: "Select All"
                                         implicitHeight: App.Spacing.overallSpacing * 2
-                                        
+                                        implicitWidth: selectAllButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
+
                                         // Add click animation
                                         scale: selectAllMouseArea.pressed ? 0.95 : 1.0
                                         opacity: selectAllMouseArea.pressed ? 0.8 : 1.0
-                                        
+
                                         Behavior on scale {
                                             NumberAnimation {
                                                 duration: 100
                                                 easing.type: Easing.OutBack
                                             }
                                         }
-                                        
+
                                         Behavior on opacity {
                                             NumberAnimation { duration: 100 }
                                         }
-                                        
+
                                         background: Rectangle {
                                             color: App.Style.accent
                                             radius: 4
+                                            clip: true
                                         }
-                                        
+
                                         contentItem: Text {
+                                            id: selectAllButtonText
                                             text: selectAllButton.text
                                             color: App.Style.primaryTextColor
                                             font.pixelSize: App.Spacing.overallText
@@ -2369,28 +2459,31 @@ Item {
                                         id: deselectAllButton
                                         text: "Deselect All"
                                         implicitHeight: App.Spacing.overallSpacing * 2
-                                        
+                                        implicitWidth: deselectAllButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
+
                                         // Add click animation
                                         scale: deselectAllMouseArea.pressed ? 0.95 : 1.0
                                         opacity: deselectAllMouseArea.pressed ? 0.8 : 1.0
-                                        
+
                                         Behavior on scale {
                                             NumberAnimation {
                                                 duration: 100
                                                 easing.type: Easing.OutBack
                                             }
                                         }
-                                        
+
                                         Behavior on opacity {
                                             NumberAnimation { duration: 100 }
                                         }
-                                        
+
                                         background: Rectangle {
                                             color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
                                             radius: 4
+                                            clip: true
                                         }
-                                        
+
                                         contentItem: Text {
+                                            id: deselectAllButtonText
                                             text: deselectAllButton.text
                                             color: App.Style.primaryTextColor
                                             font.pixelSize: App.Spacing.overallText

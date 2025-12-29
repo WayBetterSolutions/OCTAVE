@@ -36,6 +36,7 @@ class SettingsManager(QObject):
     lastPlayedSongChanged = Signal(str)
     lastPlayedPositionChanged = Signal(int)
     lastPlayedPlaylistChanged = Signal(str)
+    windowStateChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -94,6 +95,7 @@ class SettingsManager(QObject):
             "lastPlayedSong": "",
             "lastPlayedPosition": 0,
             "lastPlayedPlaylist": "",
+            "windowState": "windowed",
         }
             
     
@@ -143,6 +145,9 @@ class SettingsManager(QObject):
         self._last_played_song = self._settings.get("lastPlayedSong", "")
         self._last_played_position = self._settings.get("lastPlayedPosition", 0)
         self._last_played_playlist = self._settings.get("lastPlayedPlaylist", "")
+
+        # Window state: "windowed", "fullscreen", or "maximized"
+        self._window_state = self._settings.get("windowState", "windowed")
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -707,6 +712,28 @@ class SettingsManager(QObject):
             settings["lastSettingsSection"] = section
             self.save_settings(settings)
             self.lastSettingsSectionChanged.emit(section)
+
+    # ==================== Window State ====================
+
+    @Property(str, notify=windowStateChanged)
+    def windowState(self):
+        """Get window state: 'windowed', 'fullscreen', or 'maximized'"""
+        return self._window_state
+
+    @Slot(result=str)
+    def get_window_state(self):
+        """Get window state"""
+        return self._window_state
+
+    @Slot(str)
+    def save_window_state(self, state):
+        """Save window state: 'windowed', 'fullscreen', or 'maximized'"""
+        valid_states = ["windowed", "fullscreen", "maximized"]
+        if state not in valid_states:
+            return
+
+        self._window_state = state
+        self.update_setting("windowState", state, self.windowStateChanged)
 
     @Slot()
     def reset_to_defaults(self):

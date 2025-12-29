@@ -57,6 +57,14 @@ ApplicationWindow {
 
             // Initialize orientation
             isVerticalLayout = settingsManager.bottomBarOrientation === "side"
+
+            // Restore window state
+            let savedState = settingsManager.get_window_state()
+            if (savedState === "fullscreen") {
+                mainWindow.visibility = Window.FullScreen
+            } else if (savedState === "maximized") {
+                mainWindow.visibility = Window.Maximized
+            }
         }
         
         // Load custom themes
