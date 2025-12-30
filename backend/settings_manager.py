@@ -12,6 +12,27 @@ else:
     import fcntl
 
 
+def get_app_data_dir():
+    """Get the appropriate directory for storing app data based on platform."""
+    app_name = "OCTAVE"
+
+    if sys.platform == 'win32':
+        # Windows: Use %APPDATA%/OCTAVE
+        base = os.environ.get('APPDATA', os.path.expanduser('~'))
+        data_dir = os.path.join(base, app_name)
+    elif sys.platform == 'darwin':
+        # macOS: Use ~/Library/Application Support/OCTAVE
+        data_dir = os.path.join(os.path.expanduser('~'), 'Library', 'Application Support', app_name)
+    else:
+        # Linux: Use ~/.config/OCTAVE
+        base = os.environ.get('XDG_CONFIG_HOME', os.path.join(os.path.expanduser('~'), '.config'))
+        data_dir = os.path.join(base, app_name)
+
+    # Create directory if it doesn't exist
+    os.makedirs(data_dir, exist_ok=True)
+    return data_dir
+
+
 class SettingsManager(QObject):
     # Existing signals
     deviceNameChanged = Signal(str)
@@ -51,8 +72,11 @@ class SettingsManager(QObject):
 
     def __init__(self):
         super().__init__()
+        # Use proper app data directory for settings (not bundled app directory)
+        self.app_data_dir = get_app_data_dir()
+        self.settings_file = os.path.join(self.app_data_dir, 'settingsConfigure.json')
+        # Keep backend_dir reference for accessing bundled resources
         self.backend_dir = os.path.dirname(os.path.abspath(__file__))
-        self.settings_file = os.path.join(self.backend_dir, 'settingsConfigure.json')
         
         self._default_settings = {
             "deviceName": "Default Device",
