@@ -1,0 +1,14 @@
+# OCTAVE Build Dependencies
+# Install with: pip install -r requirements-build.txt
+
+# Runtime dependencies (from requirements.txt)
+-r requirements.txt
+
+# Build tools
+pyinstaller>=6.0.0
+
+# Optional: For creating Windows installer (run on Windows only)
+# Download Inno Setup from: https://jrsoftware.org/isdl.php
+
+# Optional: For better macOS DMG creation (run on macOS only)
+# brew install create-dmg

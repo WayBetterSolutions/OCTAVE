@@ -4,6 +4,11 @@ __pycache__/
 backend/temp/
 .claude/
 
+# Build artifacts
+dist/
+build/
+*.spec.bak
+
 # Spotify credentials and cache
 backend/settingsConfigure.json
 backend/.spotify_token_cache

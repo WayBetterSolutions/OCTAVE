@@ -7,12 +7,7 @@ OCTAVE is cross-platform so that the installation into a vehicle is totally up t
 
 This app was designed to be easy to work with, so it has a Python backend with a QML based front end. There's also a settings configuration JSON file that's used to capture all user made changes, so everything you change stays changed and you can rock the app exactly as you like.
 
-Updates for this project happen fast commits will contain the date to signify when things where last touched. Please feel free to reach out if you think this is cool or if you think its lame you can tell me all about it rob.degeorge@gmail.com
-
-## Contributors
-Special thanks to Robert DeGeorge and Marquis Johnson for their significant contributions to this project.
-
-Visit us at [WayBetter Solutions](https://waybetter.solutions/) to follow our journey.
+Please feel free to reach out if you think this is cool or if you think its lame you can tell me all about it rob.degeorge@gmail.com
 
 ## Features
 - **Media Player**: Can play MP3 files, switch between playlists, music library stats, ability to shuffle songs, metadata integration including album art
@@ -37,7 +32,7 @@ Visit us at [WayBetter Solutions](https://waybetter.solutions/) to follow our jo
 
 Open Command Prompt or PowerShell and run:
 ```cmd
-git clone https://github.com/waybetterengineering/octave.git
+git clone https://github.com/waybettersolution/octave.git
 cd octave
 python -m venv venv
 venv\Scripts\activate
@@ -51,7 +46,7 @@ python main.py
 
 Open a terminal and run:
 ```bash
-git clone https://github.com/waybetterengineering/octave.git
+git clone https://github.com/waybettersolutions/octave.git
 cd octave
 python -m venv venv
 source venv/bin/activate
@@ -67,7 +62,7 @@ python main.py
 
 Open Terminal and run:
 ```bash
-git clone https://github.com/waybetterengineering/octave.git
+git clone https://github.com/waybettersolutions/octave.git
 cd octave
 python -m venv venv
 source venv/bin/activate
@@ -125,6 +120,13 @@ OCTAVE can control Spotify playback on any of your connected devices (phone, com
 4. Use the playback controls to control your music
 
 **Note**: OCTAVE acts as a remote controller for Spotify. The music plays on your connected Spotify device (phone, desktop app, etc.), not through OCTAVE directly.
+
+---
+
+## Contributors
+Special thanks to Robert DeGeorge and Marquis Johnson for their significant contributions to this project.
+
+Visit us at [WayBetter Solutions](https://waybetter.solutions/) to follow our journey.
 
 ---
 
