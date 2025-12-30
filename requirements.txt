@@ -5,3 +5,4 @@ scipy
 sounddevice
 spotipy
 PySide6
+keyring

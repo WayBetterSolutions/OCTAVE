@@ -15,10 +15,59 @@ import threading
 try:
     import spotipy
     from spotipy.oauth2 import SpotifyOAuth
+    from spotipy.cache_handler import CacheHandler
     SPOTIPY_AVAILABLE = True
 except ImportError:
     SPOTIPY_AVAILABLE = False
     print("Warning: spotipy not installed. Run: pip install spotipy")
+
+try:
+    import keyring
+    KEYRING_AVAILABLE = True
+except ImportError:
+    KEYRING_AVAILABLE = False
+    print("Warning: keyring not installed. Token storage will be less secure.")
+
+
+class KeyringCacheHandler(CacheHandler):
+    """
+    Secure token cache using OS keychain (Windows Credential Manager, macOS Keychain, etc.)
+    """
+    SERVICE_NAME = "OCTAVE_Spotify"
+    USERNAME = "spotify_token"
+
+    def get_cached_token(self):
+        """Retrieve token from OS keychain"""
+        if not KEYRING_AVAILABLE:
+            return None
+        try:
+            token_string = keyring.get_password(self.SERVICE_NAME, self.USERNAME)
+            if token_string:
+                return json.loads(token_string)
+        except Exception as e:
+            print(f"Keyring read error: {e}")
+        return None
+
+    def save_token_to_cache(self, token_info):
+        """Save token to OS keychain"""
+        if not KEYRING_AVAILABLE:
+            return
+        try:
+            token_string = json.dumps(token_info)
+            keyring.set_password(self.SERVICE_NAME, self.USERNAME, token_string)
+        except Exception as e:
+            print(f"Keyring write error: {e}")
+
+    def delete_cached_token(self):
+        """Remove token from OS keychain"""
+        if not KEYRING_AVAILABLE:
+            return
+        try:
+            keyring.delete_password(self.SERVICE_NAME, self.USERNAME)
+        except keyring.errors.PasswordDeleteError:
+            pass  # Token didn't exist
+        except Exception as e:
+            print(f"Keyring delete error: {e}")
 
 
 class SpotifyManager(QObject):
@@ -73,9 +122,9 @@ class SpotifyManager(QObject):
         self._client_secret = ""
         self._redirect_uri = "http://127.0.0.1:8888/callback"
 
-        # Token cache location
+        # Secure token cache using OS keychain
         self.backend_dir = os.path.dirname(os.path.abspath(__file__))
-        self._token_cache_path = os.path.join(self.backend_dir, '.spotify_token_cache')
+        self._cache_handler = KeyringCacheHandler()
 
         # OAuth state for CSRF protection
         self._oauth_state = None
@@ -173,7 +222,7 @@ class SpotifyManager(QObject):
                 client_secret=self._client_secret,
                 redirect_uri=self._redirect_uri,
                 scope=scope,
-                cache_path=self._token_cache_path,
+                cache_handler=self._cache_handler,
                 open_browser=False,
                 state=self._oauth_state
             )
@@ -274,37 +323,32 @@ class SpotifyManager(QObject):
         auth_url = auth_manager.get_authorize_url()
         print(f"Spotify auth URL: {auth_url}")
 
-        # Try multiple methods to open browser on Windows
+        # Open browser for authentication
         import platform
-        import subprocess
 
         opened = False
         if platform.system() == 'Windows':
             try:
-                # Method 1: Use os.startfile on Windows
+                # Use os.startfile on Windows (safe, no shell injection risk)
                 os.startfile(auth_url)
                 opened = True
                 print("Spotify: Opened browser via os.startfile")
             except Exception as e:
                 print(f"os.startfile failed: {e}")
-                try:
-                    # Method 2: Use start command
-                    subprocess.run(['start', auth_url], shell=True, check=True)
-                    opened = True
-                    print("Spotify: Opened browser via subprocess start")
-                except Exception as e2:
-                    print(f"subprocess start failed: {e2}")
 
         if not opened:
             try:
-                # Fallback: standard webbrowser
+                # Fallback: standard webbrowser module (cross-platform)
                 webbrowser.open(auth_url)
+                opened = True
                 print("Spotify: Opened browser via webbrowser module")
             except Exception as e:
                 print(f"webbrowser.open failed: {e}")
-                # Emit the URL so user can copy it
-                self.authUrlReady.emit(auth_url)
-                self.errorOccurred.emit(f"Could not open browser. Please visit: {auth_url}")
+
+        if not opened:
+            # Last resort: emit URL for user to copy manually
+            self.authUrlReady.emit(auth_url)
+            self.errorOccurred.emit(f"Could not open browser. Please visit: {auth_url}")
 
     @Slot()
     def disconnect(self):
@@ -315,12 +359,8 @@ class SpotifyManager(QObject):
         self._devices = []
         self._current_track = {}
 
-        # Remove cached token
-        if os.path.exists(self._token_cache_path):
-            try:
-                os.remove(self._token_cache_path)
-            except:
-                pass
+        # Remove cached token from OS keychain
+        self._cache_handler.delete_cached_token()
 
         self.connectionStateChanged.emit(False)
         print("Spotify: Disconnected")
