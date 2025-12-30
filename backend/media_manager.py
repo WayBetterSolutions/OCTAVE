@@ -7,6 +7,19 @@ import os
 import random
 import re
 
+
+def is_safe_path(base_path, target_path):
+    """
+    Validate that target_path is within base_path (prevents path traversal attacks).
+    Returns True if the path is safe, False otherwise.
+    """
+    # Normalize and resolve both paths to absolute paths
+    base = os.path.normpath(os.path.realpath(base_path))
+    target = os.path.normpath(os.path.realpath(target_path))
+    # Check if target starts with base (is contained within)
+    return target.startswith(base + os.sep) or target == base
+
+
 class MediaManager(QObject):
     playbackStateChanged = Signal(int)
     playStateChanged = Signal(bool)
@@ -268,11 +281,14 @@ class MediaManager(QObject):
             print(f"Error creating temp directory: {e}")
                 
     def _shuffle_playlist(self):
-        """Helper method to create shuffled playlist"""
-        files = self.get_media_files()
+        """Helper method to create shuffled playlist from current playlist files"""
+        files = self._get_current_playlist_files()
+        if not files:
+            # Fallback to directory scan if no playlist is selected
+            files = self.get_media_files()
         if not files:
             return []
-            
+
         shuffled = files.copy()
         random.shuffle(shuffled)
         return shuffled
@@ -388,29 +404,27 @@ class MediaManager(QObject):
             
     @Slot(result=str)
     def get_current_file(self):
-        
         """Get currently playing file without auto-playing"""
         # Initialize playlist if empty
         if not self._current_playlist:
-            files = self.get_media_files()
+            files = self._get_current_playlist_files()
             if files:
-
                 self._current_playlist = sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
                 self._current_index = 0
                 # Return the first file from the sorted playlist but don't play it
                 return self._current_playlist[0]
-                
+
         # Return current file if index is valid
         if 0 <= self._current_index < len(self._current_playlist):
             return self._current_playlist[self._current_index]
-        
+
         # Fallback to first file if index is invalid
-        files = self.get_media_files()
+        files = self._get_current_playlist_files()
         if files:
             self._current_playlist = sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
             self._current_index = 0
             return self._current_playlist[0]
-            
+
         return ""
     
     @Slot(str)
@@ -419,11 +433,12 @@ class MediaManager(QObject):
         # Initialize current_playlist if needed
         if not self._current_playlist:
             try:
-                self._current_playlist = self._shuffle_playlist() if self._shuffle else sorted(self.get_media_files(), key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
+                files = self._get_current_playlist_files()
+                self._current_playlist = self._shuffle_playlist() if self._shuffle else sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
             except Exception as e:
                 print(f"Error initializing playlist: {e}")
                 self._current_playlist = []
-                
+
         # Only proceed if we have files
         if not self._current_playlist:
             print("No media files available to play")
@@ -434,12 +449,13 @@ class MediaManager(QObject):
             if filename in self._current_playlist:
                 self._current_index = self._current_playlist.index(filename)
             elif not self._shuffle:
-                # If not found and not shuffled, rebuild alphabetical playlist
-                self._current_playlist = sorted(self.get_media_files(), key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
+                # If not found and not shuffled, rebuild alphabetical playlist from current playlist
+                files = self._get_current_playlist_files()
+                self._current_playlist = sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
                 if filename in self._current_playlist:
                     self._current_index = self._current_playlist.index(filename)
                 else:
-                    # File not found in any playlist, use the first file
+                    # File not found in current playlist, use the first file
                     filename = self._current_playlist[0] if self._current_playlist else ""
                     self._current_index = 0
         except Exception as e:
@@ -476,12 +492,13 @@ class MediaManager(QObject):
         """Play next track in playlist"""
         try:
             if not self._current_playlist:
-                self._current_playlist = sorted(self.get_media_files(), key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
-                
+                files = self._get_current_playlist_files()
+                self._current_playlist = sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
+
             if not self._current_playlist:
                 print("No media files available")
                 return
-                
+
             self._current_index = (self._current_index + 1) % len(self._current_playlist)
             next_song = self._current_playlist[self._current_index]
             self.play_file(next_song)
@@ -493,12 +510,13 @@ class MediaManager(QObject):
         """Play previous track in playlist"""
         try:
             if not self._current_playlist:
-                self._current_playlist = sorted(self.get_media_files(), key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
-                
+                files = self._get_current_playlist_files()
+                self._current_playlist = sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
+
             if not self._current_playlist:
                 print("No media files available")
                 return
-                
+
             self._current_index = (self._current_index - 1) % len(self._current_playlist)
             prev_song = self._current_playlist[self._current_index]
             self.play_file(prev_song)
@@ -604,48 +622,64 @@ class MediaManager(QObject):
     def getVolume(self):
         """Get current volume level (0.0-1.0)"""
         return self._audio_output.volume()
-    
+
+    def _get_current_playlist_files(self):
+        """Get the files for the currently selected playlist.
+        This returns the original playlist files (not the shuffled version).
+        """
+        if self._current_playlist_name and self._current_playlist_name in self._playlists:
+            return self._playlists[self._current_playlist_name]["files"].copy()
+        # Fallback to current playlist if no named playlist is selected
+        return self._current_playlist.copy() if self._current_playlist else []
+
     @Slot()
     def toggle_shuffle(self):
         """Toggle shuffle mode"""
         self._shuffle = not self._shuffle
         self.shuffleStateChanged.emit(self._shuffle)
-        
+
         # Get current song before changing playlists
         current_song = self.get_current_file()
-        files = self.get_media_files()
-        
+
+        # Use the current playlist's files, not a directory scan
+        # This ensures we shuffle within the selected playlist (including All Music)
+        files = self._get_current_playlist_files()
+
         if self._shuffle:
             # Store original order if needed
             if not self._original_files:
                 self._original_files = files.copy()
-            
+
             # Create shuffled playlist
             shuffled = files.copy()
             random.shuffle(shuffled)
-            
+
             # Move current song to start of shuffled list if it exists
             if current_song in shuffled:
                 idx = shuffled.index(current_song)
                 if idx > 0:  # Only swap if not already at position 0
                     shuffled[0], shuffled[idx] = shuffled[idx], shuffled[0]
-                
+
             self._current_playlist = shuffled
             self._current_index = 0
-            print(f"Shuffle enabled, starting from: {current_song}")
+            print(f"Shuffle enabled for '{self._current_playlist_name}', starting from: {current_song}")
         else:
-            # Get alphabetical list
+            # Get alphabetical list from original playlist files
             alphabetical = sorted(files, key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower()))
-            
+
             # Find current song in alphabetical order
             if current_song and current_song in alphabetical:
                 self._current_index = alphabetical.index(current_song)
                 self._current_playlist = alphabetical
-                print(f"Shuffle disabled. Continuing alphabetically from: {current_song}")
+                print(f"Shuffle disabled for '{self._current_playlist_name}'. Continuing alphabetically from: {current_song}")
             else:
                 self._current_playlist = alphabetical
                 self._current_index = 0
-        
+
+        # Clear original files when disabling shuffle
+        if not self._shuffle:
+            self._original_files = []
+
         # Update UI
         self.mediaListChanged.emit(self._current_playlist)
         
@@ -764,9 +798,16 @@ class MediaManager(QObject):
     @Slot(str)
     def set_library_root(self, path):
         """Set the main library folder and scan for playlists"""
-        if path and os.path.exists(path) and os.path.isdir(path):
-            self._library_root = path
-            print(f"Library root set to: {path}")
+        if not path:
+            print("Invalid library path: empty path")
+            return
+
+        # Normalize and resolve to absolute path (prevents path traversal)
+        normalized_path = os.path.normpath(os.path.realpath(path))
+
+        if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
+            self._library_root = normalized_path
+            print(f"Library root set to: {normalized_path}")
             self.scan_library()
 
             # Auto-select first playlist if available
@@ -828,6 +869,11 @@ class MediaManager(QObject):
 
     def _get_file_path(self, filename):
         """Get the full file path for a filename, handling All Music multi-folder playlist"""
+        # Reject filenames with path traversal attempts
+        if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+            print(f"Rejected potentially unsafe filename: {filename}")
+            return None
+
         if self._is_all_music_active and filename in self._all_music_file_paths:
             # For All Music, look up the directory from our mapping
             directory = self._all_music_file_paths[filename]
@@ -835,11 +881,19 @@ class MediaManager(QObject):
             if " - " in filename and not os.path.exists(os.path.join(directory, filename)):
                 # Extract the original filename after the prefix
                 original_filename = filename.split(" - ", 1)[1]
-                return os.path.join(directory, original_filename)
-            return os.path.join(directory, filename)
+                file_path = os.path.join(directory, original_filename)
+            else:
+                file_path = os.path.join(directory, filename)
         else:
             # Standard case - use media_dir
-            return os.path.join(self.media_dir, filename)
+            file_path = os.path.join(self.media_dir, filename)
+
+        # Validate the constructed path is within the library root
+        if self._library_root and not is_safe_path(self._library_root, file_path):
+            print(f"Path validation failed - file outside library: {file_path}")
+            return None
+
+        return file_path
 
     def _get_original_filename(self, filename):
         """Get the original filename (without folder prefix for All Music duplicates)"""
@@ -985,9 +1039,10 @@ class MediaManager(QObject):
         """Calculate all statistics at once and cache the results"""
         if self._stats_cache["is_valid"]:
             return
-            
+
         try:
-            files = self.get_media_files()
+            # Use current playlist files for stats calculation
+            files = self._get_current_playlist_files()
             
             # Initialize calculation variables
             total_ms = 0

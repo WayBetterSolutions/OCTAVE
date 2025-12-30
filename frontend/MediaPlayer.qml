@@ -1047,14 +1047,8 @@ Item {
                                 }
                             }
                             
-                            // Add subtle scaling effect on active song
+                            // Add subtle scaling effect on active song (no animation to prevent bounce on page load)
                             scale: delegate.isCurrentSong ? 1.02 : 1.0
-                            Behavior on scale {
-                                NumberAnimation { 
-                                    duration: 200
-                                    easing.type: Easing.OutCubic 
-                                }
-                            }
                             
                             // Shadow for depth (using Rectangle instead of effects)
                             Rectangle {
