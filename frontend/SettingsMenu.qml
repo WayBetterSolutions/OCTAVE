@@ -3131,7 +3131,7 @@ Item {
                                 }
                                 
                                 Text {
-                                    text: "Copyright © 2025 Way Better Solutions"
+                                    text: "2025 Way Better Solutions"
                                     color: App.Style.primaryTextColor
                                     font.pixelSize: App.Spacing.overallText
                                     font.family: settingsMenu.globalFont

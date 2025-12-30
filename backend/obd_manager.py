@@ -270,8 +270,9 @@ class OBDManager(QObject):
                 import serial.tools.list_ports
                 available = [p.device for p in serial.tools.list_ports.comports()]
                 return port in available
-            except:
+            except (ImportError, OSError) as e:
                 # Fallback: assume port might be available
+                print(f"[OBD] Port check fallback: {e}")
                 return True
         else:
             # On Unix-like systems, check if device file exists
@@ -418,7 +419,7 @@ class OBDManager(QObject):
             if connection:
                 try:
                     connection.close()
-                except:
+                except Exception:
                     pass
 
             self.connectionStatusChanged.emit("Connection Failed")
@@ -770,7 +771,7 @@ class OBDManager(QObject):
             try:
                 self._connection.stop()
                 self._connection.close()
-            except:
+            except Exception:
                 pass
             self._connection = None
         self._connected = False

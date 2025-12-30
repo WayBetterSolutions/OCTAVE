@@ -152,7 +152,7 @@ class MediaManager(QObject):
                 self._player.stop()
             if self._position_timer:
                 self._position_timer.stop()
-        except:
+        except Exception:
             pass  # Avoid errors during shutdown
     
     def _ensure_directories(self):

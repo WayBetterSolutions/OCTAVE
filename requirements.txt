@@ -1,8 +1,8 @@
-mutagen
-numpy
-obd
-scipy
-sounddevice
-spotipy
-PySide6
-keyring
+mutagen==1.47.0
+numpy==2.2.5
+obd==0.7.2
+scipy==1.15.2
+sounddevice==0.5.1
+spotipy==2.24.0
+PySide6==6.8.1.1
+keyring==25.7.0
