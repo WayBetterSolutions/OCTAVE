@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QMetaObject,
 import os
 import json
 import webbrowser
+import secrets
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 import threading
@@ -75,6 +76,9 @@ class SpotifyManager(QObject):
         # Token cache location
         self.backend_dir = os.path.dirname(os.path.abspath(__file__))
         self._token_cache_path = os.path.join(self.backend_dir, '.spotify_token_cache')
+
+        # OAuth state for CSRF protection
+        self._oauth_state = None
 
         # Polling timer for playback state
         self._poll_timer = QTimer()
@@ -161,13 +165,17 @@ class SpotifyManager(QObject):
                 "user-library-read"
             )
 
+            # Generate secure state for CSRF protection
+            self._oauth_state = secrets.token_urlsafe(32)
+
             auth_manager = SpotifyOAuth(
                 client_id=self._client_id,
                 client_secret=self._client_secret,
                 redirect_uri=self._redirect_uri,
                 scope=scope,
                 cache_path=self._token_cache_path,
-                open_browser=False
+                open_browser=False,
+                state=self._oauth_state
             )
 
             # Check if we have a cached token
@@ -203,11 +211,29 @@ class SpotifyManager(QObject):
                 query = urlparse(self.path).query
                 params = parse_qs(query)
 
+                # Validate state parameter to prevent CSRF attacks
+                received_state = params.get('state', [None])[0]
+                if received_state != manager._oauth_state:
+                    self.send_response(403)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(b"""
+                        <html><body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+                        <h1>Authentication Failed</h1>
+                        <p>Invalid state parameter. Please try again.</p>
+                        </body></html>
+                    """)
+                    manager.errorOccurred.emit("OAuth state mismatch - possible CSRF attack")
+                    return
+
                 if 'code' in params:
                     code = params['code'][0]
                     try:
                         # Exchange code for token
                         auth_manager.get_access_token(code)
+
+                        # Clear the state after successful use
+                        manager._oauth_state = None
 
                         # Store auth_manager and emit signal to complete setup on main thread
                         manager._pending_auth_manager = auth_manager
