@@ -1,7 +1,15 @@
 import json
 from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer
 import os
+import sys
+import tempfile
 from typing import List
+
+# Platform-specific imports for file locking
+if sys.platform == 'win32':
+    import msvcrt
+else:
+    import fcntl
 
 
 class SettingsManager(QObject):
@@ -189,17 +197,163 @@ class SettingsManager(QObject):
         self._obd_params_save_timer.setInterval(800)  # 800ms debounce
         self._obd_params_save_timer.timeout.connect(self._flush_obd_parameters)
             
+    def _lock_file(self, f, exclusive=True):
+        """Acquire a lock on the file (cross-platform)"""
+        if sys.platform == 'win32':
+            # Windows file locking
+            if exclusive:
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBRLCK, 1)
+        else:
+            # Unix file locking
+            if exclusive:
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            else:
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+    def _unlock_file(self, f):
+        """Release the lock on the file (cross-platform)"""
+        if sys.platform == 'win32':
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+            except Exception:
+                pass
+        else:
+            fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+    def _set_file_permissions(self, filepath):
+        """Set restrictive file permissions (owner read/write only)"""
+        if sys.platform != 'win32':
+            # Unix: chmod 600
+            os.chmod(filepath, 0o600)
+        # Windows: permissions are handled differently via ACLs
+        # The file is already protected by user account on Windows
+
+    def _validate_settings(self, settings):
+        """Validate settings structure and types, return sanitized settings"""
+        if not isinstance(settings, dict):
+            return self._default_settings.copy()
+
+        validated = self._default_settings.copy()
+
+        # Type validation for each setting
+        type_checks = {
+            "deviceName": str,
+            "themeSetting": str,
+            "fontSetting": str,
+            "startUpVolume": (int, float),
+            "showClock": bool,
+            "clockFormat24Hour": bool,
+            "clockSize": int,
+            "backgroundGrid": str,
+            "screenWidth": int,
+            "screenHeight": int,
+            "backgroundBlurRadius": int,
+            "uiScale": (int, float),
+            "obdBluetoothPort": str,
+            "obdFastMode": bool,
+            "obdAutoReconnectAttempts": int,
+            "showBackgroundOverlay": bool,
+            "bottomBarOrientation": str,
+            "showBottomBarMediaControls": bool,
+            "fuelTankCapacity": (int, float),
+            "obdParameters": dict,
+            "homeOBDParameters": list,
+            "lastSettingsSection": str,
+            "spotifyClientId": str,
+            "spotifyClientSecret": str,
+            "mediaSource": str,
+            "mediaFolder": str,
+            "customThemes": dict,
+            "directoryHistory": list,
+            "autoPlayOnStartup": bool,
+            "lastPlayedSong": str,
+            "lastPlayedPosition": int,
+            "lastPlayedPlaylist": str,
+            "windowState": str,
+            "musicButtonDefaultPage": str,
+            "returnToLibraryAfterSelection": bool,
+        }
+
+        for key, expected_type in type_checks.items():
+            if key in settings:
+                if isinstance(settings[key], expected_type):
+                    validated[key] = settings[key]
+                # else: keep default value
+
+        # Copy any extra keys not in type_checks (for forward compatibility)
+        for key in settings:
+            if key not in type_checks and key not in validated:
+                validated[key] = settings[key]
+
+        return validated
+
     def load_settings(self):
         try:
             with open(self.settings_file, 'r') as f:
-                return json.load(f)
+                try:
+                    self._lock_file(f, exclusive=False)
+                    settings = json.load(f)
+                    return self._validate_settings(settings)
+                except (BlockingIOError, OSError):
+                    # Could not acquire lock, read anyway but log warning
+                    print("Warning: Could not acquire file lock for reading settings")
+                    f.seek(0)
+                    settings = json.load(f)
+                    return self._validate_settings(settings)
+                finally:
+                    try:
+                        self._unlock_file(f)
+                    except Exception:
+                        pass
         except FileNotFoundError:
             self.save_settings(self._default_settings)
-            return self._default_settings
+            return self._default_settings.copy()
+        except json.JSONDecodeError as e:
+            print(f"Error: Settings file corrupted ({e}), using defaults")
+            return self._default_settings.copy()
 
     def save_settings(self, settings):
-        with open(self.settings_file, 'w') as f:
-            json.dump(settings, f, indent=4)
+        """Save settings atomically with file locking"""
+        # Validate before saving
+        validated_settings = self._validate_settings(settings)
+
+        # Write to temp file first, then rename (atomic on most systems)
+        dir_name = os.path.dirname(self.settings_file)
+        try:
+            # Create temp file in same directory for atomic rename
+            fd, temp_path = tempfile.mkstemp(dir=dir_name, suffix='.json')
+            try:
+                with os.fdopen(fd, 'w') as f:
+                    try:
+                        self._lock_file(f, exclusive=True)
+                    except (BlockingIOError, OSError):
+                        print("Warning: Could not acquire file lock for writing settings")
+                    json.dump(validated_settings, f, indent=4)
+
+                # Set permissions before rename
+                self._set_file_permissions(temp_path)
+
+                # Atomic rename (on Unix) or replace (on Windows)
+                if sys.platform == 'win32':
+                    # Windows doesn't support atomic rename over existing file
+                    if os.path.exists(self.settings_file):
+                        os.remove(self.settings_file)
+                os.rename(temp_path, self.settings_file)
+
+            except Exception as e:
+                # Clean up temp file on error
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise e
+
+        except Exception as e:
+            print(f"Error saving settings: {e}")
+            # Fallback to direct write if atomic fails
+            with open(self.settings_file, 'w') as f:
+                json.dump(validated_settings, f, indent=4)
+            self._set_file_permissions(self.settings_file)
 
     def update_setting(self, key, value, signal=None):
         settings = self.load_settings()

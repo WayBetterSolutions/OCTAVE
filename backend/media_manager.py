@@ -6,6 +6,7 @@ from mutagen.id3 import ID3, TIT2, TPE1, TALB
 import os
 import random
 import re
+import hashlib
 
 
 def is_safe_path(base_path, target_path):
@@ -246,13 +247,14 @@ class MediaManager(QObject):
         try:
             if filename not in self._metadata_cache:
                 self._cache_metadata(filename)
-                
+
             meta = self._metadata_cache[filename]
             # Create unique ID from album and artist
             return f"{meta['album']}_{meta['artist']}"
         except Exception as e:
             print(f"Error getting album ID: {e}")
-            return str(hash(filename))
+            # Use SHA256 for deterministic, collision-resistant fallback
+            return hashlib.sha256(filename.encode('utf-8')).hexdigest()[:16]
         
     def _manage_cache(self, new_album_id):
         """More efficient cache management using LRU approach"""
@@ -406,7 +408,10 @@ class MediaManager(QObject):
                         ext = 'img'  # fallback
 
                     # Create a unique name for this album art (support multiple APIC frames)
-                    temp_path = os.path.join(self.temp_dir, f'cover_{hash((album_id, apic_index))}.{ext}')
+                    # Use SHA256 for deterministic, collision-resistant naming
+                    cache_key = f"{album_id}_{apic_index}"
+                    cache_hash = hashlib.sha256(cache_key.encode('utf-8')).hexdigest()[:16]
+                    temp_path = os.path.join(self.temp_dir, f'cover_{cache_hash}.{ext}')
                     
                     # Write the image data
                     with open(temp_path, 'wb') as img_file:
