@@ -457,21 +457,18 @@ Item {
                 }
             }
 
-            // Click to open MediaRoom/MediaPlayer
+            // Click to open MediaRoom/MediaPlayer based on setting
             MouseArea {
                 anchors.fill: parent
                 z: -1
                 onClicked: {
-                    if (mainMenu.currentFile !== "") {
-                        stackView.push("MediaRoom.qml", {
-                            stackView: mainMenu.stackView
-                        })
-                    } else {
-                        stackView.push("MediaPlayer.qml", {
-                            stackView: stackView,
-                            mainWindow: mainWindow
-                        })
+                    var defaultPage = settingsManager ? settingsManager.musicButtonDefaultPage : "mediaRoom"
+                    var targetPage = defaultPage === "mediaPlayer" ? "MediaPlayer.qml" : "MediaRoom.qml"
+                    var props = { stackView: mainMenu.stackView }
+                    if (defaultPage === "mediaPlayer") {
+                        props.mainWindow = mainWindow
                     }
+                    stackView.push(targetPage, props)
                 }
             }
         }

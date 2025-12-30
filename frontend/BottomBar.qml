@@ -883,9 +883,11 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    // Check if current page is MediaRoom, if so go to MediaPlayer
                                     var currentItem = stackView.currentItem
+                                    var defaultPage = settingsManager ? settingsManager.musicButtonDefaultPage : "mediaRoom"
+
                                     if (currentItem && currentItem.objectName === "mediaRoom") {
+                                        // On MediaRoom, go to MediaPlayer
                                         var component = Qt.createComponent("MediaPlayer.qml")
                                         if (component.status === Component.Ready) {
                                             var page = component.createObject(stackView, {
@@ -895,7 +897,7 @@ Rectangle {
                                             stackView.push(page)
                                         }
                                     } else if (currentItem && currentItem.objectName === "mediaPlayer") {
-                                        // If on MediaPlayer, go back to MediaRoom
+                                        // On MediaPlayer, go to MediaRoom
                                         var component = Qt.createComponent("MediaRoom.qml")
                                         if (component.status === Component.Ready) {
                                             var page = component.createObject(stackView, {
@@ -904,12 +906,15 @@ Rectangle {
                                             stackView.push(page)
                                         }
                                     } else {
-                                        // Otherwise, go to MediaRoom
-                                        var component = Qt.createComponent("MediaRoom.qml")
+                                        // From other pages, go to the default page based on setting
+                                        var targetPage = defaultPage === "mediaPlayer" ? "MediaPlayer.qml" : "MediaRoom.qml"
+                                        var component = Qt.createComponent(targetPage)
                                         if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView
-                                            })
+                                            var props = { stackView: bottomBar.stackView }
+                                            if (defaultPage === "mediaPlayer") {
+                                                props.mainWindow = stackView.parent.Window.window
+                                            }
+                                            var page = component.createObject(stackView, props)
                                             stackView.push(page)
                                         }
                                     }
@@ -1884,9 +1889,11 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    // Check if current page is MediaRoom, if so go to MediaPlayer
                                     var currentItem = stackView.currentItem
+                                    var defaultPage = settingsManager ? settingsManager.musicButtonDefaultPage : "mediaRoom"
+
                                     if (currentItem && currentItem.objectName === "mediaRoom") {
+                                        // On MediaRoom, go to MediaPlayer
                                         var component = Qt.createComponent("MediaPlayer.qml")
                                         if (component.status === Component.Ready) {
                                             var page = component.createObject(stackView, {
@@ -1896,7 +1903,7 @@ Rectangle {
                                             stackView.push(page)
                                         }
                                     } else if (currentItem && currentItem.objectName === "mediaPlayer") {
-                                        // If on MediaPlayer, go back to MediaRoom
+                                        // On MediaPlayer, go to MediaRoom
                                         var component = Qt.createComponent("MediaRoom.qml")
                                         if (component.status === Component.Ready) {
                                             var page = component.createObject(stackView, {
@@ -1905,19 +1912,22 @@ Rectangle {
                                             stackView.push(page)
                                         }
                                     } else {
-                                        // Otherwise, go to MediaRoom
-                                        var component = Qt.createComponent("MediaRoom.qml")
+                                        // From other pages, go to the default page based on setting
+                                        var targetPage = defaultPage === "mediaPlayer" ? "MediaPlayer.qml" : "MediaRoom.qml"
+                                        var component = Qt.createComponent(targetPage)
                                         if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView
-                                            })
+                                            var props = { stackView: bottomBar.stackView }
+                                            if (defaultPage === "mediaPlayer") {
+                                                props.mainWindow = stackView.parent.Window.window
+                                            }
+                                            var page = component.createObject(stackView, props)
                                             stackView.push(page)
                                         }
                                     }
                                 }
                             }
                         }
-                        
+
                         // Settings Button
                         Control {
                             id: settingsButtonVertical

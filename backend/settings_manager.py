@@ -38,6 +38,8 @@ class SettingsManager(QObject):
     lastPlayedPositionChanged = Signal(int)
     lastPlayedPlaylistChanged = Signal(str)
     windowStateChanged = Signal(str)
+    musicButtonDefaultPageChanged = Signal(str)
+    returnToLibraryAfterSelectionChanged = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -98,6 +100,8 @@ class SettingsManager(QObject):
             "lastPlayedPosition": 0,
             "lastPlayedPlaylist": "",
             "windowState": "windowed",
+            "musicButtonDefaultPage": "mediaRoom",  # "mediaRoom" or "mediaPlayer"
+            "returnToLibraryAfterSelection": False,  # If True, return to MediaPlayer after song selection
         }
             
     
@@ -151,6 +155,10 @@ class SettingsManager(QObject):
 
         # Window state: "windowed", "fullscreen", or "maximized"
         self._window_state = self._settings.get("windowState", "windowed")
+
+        # Music button navigation settings
+        self._music_button_default_page = self._settings.get("musicButtonDefaultPage", "mediaRoom")
+        self._return_to_library_after_selection = self._settings.get("returnToLibraryAfterSelection", False)
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -748,6 +756,46 @@ class SettingsManager(QObject):
         self._window_state = state
         self.update_setting("windowState", state, self.windowStateChanged)
 
+    # ==================== Music Button Navigation Settings ====================
+
+    @Property(str, notify=musicButtonDefaultPageChanged)
+    def musicButtonDefaultPage(self):
+        """Get music button default page: 'mediaRoom' or 'mediaPlayer'"""
+        return self._music_button_default_page
+
+    @Slot(result=str)
+    def get_music_button_default_page(self):
+        """Get music button default page"""
+        return self._music_button_default_page
+
+    @Slot(str)
+    def save_music_button_default_page(self, page):
+        """Save music button default page: 'mediaRoom' or 'mediaPlayer'"""
+        valid_pages = ["mediaRoom", "mediaPlayer"]
+        if page not in valid_pages:
+            return
+
+        print(f"Saving music button default page: {page}")
+        self._music_button_default_page = page
+        self.update_setting("musicButtonDefaultPage", page, self.musicButtonDefaultPageChanged)
+
+    @Property(bool, notify=returnToLibraryAfterSelectionChanged)
+    def returnToLibraryAfterSelection(self):
+        """Get whether to return to library after song selection"""
+        return self._return_to_library_after_selection
+
+    @Slot(result=bool)
+    def get_return_to_library_after_selection(self):
+        """Get whether to return to library after song selection"""
+        return self._return_to_library_after_selection
+
+    @Slot(bool)
+    def save_return_to_library_after_selection(self, return_to_library):
+        """Save whether to return to library after song selection"""
+        print(f"Saving return to library after selection: {return_to_library}")
+        self._return_to_library_after_selection = return_to_library
+        self.update_setting("returnToLibraryAfterSelection", return_to_library, self.returnToLibraryAfterSelectionChanged)
+
     @Slot()
     def reset_to_defaults(self):
         # Save default settings
@@ -828,3 +876,9 @@ class SettingsManager(QObject):
 
         self._last_played_playlist = self._default_settings["lastPlayedPlaylist"]
         self.lastPlayedPlaylistChanged.emit(self._last_played_playlist)
+
+        self._music_button_default_page = self._default_settings["musicButtonDefaultPage"]
+        self.musicButtonDefaultPageChanged.emit(self._music_button_default_page)
+
+        self._return_to_library_after_selection = self._default_settings["returnToLibraryAfterSelection"]
+        self.returnToLibraryAfterSelectionChanged.emit(self._return_to_library_after_selection)

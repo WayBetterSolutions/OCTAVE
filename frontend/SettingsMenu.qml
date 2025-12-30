@@ -1152,6 +1152,82 @@ Item {
 
                             SettingsDivider {}
 
+                            // Music Button Default Page
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Music Button Default Page"
+                                }
+
+                                SettingsToggle {
+                                    id: musicButtonDefaultPageToggle
+                                    Layout.fillWidth: true
+                                    text: checked ? "Opens Library first" : "Opens Now Playing first"
+                                    checked: settingsManager ? settingsManager.musicButtonDefaultPage === "mediaPlayer" : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: {
+                                        if (settingsManager) {
+                                            settingsManager.save_music_button_default_page(checked ? "mediaPlayer" : "mediaRoom")
+                                        }
+                                    }
+
+                                    Connections {
+                                        target: settingsManager
+                                        function onMusicButtonDefaultPageChanged() {
+                                            musicButtonDefaultPageToggle.checked = settingsManager.musicButtonDefaultPage === "mediaPlayer"
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "Controls which page opens first when pressing the music button"
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Return to Library After Selection
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Stay in Now Playing After Song Selection"
+                                }
+
+                                SettingsToggle {
+                                    id: returnToLibraryToggle
+                                    Layout.fillWidth: true
+                                    text: checked ? "Return to Library after selecting a song" : "Stay in Now Playing after selecting a song"
+                                    checked: settingsManager ? settingsManager.returnToLibraryAfterSelection : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: {
+                                        if (settingsManager) {
+                                            settingsManager.save_return_to_library_after_selection(checked)
+                                        }
+                                    }
+
+                                    Connections {
+                                        target: settingsManager
+                                        function onReturnToLibraryAfterSelectionChanged() {
+                                            returnToLibraryToggle.checked = settingsManager.returnToLibraryAfterSelection
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "When enabled, selecting a song returns you to the library instead of staying in Now Playing"
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             // Media Room Background Blur Effect
                             ColumnLayout {
                                 Layout.fillWidth: true

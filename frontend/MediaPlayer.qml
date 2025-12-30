@@ -1006,6 +1006,8 @@ Item {
                                 anchors.fill: parent
                                 onClicked: {
                                     console.log("Song clicked - isSpotifyPlaylist: " + mediaPlayer.isSpotifyPlaylist + ", modelData: " + modelData)
+                                    var returnToLibrary = settingsManager ? settingsManager.returnToLibraryAfterSelection : false
+
                                     if (mediaPlayer.isSpotifyPlaylist) {
                                         // Handle Spotify track playback
                                         if (spotifyManager) {
@@ -1019,9 +1021,12 @@ Item {
                                             if (uri) {
                                                 spotifyManager.play_uri(uri)
                                             }
-                                            stackView.push("MediaRoom.qml", {
-                                                stackView: mediaPlayer.stackView
-                                            })
+                                            // Only navigate to MediaRoom if returnToLibrary is OFF
+                                            if (!returnToLibrary) {
+                                                stackView.push("MediaRoom.qml", {
+                                                    stackView: mediaPlayer.stackView
+                                                })
+                                            }
                                         }
                                     } else {
                                         // Handle local file playback
@@ -1039,9 +1044,12 @@ Item {
                                             // Play the selected file
                                             mediaManager.play_file(modelData)
                                             lastPlayedSong = modelData
-                                            stackView.push("MediaRoom.qml", {
-                                                stackView: mediaPlayer.stackView
-                                            })
+                                            // Only navigate to MediaRoom if returnToLibrary is OFF
+                                            if (!returnToLibrary) {
+                                                stackView.push("MediaRoom.qml", {
+                                                    stackView: mediaPlayer.stackView
+                                                })
+                                            }
                                         }
                                     }
                                 }

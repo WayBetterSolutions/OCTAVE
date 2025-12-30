@@ -20,6 +20,32 @@ def is_safe_path(base_path, target_path):
     return target.startswith(base + os.sep) or target == base
 
 
+def sanitize_metadata(text, max_length=200):
+    """
+    Sanitize metadata strings from ID3 tags to prevent display issues.
+    - Limits length to prevent UI overflow
+    - Removes control characters
+    - Strips leading/trailing whitespace
+    """
+    if not isinstance(text, str):
+        text = str(text) if text else ""
+
+    # Remove control characters (except newline/tab which we'll replace with space)
+    sanitized = ''.join(
+        char if (char.isprintable() or char in ' ') else ' '
+        for char in text
+    )
+
+    # Collapse multiple spaces and strip
+    sanitized = ' '.join(sanitized.split())
+
+    # Truncate to max length
+    if len(sanitized) > max_length:
+        sanitized = sanitized[:max_length - 3] + "..."
+
+    return sanitized
+
+
 class MediaManager(QObject):
     playbackStateChanged = Signal(int)
     playStateChanged = Signal(bool)
@@ -194,14 +220,14 @@ class MediaManager(QObject):
             }
     
     def _extract_id3_text(self, tag, default=""):
-        """Helper to safely extract text from ID3 tags"""
+        """Helper to safely extract and sanitize text from ID3 tags"""
         if tag is None:
-            return default
+            return sanitize_metadata(default)
         if isinstance(tag, str):
-            return tag
+            return sanitize_metadata(tag)
         if hasattr(tag, 'text') and tag.text:
-            return tag.text[0]
-        return str(tag) if tag else default
+            return sanitize_metadata(tag.text[0])
+        return sanitize_metadata(str(tag)) if tag else sanitize_metadata(default)
 
     def _emit_metadata(self, filename):
         """Emit metadata change signals"""
