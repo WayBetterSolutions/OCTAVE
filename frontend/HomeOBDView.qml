@@ -44,24 +44,24 @@ Item {
                     
                     // Map of parameter names to their getter functions in obdManager
                     const getterMap = {
-                        "SPEED": "get_speed_mph",
-                        "RPM": "get_rpm",
-                        "COOLANT_TEMP": "get_coolant_temp",
-                        "CONTROL_MODULE_VOLTAGE": "get_voltage",
-                        "ENGINE_LOAD": "get_engine_load",
-                        "THROTTLE_POS": "get_throttle_position",
-                        "INTAKE_TEMP": "get_intake_air_temp",
-                        "TIMING_ADVANCE": "get_timing_advance",
-                        "MAF": "get_mass_air_flow",
-                        "COMMANDED_EQUIV_RATIO": "get_air_fuel_ratio",
-                        "FUEL_LEVEL": "get_fuel_level",
-                        "INTAKE_PRESSURE": "get_intake_manifold_pressure",
-                        "SHORT_FUEL_TRIM_1": "get_short_term_fuel_trim",
-                        "LONG_FUEL_TRIM_1": "get_long_term_fuel_trim",
-                        "O2_B1S1": "get_oxygen_sensor_voltage",
-                        "FUEL_PRESSURE": "get_fuel_pressure",
-                        "OIL_TEMP": "get_engine_oil_temp",
-                        "IGNITION_TIMING": "get_ignition_timing"
+                        "SPEED": "speedMPH",
+                        "RPM": "rpm",
+                        "COOLANT_TEMP": "coolantTemp",
+                        "CONTROL_MODULE_VOLTAGE": "voltage",
+                        "ENGINE_LOAD": "engineLoad",
+                        "THROTTLE_POS": "throttlePosition",
+                        "INTAKE_TEMP": "intakeTemp",
+                        "TIMING_ADVANCE": "timingAdvance",
+                        "MAF": "massAirFlow",
+                        "COMMANDED_EQUIV_RATIO": "airFuelRatio",
+                        "FUEL_LEVEL": "fuelLevel",
+                        "INTAKE_PRESSURE": "intakeManifoldPressure",
+                        "SHORT_FUEL_TRIM_1": "shortTermFuelTrim",
+                        "LONG_FUEL_TRIM_1": "longTermFuelTrim",
+                        "O2_B1S1": "oxygenSensorVoltage",
+                        "FUEL_PRESSURE": "fuelPressure",
+                        "OIL_TEMP": "engineOilTemp",
+                        "IGNITION_TIMING": "ignitionTiming"
                     };
                     
                     // Get the getter function name for this parameter
@@ -85,9 +85,6 @@ Item {
         interval: 50  // Short delay
         repeat: false
         onTriggered: {
-            if (obdManager && obdManager.refresh_values) {
-                obdManager.refresh_values();
-            }
             refreshOBDValues();
         }
     }
@@ -228,8 +225,6 @@ Item {
     
     // Refresh on component completion
     Component.onCompleted: {
-        if (obdManager && obdManager.refresh_values) {
-            obdManager.refresh_values();
-        }
+        refreshOBDValues();
     }
 }

@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, Signal, Slot, QTimer
+from PySide6.QtCore import QObject, Signal, Slot, QTimer, QThread
 import obd
 from obd import OBDStatus
 import time
@@ -345,43 +345,31 @@ class OBDManager(QObject):
         self.connectionProgressChanged.emit(15)
         self.connectionStatusDetailChanged.emit(f"Found {port}, connecting...")
 
-        # Create worker and thread for non-blocking connection
+        # Clean up previous thread if it exists
+        if self._worker_thread is not None and self._worker_thread.isRunning():
+            self._worker_thread.quit()
+            self._worker_thread.wait(1000)
+
+        # Create worker and thread for non-blocking connection using Qt threading
         self._worker = OBDConnectionWorker()
         self._worker.set_params(port, fast_mode, self._connection_timeout)
 
-        self._worker_thread = threading.Thread(target=self._run_worker, daemon=True)
+        self._worker_thread = QThread()
+        self._worker.moveToThread(self._worker_thread)
+
+        # Connect signals
+        self._worker.connectionProgress.connect(self._on_connection_progress)
+        self._worker.connectionComplete.connect(self._on_connection_complete)
+        self._worker.connectionError.connect(self._on_connection_error)
+
+        # Start the thread and trigger the connection
+        self._worker_thread.started.connect(self._worker.do_connect)
         self._worker_thread.start()
 
-    def _run_worker(self):
-        """Run the worker's connection in a thread"""
-        try:
-            port = self._get_configured_port()
-            fast_mode = True
-            if self._settings_manager:
-                fast_mode = self._settings_manager.obdFastMode
-
-            # Emit progress from thread (will be marshaled to main thread)
-            QTimer.singleShot(0, lambda: self.connectionProgressChanged.emit(30))
-            QTimer.singleShot(0, lambda: self.connectionStatusDetailChanged.emit("Initializing OBD adapter..."))
-
-            # This is the blocking call
-            connection = obd.Async(
-                portstr=port,
-                fast=fast_mode,
-                timeout=self._connection_timeout
-            )
-
-            QTimer.singleShot(0, lambda: self.connectionProgressChanged.emit(70))
-            QTimer.singleShot(0, lambda: self.connectionStatusDetailChanged.emit("Checking vehicle connection..."))
-
-            status = connection.status()
-
-            # Handle result on main thread
-            QTimer.singleShot(0, lambda: self._on_connection_complete(connection, status))
-
-        except Exception as e:
-            print(f"[OBD] Connection error: {e}")
-            QTimer.singleShot(0, lambda: self._on_connection_error(str(e)))
+    def _on_connection_progress(self, progress, message):
+        """Handle connection progress updates from worker"""
+        self.connectionProgressChanged.emit(progress)
+        self.connectionStatusDetailChanged.emit(message)
 
     def _on_connection_complete(self, connection, status):
         """Handle connection result on main thread"""
@@ -430,6 +418,17 @@ class OBDManager(QObject):
         with self._lock:
             self._is_connecting = False
 
+        # Clean up worker thread
+        self._cleanup_worker_thread()
+
+    def _cleanup_worker_thread(self):
+        """Clean up the worker thread after connection attempt"""
+        if self._worker_thread is not None and self._worker_thread.isRunning():
+            self._worker_thread.quit()
+            self._worker_thread.wait(2000)
+        self._worker_thread = None
+        self._worker = None
+
     def _on_connection_error(self, error_msg):
         """Handle connection error on main thread"""
         print(f"[OBD] Connection error: {error_msg}")
@@ -441,6 +440,9 @@ class OBDManager(QObject):
 
         with self._lock:
             self._is_connecting = False
+
+        # Clean up worker thread
+        self._cleanup_worker_thread()
 
         self._schedule_auto_reconnect()
 

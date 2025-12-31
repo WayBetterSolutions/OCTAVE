@@ -39,36 +39,39 @@ Item {
         { id: "IGNITION_TIMING", title: "Timing", unit: "°", min: -10, max: 60 }
     ]
     
-    // OBD values storage
+    // OBD values storage - use a regular object that we'll replace to trigger updates
     property var paramValues: ({})
-    
+
+    // Helper function to update a parameter value and trigger bindings
+    function updateParamValue(paramId, value) {
+        // Create a new object to trigger property change notification
+        var newValues = Object.assign({}, paramValues)
+        newValues[paramId] = value
+        paramValues = newValues
+    }
+
     // OBD Data Connections
     Connections {
         target: obdManager
 
-        function onCoolantTempChanged(value) { paramValues["COOLANT_TEMP"] = value; updateParamValue("COOLANT_TEMP"); }
-        function onVoltageChanged(value) { paramValues["CONTROL_MODULE_VOLTAGE"] = value; updateParamValue("CONTROL_MODULE_VOLTAGE"); }
-        function onEngineLoadChanged(value) { paramValues["ENGINE_LOAD"] = value; updateParamValue("ENGINE_LOAD"); }
-        function onThrottlePositionChanged(value) { paramValues["THROTTLE_POS"] = value; updateParamValue("THROTTLE_POS"); }
-        function onIntakeAirTempChanged(value) { paramValues["INTAKE_TEMP"] = value; updateParamValue("INTAKE_TEMP"); }
-        function onTimingAdvanceChanged(value) { paramValues["TIMING_ADVANCE"] = value; updateParamValue("TIMING_ADVANCE"); }
-        function onMassAirFlowChanged(value) { paramValues["MAF"] = value; updateParamValue("MAF"); }
-        function onSpeedMPHChanged(value) { paramValues["SPEED"] = value; updateParamValue("SPEED"); }
-        function onRpmChanged(value) { paramValues["RPM"] = value; updateParamValue("RPM"); }
-        function onAirFuelRatioChanged(value) { paramValues["COMMANDED_EQUIV_RATIO"] = value; updateParamValue("COMMANDED_EQUIV_RATIO"); }
-        function onIntakeManifoldPressureChanged(value) { paramValues["INTAKE_PRESSURE"] = value; updateParamValue("INTAKE_PRESSURE"); }
-        function onShortTermFuelTrimChanged(value) { paramValues["SHORT_FUEL_TRIM_1"] = value; updateParamValue("SHORT_FUEL_TRIM_1"); }
-        function onLongTermFuelTrimChanged(value) { paramValues["LONG_FUEL_TRIM_1"] = value; updateParamValue("LONG_FUEL_TRIM_1"); }
-        function onOxygenSensorVoltageChanged(value) { paramValues["O2_B1S1"] = value; updateParamValue("O2_B1S1"); }
-        function onFuelPressureChanged(value) { paramValues["FUEL_PRESSURE"] = value; updateParamValue("FUEL_PRESSURE"); }
-        function onEngineOilTempChanged(value) { paramValues["OIL_TEMP"] = value; updateParamValue("OIL_TEMP"); }
-        function onIgnitionTimingChanged(value) { paramValues["IGNITION_TIMING"] = value; updateParamValue("IGNITION_TIMING"); }
-    }
-    
-    // Function to update values without triggering crashes
-    function updateParamValue(paramId) {
-        // We don't need to do anything else as bindings will automatically update
-        // This is just to ensure we have a function to call from the connections
+        function onCoolantTempChanged(value) { updateParamValue("COOLANT_TEMP", value); }
+        function onVoltageChanged(value) { updateParamValue("CONTROL_MODULE_VOLTAGE", value); }
+        function onEngineLoadChanged(value) { updateParamValue("ENGINE_LOAD", value); }
+        function onThrottlePositionChanged(value) { updateParamValue("THROTTLE_POS", value); }
+        function onIntakeAirTempChanged(value) { updateParamValue("INTAKE_TEMP", value); }
+        function onTimingAdvanceChanged(value) { updateParamValue("TIMING_ADVANCE", value); }
+        function onMassAirFlowChanged(value) { updateParamValue("MAF", value); }
+        function onSpeedMPHChanged(value) { updateParamValue("SPEED", value); }
+        function onRpmChanged(value) { updateParamValue("RPM", value); }
+        function onAirFuelRatioChanged(value) { updateParamValue("COMMANDED_EQUIV_RATIO", value); }
+        function onFuelLevelChanged(value) { updateParamValue("FUEL_LEVEL", value); }
+        function onIntakeManifoldPressureChanged(value) { updateParamValue("INTAKE_PRESSURE", value); }
+        function onShortTermFuelTrimChanged(value) { updateParamValue("SHORT_FUEL_TRIM_1", value); }
+        function onLongTermFuelTrimChanged(value) { updateParamValue("LONG_FUEL_TRIM_1", value); }
+        function onOxygenSensorVoltageChanged(value) { updateParamValue("O2_B1S1", value); }
+        function onFuelPressureChanged(value) { updateParamValue("FUEL_PRESSURE", value); }
+        function onEngineOilTempChanged(value) { updateParamValue("OIL_TEMP", value); }
+        function onIgnitionTimingChanged(value) { updateParamValue("IGNITION_TIMING", value); }
     }
     
     // Just update column count when parameters change

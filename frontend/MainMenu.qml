@@ -104,7 +104,7 @@ Item {
                     source: mainMenu.currentArt || "./assets/missing_art.png"
                     fillMode: Image.PreserveAspectCrop
                     opacity: 1
-                    layer.enabled: true
+                    layer.enabled: status === Image.Ready
                     layer.effect: GaussianBlur {
                         radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
                         samples: Math.min(32, Math.max(1, radius))
@@ -154,7 +154,7 @@ Item {
                         asynchronous: true
                         cache: true
 
-                        layer.enabled: true
+                        layer.enabled: status === Image.Ready
                         layer.effect: DropShadow {
                             transparentBorder: true
                             horizontalOffset: 4

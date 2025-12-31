@@ -127,17 +127,18 @@ Item {
                     delegate: Item {
                         width: backgroundContainer.width / albumArtGrid.columns
                         height: backgroundContainer.height / albumArtGrid.columns
-                        
+
                         Image {
+                            id: gridImage
                             anchors.fill: parent
-                            source: albumArtImage.source
+                            source: albumArtImage.status === Image.Ready ? albumArtImage.source : "./assets/missing_art.png"
                             fillMode: Image.PreserveAspectCrop
-                            
+
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
-            
+
                             opacity: 1
-                            layer.enabled: true
+                            layer.enabled: status === Image.Ready
                             layer.effect: GaussianBlur {
                                 radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
                                 samples: Math.min(32, Math.max(1, radius))  // Adjust samples based on radius
@@ -754,8 +755,9 @@ Item {
                         smooth: true
                         antialiasing: true
                         mipmap: false
+                        asynchronous: true
 
-                        layer.enabled: true
+                        layer.enabled: status === Image.Ready
                         layer.effect: DropShadow {
                             transparentBorder: true
                             horizontalOffset: 8
