@@ -144,6 +144,9 @@ Item {
         if (!isSpotifyPlaylist && initialScrollPosition >= 0) {
             scrollToCurrentTimer.restart()
         }
+
+        // Refresh album art after initial load to ensure cached art is displayed
+        albumArtRefreshTimer.restart()
     }
 
     // Update timer for model changes
@@ -157,6 +160,19 @@ Item {
             // Use correct model based on current mode
             mediaListView.model = isSpotifyPlaylist ? spotifyTrackNames : mediaFiles
             mediaListView.contentY = listViewPosition
+
+            // Trigger album art refresh after delegates have had time to cache
+            albumArtRefreshTimer.restart()
+        }
+    }
+
+    // Timer to refresh album art bindings after initial cache population
+    Timer {
+        id: albumArtRefreshTimer
+        interval: 300  // Give time for album art to be cached by backend
+        repeat: false
+        onTriggered: {
+            playlistRefreshCounter++  // Force delegates to re-evaluate albumArtSource
         }
     }
 

@@ -437,11 +437,6 @@ Item {
                 positionText.text = "0:00"
             }
         }
-
-        function onPlayStateChanged(playing) {
-            playButtonImage.source = playing ?
-                "./assets/pause_button.svg" : "./assets/play_button.svg"
-        }
     }
 
     // OBD Settings connection

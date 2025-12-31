@@ -629,6 +629,10 @@ class SettingsManager(QObject):
 
     @Slot(str)
     def save_media_folder(self, folder_path):
+        # Skip if the folder hasn't actually changed (prevents double-scan)
+        if folder_path == self._media_folder:
+            print(f"Media folder unchanged, skipping: {folder_path}")
+            return
         print(f"Saving media folder path: {folder_path}")
         self._media_folder = folder_path
         self.update_setting("mediaFolder", folder_path, self.mediaFolderChanged)

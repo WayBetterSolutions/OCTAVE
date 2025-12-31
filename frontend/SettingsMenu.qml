@@ -251,8 +251,8 @@ Item {
     component SettingsTextField: TextField {
         id: control
         Layout.preferredHeight: App.Spacing.formElementHeight
-        Layout.preferredWidth: 250
-        Layout.maximumWidth: 400
+        Layout.preferredWidth: 500
+        Layout.maximumWidth: 800
         color: App.Style.primaryTextColor
         font.pixelSize: App.Spacing.overallText
         placeholderTextColor: App.Style.secondaryTextColor
@@ -991,7 +991,7 @@ Item {
                                     Rectangle {
                                         id: browseButton
                                         Layout.preferredWidth: browseButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 60
+                                        Layout.minimumWidth: 70
                                         Layout.preferredHeight: mediaFolderField.height
                                         color: browseMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
                                                browseMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
@@ -1028,7 +1028,7 @@ Item {
                                     Rectangle {
                                         id: scanLibraryButton
                                         Layout.preferredWidth: scanButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 50
+                                        Layout.minimumWidth: 60
                                         Layout.preferredHeight: mediaFolderField.height
                                         color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
                                                scanMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
@@ -1067,8 +1067,25 @@ Item {
                                 SettingDescription {
                                     text: "Each subfolder becomes a playlist. MP3s in the root go to 'Unsorted'."
                                 }
+
+                                // Terminal feedback for scan progress
+                                TerminalFeedback {
+                                    id: scanTerminal
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 300
+                                    Layout.topMargin: App.Spacing.rowSpacing
+                                    title: "Library Scan Output"
+
+                                    // Connect to mediaManager scan progress signal
+                                    Connections {
+                                        target: mediaManager
+                                        function onScanProgress(message) {
+                                            scanTerminal.appendLine(message)
+                                        }
+                                    }
+                                }
                             }
-                            
+
                             SettingsDivider {}
 
                             // Startup Volume
@@ -1338,106 +1355,111 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: spotifyManager && spotifyManager.is_connected()
-                                        ? "Connected to Spotify"
-                                        : "Control Spotify playback from this app. Get credentials from developer.spotify.com"
-                                    color: spotifyManager && spotifyManager.is_connected() ? App.Style.accent : App.Style.secondaryTextColor
+                                    text: "Control Spotify playback from this app. Get credentials from developer.spotify.com"
                                 }
 
-                                // Client ID field
-                                ColumnLayout {
+                                // Credentials row with Client ID and Secret
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 4
+                                    spacing: App.Spacing.overallSpacing
 
-                                    Text {
-                                        text: "Client ID"
-                                        color: App.Style.secondaryTextColor
-                                        font.pixelSize: App.Spacing.overallText - 2
-                                        font.family: settingsMenu.globalFont
-                                    }
-
-                                    SettingsTextField {
-                                        id: spotifyClientIdField
+                                    // Client ID field
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        text: settingsManager ? settingsManager.get_spotify_client_id() : ""
+                                        spacing: 4
 
-                                        onTextEdited: {
-                                            // Auto-save when text changes
-                                            if (settingsManager) {
-                                                settingsManager.save_spotify_credentials(
-                                                    text.trim(),
-                                                    spotifyClientSecretField.text.trim()
-                                                )
-                                            }
+                                        Text {
+                                            text: "Client ID"
+                                            color: App.Style.secondaryTextColor
+                                            font.pixelSize: App.Spacing.overallText - 2
+                                            font.family: settingsMenu.globalFont
                                         }
 
-                                        Connections {
-                                            target: settingsManager
-                                            function onSpotifyCredentialsChanged() {
-                                                spotifyClientIdField.text = settingsManager.get_spotify_client_id()
+                                        SettingsTextField {
+                                            id: spotifyClientIdField
+                                            Layout.fillWidth: true
+                                            text: settingsManager ? settingsManager.get_spotify_client_id() : ""
+
+                                            onEditingFinished: {
+                                                if (settingsManager && text.trim() !== "") {
+                                                    settingsManager.save_spotify_credentials(
+                                                        text.trim(),
+                                                        spotifyClientSecretField.text.trim()
+                                                    )
+                                                }
+                                            }
+
+                                            Connections {
+                                                target: settingsManager
+                                                function onSpotifyCredentialsChanged() {
+                                                    spotifyClientIdField.text = settingsManager.get_spotify_client_id()
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                // Client Secret field
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Text {
-                                        text: "Client Secret"
-                                        color: App.Style.secondaryTextColor
-                                        font.pixelSize: App.Spacing.overallText - 2
-                                        font.family: settingsMenu.globalFont
-                                    }
-
-                                    SettingsTextField {
-                                        id: spotifyClientSecretField
+                                    // Client Secret field
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        text: settingsManager ? settingsManager.get_spotify_client_secret() : ""
-                                        echoMode: TextInput.Password
+                                        spacing: 4
 
-                                        onTextEdited: {
-                                            // Auto-save when text changes
-                                            if (settingsManager) {
-                                                settingsManager.save_spotify_credentials(
-                                                    spotifyClientIdField.text.trim(),
-                                                    text.trim()
-                                                )
-                                            }
+                                        Text {
+                                            text: "Client Secret"
+                                            color: App.Style.secondaryTextColor
+                                            font.pixelSize: App.Spacing.overallText - 2
+                                            font.family: settingsMenu.globalFont
                                         }
 
-                                        Connections {
-                                            target: settingsManager
-                                            function onSpotifyCredentialsChanged() {
-                                                spotifyClientSecretField.text = settingsManager.get_spotify_client_secret()
+                                        SettingsTextField {
+                                            id: spotifyClientSecretField
+                                            Layout.fillWidth: true
+                                            text: settingsManager ? settingsManager.get_spotify_client_secret() : ""
+                                            echoMode: TextInput.Password
+
+                                            onEditingFinished: {
+                                                if (settingsManager && text.trim() !== "") {
+                                                    settingsManager.save_spotify_credentials(
+                                                        spotifyClientIdField.text.trim(),
+                                                        text.trim()
+                                                    )
+                                                }
+                                            }
+
+                                            Connections {
+                                                target: settingsManager
+                                                function onSpotifyCredentialsChanged() {
+                                                    spotifyClientSecretField.text = settingsManager.get_spotify_client_secret()
+                                                }
                                             }
                                         }
                                     }
                                 }
 
                                 // Action buttons row
-                                Flow {
+                                RowLayout {
                                     Layout.fillWidth: true
                                     spacing: App.Spacing.overallSpacing
 
-                                    // Connect button (only when not connected)
+                                    // Connect button
                                     Rectangle {
                                         id: spotifyConnectButton
-                                        width: spotifyConnectText.width + App.Spacing.overallSpacing * 3
-                                        height: App.Spacing.formElementHeight
+                                        Layout.preferredWidth: spotifyConnectText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 80
+                                        Layout.preferredHeight: spotifyClientIdField.height
                                         visible: spotifyManager && !spotifyManager.is_connected()
                                         color: spotifyConnectMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
                                                spotifyConnectMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: height / 2
+                                        radius: 6
+                                        border.width: 1
+                                        border.color: Qt.darker(App.Style.accent, 1.3)
 
                                         Text {
                                             id: spotifyConnectText
                                             anchors.centerIn: parent
-                                            text: "Connect to Spotify"
+                                            text: "Connect"
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
                                             font.family: settingsMenu.globalFont
                                         }
 
@@ -1445,24 +1467,30 @@ Item {
                                             id: spotifyConnectMouseArea
                                             anchors.fill: parent
                                             hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (spotifyManager) {
                                                     spotifyManager.authenticate()
                                                 }
                                             }
                                         }
+
+                                        ToolTip.visible: spotifyConnectMouseArea.containsMouse
+                                        ToolTip.text: "Connect to Spotify"
+                                        ToolTip.delay: 300
                                     }
 
-                                    // Disconnect button (only when connected)
+                                    // Disconnect button
                                     Rectangle {
                                         id: spotifyDisconnectButton
-                                        width: spotifyDisconnectText.width + App.Spacing.overallSpacing * 3
-                                        height: App.Spacing.formElementHeight
+                                        Layout.preferredWidth: spotifyDisconnectText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 90
+                                        Layout.preferredHeight: spotifyClientIdField.height
                                         visible: spotifyManager && spotifyManager.is_connected()
                                         color: spotifyDisconnectMouseArea.pressed ? Qt.darker("#e74c3c", 1.4) :
                                                spotifyDisconnectMouseArea.containsMouse ? Qt.darker("#e74c3c", 1.2) : "#e74c3c"
-                                        radius: height / 2
+                                        radius: 6
+                                        border.width: 1
+                                        border.color: Qt.darker("#e74c3c", 1.3)
 
                                         Text {
                                             id: spotifyDisconnectText
@@ -1470,6 +1498,7 @@ Item {
                                             text: "Disconnect"
                                             color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
                                             font.family: settingsMenu.globalFont
                                         }
 
@@ -1477,35 +1506,38 @@ Item {
                                             id: spotifyDisconnectMouseArea
                                             anchors.fill: parent
                                             hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (spotifyManager) {
                                                     spotifyManager.disconnect()
                                                 }
                                             }
                                         }
+
+                                        ToolTip.visible: spotifyDisconnectMouseArea.containsMouse
+                                        ToolTip.text: "Disconnect from Spotify"
+                                        ToolTip.delay: 300
                                     }
 
-                                    // Refresh devices button (only when connected)
+                                    // Refresh devices button
                                     Rectangle {
                                         id: spotifyRefreshButton
-                                        width: spotifyRefreshText.width + App.Spacing.overallSpacing * 3
-                                        height: App.Spacing.formElementHeight
+                                        Layout.preferredWidth: spotifyRefreshText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                        Layout.minimumWidth: 70
+                                        Layout.preferredHeight: spotifyClientIdField.height
                                         visible: spotifyManager && spotifyManager.is_connected()
-                                        color: spotifyRefreshMouseArea.pressed ? Qt.darker(App.Style.hoverColor, 1.4) :
-                                               spotifyRefreshMouseArea.containsMouse ? Qt.darker(App.Style.hoverColor, 1.2) : App.Style.hoverColor
-                                        radius: height / 2
+                                        color: spotifyRefreshMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
+                                               spotifyRefreshMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                                        radius: 6
                                         border.width: 1
-                                        border.color: Qt.rgba(App.Style.primaryTextColor.r,
-                                                            App.Style.primaryTextColor.g,
-                                                            App.Style.primaryTextColor.b, 0.1)
+                                        border.color: Qt.darker(App.Style.accent, 1.3)
 
                                         Text {
                                             id: spotifyRefreshText
                                             anchors.centerIn: parent
-                                            text: "Refresh Devices"
-                                            color: App.Style.primaryTextColor
+                                            text: "Refresh"
+                                            color: "white"
                                             font.pixelSize: App.Spacing.overallText
+                                            font.bold: true
                                             font.family: settingsMenu.globalFont
                                         }
 
@@ -1513,43 +1545,43 @@ Item {
                                             id: spotifyRefreshMouseArea
                                             anchors.fill: parent
                                             hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (spotifyManager) {
                                                     spotifyManager.refresh_devices()
                                                 }
                                             }
                                         }
+
+                                        ToolTip.visible: spotifyRefreshMouseArea.containsMouse
+                                        ToolTip.text: "Refresh available devices"
+                                        ToolTip.delay: 300
                                     }
+
+                                    Item { Layout.fillWidth: true }
                                 }
 
-                                // Connection status / error display
-                                Text {
-                                    id: spotifyStatusText
+                                // Terminal feedback for Spotify connection
+                                TerminalFeedback {
+                                    id: spotifyTerminal
                                     Layout.fillWidth: true
-                                    visible: text !== ""
-                                    color: text.startsWith("Error") ? "#e74c3c" : App.Style.accent
-                                    font.pixelSize: App.Spacing.overallText - 2
-                                    font.family: settingsMenu.globalFont
-                                    wrapMode: Text.WordWrap
+                                    Layout.preferredHeight: 300
+                                    title: "Spotify Connection"
 
                                     Connections {
                                         target: spotifyManager
+                                        function onStatusProgress(message) {
+                                            spotifyTerminal.appendLine(message)
+                                        }
+                                        function onAuthUrlReady(url) {
+                                            spotifyTerminal.appendLine("[INFO] Auth URL ready - opening browser...")
+                                            spotifyAuthUrlText.text = url
+                                            spotifyAuthUrlText.visible = true
+                                        }
                                         function onConnectionStateChanged(connected) {
-                                            spotifyStatusText.text = connected ? "Successfully connected to Spotify!" : ""
                                             spotifyAuthUrlText.visible = false
-                                            // Refresh devices when connected to populate the list
                                             if (connected && spotifyManager) {
                                                 spotifyManager.refresh_devices()
                                             }
-                                        }
-                                        function onErrorOccurred(error) {
-                                            spotifyStatusText.text = "Error: " + error
-                                        }
-                                        function onAuthUrlReady(url) {
-                                            spotifyAuthUrlText.text = url
-                                            spotifyAuthUrlText.visible = true
-                                            spotifyStatusText.text = "Click the link below to authenticate:"
                                         }
                                     }
                                 }
@@ -1566,14 +1598,6 @@ Item {
                                     wrapMode: Text.WrapAnywhere
                                     elide: Text.ElideMiddle
                                     maximumLineCount: 2
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            Qt.openUrlExternally(spotifyAuthUrlText.text)
-                                        }
-                                    }
 
                                     ToolTip.visible: authUrlMouseArea.containsMouse
                                     ToolTip.text: "Click to open in browser"
@@ -1603,7 +1627,7 @@ Item {
                                         font.family: settingsMenu.globalFont
                                     }
 
-                                    // Chip-style device selector (like theme chips)
+                                    // Chip-style device selector
                                     Flow {
                                         Layout.fillWidth: true
                                         spacing: App.Spacing.overallSpacing
@@ -1650,7 +1674,6 @@ Item {
                                                     NumberAnimation { duration: 100 }
                                                 }
 
-                                                // Subtle shadow for active device
                                                 layer.enabled: modelData.is_active
                                                 layer.effect: DropShadow {
                                                     horizontalOffset: 0

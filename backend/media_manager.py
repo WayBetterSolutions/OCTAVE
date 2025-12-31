@@ -64,6 +64,7 @@ class MediaManager(QObject):
     artistCountChanged = Signal(int)    # Number of unique artists
     playlistsChanged = Signal()         # When playlist list updates
     currentPlaylistChanged = Signal(str)  # When active playlist changes
+    scanProgress = Signal(str)           # Terminal-style feedback during scan
     
     
     def __init__(self):
@@ -734,9 +735,12 @@ class MediaManager(QObject):
     def scan_library(self):
         """Scan the library root for subfolders (playlists) and their MP3s"""
         if not self._library_root or not os.path.exists(self._library_root):
+            self.scanProgress.emit(f"[ERROR] Library path not set or doesn't exist")
             print(f"Library root not set or doesn't exist: {self._library_root}")
             return
 
+        self.scanProgress.emit(f"[SCAN] Starting library scan...")
+        self.scanProgress.emit(f"[PATH] {self._library_root}")
         print(f"Scanning library at: {self._library_root}")
 
         # Clear existing caches
@@ -748,12 +752,14 @@ class MediaManager(QObject):
         self._all_music_file_paths = {}
         self._is_all_music_active = False
         self.invalidate_stats_cache()
+        self.scanProgress.emit(f"[CLEAR] Caches cleared")
 
         # Collect all MP3s for "All Music" playlist
         all_music_files = []
 
         # First, check for root-level MP3s (goes to "Unsorted" playlist)
         root_mp3s = []
+        self.scanProgress.emit(f"[SCAN] Checking root folder for MP3s...")
         try:
             for item in os.listdir(self._library_root):
                 item_path = os.path.join(self._library_root, item)
@@ -763,6 +769,7 @@ class MediaManager(QObject):
                     self._all_music_file_paths[item] = self._library_root
                     all_music_files.append(item)
         except Exception as e:
+            self.scanProgress.emit(f"[ERROR] Failed to scan root: {e}")
             print(f"Error scanning root for MP3s: {e}")
 
         if root_mp3s:
@@ -773,39 +780,50 @@ class MediaManager(QObject):
                 "song_count": len(root_mp3s)
             }
             self._playlist_names.append("Unsorted")
+            self.scanProgress.emit(f"[FOUND] 'Unsorted' - {len(root_mp3s)} songs")
             print(f"Found {len(root_mp3s)} unsorted MP3s in root")
 
         # Now scan each immediate subfolder as a playlist
+        self.scanProgress.emit(f"[SCAN] Scanning subfolders...")
         try:
-            for item in os.listdir(self._library_root):
-                subfolder_path = os.path.join(self._library_root, item)
-                if os.path.isdir(subfolder_path):
-                    mp3_files = []
-                    try:
-                        for f in os.listdir(subfolder_path):
-                            if f.lower().endswith('.mp3'):
-                                mp3_files.append(f)
-                                # Track for All Music - handle duplicate filenames by appending folder
-                                unique_name = f
-                                if f in self._all_music_file_paths:
-                                    # Duplicate filename - make it unique by prefixing with folder name
-                                    unique_name = f"{item} - {f}"
-                                self._all_music_file_paths[unique_name] = subfolder_path
-                                all_music_files.append(unique_name)
-                    except Exception as e:
-                        print(f"Error scanning subfolder {item}: {e}")
-                        continue
+            subfolders = [item for item in os.listdir(self._library_root)
+                         if os.path.isdir(os.path.join(self._library_root, item))]
+            self.scanProgress.emit(f"[INFO] Found {len(subfolders)} subfolders to scan")
 
-                    if mp3_files:  # Only create playlist if it has MP3s
-                        self._playlists[item] = {
-                            "name": item,
-                            "path": subfolder_path,
-                            "files": mp3_files,
-                            "song_count": len(mp3_files)
-                        }
-                        self._playlist_names.append(item)
-                        print(f"Found playlist '{item}' with {len(mp3_files)} songs")
+            for item in subfolders:
+                subfolder_path = os.path.join(self._library_root, item)
+                mp3_files = []
+                try:
+                    for f in os.listdir(subfolder_path):
+                        if f.lower().endswith('.mp3'):
+                            mp3_files.append(f)
+                            # Track for All Music - handle duplicate filenames by appending folder
+                            unique_name = f
+                            if f in self._all_music_file_paths:
+                                # Duplicate filename - make it unique by prefixing with folder name
+                                unique_name = f"{item} - {f}"
+                            self._all_music_file_paths[unique_name] = subfolder_path
+                            all_music_files.append(unique_name)
+                except Exception as e:
+                    self.scanProgress.emit(f"[ERROR] Failed to scan '{item}': {e}")
+                    print(f"Error scanning subfolder {item}: {e}")
+                    continue
+
+                if mp3_files:  # Only create playlist if it has MP3s
+                    self._playlists[item] = {
+                        "name": item,
+                        "path": subfolder_path,
+                        "files": mp3_files,
+                        "song_count": len(mp3_files)
+                    }
+                    self._playlist_names.append(item)
+                    self.scanProgress.emit(f"[FOUND] '{item}' - {len(mp3_files)} songs")
+                    print(f"Found playlist '{item}' with {len(mp3_files)} songs")
+                else:
+                    self.scanProgress.emit(f"[WARN] '{item}' - 0 songs (skipped)")
+                    print(f"Skipped folder '{item}' - no MP3s found")
         except Exception as e:
+            self.scanProgress.emit(f"[ERROR] Failed to scan subfolders: {e}")
             print(f"Error scanning library subfolders: {e}")
 
         # Create "All Music" playlist if we have any songs
@@ -817,6 +835,7 @@ class MediaManager(QObject):
                 "song_count": len(all_music_files),
                 "is_combined": True  # Flag to indicate this is a combined playlist
             }
+            self.scanProgress.emit(f"[FOUND] 'All Music' - {len(all_music_files)} songs (combined)")
             print(f"Created 'All Music' playlist with {len(all_music_files)} total songs")
 
         # Sort playlist names alphabetically, but keep "All Music" first, then "Unsorted"
@@ -830,6 +849,7 @@ class MediaManager(QObject):
         if "All Music" in self._playlists:
             self._playlist_names.insert(0, "All Music")
 
+        self.scanProgress.emit(f"[DONE] Scan complete: {len(self._playlist_names)} playlists, {len(all_music_files)} total songs")
         print(f"Library scan complete. Found {len(self._playlist_names)} playlists")
 
         # Emit signal
@@ -914,7 +934,9 @@ class MediaManager(QObject):
             print(f"Rejected potentially unsafe filename: {filename}")
             return None
 
-        if self._is_all_music_active and filename in self._all_music_file_paths:
+        # Check _all_music_file_paths first - this handles All Music playlist
+        # regardless of _is_all_music_active flag (needed for album art caching)
+        if filename in self._all_music_file_paths:
             # For All Music, look up the directory from our mapping
             directory = self._all_music_file_paths[filename]
             # Handle renamed files (prefixed with folder name for duplicates)
@@ -937,7 +959,9 @@ class MediaManager(QObject):
 
     def _get_original_filename(self, filename):
         """Get the original filename (without folder prefix for All Music duplicates)"""
-        if self._is_all_music_active and " - " in filename:
+        # Check if this is a renamed duplicate (prefixed with folder name)
+        # Works regardless of _is_all_music_active state
+        if " - " in filename and filename in self._all_music_file_paths:
             # Check if this is a renamed duplicate by seeing if original exists in mapping
             parts = filename.split(" - ", 1)
             if len(parts) == 2:

@@ -95,6 +95,9 @@ class SpotifyManager(QObject):
     # Auth flow signal
     authUrlReady = Signal(str)  # URL for user to visit for OAuth
 
+    # Status progress signal for terminal-style feedback
+    statusProgress = Signal(str)  # Status messages with prefixes like [INFO], [ERROR], etc.
+
     # Internal signal for thread-safe initialization after auth
     _authCompleted = Signal()
 
@@ -158,6 +161,7 @@ class SpotifyManager(QObject):
     def _on_auth_completed(self):
         """Called on main thread after successful OAuth callback"""
         if self._pending_auth_manager:
+            self.statusProgress.emit("[SUCCESS] OAuth completed, setting up connection...")
             self._sp = spotipy.Spotify(auth_manager=self._pending_auth_manager)
             self._is_connected = True
             self.connectionStateChanged.emit(True)
@@ -165,6 +169,7 @@ class SpotifyManager(QObject):
             self._refresh_devices()
             self._refresh_playlists()
             self._pending_auth_manager = None
+            self.statusProgress.emit("[DONE] Successfully connected to Spotify!")
             print("Spotify: Post-auth setup completed on main thread")
 
     @Slot(result=bool)
@@ -195,11 +200,15 @@ class SpotifyManager(QObject):
     @Slot()
     def authenticate(self):
         """Start OAuth authentication flow"""
+        self.statusProgress.emit("[INFO] Starting Spotify authentication...")
+
         if not SPOTIPY_AVAILABLE:
+            self.statusProgress.emit("[ERROR] Spotipy library not installed")
             self.errorOccurred.emit("Spotipy library not installed")
             return
 
         if not self.has_credentials():
+            self.statusProgress.emit("[ERROR] Spotify credentials not configured")
             self.errorOccurred.emit("Spotify credentials not configured")
             return
 
@@ -232,22 +241,27 @@ class SpotifyManager(QObject):
 
             if token_info:
                 # We have a valid token, create client
+                self.statusProgress.emit("[INFO] Found cached token, connecting...")
                 self._sp = spotipy.Spotify(auth_manager=auth_manager)
                 self._is_connected = True
                 self.connectionStateChanged.emit(True)
                 self._poll_timer.start()
                 self._refresh_devices()
                 self._refresh_playlists()
+                self.statusProgress.emit("[SUCCESS] Connected with cached token")
                 print("Spotify: Connected with cached token")
             else:
                 # Need to authenticate - get auth URL
+                self.statusProgress.emit("[INFO] No cached token, starting OAuth flow...")
                 auth_url = auth_manager.get_authorize_url()
                 self.authUrlReady.emit(auth_url)
 
                 # Start local server to catch the callback
                 self._start_auth_server(auth_manager)
+                self.statusProgress.emit("[INFO] Waiting for browser authentication...")
 
         except Exception as e:
+            self.statusProgress.emit(f"[ERROR] Authentication failed: {str(e)}")
             self.errorOccurred.emit(f"Authentication failed: {str(e)}")
             print(f"Spotify auth error: {e}")
 
@@ -353,6 +367,7 @@ class SpotifyManager(QObject):
     @Slot()
     def disconnect(self):
         """Disconnect from Spotify"""
+        self.statusProgress.emit("[INFO] Disconnecting from Spotify...")
         self._poll_timer.stop()
         self._sp = None
         self._is_connected = False
@@ -361,8 +376,10 @@ class SpotifyManager(QObject):
 
         # Remove cached token from OS keychain
         self._cache_handler.delete_cached_token()
+        self.statusProgress.emit("[INFO] Cleared cached token")
 
         self.connectionStateChanged.emit(False)
+        self.statusProgress.emit("[DONE] Disconnected from Spotify")
         print("Spotify: Disconnected")
 
     # ==================== Playback Control ====================
@@ -508,6 +525,7 @@ class SpotifyManager(QObject):
         if not self._sp:
             return
         try:
+            self.statusProgress.emit("[INFO] Scanning for Spotify devices...")
             result = self._sp.devices()
             devices = result.get('devices', [])
 
@@ -520,15 +538,26 @@ class SpotifyManager(QObject):
             } for d in devices]
 
             # Find active device
+            active_device_name = None
             for d in self._devices:
                 if d['is_active']:
                     self._active_device_id = d['id']
+                    active_device_name = d['name']
                     self.activeDeviceChanged.emit(d['name'])
                     break
 
             self.devicesChanged.emit(self._devices)
 
+            if len(self._devices) == 0:
+                self.statusProgress.emit("[WARN] No devices found - open Spotify on a device")
+            else:
+                self.statusProgress.emit(f"[FOUND] {len(self._devices)} device(s) available")
+                for d in self._devices:
+                    status = " (active)" if d['is_active'] else ""
+                    self.statusProgress.emit(f"[INFO]   - {d['name']} ({d['type']}){status}")
+
         except Exception as e:
+            self.statusProgress.emit(f"[ERROR] Device refresh failed: {str(e)}")
             print(f"Spotify device refresh error: {e}")
 
     @Slot(str)
@@ -560,6 +589,7 @@ class SpotifyManager(QObject):
         if not self._sp:
             return
         try:
+            self.statusProgress.emit("[INFO] Loading Spotify playlists...")
             results = self._sp.current_user_playlists(limit=50)
 
             self._playlists = [{
@@ -571,8 +601,10 @@ class SpotifyManager(QObject):
             } for p in results.get('items', [])]
 
             self.playlistsChanged.emit(self._playlists)
+            self.statusProgress.emit(f"[FOUND] {len(self._playlists)} playlist(s) loaded")
 
         except Exception as e:
+            self.statusProgress.emit(f"[ERROR] Playlist refresh failed: {str(e)}")
             print(f"Spotify playlist refresh error: {e}")
 
     @Slot(result=list)
