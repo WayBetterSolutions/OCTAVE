@@ -226,14 +226,6 @@ Item {
         }
     }
     
-    // Connection to OBD updates
-    Connections {
-        target: obdManager
-        function onReadingsUpdated() {
-            refreshOBDValues();
-        }
-    }
-    
     // Refresh on component completion
     Component.onCompleted: {
         if (obdManager && obdManager.refresh_values) {

@@ -1042,6 +1042,7 @@ class MediaManager(QObject):
         self._is_paused = not is_playing
         self.playStateChanged.emit(is_playing)
 
+    @Slot()
     def _save_playback_state(self):
         """Save current playback state to settings"""
         if not self._settings_manager:

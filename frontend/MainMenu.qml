@@ -18,12 +18,48 @@ Item {
     // fontFamily always returns a valid font (systemDefaultFont or custom font)
     property string globalFont: App.Style.fontFamily
 
-    // Media content properties
+    // Media source property - determines if Spotify is active
+    property bool useSpotify: settingsManager && settingsManager.mediaSource === "spotify" &&
+                              spotifyManager && spotifyManager.is_connected()
+
+    // Spotify track info cache (updated from signals)
+    property string spotifyTrackName: ""
+    property string spotifyArtist: ""
+    property string spotifyAlbum: ""
+    property string spotifyAlbumArt: ""
+
+    // Media content properties - unified for both local and Spotify
     property string currentFile: ""
-    property string currentArt: ""
-    property string currentTitle: ""
-    property string currentArtist: ""
-    property string currentAlbum: ""
+    property string currentArt: {
+        if (useSpotify && spotifyAlbumArt) {
+            return spotifyAlbumArt
+        }
+        return _localArt || "./assets/missing_art.png"
+    }
+    property string currentTitle: {
+        if (useSpotify && spotifyTrackName) {
+            return spotifyTrackName
+        }
+        return _localTitle || ""
+    }
+    property string currentArtist: {
+        if (useSpotify && spotifyArtist) {
+            return spotifyArtist
+        }
+        return _localArtist || ""
+    }
+    property string currentAlbum: {
+        if (useSpotify && spotifyAlbum) {
+            return spotifyAlbum
+        }
+        return _localAlbum || ""
+    }
+
+    // Internal properties for local media (to avoid binding loops)
+    property string _localArt: ""
+    property string _localTitle: ""
+    property string _localArtist: ""
+    property string _localAlbum: ""
 
     function formatTime(ms) {
         var minutes = Math.floor(ms / 60000)
@@ -386,17 +422,36 @@ Item {
         }
     }
 
-    // Function to update media information
-    function updateMedia() {
+    // Function to update media information from local media manager
+    function updateLocalMedia() {
         if (mediaManager) {
             var filename = mediaManager.get_current_file()
             if (filename) {
                 mainMenu.currentFile = filename
-                mainMenu.currentTitle = filename.replace('.mp3', '')
-                mainMenu.currentArtist = mediaManager.get_band(filename)
-                mainMenu.currentAlbum = mediaManager.get_album(filename)
-                mainMenu.currentArt = mediaManager.get_album_art(filename)
+                mainMenu._localTitle = filename.replace('.mp3', '')
+                mainMenu._localArtist = mediaManager.get_band(filename)
+                mainMenu._localAlbum = mediaManager.get_album(filename)
+                mainMenu._localArt = mediaManager.get_album_art(filename)
             }
+        }
+    }
+
+    // Function to update media information from Spotify
+    function updateSpotifyMedia() {
+        if (spotifyManager) {
+            mainMenu.spotifyTrackName = spotifyManager.get_current_track_name() || ""
+            mainMenu.spotifyArtist = spotifyManager.get_current_artist() || ""
+            mainMenu.spotifyAlbum = spotifyManager.get_current_album() || ""
+            mainMenu.spotifyAlbumArt = spotifyManager.get_current_album_art() || ""
+        }
+    }
+
+    // Function to update media based on current source
+    function updateMedia() {
+        if (useSpotify) {
+            updateSpotifyMedia()
+        } else {
+            updateLocalMedia()
         }
     }
 
@@ -407,41 +462,88 @@ Item {
         }
     }
 
-    // Media Connections
+    // Local Media Connections (only apply when not using Spotify)
     Connections {
         target: mediaManager
 
         function onMetadataChanged(title, artist, album) {
-            updateMedia()
-            mainMenu.currentTitle = title
-            mainMenu.currentArtist = artist
-            mainMenu.currentAlbum = album
+            if (!useSpotify) {
+                mainMenu._localTitle = title
+                mainMenu._localArtist = artist
+                mainMenu._localAlbum = album
+                updateLocalMedia()
+            }
         }
 
         function onPositionChanged(position) {
-            if (!progressSlider.userSeeking) {
+            if (!useSpotify && !progressSlider.userSeeking) {
                 progressSlider.value = position
                 positionText.text = formatTime(position)
             }
         }
 
         function onDurationChanged(duration) {
-            progressSlider.to = duration > 0 ? duration : 1
-            durationText.text = formatTime(duration)
+            if (!useSpotify) {
+                progressSlider.to = duration > 0 ? duration : 1
+                durationText.text = formatTime(duration)
+            }
         }
 
         function onCurrentMediaChanged(filename) {
-            if (mediaManager) {
+            if (!useSpotify && mediaManager) {
                 var duration = mediaManager.get_duration()
                 durationText.text = formatTime(duration)
                 positionText.text = "0:00"
+                updateLocalMedia()
             }
         }
     }
 
-    // OBD Settings connection
+    // Spotify Connections
+    Connections {
+        target: spotifyManager
+
+        function onCurrentTrackChanged(title, artist, album, artUrl) {
+            // Always update the cached Spotify track info
+            mainMenu.spotifyTrackName = title
+            mainMenu.spotifyArtist = artist
+            mainMenu.spotifyAlbum = album
+            mainMenu.spotifyAlbumArt = artUrl
+
+            // Only update progress UI if we're in Spotify mode
+            if (useSpotify) {
+                progressSlider.value = 0
+                positionText.text = "0:00"
+                if (spotifyManager) {
+                    var duration = spotifyManager.get_duration()
+                    progressSlider.to = duration > 0 ? duration : 1
+                    durationText.text = formatTime(duration)
+                }
+            }
+        }
+
+        function onPositionChanged(position) {
+            if (useSpotify && !progressSlider.userSeeking) {
+                progressSlider.value = position
+                positionText.text = formatTime(position)
+            }
+        }
+
+        function onDurationChanged(duration) {
+            if (useSpotify) {
+                progressSlider.to = duration > 0 ? duration : 1
+                durationText.text = formatTime(duration)
+            }
+        }
+    }
+
+    // Handle media source changes
     Connections {
         target: settingsManager
+        function onMediaSourceChanged(source) {
+            // When source changes, update media display accordingly
+            updateMedia()
+        }
         function onHomeOBDParametersChanged() {
             if (obdManager && obdManager.refresh_values) {
                 obdManager.refresh_values()

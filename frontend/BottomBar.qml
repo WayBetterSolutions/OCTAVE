@@ -240,8 +240,12 @@ Rectangle {
                                     anchors.centerIn: parent
                                     width: parent.height
                                     height: parent.height
-                                    source: mediaManager && mediaManager.is_playing() ? 
-                                            "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                    source: {
+                                        var isPlaying = useSpotify ?
+                                            (spotifyManager && spotifyManager.is_playing()) :
+                                            (mediaManager && mediaManager.is_playing())
+                                        return isPlaying ? "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                    }
                                     sourceSize: Qt.size(width * 2, height * 2)
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
@@ -265,7 +269,7 @@ Rectangle {
                                 MouseArea {
                                     id: mouseAreaPlay
                                     anchors.fill: parent
-                                    onClicked: mediaManager.toggle_play()
+                                    onClicked: useSpotify ? spotifyManager.toggle_play() : mediaManager.toggle_play()
                                 }
                             }
                         }
@@ -1058,8 +1062,12 @@ Rectangle {
                 Connections {
                     target: mediaManager
                     function onPlayStateChanged(playing) {
-                        playButtonImage.source = playing ? 
-                            "./assets/pause_button.svg" : "./assets/play_button.svg"
+                        // Only update play button if not using Spotify
+                        if (!useSpotify) {
+                            var src = playing ? "./assets/pause_button.svg" : "./assets/play_button.svg"
+                            playButtonImage.source = src
+                            playButtonImageVertical.source = src
+                        }
                     }
                     function onMuteChanged(muted) {
                         muteButton.isMuted = muted
@@ -1082,13 +1090,21 @@ Rectangle {
                     }
                 }
 
-                // Spotify connection and shuffle state
+                // Spotify connection, play state, and shuffle state
                 Connections {
                     target: spotifyManager
                     function onConnectionStateChanged(connected) {
                         // When Spotify connects, apply Octave's current volume to it
                         if (connected && settingsManager) {
                             spotifyManager.set_volume(settingsManager.currentVolume)
+                        }
+                    }
+                    function onPlayStateChanged(playing) {
+                        // Only update play button if using Spotify
+                        if (useSpotify) {
+                            var src = playing ? "./assets/pause_button.svg" : "./assets/play_button.svg"
+                            playButtonImage.source = src
+                            playButtonImageVertical.source = src
                         }
                     }
                     function onShuffleStateChanged(enabled) {
@@ -1120,10 +1136,13 @@ Rectangle {
                         nextButtonImage.source = ""
                         muteButtonImage.source = ""
                         shuffleButtonImage.source = ""
-                        
+
                         previousButtonImage.source = `./assets/previous_button.svg?t=${timestamp}`
-                        playButtonImage.source = mediaManager && mediaManager.is_playing() ? 
-                            `./assets/pause_button.svg?t=${timestamp}` : 
+                        var isPlaying = useSpotify ?
+                            (spotifyManager && spotifyManager.is_playing()) :
+                            (mediaManager && mediaManager.is_playing())
+                        playButtonImage.source = isPlaying ?
+                            `./assets/pause_button.svg?t=${timestamp}` :
                             `./assets/play_button.svg?t=${timestamp}`
                         nextButtonImage.source = `./assets/next_button.svg?t=${timestamp}`
                         muteButtonImage.source = getUpdatedMuteSource() + `?t=${timestamp}`
@@ -1328,8 +1347,12 @@ Rectangle {
                                     anchors.centerIn: parent
                                     width: parent.height
                                     height: parent.height
-                                    source: mediaManager && mediaManager.is_playing() ? 
-                                            "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                    source: {
+                                        var isPlaying = useSpotify ?
+                                            (spotifyManager && spotifyManager.is_playing()) :
+                                            (mediaManager && mediaManager.is_playing())
+                                        return isPlaying ? "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                    }
                                     sourceSize: Qt.size(width * 2, height * 2)
                                     fillMode: Image.PreserveAspectFit
                                     smooth: true
@@ -1353,7 +1376,7 @@ Rectangle {
                                 MouseArea {
                                     id: mouseAreaPlayVertical
                                     anchors.fill: parent
-                                    onClicked: mediaManager.toggle_play()
+                                    onClicked: useSpotify ? spotifyManager.toggle_play() : mediaManager.toggle_play()
                                 }
                             }
                         }

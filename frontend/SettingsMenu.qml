@@ -147,14 +147,14 @@ Item {
         // Make the whole track area clickable while preserving original appearance
         MouseArea {
             anchors.fill: parent
-            onPressed: {
+            onPressed: function(mouse) {
                 // Calculate value based on mouse position
                 var newPos = Math.max(0, Math.min(1, (mouseX - control.leftPadding) / control.availableWidth))
                 control.value = control.from + newPos * (control.to - control.from)
                 control.pressed = true
                 mouse.accepted = false  // Allow the event to propagate to the Slider
             }
-            onReleased: {
+            onReleased: function(mouse) {
                 control.pressed = false
                 mouse.accepted = false
             }
@@ -1194,7 +1194,7 @@ Item {
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
 
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_auto_play_on_startup(checked)
                                         }
@@ -1233,7 +1233,7 @@ Item {
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
 
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_music_button_default_page(checked ? "mediaPlayer" : "mediaRoom")
                                         }
@@ -1271,7 +1271,7 @@ Item {
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
 
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_return_to_library_after_selection(checked)
                                         }
@@ -1374,7 +1374,7 @@ Item {
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
                                     
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_show_background_overlay(checked)
                                         }
@@ -1856,7 +1856,7 @@ Item {
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
 
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_show_bottom_bar_media_controls(checked)
                                         }
@@ -2083,11 +2083,6 @@ Item {
                                     onSelected: function(value) {
                                         if (settingsManager) {
                                             mainWindow.updateTheme(value)
-                                            try {
-                                                loadThemeColors(value)
-                                            } catch (e) {
-                                                console.error("Error loading theme colors:", e)
-                                            }
                                         }
                                     }
                                 }
@@ -2131,13 +2126,13 @@ Item {
                             }
 
                             // Bottom spacer
-                            Item { 
+                            Item {
                                 Layout.fillHeight: true
-                                Layout.minimumHeight: App.Spacing.bottomBar
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
                             }
                         }
                     }
-                    
+
                     ScrollView { // OBD Settings Page
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
@@ -2534,7 +2529,7 @@ Item {
                                     Layout.fillWidth: true
                                     checked: settingsManager ? settingsManager.obdFastMode : true
                                     
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_obd_fast_mode(checked)
                                         }
@@ -2974,9 +2969,9 @@ Item {
                             }
                             
                             // Bottom spacer
-                            Item { 
+                            Item {
                                 Layout.fillHeight: true
-                                Layout.minimumHeight: App.Spacing.bottomBar
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
                             }
 
                             function updateHomeDisplay() {
@@ -3018,7 +3013,7 @@ Item {
                                     Layout.fillWidth: true
                                     checked: settingsManager ? settingsManager.showClock : true
                                     
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             settingsManager.save_show_clock(checked)
                                         }
