@@ -51,11 +51,12 @@ spotify_manager = SpotifyManager()
 spotify_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("spotifyManager", spotify_manager)
 
-# Add the cleanup connection after creating media_manager:
+# Add the cleanup connection after creating managers:
 def cleanup_on_quit():
     """Save state and cleanup before app exits"""
     media_manager._save_playback_state()
     media_manager._clear_temp_files()
+    spotify_manager.cleanup()
 
 app.aboutToQuit.connect(cleanup_on_quit)
 

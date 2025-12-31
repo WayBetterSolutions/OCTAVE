@@ -46,6 +46,19 @@ ApplicationWindow {
     width: screenWidth
     height: screenHeight
 
+    // Handle window close (force close / X button)
+    onClosing: function(close) {
+        console.log("Window closing - running cleanup...")
+        if (mediaManager) {
+            mediaManager._save_playback_state()
+            mediaManager._clear_temp_files()
+        }
+        if (spotifyManager) {
+            spotifyManager.cleanup()
+        }
+        close.accepted = true
+    }
+
     // Initialize settings and theme
     Component.onCompleted: {
         // Capture the system default font at startup (before any custom font is applied)

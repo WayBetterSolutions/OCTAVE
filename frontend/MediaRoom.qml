@@ -43,39 +43,37 @@ Item {
     // Check if Spotify is available (connected) for showing toggle
     property bool spotifyAvailable: spotifyManager && spotifyManager.is_connected()
 
-    // Trigger to force property re-evaluation when Spotify track changes
-    property int spotifyTrackVersion: 0
+    // Spotify track info (updated directly from signals)
+    property string spotifyTrackName: ""
+    property string spotifyArtist: ""
+    property string spotifyAlbum: ""
+    property string spotifyAlbumArt: ""
 
     // Track info that works for both local and Spotify
     property string currentTrackName: {
-        // Reference spotifyTrackVersion to trigger re-evaluation
-        var _ = spotifyTrackVersion
-        if (useSpotify && spotifyManager && spotifyManager.get_current_track_name()) {
-            return spotifyManager.get_current_track_name()
+        if (useSpotify && spotifyTrackName) {
+            return spotifyTrackName
         }
         return currentSongText.text ? currentSongText.text.replace('.mp3', '') : ""
     }
 
     property string currentArtist: {
-        var _ = spotifyTrackVersion
-        if (useSpotify && spotifyManager && spotifyManager.get_current_artist()) {
-            return spotifyManager.get_current_artist()
+        if (useSpotify && spotifyArtist) {
+            return spotifyArtist
         }
         return currentSongText.text ? (mediaManager ? mediaManager.get_band(currentSongText.text) : "Unknown Artist") : "Unknown Artist"
     }
 
     property string currentAlbum: {
-        var _ = spotifyTrackVersion
-        if (useSpotify && spotifyManager && spotifyManager.get_current_album()) {
-            return spotifyManager.get_current_album()
+        if (useSpotify && spotifyAlbum) {
+            return spotifyAlbum
         }
         return currentSongText.text ? (mediaManager ? mediaManager.get_album(currentSongText.text) : "Unknown Album") : "Unknown Album"
     }
 
     property string currentAlbumArt: {
-        var _ = spotifyTrackVersion
-        if (useSpotify && spotifyManager && spotifyManager.get_current_album_art()) {
-            return spotifyManager.get_current_album_art()
+        if (useSpotify && spotifyAlbumArt) {
+            return spotifyAlbumArt
         }
         return currentSongText.text ? (mediaManager ? mediaManager.get_album_art(currentSongText.text) || "./assets/missing_art.png" : "./assets/missing_art.png") : "./assets/missing_art.png"
     }
@@ -168,6 +166,11 @@ Item {
                 mediaRoom.duration = spotifyManager.get_duration()
                 mediaRoom.position = spotifyManager.get_position()
                 isShuffleEnabled = spotifyManager.is_shuffled()
+                // Initialize Spotify track info
+                mediaRoom.spotifyTrackName = spotifyManager.get_current_track_name()
+                mediaRoom.spotifyArtist = spotifyManager.get_current_artist()
+                mediaRoom.spotifyAlbum = spotifyManager.get_current_album()
+                mediaRoom.spotifyAlbumArt = spotifyManager.get_current_album_art()
             } else if (mediaManager) {
                 mediaRoom.duration = mediaManager.get_duration()
                 mediaRoom.position = mediaManager.get_position()
@@ -1093,43 +1096,53 @@ Item {
         }
     }
 
-    // Spotify playback connections (only apply when using Spotify)
+    // Spotify playback connections (always active to receive updates)
     Connections {
         target: spotifyManager
-        enabled: useSpotify
 
         function onPlayStateChanged(playing) {
-            playButtonImage.source = playing ?
-                "./assets/pause_button.svg" : "./assets/play_button.svg"
+            // Only update UI if we're in Spotify mode
+            if (useSpotify) {
+                playButtonImage.source = playing ?
+                    "./assets/pause_button.svg" : "./assets/play_button.svg"
+            }
         }
 
         function onDurationChanged(duration) {
-            mediaRoom.duration = duration
+            if (useSpotify) {
+                mediaRoom.duration = duration
+            }
         }
 
         function onPositionChanged(position) {
-            if (!userSeeking) {
+            if (useSpotify && !userSeeking) {
                 mediaRoom.position = position
                 progressSlider.value = position
             }
         }
 
         function onCurrentTrackChanged(title, artist, album, artUrl) {
-            // Increment version to force re-evaluation of computed properties
-            mediaRoom.spotifyTrackVersion++
+            // Always update the cached Spotify track info
+            mediaRoom.spotifyTrackName = title
+            mediaRoom.spotifyArtist = artist
+            mediaRoom.spotifyAlbum = album
+            mediaRoom.spotifyAlbumArt = artUrl
 
-            // Reset position for new track
-            mediaRoom.position = 0
-            progressSlider.value = 0
+            // Only update UI elements if we're in Spotify mode
+            if (useSpotify) {
+                // Reset position for new track
+                mediaRoom.position = 0
+                progressSlider.value = 0
 
-            // Update duration
-            mediaRoom.duration = spotifyManager.get_duration()
+                // Update duration
+                if (spotifyManager) {
+                    mediaRoom.duration = spotifyManager.get_duration()
+                }
+            }
         }
 
-        // Note: onShuffleStateChanged is handled in the always-active Connections block below
-
         function onVolumeChanged(volume) {
-            if (!volumeSlider.pressed) {
+            if (useSpotify && !volumeSlider.pressed) {
                 volumeControl.currentValue = volume
                 volumeSlider.value = volume
                 topVolumeControl.updateVolumeIcon()
@@ -1173,6 +1186,12 @@ Item {
                 mediaRoom.position = spotifyManager.get_position()
                 progressSlider.value = mediaRoom.position
                 isShuffleEnabled = spotifyManager.is_shuffled()
+
+                // Initialize Spotify track info when switching to Spotify
+                mediaRoom.spotifyTrackName = spotifyManager.get_current_track_name()
+                mediaRoom.spotifyArtist = spotifyManager.get_current_artist()
+                mediaRoom.spotifyAlbum = spotifyManager.get_current_album()
+                mediaRoom.spotifyAlbumArt = spotifyManager.get_current_album_art()
             } else if (mediaManager) {
                 mediaRoom.duration = mediaManager.get_duration()
                 mediaRoom.position = mediaManager.get_position()

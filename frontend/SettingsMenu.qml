@@ -14,6 +14,43 @@ Item {
 
     property string currentSection: initialSection
 
+    // Reactive property for Spotify devices - updated by signal, bound by repeater
+    property var spotifyDevicesList: []
+
+    // Refresh Spotify devices when navigating to media settings
+    onCurrentSectionChanged: {
+        if (currentSection === "mediaSettings" && spotifyManager && spotifyManager.is_connected()) {
+            spotifyManager.refresh_devices()
+        }
+    }
+
+    // Refresh devices on initial load if starting on media settings
+    Component.onCompleted: {
+        if (currentSection === "mediaSettings" && spotifyManager && spotifyManager.is_connected()) {
+            spotifyManager.refresh_devices()
+        }
+        // Initialize with current devices if already connected
+        if (spotifyManager && spotifyManager.is_connected()) {
+            spotifyDevicesList = spotifyManager.get_devices()
+        }
+    }
+
+    // Top-level Spotify connections (always active, not dependent on visibility)
+    Connections {
+        target: spotifyManager
+        function onDevicesChanged(devices) {
+            settingsMenu.spotifyDevicesList = devices
+        }
+        function onConnectionStateChanged(connected) {
+            if (connected) {
+                // Refresh devices when connection established
+                spotifyManager.refresh_devices()
+            } else {
+                settingsMenu.spotifyDevicesList = []
+            }
+        }
+    }
+
     // Global font binding for all text in this component
     // fontFamily always returns a valid font (systemDefaultFont or custom font)
     property string globalFont: App.Style.fontFamily
@@ -26,7 +63,17 @@ Item {
             // Convert from file:/// URL to local path
             var path = selectedFolder.toString()
             if (path.startsWith("file:///")) {
-                path = path.substring(8)  // Remove "file:///"
+                // On Windows: file:///C:/path -> remove 8 chars -> C:/path
+                // On Unix: file:///home/path -> remove 7 chars -> /home/path
+                // Check if it's a Windows path (has drive letter after file:///)
+                var afterScheme = path.substring(8)
+                if (afterScheme.length > 1 && afterScheme.charAt(1) === ':') {
+                    // Windows path with drive letter (e.g., C:/)
+                    path = afterScheme
+                } else {
+                    // Unix path - keep the leading slash
+                    path = path.substring(7)  // Remove "file://" only
+                }
             }
             mediaFolderField.text = path
             if (settingsManager) {
@@ -1634,7 +1681,7 @@ Item {
 
                                         Repeater {
                                             id: spotifyDevicesRepeater
-                                            model: spotifyManager ? spotifyManager.get_devices() : []
+                                            model: settingsMenu.spotifyDevicesList
 
                                             Rectangle {
                                                 id: deviceChip
@@ -1683,13 +1730,6 @@ Item {
                                                     color: Qt.rgba(0, 0, 0, 0.2)
                                                 }
                                             }
-                                        }
-                                    }
-
-                                    Connections {
-                                        target: spotifyManager
-                                        function onDevicesChanged(devices) {
-                                            spotifyDevicesRepeater.model = devices
                                         }
                                     }
 
