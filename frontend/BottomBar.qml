@@ -454,10 +454,15 @@ Rectangle {
                             
                                 MouseArea {
                                     id: mouseAreaMute
-                                    anchors.fill: parent 
+                                    anchors.fill: parent
                                     onClicked: {
-                                        muteButton.isMuted = !muteButton.isMuted
-                                        mediaManager.toggle_mute()
+                                        // If volume is 0, restore to startup volume instead of toggling mute
+                                        if (volumeControl.currentValue === 0 && settingsManager) {
+                                            var startupVol = Math.round(settingsManager.startUpVolume * 100)
+                                            volumeSlider.value = startupVol
+                                        } else {
+                                            mediaManager.toggle_mute()
+                                        }
                                     }
                                 }
                             }
@@ -1057,6 +1062,7 @@ Rectangle {
                             "./assets/pause_button.svg" : "./assets/play_button.svg"
                     }
                     function onMuteChanged(muted) {
+                        muteButton.isMuted = muted
                         updateMuteButtonImage()
                     }
                     function onVolumeChanged(volume) {
@@ -1476,10 +1482,15 @@ Rectangle {
                             
                                 MouseArea {
                                     id: mouseAreaMuteVertical
-                                    anchors.fill: parent 
+                                    anchors.fill: parent
                                     onClicked: {
-                                        muteButtonVertical.isMuted = !muteButtonVertical.isMuted
-                                        mediaManager.toggle_mute()
+                                        // If volume is 0, restore to startup volume instead of toggling mute
+                                        if (volumeControlVertical.currentValue === 0 && settingsManager) {
+                                            var startupVol = Math.round(settingsManager.startUpVolume * 100)
+                                            volumeSliderVertical.value = startupVol
+                                        } else {
+                                            mediaManager.toggle_mute()
+                                        }
                                     }
                                 }
                             }

@@ -637,15 +637,10 @@ class MediaManager(QObject):
             volume = float(volume)
             # Clamp volume to valid range
             volume = max(0.0, min(1.0, volume))
-            
+
             #print(f"Volume set to: {volume}")
             self._audio_output.setVolume(volume)
             self.volumeChanged.emit(volume)
-            
-            # If volume is being set and we were muted, unmute
-            if self._is_muted and volume > 0:
-                self._is_muted = False
-                self.muteChanged.emit(False)
         except Exception as e:
             print(f"Error setting volume: {e}")
             

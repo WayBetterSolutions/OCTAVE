@@ -238,7 +238,13 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            mediaManager.toggle_mute()
+                            // If volume is 0, restore to startup volume instead of toggling mute
+                            if (volumeControl.currentValue === 0 && settingsManager) {
+                                var startupVol = Math.round(settingsManager.startUpVolume * 100)
+                                volumeSlider.value = startupVol
+                            } else {
+                                mediaManager.toggle_mute()
+                            }
                         }
                     }
                 }
@@ -315,9 +321,8 @@ Item {
                         if (mediaManager) {
                             mediaManager.setVolume(logVolume)
 
-                            // Unmute if volume was raised from zero
-                            if (value > 0 && volumeControl.isMuted) {
-                                volumeControl.isMuted = false
+                            // Unmute if volume was raised while user is dragging the slider
+                            if (volumeSlider.pressed && value > 0 && volumeControl.isMuted) {
                                 mediaManager.toggle_mute()
                             }
                         }
