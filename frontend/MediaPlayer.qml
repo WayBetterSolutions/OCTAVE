@@ -862,15 +862,15 @@ Item {
 
                                 // Title section (with album art)
                                 RowLayout {
-                                    Layout.preferredWidth: parent.width * 0.4
+                                    Layout.preferredWidth: parent.width * 0.45
                                     Layout.fillHeight: true
                                     spacing: App.Spacing.overallMargin * 2
 
                                     // Album art with frame - simplified
                                     Rectangle {
                                         id: albumArtContainer
-                                        Layout.preferredWidth: App.Spacing.mediaPlayerAlbumArtSize * 1.3
-                                        Layout.preferredHeight: App.Spacing.mediaPlayerAlbumArtSize * 1.3
+                                        Layout.preferredWidth: App.Spacing.mediaPlayerRowHeight * 1.25
+                                        Layout.preferredHeight: App.Spacing.mediaPlayerRowHeight * 1.25
                                         radius: 8
                                         color: Qt.rgba(1, 1, 1, 0.08) // Subtle glass effect
                                         border.width: 1

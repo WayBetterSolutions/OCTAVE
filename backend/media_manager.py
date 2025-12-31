@@ -507,6 +507,11 @@ class MediaManager(QObject):
                 self._player.play()
                 self._is_playing = True
                 self._is_paused = False
+
+                # Restore mute state - setSource/play can reset audio output volume
+                if self._is_muted:
+                    self._audio_output.setVolume(0.0)
+
                 self.playStateChanged.emit(True)
                 self.currentMediaChanged.emit(filename)
                 self._emit_metadata(filename)
@@ -584,6 +589,9 @@ class MediaManager(QObject):
             self._player.play()
             self._is_paused = False
             self._is_playing = True
+            # Restore mute state when resuming playback
+            if self._is_muted:
+                self._audio_output.setVolume(0.0)
 
         self.playStateChanged.emit(self._is_playing)
             
@@ -638,8 +646,14 @@ class MediaManager(QObject):
             # Clamp volume to valid range
             volume = max(0.0, min(1.0, volume))
 
-            #print(f"Volume set to: {volume}")
-            self._audio_output.setVolume(volume)
+            # If muted, update the stored volume for when unmuted, but keep audio at 0
+            if self._is_muted:
+                self._previous_volume = volume
+                # Keep actual audio muted
+                self._audio_output.setVolume(0.0)
+            else:
+                self._audio_output.setVolume(volume)
+
             self.volumeChanged.emit(volume)
         except Exception as e:
             print(f"Error setting volume: {e}")

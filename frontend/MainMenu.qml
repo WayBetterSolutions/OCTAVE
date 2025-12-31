@@ -105,7 +105,7 @@ Item {
                 // Album Art (top, centered)
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: parent.width - 30
+                    Layout.preferredHeight: parent.width + 40
                     Layout.alignment: Qt.AlignHCenter
 
                     Image {
@@ -258,131 +258,6 @@ Item {
 
                 // Spacer
                 Item { Layout.fillHeight: true }
-
-                // Media Controls Row
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignHCenter
-                    spacing: App.Spacing.mainMenuNavButtonSize * 0.5
-
-                    // Previous Button
-                    Control {
-                        implicitHeight: App.Spacing.mainMenuNavButtonSize
-                        implicitWidth: App.Spacing.mainMenuNavButtonSize
-                        background: Rectangle { color: "transparent" }
-                        contentItem: Item {
-                            Image {
-                                id: previousButtonImage
-                                anchors.centerIn: parent
-                                width: parent.width
-                                height: parent.height
-                                source: "./assets/previous_button.svg"
-                                sourceSize: Qt.size(width * 2, height * 2)
-                                fillMode: Image.PreserveAspectFit
-                                visible: false
-                            }
-                            ColorOverlay {
-                                anchors.fill: previousButtonImage
-                                source: previousButtonImage
-                                color: App.Style.mediaRoomPreviousButton
-                                opacity: prevMouseArea.pressed ? 0.7 : 1.0
-                                layer.enabled: true
-                                layer.effect: DropShadow {
-                                    transparentBorder: true
-                                    horizontalOffset: 2
-                                    verticalOffset: 2
-                                    radius: 4.0
-                                    samples: 9
-                                    color: "#80000000"
-                                }
-                            }
-                        }
-                        MouseArea {
-                            id: prevMouseArea
-                            anchors.fill: parent
-                            onClicked: mediaManager.previous_track()
-                        }
-                    }
-
-                    // Play/Pause Button
-                    Control {
-                        implicitHeight: App.Spacing.mainMenuPlayButtonSize
-                        implicitWidth: App.Spacing.mainMenuPlayButtonSize
-                        background: Rectangle { color: "transparent" }
-                        contentItem: Item {
-                            Image {
-                                id: playButtonImage
-                                anchors.centerIn: parent
-                                width: parent.width
-                                height: parent.height
-                                source: mediaManager && mediaManager.is_playing() ?
-                                        "./assets/pause_button.svg" : "./assets/play_button.svg"
-                                sourceSize: Qt.size(width * 2, height * 2)
-                                fillMode: Image.PreserveAspectFit
-                                visible: false
-                            }
-                            ColorOverlay {
-                                anchors.fill: playButtonImage
-                                source: playButtonImage
-                                color: App.Style.mediaRoomPlayButton
-                                opacity: playMouseArea.pressed ? 0.7 : 1.0
-                                layer.enabled: true
-                                layer.effect: DropShadow {
-                                    transparentBorder: true
-                                    horizontalOffset: 2
-                                    verticalOffset: 2
-                                    radius: 6.0
-                                    samples: 13
-                                    color: "#80000000"
-                                }
-                            }
-                        }
-                        MouseArea {
-                            id: playMouseArea
-                            anchors.fill: parent
-                            onClicked: mediaManager.toggle_play()
-                        }
-                    }
-
-                    // Next Button
-                    Control {
-                        implicitHeight: App.Spacing.mainMenuNavButtonSize
-                        implicitWidth: App.Spacing.mainMenuNavButtonSize
-                        background: Rectangle { color: "transparent" }
-                        contentItem: Item {
-                            Image {
-                                id: nextButtonImage
-                                anchors.centerIn: parent
-                                width: parent.width
-                                height: parent.height
-                                source: "./assets/next_button.svg"
-                                sourceSize: Qt.size(width * 2, height * 2)
-                                fillMode: Image.PreserveAspectFit
-                                visible: false
-                            }
-                            ColorOverlay {
-                                anchors.fill: nextButtonImage
-                                source: nextButtonImage
-                                color: App.Style.mediaRoomNextButton
-                                opacity: nextMouseArea.pressed ? 0.7 : 1.0
-                                layer.enabled: true
-                                layer.effect: DropShadow {
-                                    transparentBorder: true
-                                    horizontalOffset: 2
-                                    verticalOffset: 2
-                                    radius: 4.0
-                                    samples: 9
-                                    color: "#80000000"
-                                }
-                            }
-                        }
-                        MouseArea {
-                            id: nextMouseArea
-                            anchors.fill: parent
-                            onClicked: mediaManager.next_track()
-                        }
-                    }
-                }
 
                 // Progress Bar
                 RowLayout {

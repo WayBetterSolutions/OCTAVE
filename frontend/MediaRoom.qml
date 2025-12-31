@@ -420,11 +420,14 @@ Item {
 
                 // Left side - Controls and Metadata
                 ColumnLayout {
-                    Layout.fillWidth: true
                     Layout.fillHeight: true
-                    Layout.preferredWidth: parent.width * 0.7  // Allocate 70% to metadata
+                    Layout.preferredWidth: parent.width * 0.5  // 50% for left side
+                    Layout.maximumWidth: parent.width * 0.5
                     Layout.leftMargin: 20
-                    spacing: App.Spacing.mediaRoomSpacing
+                    spacing: App.Spacing.mediaRoomSpacing * 2
+
+                    // Spacer to push controls toward center
+                    Item { Layout.fillHeight: true }
 
                     // Media Controls Row
                     RowLayout {
@@ -587,6 +590,142 @@ Item {
                         }
                     }
 
+                    // Song metadata section (below controls)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 4
+
+                        // Song title with scrolling
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignHCenter
+                            height: Math.ceil(App.Spacing.mediaRoomMetaDataSongText * 1.4)
+
+                            Flickable {
+                                id: songTitleFlickable
+                                anchors.centerIn: parent
+                                width: Math.min(songTitleText.width, parent.width)
+                                height: parent.height
+                                contentWidth: songTitleText.width
+                                contentHeight: parent.height
+                                clip: true
+                                flickableDirection: Flickable.HorizontalFlick
+
+                                Text {
+                                    id: songTitleText
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: currentTrackName || "No track selected"
+                                    color: App.Style.metadataColor
+                                    font.pixelSize: App.Spacing.mediaRoomMetaDataSongText
+                                    font.bold: true
+                                    font.family: mediaRoom.globalFont
+                                }
+
+                                Timer {
+                                    id: songScrollTimer
+                                    property real containerWidth: songTitleFlickable.parent ? songTitleFlickable.parent.width : 200
+                                    interval: 3000
+                                    running: songTitleText.width > containerWidth
+                                    repeat: true
+                                    onTriggered: {
+                                        if (songTitleFlickable.contentX === 0) {
+                                            songScrollAnimation.to = songTitleText.width - songTitleFlickable.width;
+                                            songScrollAnimation.start();
+                                        } else {
+                                            songScrollAnimation.to = 0;
+                                            songScrollAnimation.start();
+                                        }
+                                    }
+                                }
+
+                                NumberAnimation {
+                                    id: songScrollAnimation
+                                    target: songTitleFlickable
+                                    property: "contentX"
+                                    duration: 5000
+                                    easing.type: Easing.InOutQuad
+                                    onFinished: songScrollTimer.restart()
+                                }
+                            }
+                        }
+
+                        // Artist and album info
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignHCenter
+                            height: Math.ceil(App.Spacing.mediaRoomMetaDataBandText * 1.4)
+
+                            Flickable {
+                                id: metadataFlickable
+                                anchors.centerIn: parent
+                                width: Math.min(metadataRow.width, parent.width)
+                                height: parent.height
+                                contentWidth: metadataRow.width
+                                contentHeight: parent.height
+                                clip: true
+                                flickableDirection: Flickable.HorizontalFlick
+
+                                Row {
+                                    id: metadataRow
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 10
+
+                                    Text {
+                                        text: currentArtist
+                                        color: App.Style.metadataColor
+                                        font.pixelSize: App.Spacing.mediaRoomMetaDataBandText
+                                        font.family: mediaRoom.globalFont
+                                        opacity: 0.7
+                                    }
+                                    Text {
+                                        text: "•"
+                                        color: App.Style.metadataColor
+                                        font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
+                                        font.family: mediaRoom.globalFont
+                                        opacity: 0.8
+                                    }
+                                    Text {
+                                        text: currentAlbum
+                                        color: App.Style.metadataColor
+                                        font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
+                                        font.family: mediaRoom.globalFont
+                                        opacity: 0.8
+                                    }
+                                }
+
+                                Timer {
+                                    id: metadataScrollTimer
+                                    property real containerWidth: metadataFlickable.parent ? metadataFlickable.parent.width : 200
+                                    interval: 3000
+                                    running: metadataRow.width > containerWidth
+                                    repeat: true
+                                    onTriggered: {
+                                        if (metadataFlickable.contentX === 0) {
+                                            metadataScrollAnimation.to = metadataRow.width - metadataFlickable.width;
+                                            metadataScrollAnimation.start();
+                                        } else {
+                                            metadataScrollAnimation.to = 0;
+                                            metadataScrollAnimation.start();
+                                        }
+                                    }
+                                }
+
+                                NumberAnimation {
+                                    id: metadataScrollAnimation
+                                    target: metadataFlickable
+                                    property: "contentX"
+                                    duration: 5000
+                                    easing.type: Easing.InOutQuad
+                                    onFinished: metadataScrollTimer.restart()
+                                }
+                            }
+                        }
+                    }
+
+                    // Spacer to push content toward center
+                    Item { Layout.fillHeight: true }
+
                     // Hidden container for current song text (used by other components)
                     Item {
                         id: currentSongTextContainer
@@ -596,174 +735,32 @@ Item {
                 }
 
 
-                Rectangle { // Right side - Album Art
-                    implicitHeight: App.Spacing.mediaRoomAlbumArtHeight
-                    implicitWidth: App.Spacing.mediaRoomAlbumArtWidth
-                    Layout.preferredWidth: parent.width * 0.80  // Increased to 80%
-                    Layout.maximumWidth: parent.width * 0.80
-                    Layout.minimumWidth: parent.width * 0.80
-                    color: transparentColor
-                    clip: false
+                Item { // Right side - Album Art
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: parent.width * 0.5  // 50% for right side
+                    Layout.maximumWidth: parent.width * 0.5
+                    Layout.alignment: Qt.AlignVCenter
 
-                    Item {
-                        id: albumArtContainer
-                        anchors.fill: parent
+                    Image {
+                        id: albumArtImage
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width * 0.85, parent.height * 0.85)
+                        height: width
+                        source: currentAlbumArt
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        antialiasing: true
+                        mipmap: false
 
-                        Image {
-                            id: albumArtImage
-                            anchors.fill: parent
-                            source: currentAlbumArt
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                            antialiasing: true
-                            mipmap: false
-
-                            layer.enabled: true
-                            layer.effect: DropShadow {
-                                transparentBorder: true
-                                horizontalOffset: 8
-                                verticalOffset: 8
-                                radius: 16.0
-                                samples: 33
-                                color: "#E0000000"
-                            }
+                        layer.enabled: true
+                        layer.effect: DropShadow {
+                            transparentBorder: true
+                            horizontalOffset: 8
+                            verticalOffset: 8
+                            radius: 16.0
+                            samples: 33
+                            color: "#E0000000"
                         }
-                    }
-                }
-            }
-        }
-
-        // Centered metadata above duration bar
-        ColumnLayout {
-            id: centeredMetadata
-            width: parent.width * 0.75
-            anchors {
-                bottom: durationBar.top
-                horizontalCenter: parent.horizontalCenter
-                bottomMargin: 10
-            }
-            spacing: 4
-
-            // Song title with scrolling
-            Item {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
-                height: Math.ceil(App.Spacing.mediaRoomMetaDataSongText * 1.4)
-
-                Flickable {
-                    id: songTitleFlickable
-                    anchors.centerIn: parent
-                    width: Math.min(songTitleText.width, parent.width)
-                    height: parent.height
-                    contentWidth: songTitleText.width
-                    contentHeight: parent.height
-                    clip: true
-                    flickableDirection: Flickable.HorizontalFlick
-
-                    Text {
-                        id: songTitleText
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: currentTrackName || "No track selected"
-                        color: App.Style.metadataColor
-                        font.pixelSize: App.Spacing.mediaRoomMetaDataSongText
-                        font.bold: true
-                        font.family: mediaRoom.globalFont
-                    }
-
-                    Timer {
-                        id: songScrollTimer
-                        interval: 3000
-                        running: songTitleText.width > centeredMetadata.width
-                        repeat: true
-                        onTriggered: {
-                            if (songTitleFlickable.contentX === 0) {
-                                songScrollAnimation.to = songTitleText.width - songTitleFlickable.width;
-                                songScrollAnimation.start();
-                            } else {
-                                songScrollAnimation.to = 0;
-                                songScrollAnimation.start();
-                            }
-                        }
-                    }
-
-                    NumberAnimation {
-                        id: songScrollAnimation
-                        target: songTitleFlickable
-                        property: "contentX"
-                        duration: 5000
-                        easing.type: Easing.InOutQuad
-                        onFinished: songScrollTimer.restart()
-                    }
-                }
-            }
-
-            // Artist and album info
-            Item {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
-                height: Math.ceil(App.Spacing.mediaRoomMetaDataBandText * 1.4)
-
-                Flickable {
-                    id: metadataFlickable
-                    anchors.centerIn: parent
-                    width: Math.min(metadataRow.width, parent.width)
-                    height: parent.height
-                    contentWidth: metadataRow.width
-                    contentHeight: parent.height
-                    clip: true
-                    flickableDirection: Flickable.HorizontalFlick
-
-                    Row {
-                        id: metadataRow
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 10
-
-                        Text {
-                            text: currentArtist
-                            color: App.Style.metadataColor
-                            font.pixelSize: App.Spacing.mediaRoomMetaDataBandText
-                            font.family: mediaRoom.globalFont
-                            opacity: 0.7
-                        }
-                        Text {
-                            text: "•"
-                            color: App.Style.metadataColor
-                            font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
-                            font.family: mediaRoom.globalFont
-                            opacity: 0.8
-                        }
-                        Text {
-                            text: currentAlbum
-                            color: App.Style.metadataColor
-                            font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
-                            font.family: mediaRoom.globalFont
-                            opacity: 0.8
-                        }
-                    }
-
-                    Timer {
-                        id: metadataScrollTimer
-                        interval: 3000
-                        running: metadataRow.width > centeredMetadata.width
-                        repeat: true
-                        onTriggered: {
-                            if (metadataFlickable.contentX === 0) {
-                                metadataScrollAnimation.to = metadataRow.width - metadataFlickable.width;
-                                metadataScrollAnimation.start();
-                            } else {
-                                metadataScrollAnimation.to = 0;
-                                metadataScrollAnimation.start();
-                            }
-                        }
-                    }
-
-                    NumberAnimation {
-                        id: metadataScrollAnimation
-                        target: metadataFlickable
-                        property: "contentX"
-                        duration: 5000
-                        easing.type: Easing.InOutQuad
-                        onFinished: metadataScrollTimer.restart()
                     }
                 }
             }
