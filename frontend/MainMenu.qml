@@ -77,6 +77,46 @@ Item {
         }
     }
 
+    // Android Auto button (top right corner)
+    Rectangle {
+        id: androidAutoButton
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 15
+        width: 50
+        height: 50
+        radius: 8
+        color: mouseAreaAA.pressed ? App.Style.accent : "transparent"
+        border.color: App.Style.accent
+        border.width: 2
+        z: 100
+
+        Text {
+            anchors.centerIn: parent
+            text: "AA"
+            font.pixelSize: 18
+            font.bold: true
+            font.family: mainMenu.globalFont
+            color: App.Style.primaryTextColor
+        }
+
+        MouseArea {
+            id: mouseAreaAA
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: {
+                stackView.push("AndroidAutoView.qml", {
+                    stackView: stackView,
+                    mainWindow: mainWindow
+                })
+            }
+        }
+
+        ToolTip.visible: mouseAreaAA.containsMouse
+        ToolTip.text: "Android Auto"
+        ToolTip.delay: 500
+    }
+
     // Main content area - Horizontal layout: Media on left (1/3), OBD on right (2/3)
     RowLayout {
         anchors.fill: parent

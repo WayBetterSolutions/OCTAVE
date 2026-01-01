@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 600 600">
+  <!-- Android Auto icon - stylized "A" with road/navigation motif -->
+  <path d="M300,50 L480,520 L420,520 L380,400 L220,400 L180,520 L120,520 L300,50 Z M300,160 L240,340 L360,340 L300,160 Z"/>
+  <path d="M260,440 L260,500 L220,500 L220,440 L260,440 Z M340,440 L380,440 L380,500 L340,500 L340,440 Z"/>
+  <circle cx="300" cy="280" r="30"/>
+</svg>

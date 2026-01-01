@@ -439,6 +439,7 @@ class SpotifyManager(QObject):
         self.statusProgress.emit("[DONE] Disconnected from Spotify")
         print("Spotify: Disconnected")
 
+    @Slot()
     def cleanup(self):
         """Stop all timers and threads - call before app exit"""
         print("Spotify: Cleaning up...")
