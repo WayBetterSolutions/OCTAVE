@@ -1002,6 +1002,7 @@ Rectangle {
                             id: androidAutoButton
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            visible: settingsManager ? settingsManager.androidAutoEnabled : false
 
                             scale: mouseAreaAndroidAuto.pressed ? 0.8 : 1.0
                             opacity: mouseAreaAndroidAuto.pressed ? 0.7 : 1.0
@@ -2104,6 +2105,7 @@ Rectangle {
                             id: androidAutoButtonVertical
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            visible: settingsManager ? settingsManager.androidAutoEnabled : false
                             Layout.alignment: Qt.AlignHCenter
 
                             scale: mouseAreaAndroidAutoVertical.pressed ? 0.8 : 1.0

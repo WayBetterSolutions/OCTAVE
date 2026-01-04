@@ -839,6 +839,7 @@ Item {
                             ListElement { name: "Display"; section: "displaySettings" }
                             ListElement { name: "OBD"; section: "obdSettings" }
                             ListElement { name: "Clock"; section: "clockSettings" }
+                            ListElement { name: "Android Auto"; section: "androidAutoSettings" }
                             ListElement { name: "About"; section: "about" }
                         }
                         
@@ -949,7 +950,8 @@ Item {
                             case "displaySettings": return 2;
                             case "obdSettings": return 3;
                             case "clockSettings": return 4;
-                            case "about": return 5;
+                            case "androidAutoSettings": return 5;
+                            case "about": return 6;
                             default: return 0;
                         }
                     }
@@ -3086,6 +3088,81 @@ Item {
                             }
                             
                             Item { Layout.fillHeight: true } // Spacer
+                        }
+                    }
+
+                    ScrollView { // Android Auto Settings Page
+                        contentWidth: parent.width
+                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+                        clip: true
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: App.Spacing.sectionSpacing
+
+                            // Section Header
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Android Auto Integration"
+                                    font.pixelSize: App.Spacing.overallText * 1.5
+                                    font.bold: true
+                                }
+
+                                SettingDescription {
+                                    text: "Configure Android Auto connection and display settings. Connect your phone via USB and enable Developer Mode in Android Auto to use this feature."
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Enable/Disable Android Auto
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Enable Android Auto"
+                                }
+
+                                SettingsToggle {
+                                    id: androidAutoEnabledToggle
+                                    Layout.fillWidth: true
+                                    text: checked ? "Android Auto button visible in bottom bar" : "Android Auto button hidden"
+                                    checked: settingsManager ? settingsManager.androidAutoEnabled : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: function(checked) {
+                                        if (settingsManager) {
+                                            settingsManager.save_android_auto_enabled(checked)
+                                        }
+                                    }
+
+                                    // Update when setting changes externally
+                                    Connections {
+                                        target: settingsManager
+                                        function onAndroidAutoEnabledChanged() {
+                                            androidAutoEnabledToggle.checked = settingsManager.androidAutoEnabled
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "When enabled, an Android Auto button will appear in the bottom bar. Requires a phone with Android Auto and Developer Mode enabled."
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Bottom spacer
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
+                            }
                         }
                     }
 

@@ -884,7 +884,8 @@ After installation, click "Launch Google DHU" button."""
                 )
 
             # Start timer to find window and begin capture
-            QTimer.singleShot(2000, self._setup_seamless_capture)
+            # Give DHU more time to initialize (especially at higher resolutions)
+            QTimer.singleShot(3000, self._setup_seamless_capture)
 
             self.connectionProgress.emit("Starting Android Auto...")
             return True

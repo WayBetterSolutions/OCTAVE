@@ -396,9 +396,9 @@ Item {
     // Timer to force initial frame refresh when DHU becomes embedded
     Timer {
         id: initialRefreshTimer
-        interval: 100
+        interval: 50  // Faster polling
         repeat: true
-        running: dhuEmbedded && frameCounter < 30  // Run for first ~3 seconds
+        running: dhuEmbedded && frameCounter < 100  // Run for first ~5 seconds
         onTriggered: {
             // Force frame counter increment to ensure image refreshes
             androidAutoView.frameCounter++

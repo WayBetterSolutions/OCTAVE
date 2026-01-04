@@ -69,6 +69,7 @@ class SettingsManager(QObject):
     windowStateChanged = Signal(str)
     musicButtonDefaultPageChanged = Signal(str)
     returnToLibraryAfterSelectionChanged = Signal(bool)
+    androidAutoEnabledChanged = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -134,6 +135,7 @@ class SettingsManager(QObject):
             "windowState": "windowed",
             "musicButtonDefaultPage": "mediaRoom",  # "mediaRoom" or "mediaPlayer"
             "returnToLibraryAfterSelection": False,  # If True, return to MediaPlayer after song selection
+            "androidAutoEnabled": False,  # If True, show Android Auto button in bottom bar
         }
             
     
@@ -191,6 +193,9 @@ class SettingsManager(QObject):
         # Music button navigation settings
         self._music_button_default_page = self._settings.get("musicButtonDefaultPage", "mediaRoom")
         self._return_to_library_after_selection = self._settings.get("returnToLibraryAfterSelection", False)
+
+        # Android Auto settings
+        self._android_auto_enabled = self._settings.get("androidAutoEnabled", False)
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -298,6 +303,7 @@ class SettingsManager(QObject):
             "windowState": str,
             "musicButtonDefaultPage": str,
             "returnToLibraryAfterSelection": bool,
+            "androidAutoEnabled": bool,
         }
 
         for key, expected_type in type_checks.items():
@@ -905,7 +911,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def set_last_settings_section(self, section):
         """Set last visited settings section"""
-        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "about"]
+        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "about"]
         if section not in valid_sections:
             return
 
@@ -977,6 +983,25 @@ class SettingsManager(QObject):
         print(f"Saving return to library after selection: {return_to_library}")
         self._return_to_library_after_selection = return_to_library
         self.update_setting("returnToLibraryAfterSelection", return_to_library, self.returnToLibraryAfterSelectionChanged)
+
+    # ==================== Android Auto Settings ====================
+
+    @Property(bool, notify=androidAutoEnabledChanged)
+    def androidAutoEnabled(self):
+        """Get whether Android Auto is enabled"""
+        return self._android_auto_enabled
+
+    @Slot(result=bool)
+    def get_android_auto_enabled(self):
+        """Get whether Android Auto is enabled"""
+        return self._android_auto_enabled
+
+    @Slot(bool)
+    def save_android_auto_enabled(self, enabled):
+        """Save whether Android Auto is enabled"""
+        print(f"Saving Android Auto enabled: {enabled}")
+        self._android_auto_enabled = enabled
+        self.update_setting("androidAutoEnabled", enabled, self.androidAutoEnabledChanged)
 
     @Slot()
     def reset_to_defaults(self):
@@ -1064,3 +1089,6 @@ class SettingsManager(QObject):
 
         self._return_to_library_after_selection = self._default_settings["returnToLibraryAfterSelection"]
         self.returnToLibraryAfterSelectionChanged.emit(self._return_to_library_after_selection)
+
+        self._android_auto_enabled = self._default_settings["androidAutoEnabled"]
+        self.androidAutoEnabledChanged.emit(self._android_auto_enabled)
