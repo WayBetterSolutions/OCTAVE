@@ -263,17 +263,18 @@ class AndroidAutoManager(QObject):
     def cleanup(self):
         """
         Full cleanup when OCTAVE is closing.
-        Stops DHU, cleans up ADB connections, and stops head unit server on phone.
+        Stops DHU and cleans up ADB connections, but leaves head unit server running
+        on the phone so it can reconnect quickly next time.
         """
         print("[AA Manager] Cleaning up Android Auto...")
 
         # Close any running DHU
         self.closeDhu()
 
-        # Stop the manager
+        # Stop the manager (closes TCP connection)
         self.stop()
 
-        # Stop head unit server and clean up ADB
+        # Clean up ADB port forwards only - leave head unit server running on phone
         adb_path = self._find_adb_path()
         if adb_path:
             # Remove port forwards
@@ -283,9 +284,7 @@ class AndroidAutoManager(QObject):
                 text=True,
                 timeout=10
             )
-            # Stop head unit server on phone
-            self._stop_headunit_server(adb_path)
-            print("[AA Manager] Cleanup complete")
+            print("[AA Manager] Cleanup complete (head unit server left running on phone)")
 
     @Slot(int, int)
     def sendTouchEvent(self, x: int, y: int):

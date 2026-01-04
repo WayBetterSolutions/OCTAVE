@@ -936,30 +936,30 @@ Rectangle {
                             id: settingsButton
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
-                            
+
                             // Add scale and opacity animations
                             scale: mouseAreaSettings.pressed ? 0.8 : 1.0
                             opacity: mouseAreaSettings.pressed ? 0.7 : 1.0
-                            
+
                             Behavior on scale {
                                 NumberAnimation {
                                     duration: 200
-                                    easing.type: Easing.OutBack  
+                                    easing.type: Easing.OutBack
                                     easing.overshoot: 1.1
                                 }
                             }
-                            
+
                             Behavior on opacity {
                                 NumberAnimation { duration: 150 }
                             }
-                            
+
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
                             }
-                            
+
                             contentItem: Item {
                                 Image {
                                     id: settingsButtonImage
@@ -974,14 +974,14 @@ Rectangle {
                                     mipmap: true
                                     visible: false
                                 }
-                                
+
                                 ColorOverlay {
                                     anchors.fill: settingsButtonImage
                                     source: settingsButtonImage
                                     color: App.Style.bottomBarSettingsButton
                                 }
                             }
-                            
+
                             MouseArea {
                                 id: mouseAreaSettings
                                 anchors.fill: parent
@@ -993,6 +993,75 @@ Rectangle {
                                         initialSection: lastSettingsSection
                                     })
                                     stackView.push(page)
+                                }
+                            }
+                        }
+
+                        // Android Auto Button
+                        Control {
+                            id: androidAutoButton
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+
+                            scale: mouseAreaAndroidAuto.pressed ? 0.8 : 1.0
+                            opacity: mouseAreaAndroidAuto.pressed ? 0.7 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutBack
+                                    easing.overshoot: 1.1
+                                }
+                            }
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150 }
+                            }
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: 8
+                                border.color: App.Style.accent
+                                border.width: 1
+                            }
+
+                            contentItem: Item {
+                                Image {
+                                    id: androidAutoButtonImage
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/android_auto_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: androidAutoButtonImage
+                                    source: androidAutoButtonImage
+                                    color: App.Style.bottomBarAndroidAutoButton
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaAndroidAuto
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    var component = Qt.createComponent("AndroidAutoView.qml")
+                                    if (component.status === Component.Ready) {
+                                        var page = component.createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window
+                                        })
+                                        if (page) {
+                                            stackView.push(page)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1968,29 +2037,29 @@ Rectangle {
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             Layout.alignment: Qt.AlignHCenter
-                            
+
                             scale: mouseAreaSettingsVertical.pressed ? 0.8 : 1.0
                             opacity: mouseAreaSettingsVertical.pressed ? 0.7 : 1.0
-                            
+
                             Behavior on scale {
                                 NumberAnimation {
                                     duration: 200
-                                    easing.type: Easing.OutBack  
+                                    easing.type: Easing.OutBack
                                     easing.overshoot: 1.1
                                 }
                             }
-                            
+
                             Behavior on opacity {
                                 NumberAnimation { duration: 150 }
                             }
-                            
+
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
                             }
-                            
+
                             contentItem: Item {
                                 Image {
                                     id: settingsButtonImageVertical
@@ -2005,14 +2074,14 @@ Rectangle {
                                     mipmap: true
                                     visible: false
                                 }
-                                
+
                                 ColorOverlay {
                                     anchors.fill: settingsButtonImageVertical
                                     source: settingsButtonImageVertical
                                     color: App.Style.bottomBarSettingsButton
                                 }
                             }
-                            
+
                             MouseArea {
                                 id: mouseAreaSettingsVertical
                                 anchors.fill: parent
@@ -2024,6 +2093,76 @@ Rectangle {
                                         initialSection: lastSettingsSection
                                     })
                                     stackView.push(page)
+                                }
+                            }
+                        }
+
+                        // Android Auto Button
+                        Control {
+                            id: androidAutoButtonVertical
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            Layout.alignment: Qt.AlignHCenter
+
+                            scale: mouseAreaAndroidAutoVertical.pressed ? 0.8 : 1.0
+                            opacity: mouseAreaAndroidAutoVertical.pressed ? 0.7 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutBack
+                                    easing.overshoot: 1.1
+                                }
+                            }
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150 }
+                            }
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: 8
+                                border.color: App.Style.accent
+                                border.width: 1
+                            }
+
+                            contentItem: Item {
+                                Image {
+                                    id: androidAutoButtonImageVertical
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/android_auto_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: androidAutoButtonImageVertical
+                                    source: androidAutoButtonImageVertical
+                                    color: App.Style.bottomBarAndroidAutoButton
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaAndroidAutoVertical
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    var component = Qt.createComponent("AndroidAutoView.qml")
+                                    if (component.status === Component.Ready) {
+                                        var page = component.createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window
+                                        })
+                                        if (page) {
+                                            stackView.push(page)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2177,6 +2316,7 @@ Rectangle {
                         obdButtonImageVertical.source = `./assets/obd_button.svg?t=${timestamp}`
                         mediaButtonImageVertical.source = `./assets/media_button.svg?t=${timestamp}`
                         settingsButtonImageVertical.source = `./assets/settings_button.svg?t=${timestamp}`
+                        androidAutoButtonImageVertical.source = `./assets/android_auto_button.svg?t=${timestamp}`
                     }
                 }
             }
