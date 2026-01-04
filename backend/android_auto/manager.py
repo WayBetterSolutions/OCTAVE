@@ -707,39 +707,42 @@ After installation, click "Launch Google DHU" button."""
         return self._dhu_hwnd
 
     def _find_dhu_window(self) -> int:
-        """Find the DHU window handle using Windows API."""
+        """Find the DHU window handle using Windows API with PID filtering."""
         if platform.system() != "Windows":
             return 0
 
         try:
-            # Windows API functions
             user32 = ctypes.windll.user32
-            EnumWindows = user32.EnumWindows
-            GetWindowTextW = user32.GetWindowTextW
-            GetWindowTextLengthW = user32.GetWindowTextLengthW
-            IsWindowVisible = user32.IsWindowVisible
+
+            # Get DHU process PID for faster filtering
+            dhu_pid = self._dhu_process.pid if self._dhu_process else None
 
             WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int))
-
             found_hwnd = [0]
 
             def enum_callback(hwnd, lParam):
-                # Convert hwnd pointer to int for API calls
                 hwnd_int = ctypes.cast(hwnd, ctypes.c_void_p).value or 0
-                if IsWindowVisible(hwnd_int):
-                    length = GetWindowTextLengthW(hwnd_int)
-                    if length > 0:
-                        buffer = ctypes.create_unicode_buffer(length + 1)
-                        GetWindowTextW(hwnd_int, buffer, length + 1)
-                        title = buffer.value
-                        # DHU window title contains "Desktop Head Unit" or similar
-                        if "Desktop Head Unit" in title or "Android Auto" in title:
-                            found_hwnd[0] = hwnd_int
-                            print(f"[AA Manager] Found DHU window: '{title}' (hwnd={hwnd_int})")
-                            return False  # Stop enumeration
+
+                # If we have the DHU PID, only check windows from that process
+                if dhu_pid:
+                    window_pid = ctypes.c_ulong()
+                    user32.GetWindowThreadProcessId(hwnd_int, ctypes.byref(window_pid))
+                    if window_pid.value != dhu_pid:
+                        return True  # Skip windows from other processes
+
+                # Check window title
+                length = user32.GetWindowTextLengthW(hwnd_int)
+                if length > 0:
+                    buffer = ctypes.create_unicode_buffer(length + 1)
+                    user32.GetWindowTextW(hwnd_int, buffer, length + 1)
+                    title = buffer.value
+                    if "Desktop Head Unit" in title or "Android Auto" in title:
+                        found_hwnd[0] = hwnd_int
+                        print(f"[AA Manager] Found DHU window: '{title}' (hwnd={hwnd_int}, pid={dhu_pid})")
+                        return False  # Stop enumeration
                 return True  # Continue enumeration
 
-            EnumWindows(WNDENUMPROC(enum_callback), 0)
+            user32.EnumWindows(WNDENUMPROC(enum_callback), 0)
             return found_hwnd[0]
 
         except Exception as e:
@@ -887,8 +890,6 @@ After installation, click "Launch Google DHU" button."""
 
             # Hide the DHU window (move off-screen or minimize)
             if platform.system() == "Windows":
-                SW_HIDE = 0
-                # Don't fully hide - just move off screen so capture still works
                 user32 = ctypes.windll.user32
                 # Move window off-screen but keep it "visible" for capture
                 user32.SetWindowPos(hwnd, 0, -2000, -2000, 0, 0, 0x0001 | 0x0004)  # SWP_NOSIZE | SWP_NOZORDER

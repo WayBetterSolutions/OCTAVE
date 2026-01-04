@@ -9,110 +9,28 @@ Item {
     id: androidAutoView
     property StackView stackView
     property ApplicationWindow mainWindow
-    property bool autoLaunchSeamless: false  // Auto-launch seamless DHU when page loads
+    property bool autoLaunchSeamless: true  // Always auto-launch seamless DHU
     width: parent ? parent.width : 0
     height: parent ? parent.height : 0
 
     property string globalFont: App.Style.fontFamily
 
-    // Android Auto state from backend
-    property string connectionState: androidAutoManager ? androidAutoManager.state : "disconnected"
-    property bool isConnected: androidAutoManager ? androidAutoManager.isConnected : false
-    property bool isStreaming: androidAutoManager ? androidAutoManager.isStreaming : false
-    property string statusMessage: "Waiting for Android device..."
-    property string transportMode: "tcp"  // "usb" or "tcp" - default to TCP (no cert needed)
-
     // DHU embedding state
-    property int dhuWindowHandle: 0
     property bool dhuEmbedded: false
     property int frameCounter: 0  // Used to refresh the image
+    property bool launchFailed: false
+    property string errorMessage: ""
 
     // Dark background
     Rectangle {
         anchors.fill: parent
-        color: App.Style.backgroundColor
-    }
-
-    // Header with back button
-    Rectangle {
-        id: header
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: 60
-        color: "transparent"
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 15
-            spacing: 15
-
-            // Back button
-            Button {
-                text: "< Back"
-                font.pixelSize: 16
-                font.family: androidAutoView.globalFont
-
-                background: Rectangle {
-                    color: parent.pressed ? App.Style.accent : "transparent"
-                    border.color: App.Style.accent
-                    border.width: 2
-                    radius: 8
-                }
-
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: App.Style.primaryTextColor
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                onClicked: {
-                    if (androidAutoManager) {
-                        androidAutoManager.stop()
-                    }
-                    stackView.pop()
-                }
-            }
-
-            Text {
-                text: "Android Auto"
-                font.pixelSize: 24
-                font.bold: true
-                font.family: androidAutoView.globalFont
-                color: App.Style.primaryTextColor
-                Layout.fillWidth: true
-            }
-
-            // Connection status indicator
-            Rectangle {
-                width: 20
-                height: 20
-                radius: 10
-                color: {
-                    if (isStreaming) return "#44FF44"
-                    if (isConnected) return "#FFAA00"
-                    return "#FF4444"
-                }
-
-                SequentialAnimation on opacity {
-                    running: !isConnected
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.3; duration: 500 }
-                    NumberAnimation { to: 1.0; duration: 500 }
-                }
-            }
-        }
+        color: "black"
     }
 
     // Seamless DHU display - shows captured frames from the DHU
     Rectangle {
         id: dhuDisplay
-        anchors.top: header.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.fill: parent
         color: "black"
         visible: dhuEmbedded
 
@@ -179,7 +97,7 @@ Item {
                         androidAutoManager.closeDhu()
                     }
                     dhuEmbedded = false
-                    dhuWindowHandle = 0
+                    stackView.pop()
                 }
             }
         }
@@ -195,468 +113,244 @@ Item {
         }
     }
 
-    // Main content area (setup screen)
+    // Error/Setup screen - shown when DHU is not embedded
     Item {
-        anchors.top: header.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 20
-        visible: !dhuEmbedded  // Hide when DHU is embedded
+        anchors.fill: parent
+        visible: !dhuEmbedded
 
+        // Back button (top left)
+        Button {
+            id: backButton
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.margins: 15
+            text: "< Back"
+            font.pixelSize: 16
+            font.family: androidAutoView.globalFont
+
+            background: Rectangle {
+                color: parent.pressed ? App.Style.accent : "transparent"
+                border.color: App.Style.accent
+                border.width: 2
+                radius: 8
+            }
+
+            contentItem: Text {
+                text: parent.text
+                font: parent.font
+                color: App.Style.primaryTextColor
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            onClicked: {
+                // Just go back - don't close DHU, let it run in background
+                stackView.pop()
+            }
+        }
+
+        // Main content - centered
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 30
+            spacing: 25
             width: parent.width * 0.8
 
-            // Android Auto Logo
-            Rectangle {
+            // Loading state (before we know if it failed)
+            ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
-                width: 120
-                height: 120
-                radius: 60
-                color: App.Style.accent
-                opacity: 0.2
+                spacing: 20
+                visible: !launchFailed
 
                 Text {
-                    anchors.centerIn: parent
-                    text: "AA"
-                    font.pixelSize: 48
-                    font.bold: true
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Starting Android Auto..."
+                    font.pixelSize: 24
                     font.family: androidAutoView.globalFont
-                    color: App.Style.accent
+                    color: App.Style.primaryTextColor
                 }
 
-                SequentialAnimation on opacity {
-                    running: !isConnected
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.4; duration: 1000; easing.type: Easing.InOutQuad }
-                    NumberAnimation { to: 0.2; duration: 1000; easing.type: Easing.InOutQuad }
-                }
-            }
-
-            // Status text
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: statusMessage
-                font.pixelSize: 20
-                font.family: androidAutoView.globalFont
-                color: App.Style.primaryTextColor
-                wrapMode: Text.WordWrap
-                horizontalAlignment: Text.AlignHCenter
-            }
-
-            // Connection state
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: "State: " + connectionState
-                font.pixelSize: 14
-                font.family: androidAutoView.globalFont
-                color: App.Style.secondaryTextColor
-            }
-
-            // Progress indicator
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                width: 200
-                height: 4
-                radius: 2
-                color: App.Style.secondaryTextColor
-                opacity: 0.3
-                visible: !isConnected
-
+                // Progress indicator
                 Rectangle {
-                    id: progressBar
-                    width: 60
-                    height: parent.height
+                    Layout.alignment: Qt.AlignHCenter
+                    width: 200
+                    height: 4
                     radius: 2
-                    color: App.Style.accent
+                    color: App.Style.secondaryTextColor
+                    opacity: 0.3
 
-                    SequentialAnimation on x {
-                        running: !isConnected
-                        loops: Animation.Infinite
-                        NumberAnimation { to: 140; duration: 1000; easing.type: Easing.InOutQuad }
-                        NumberAnimation { to: 0; duration: 1000; easing.type: Easing.InOutQuad }
+                    Rectangle {
+                        id: progressBar
+                        width: 60
+                        height: parent.height
+                        radius: 2
+                        color: App.Style.accent
+
+                        SequentialAnimation on x {
+                            running: !launchFailed && !dhuEmbedded
+                            loops: Animation.Infinite
+                            NumberAnimation { to: 140; duration: 1000; easing.type: Easing.InOutQuad }
+                            NumberAnimation { to: 0; duration: 1000; easing.type: Easing.InOutQuad }
+                        }
                     }
                 }
             }
 
-            // Connection mode selector
-            RowLayout {
+            // Error state
+            ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 10
-                visible: !isConnected
+                spacing: 20
+                visible: launchFailed
+
+                // Error icon
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    width: 80
+                    height: 80
+                    radius: 40
+                    color: "#442222"
+                    border.color: "#FF6666"
+                    border.width: 2
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "!"
+                        font.pixelSize: 48
+                        font.bold: true
+                        color: "#FF6666"
+                    }
+                }
 
                 Text {
-                    text: "Mode:"
-                    font.pixelSize: 14
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Could not start Android Auto"
+                    font.pixelSize: 24
+                    font.bold: true
+                    font.family: androidAutoView.globalFont
+                    color: "#FF6666"
+                }
+
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: errorMessage
+                    font.pixelSize: 16
                     font.family: androidAutoView.globalFont
                     color: App.Style.secondaryTextColor
-                }
-
-                Button {
-                    text: "TCP"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    Layout.preferredWidth: 80
-                    Layout.preferredHeight: 35
-
-                    background: Rectangle {
-                        color: transportMode === "tcp" ? App.Style.accent : "transparent"
-                        border.color: App.Style.accent
-                        border.width: 2
-                        radius: 6
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        font: parent.font
-                        color: transportMode === "tcp" ? "white" : App.Style.primaryTextColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    onClicked: transportMode = "tcp"
-                }
-
-                Button {
-                    text: "USB"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    Layout.preferredWidth: 80
-                    Layout.preferredHeight: 35
-
-                    background: Rectangle {
-                        color: transportMode === "usb" ? App.Style.accent : "transparent"
-                        border.color: App.Style.accent
-                        border.width: 2
-                        radius: 6
-                    }
-
-                    contentItem: Text {
-                        text: parent.text
-                        font: parent.font
-                        color: transportMode === "usb" ? "white" : App.Style.primaryTextColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                    }
-
-                    onClicked: transportMode = "usb"
-                }
-            }
-
-            // Start/Stop button
-            Button {
-                Layout.alignment: Qt.AlignHCenter
-                text: isConnected ? "Stop Android Auto" : "Start Android Auto"
-                font.pixelSize: 18
-                font.family: androidAutoView.globalFont
-                Layout.preferredWidth: 250
-                Layout.preferredHeight: 50
-
-                background: Rectangle {
-                    color: parent.pressed ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                    radius: 8
-                }
-
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: "white"
+                    visible: errorMessage !== ""
+                    wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
                 }
 
-                onClicked: {
-                    if (androidAutoManager) {
-                        if (isConnected) {
-                            androidAutoManager.stop()
-                        } else {
-                            if (transportMode === "tcp") {
-                                androidAutoManager.startTcp()
-                            } else {
-                                androidAutoManager.startUsb()
-                            }
+                // Instructions box
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: Math.min(500, parent.width)
+                    height: instructionsColumn.height + 30
+                    color: "#1a2a1a"
+                    radius: 8
+                    border.color: "#44AA44"
+                    border.width: 1
+
+                    ColumnLayout {
+                        id: instructionsColumn
+                        anchors.centerIn: parent
+                        width: parent.width - 40
+                        spacing: 12
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Setup Instructions"
+                            font.pixelSize: 18
+                            font.bold: true
+                            font.family: androidAutoView.globalFont
+                            color: "#88DD88"
                         }
-                    }
-                }
-            }
 
-            // Instructions for TCP mode
-            ColumnLayout {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 30
-                spacing: 8
-                visible: !isConnected && transportMode === "tcp"
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "TCP Mode Setup:"
-                    font.pixelSize: 16
-                    font.bold: true
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "1. Enable Developer Mode in Android Auto"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                    opacity: 0.8
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "   (Tap version number 10 times)"
-                    font.pixelSize: 12
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                    opacity: 0.6
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "2. Select 'Start head unit server' on phone"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                    opacity: 0.8
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "3. Run: adb forward tcp:5277 tcp:5277"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.accent
-                    opacity: 1.0
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "4. Click Start Android Auto"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                    opacity: 0.8
-                }
-            }
-
-            // Instructions for USB mode
-            ColumnLayout {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 30
-                spacing: 8
-                visible: !isConnected && transportMode === "usb"
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "USB Mode Setup:"
-                    font.pixelSize: 16
-                    font.bold: true
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "1. Connect phone via USB cable"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                    opacity: 0.8
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "2. Accept prompts on phone"
-                    font.pixelSize: 14
-                    font.family: androidAutoView.globalFont
-                    color: App.Style.secondaryTextColor
-                    opacity: 0.8
-                }
-
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "Note: Requires Android Auto 12.6 or earlier"
-                    font.pixelSize: 12
-                    font.family: androidAutoView.globalFont
-                    color: "#FFAA00"
-                    opacity: 0.9
-                }
-            }
-
-            // Google DHU section - alternative that works with all AA versions
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 20
-                width: parent.width
-                height: dhuColumn.height + 30
-                color: "#2a4a2a"
-                radius: 8
-                border.color: "#44AA44"
-                border.width: 1
-                visible: !isConnected
-
-                ColumnLayout {
-                    id: dhuColumn
-                    anchors.centerIn: parent
-                    spacing: 10
-                    width: parent.width - 40
-
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "Alternative: Google DHU"
-                        font.pixelSize: 16
-                        font.bold: true
-                        font.family: androidAutoView.globalFont
-                        color: "#88DD88"
-                    }
-
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        text: "Works with all Android Auto versions"
-                        font.pixelSize: 12
-                        font.family: androidAutoView.globalFont
-                        color: "#88DD88"
-                        opacity: 0.8
-                    }
-
-                    RowLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: 10
-
-                        Button {
-                            text: "Start Seamless"
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "1. Connect your phone via USB"
                             font.pixelSize: 14
                             font.family: androidAutoView.globalFont
-                            Layout.preferredWidth: 120
-                            Layout.preferredHeight: 40
-
-                            background: Rectangle {
-                                color: parent.pressed ? "#2a6a2a" : "#3a8a3a"
-                                radius: 6
-                                border.color: "#44AA44"
-                                border.width: 1
-                            }
-
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: "white"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            onClicked: {
-                                if (androidAutoManager) {
-                                    var success = androidAutoManager.launchDhuSeamless()
-                                    if (!success) {
-                                        dhuInstallInstructions.visible = true
-                                    }
-                                }
-                            }
+                            color: "#CCCCCC"
                         }
 
-                        Button {
-                            text: "Launch External"
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "2. Enable Developer Mode in Android Auto app"
                             font.pixelSize: 14
                             font.family: androidAutoView.globalFont
-                            Layout.preferredWidth: 120
-                            Layout.preferredHeight: 40
+                            color: "#CCCCCC"
+                        }
 
-                            background: Rectangle {
-                                color: parent.pressed ? "#2a4a2a" : "transparent"
-                                radius: 6
-                                border.color: "#44AA44"
-                                border.width: 1
-                            }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "(Settings > Tap version 10 times)"
+                            font.pixelSize: 12
+                            font.family: androidAutoView.globalFont
+                            color: "#888888"
+                        }
 
-                            contentItem: Text {
-                                text: parent.text
-                                font: parent.font
-                                color: "#88DD88"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "3. Start 'Head unit server' on your phone"
+                            font.pixelSize: 14
+                            font.family: androidAutoView.globalFont
+                            color: "#CCCCCC"
+                        }
 
-                            onClicked: {
-                                if (androidAutoManager) {
-                                    var success = androidAutoManager.launchGoogleDhu()
-                                    if (!success) {
-                                        dhuInstallInstructions.visible = true
-                                    }
-                                }
-                            }
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "4. Make sure Google DHU is installed"
+                            font.pixelSize: 14
+                            font.family: androidAutoView.globalFont
+                            color: "#CCCCCC"
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            Layout.preferredWidth: parent.width
+                            text: "Install via Android Studio:\nTools > SDK Manager > SDK Tools >\n'Android Auto Desktop Head Unit Emulator'"
+                            font.pixelSize: 11
+                            font.family: androidAutoView.globalFont
+                            color: "#FFAA44"
+                            wrapMode: Text.WordWrap
+                            horizontalAlignment: Text.AlignHCenter
                         }
                     }
+                }
 
-                    Text {
-                        id: dhuInstallInstructions
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: parent.width - 20
-                        visible: false
-                        text: "Install via Android Studio:\nTools → SDK Manager → SDK Tools tab\n→ 'Android Auto Desktop Head Unit Emulator'"
-                        font.pixelSize: 11
-                        font.family: androidAutoView.globalFont
-                        color: "#FFAA44"
-                        wrapMode: Text.WordWrap
+                // Retry button
+                Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 10
+                    text: "Try Again"
+                    font.pixelSize: 16
+                    font.family: androidAutoView.globalFont
+                    Layout.preferredWidth: 150
+                    Layout.preferredHeight: 45
+
+                    background: Rectangle {
+                        color: parent.pressed ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
+                        radius: 8
+                    }
+
+                    contentItem: Text {
+                        text: parent.text
+                        font: parent.font
+                        color: "white"
                         horizontalAlignment: Text.AlignHCenter
-                    }
-                }
-            }
-
-            // Debug info (for development)
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 20
-                width: parent.width
-                height: debugColumn.height + 20
-                color: App.Style.hoverColor
-                radius: 8
-                opacity: 0.5
-
-                ColumnLayout {
-                    id: debugColumn
-                    anchors.centerIn: parent
-                    spacing: 5
-
-                    Text {
-                        text: "Debug Info"
-                        font.pixelSize: 12
-                        font.bold: true
-                        font.family: androidAutoView.globalFont
-                        color: App.Style.secondaryTextColor
+                        verticalAlignment: Text.AlignVCenter
                     }
 
-                    Text {
-                        text: "Manager available: " + (androidAutoManager ? "Yes" : "No")
-                        font.pixelSize: 11
-                        font.family: androidAutoView.globalFont
-                        color: App.Style.secondaryTextColor
-                    }
-
-                    Text {
-                        text: "Connection state: " + connectionState
-                        font.pixelSize: 11
-                        font.family: androidAutoView.globalFont
-                        color: App.Style.secondaryTextColor
-                    }
-
-                    Text {
-                        text: "Is connected: " + isConnected
-                        font.pixelSize: 11
-                        font.family: androidAutoView.globalFont
-                        color: App.Style.secondaryTextColor
-                    }
-
-                    Text {
-                        text: "Transport mode: " + transportMode.toUpperCase()
-                        font.pixelSize: 11
-                        font.family: androidAutoView.globalFont
-                        color: App.Style.secondaryTextColor
+                    onClicked: {
+                        launchFailed = false
+                        errorMessage = ""
+                        if (androidAutoManager) {
+                            var success = androidAutoManager.launchDhuSeamless()
+                            if (!success) {
+                                launchFailed = true
+                                errorMessage = "DHU not found or failed to start"
+                            }
+                        }
                     }
                 }
             }
@@ -667,28 +361,20 @@ Item {
     Connections {
         target: androidAutoManager
 
-        function onStateChanged(state) {
-            androidAutoView.connectionState = state
-        }
-
-        function onConnectionProgress(message) {
-            androidAutoView.statusMessage = message
-        }
-
-        function onError(errorMessage) {
-            androidAutoView.statusMessage = "Error: " + errorMessage
+        function onError(msg) {
+            androidAutoView.launchFailed = true
+            androidAutoView.errorMessage = msg
         }
 
         function onDhuWindowReady(hwnd) {
             console.log("DHU window ready:", hwnd)
-            androidAutoView.dhuWindowHandle = hwnd
             androidAutoView.dhuEmbedded = true
+            androidAutoView.launchFailed = false
         }
 
         function onDhuEmbeddedChanged(embedded) {
             androidAutoView.dhuEmbedded = embedded
             if (!embedded) {
-                androidAutoView.dhuWindowHandle = 0
                 androidAutoView.frameCounter = 0
             }
         }
@@ -708,9 +394,20 @@ Item {
         console.log("AndroidAutoView loaded")
         console.log("androidAutoManager available:", androidAutoManager ? "yes" : "no")
 
-        // Auto-launch seamless DHU if requested (from bottom bar button)
-        if (autoLaunchSeamless && androidAutoManager) {
-            androidAutoManager.launchDhuSeamless()
+        if (androidAutoManager) {
+            // Check if DHU is already running (user navigated back)
+            if (androidAutoManager.isDhuEmbedded) {
+                console.log("DHU already running, resuming display")
+                dhuEmbedded = true
+                launchFailed = false
+            } else {
+                // Launch seamless DHU
+                var success = androidAutoManager.launchDhuSeamless()
+                if (!success) {
+                    launchFailed = true
+                    errorMessage = "DHU not found or failed to start"
+                }
+            }
         }
     }
 }

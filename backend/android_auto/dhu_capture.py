@@ -254,8 +254,6 @@ class DhuCapture(QObject):
             return
 
         try:
-            import time
-
             # Save current cursor position to restore later
             old_cursor = wintypes.POINT()
             user32.GetCursorPos(ctypes.byref(old_cursor))
