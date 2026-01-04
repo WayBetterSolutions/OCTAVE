@@ -41,6 +41,9 @@ Item {
             fillMode: Image.PreserveAspectFit
             cache: false
             asynchronous: false
+            smooth: true
+            antialiasing: true
+            mipmap: true
             // The source URL includes frameCounter to force refresh
             source: dhuEmbedded ? "image://dhuframe/frame?" + frameCounter : ""
         }
@@ -60,9 +63,9 @@ Item {
                 // Only forward if click is within the image bounds
                 if (mouse.x >= imgRect.x && mouse.x <= imgRect.x + imgRect.width &&
                     mouse.y >= imgRect.y && mouse.y <= imgRect.y + imgRect.height) {
-                    // Scale to DHU coordinates (assuming 800x480)
-                    var dhuX = Math.round((mouse.x - imgRect.x) / imgRect.width * 800)
-                    var dhuY = Math.round((mouse.y - imgRect.y) / imgRect.height * 480)
+                    // Scale to DHU coordinates (1920x1080 resolution from headunit.ini)
+                    var dhuX = Math.round((mouse.x - imgRect.x) / imgRect.width * 1920)
+                    var dhuY = Math.round((mouse.y - imgRect.y) / imgRect.height * 1080)
                     console.log("DHU click:", dhuX, dhuY)
                     if (androidAutoManager) {
                         androidAutoManager.sendDhuClick(dhuX, dhuY)

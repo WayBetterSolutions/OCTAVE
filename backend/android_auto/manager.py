@@ -852,6 +852,20 @@ After installation, click "Launch Google DHU" button."""
 
             print(f"[AA Manager] Launching DHU for seamless capture: {dhu_path}")
 
+            # Create DHU config file for higher resolution
+            # Config goes in ~/.android/headunit.ini
+            android_dir = Path.home() / ".android"
+            android_dir.mkdir(exist_ok=True)
+            config_path = android_dir / "headunit.ini"
+            try:
+                with open(config_path, 'w') as f:
+                    f.write("[general]\n")
+                    f.write("resolution = 1920 1080\n")
+                    f.write("dpi = 160\n")
+                print(f"[AA Manager] Created DHU config at {config_path}")
+            except Exception as e:
+                print(f"[AA Manager] Could not create DHU config: {e}")
+
             # Launch DHU
             if platform.system() == "Windows":
                 startupinfo = subprocess.STARTUPINFO()

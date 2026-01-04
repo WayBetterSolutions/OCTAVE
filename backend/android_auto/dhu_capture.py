@@ -267,11 +267,11 @@ class DhuCapture(QObject):
             dhu_client_w = client_rect.right
             dhu_client_h = client_rect.bottom
 
-            # Scale x,y from 800x480 to actual DHU client size
-            # QML sends 800x480 coords, but DHU might be different size
+            # Scale x,y from 1920x1080 to actual DHU client size
+            # QML sends 1920x1080 coords (matching headunit.ini config)
             if dhu_client_w > 0 and dhu_client_h > 0:
-                scaled_x = int(x * dhu_client_w / 800)
-                scaled_y = int(y * dhu_client_h / 480)
+                scaled_x = int(x * dhu_client_w / 1920)
+                scaled_y = int(y * dhu_client_h / 1080)
             else:
                 scaled_x, scaled_y = x, y
 
