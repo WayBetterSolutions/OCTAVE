@@ -390,6 +390,18 @@ Item {
         }
     }
 
+    // Timer to force initial frame refresh when DHU becomes embedded
+    Timer {
+        id: initialRefreshTimer
+        interval: 100
+        repeat: true
+        running: dhuEmbedded && frameCounter < 30  // Run for first ~3 seconds
+        onTriggered: {
+            // Force frame counter increment to ensure image refreshes
+            androidAutoView.frameCounter++
+        }
+    }
+
     Component.onCompleted: {
         console.log("AndroidAutoView loaded")
         console.log("androidAutoManager available:", androidAutoManager ? "yes" : "no")
