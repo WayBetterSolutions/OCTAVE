@@ -75,7 +75,8 @@ QtObject {
                 "obdButton": "#268BD2",
                 "mediaButton": "#268BD2",
                 "settingsButton": "#268BD2",
-                "androidAutoButton": "#268BD2"
+                "androidAutoButton": "#268BD2",
+                "phoneMirrorButton": "#268BD2"
             },
             "mediaroom": {
                 "previous": "#2AA198",
@@ -126,7 +127,8 @@ QtObject {
                 "obdButton": "#7B68EE",
                 "mediaButton": "#7B68EE",
                 "settingsButton": "#7B68EE",
-                "androidAutoButton": "#7B68EE"
+                "androidAutoButton": "#7B68EE",
+                "phoneMirrorButton": "#7B68EE"
             },
             "mediaroom": {
                 "previous": "#9F91F1",
@@ -177,7 +179,8 @@ QtObject {
                 "obdButton": "#FF7F50",
                 "mediaButton": "#FF7F50",
                 "settingsButton": "#FF7F50",
-                "androidAutoButton": "#FF7F50"
+                "androidAutoButton": "#FF7F50",
+                "phoneMirrorButton": "#FF7F50"
             },
             "mediaroom": {
                 "previous": "#FFA07A",
@@ -228,7 +231,8 @@ QtObject {
                 "obdButton": "#66CD00",
                 "mediaButton": "#66CD00",
                 "settingsButton": "#66CD00",
-                "androidAutoButton": "#66CD00"
+                "androidAutoButton": "#66CD00",
+                "phoneMirrorButton": "#66CD00"
             },
             "mediaroom": {
                 "previous": "#7CCD7C",
@@ -279,7 +283,8 @@ QtObject {
                 "obdButton": "#00BFFF",
                 "mediaButton": "#00BFFF",
                 "settingsButton": "#00BFFF",
-                "androidAutoButton": "#00BFFF"
+                "androidAutoButton": "#00BFFF",
+                "phoneMirrorButton": "#00BFFF"
             },
             "mediaroom": {
                 "previous": "#4DC4FF",
@@ -330,7 +335,8 @@ QtObject {
                 "obdButton": "#FF69B4",
                 "mediaButton": "#FF69B4",
                 "settingsButton": "#FF69B4",
-                "androidAutoButton": "#FF69B4"
+                "androidAutoButton": "#FF69B4",
+                "phoneMirrorButton": "#FF69B4"
             },
             "mediaroom": {
                 "previous": "#FF85C2",
@@ -381,7 +387,8 @@ QtObject {
                 "obdButton": "#FF9500",
                 "mediaButton": "#FF9500",
                 "settingsButton": "#FF9500",
-                "androidAutoButton": "#FF9500"
+                "androidAutoButton": "#FF9500",
+                "phoneMirrorButton": "#FF9500"
             },
             "mediaroom": {
                 "previous": "#FFB74D",
@@ -432,7 +439,8 @@ QtObject {
                 "obdButton": "#00FF41",
                 "mediaButton": "#00FF41",
                 "settingsButton": "#00FF41",
-                "androidAutoButton": "#00FF41"
+                "androidAutoButton": "#00FF41",
+                "phoneMirrorButton": "#00FF41"
             },
             "mediaroom": {
                 "previous": "#33FF66",
@@ -482,7 +490,8 @@ QtObject {
                 "obdButton": "#9370DB",
                 "mediaButton": "#9370DB",
                 "settingsButton": "#9370DB",
-                "androidAutoButton": "#9370DB"
+                "androidAutoButton": "#9370DB",
+                "phoneMirrorButton": "#9370DB"
             },
             "mediaroom": {
                 "previous": "#AB8EE6",
@@ -533,7 +542,8 @@ QtObject {
                 "obdButton": "#40E0B0",
                 "mediaButton": "#40E0B0",
                 "settingsButton": "#40E0B0",
-                "androidAutoButton": "#40E0B0"
+                "androidAutoButton": "#40E0B0",
+                "phoneMirrorButton": "#40E0B0"
             },
             "mediaroom": {
                 "previous": "#66E9C2",
@@ -584,7 +594,8 @@ QtObject {
                 "obdButton": "#FFAA80",
                 "mediaButton": "#FFAA80",
                 "settingsButton": "#FFAA80",
-                "androidAutoButton": "#FFAA80"
+                "androidAutoButton": "#FFAA80",
+                "phoneMirrorButton": "#FFAA80"
             },
             "mediaroom": {
                 "previous": "#FFBB99",
@@ -635,7 +646,8 @@ QtObject {
                 "obdButton": "#6495ED",
                 "mediaButton": "#6495ED",
                 "settingsButton": "#6495ED",
-                "androidAutoButton": "#6495ED"
+                "androidAutoButton": "#6495ED",
+                "phoneMirrorButton": "#6495ED"
             },
             "mediaroom": {
                 "previous": "#82A9F1",
@@ -686,7 +698,8 @@ QtObject {
                 "obdButton": "#4FD1C5",
                 "mediaButton": "#4FD1C5",
                 "settingsButton": "#4FD1C5",
-                "androidAutoButton": "#4FD1C5"
+                "androidAutoButton": "#4FD1C5",
+                "phoneMirrorButton": "#4FD1C5"
             },
             "mediaroom": {
                 "previous": "#76DCD2",
@@ -737,7 +750,8 @@ QtObject {
                 "obdButton": "#E6A59E",
                 "mediaButton": "#E6A59E",
                 "settingsButton": "#E6A59E",
-                "androidAutoButton": "#E6A59E"
+                "androidAutoButton": "#E6A59E",
+                "phoneMirrorButton": "#E6A59E"
             },
             "mediaroom": {
                 "previous": "#ECBAB4",
@@ -788,7 +802,8 @@ QtObject {
                 "obdButton": "#FFDC7D",
                 "mediaButton": "#FFDC7D",
                 "settingsButton": "#FFDC7D",
-                "androidAutoButton": "#FFDC7D"
+                "androidAutoButton": "#FFDC7D",
+                "phoneMirrorButton": "#FFDC7D"
             },
             "mediaroom": {
                 "previous": "#FFE499",
@@ -838,7 +853,8 @@ QtObject {
             "obdButton": "#FF8C42",  // Orange for OBD
             "mediaButton": "#00E673", // Green for media
             "settingsButton": "#7CB9E8", // Match settings slider
-            "androidAutoButton": "#7CB9E8"
+            "androidAutoButton": "#7CB9E8",
+            "phoneMirrorButton": "#7CB9E8"
         },
         "mediaroom": {
             "previous": "#7D9EC0",
@@ -889,7 +905,8 @@ QtObject {
             "obdButton": "#FFDD00",  // Yellow for OBD
             "mediaButton": "#00FFCC", // Teal for media
             "settingsButton": "#D436FF", // Match settings slider
-            "androidAutoButton": "#D436FF"
+            "androidAutoButton": "#D436FF",
+            "phoneMirrorButton": "#D436FF"
         },
         "mediaroom": {
             "previous": "#B347B9",
@@ -940,7 +957,8 @@ QtObject {
             "obdButton": "#A04000",  // Deep rust for OBD
             "mediaButton": "#D35400", // Burnt orange for media
             "settingsButton": "#F39C12", // Match settings slider
-            "androidAutoButton": "#F39C12"
+            "androidAutoButton": "#F39C12",
+            "phoneMirrorButton": "#F39C12"
         },
         "mediaroom": {
             "previous": "#BA6B40", 
@@ -991,7 +1009,8 @@ QtObject {
             "obdButton": "#F39C12",  // Gold for OBD contrast
             "mediaButton": "#00B2EE", // Blue for media
             "settingsButton": "#7D3C98", // Match settings slider
-            "androidAutoButton": "#7D3C98"
+            "androidAutoButton": "#7D3C98",
+            "phoneMirrorButton": "#7D3C98"
         },
         "mediaroom": {
             "previous": "#8E44AD",
@@ -1042,7 +1061,8 @@ QtObject {
             "obdButton": "#E91E63",  // Pink for OBD
             "mediaButton": "#FF9800", // Autumn for media
             "settingsButton": "#2196F3", // Match settings slider
-            "androidAutoButton": "#2196F3"
+            "androidAutoButton": "#2196F3",
+            "phoneMirrorButton": "#2196F3"
         },
         "mediaroom": {
             "previous": "#F44336", // Summer red
@@ -1093,7 +1113,8 @@ QtObject {
             "obdButton": "#CD853F",  // Peru for OBD
             "mediaButton": "#5B8A72", // Sage for media
             "settingsButton": "#B1866A", // Match settings slider
-            "androidAutoButton": "#B1866A"
+            "androidAutoButton": "#B1866A",
+            "phoneMirrorButton": "#B1866A"
         },
         "mediaroom": {
             "previous": "#8B4513",
@@ -1144,7 +1165,8 @@ QtObject {
             "obdButton": "#00E5FF",  // Bright cyan for OBD
             "mediaButton": "#00BCD4", // Regular cyan for media
             "settingsButton": "#673AB7", // Match settings slider
-            "androidAutoButton": "#673AB7"
+            "androidAutoButton": "#673AB7",
+            "phoneMirrorButton": "#673AB7"
         },
         "mediaroom": {
             "previous": "#4A148C",
@@ -1210,6 +1232,7 @@ QtObject {
     property color bottomBarMediaButton: getCurrentTheme().bottombar.mediaButton
     property color bottomBarSettingsButton: getCurrentTheme().bottombar.settingsButton
     property color bottomBarAndroidAutoButton: getCurrentTheme().bottombar.androidAutoButton
+    property color bottomBarPhoneMirrorButton: getCurrentTheme().bottombar.phoneMirrorButton
 
     // MediaRoom
     property color metadataColor: getCurrentTheme().accent

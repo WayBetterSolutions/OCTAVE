@@ -1068,6 +1068,91 @@ Rectangle {
                                 }
                             }
                         }
+
+                        // Phone Mirror Button
+                        Control {
+                            id: phoneMirrorButton
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            visible: settingsManager ? settingsManager.phoneMirrorEnabled : false
+
+                            scale: mouseAreaPhoneMirror.pressed ? 0.8 : 1.0
+                            opacity: mouseAreaPhoneMirror.pressed ? 0.7 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutBack
+                                    easing.overshoot: 1.1
+                                }
+                            }
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150 }
+                            }
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: 8
+                                border.color: App.Style.accent
+                                border.width: 1
+                            }
+
+                            contentItem: Item {
+                                Image {
+                                    id: phoneMirrorButtonImage
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/phone_mirror_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: phoneMirrorButtonImage
+                                    source: phoneMirrorButtonImage
+                                    color: App.Style.bottomBarPhoneMirrorButton
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaPhoneMirror
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    // Check if PhoneMirrorView is already on the stack - if so, pop back to it
+                                    for (var i = 0; i < stackView.depth; i++) {
+                                        var item = stackView.get(i)
+                                        if (item && item.objectName === "phoneMirrorView") {
+                                            console.log("PhoneMirrorView found on stack at index", i, "- popping to it")
+                                            // Pop all items above it
+                                            while (stackView.depth > i + 1) {
+                                                stackView.pop()
+                                            }
+                                            return
+                                        }
+                                    }
+
+                                    // Navigate to PhoneMirrorView
+                                    var component = Qt.createComponent("PhoneMirrorView.qml")
+                                    if (component.status === Component.Ready) {
+                                        var page = component.createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window,
+                                            objectName: "phoneMirrorView"
+                                        })
+                                        if (page) {
+                                            stackView.push(page)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -2164,6 +2249,92 @@ Rectangle {
                                             stackView: bottomBar.stackView,
                                             mainWindow: stackView.parent.Window.window,
                                             autoLaunchSeamless: true
+                                        })
+                                        if (page) {
+                                            stackView.push(page)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Phone Mirror Button (Vertical)
+                        Control {
+                            id: phoneMirrorButtonVertical
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            visible: settingsManager ? settingsManager.phoneMirrorEnabled : false
+                            Layout.alignment: Qt.AlignHCenter
+
+                            scale: mouseAreaPhoneMirrorVertical.pressed ? 0.8 : 1.0
+                            opacity: mouseAreaPhoneMirrorVertical.pressed ? 0.7 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 200
+                                    easing.type: Easing.OutBack
+                                    easing.overshoot: 1.1
+                                }
+                            }
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150 }
+                            }
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: 8
+                                border.color: App.Style.accent
+                                border.width: 1
+                            }
+
+                            contentItem: Item {
+                                Image {
+                                    id: phoneMirrorButtonImageVertical
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/phone_mirror_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: phoneMirrorButtonImageVertical
+                                    source: phoneMirrorButtonImageVertical
+                                    color: App.Style.bottomBarPhoneMirrorButton
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaPhoneMirrorVertical
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    // Check if PhoneMirrorView is already on the stack - if so, pop back to it
+                                    for (var i = 0; i < stackView.depth; i++) {
+                                        var item = stackView.get(i)
+                                        if (item && item.objectName === "phoneMirrorView") {
+                                            console.log("PhoneMirrorView found on stack at index", i, "- popping to it")
+                                            // Pop all items above it
+                                            while (stackView.depth > i + 1) {
+                                                stackView.pop()
+                                            }
+                                            return
+                                        }
+                                    }
+
+                                    // Navigate to PhoneMirrorView
+                                    var component = Qt.createComponent("PhoneMirrorView.qml")
+                                    if (component.status === Component.Ready) {
+                                        var page = component.createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window,
+                                            objectName: "phoneMirrorView"
                                         })
                                         if (page) {
                                             stackView.push(page)

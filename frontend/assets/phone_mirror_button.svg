@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 600 600">
+  <!-- Phone Mirror icon - smartphone with screen mirroring arrows -->
+  <!-- Phone outline -->
+  <rect x="180" y="60" width="240" height="480" rx="30" ry="30" fill="none" stroke="currentColor" stroke-width="30"/>
+  <!-- Screen area -->
+  <rect x="200" y="120" width="200" height="360" rx="10" ry="10"/>
+  <!-- Speaker/notch -->
+  <rect x="260" y="80" width="80" height="15" rx="7" ry="7"/>
+  <!-- Home button/indicator -->
+  <circle cx="300" cy="510" r="20"/>
+  <!-- Mirror/sync arrows on screen -->
+  <path d="M260,260 L260,200 L230,230 M260,200 L290,230" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" transform="translate(40,50)"/>
+  <path d="M340,340 L340,400 L370,370 M340,400 L310,370" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" transform="translate(-40,-50)"/>
+</svg>

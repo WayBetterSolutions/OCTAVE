@@ -70,6 +70,8 @@ class SettingsManager(QObject):
     musicButtonDefaultPageChanged = Signal(str)
     returnToLibraryAfterSelectionChanged = Signal(bool)
     androidAutoEnabledChanged = Signal(bool)
+    phoneMirrorEnabledChanged = Signal(bool)
+    scrcpyPathChanged = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -136,6 +138,8 @@ class SettingsManager(QObject):
             "musicButtonDefaultPage": "mediaRoom",  # "mediaRoom" or "mediaPlayer"
             "returnToLibraryAfterSelection": False,  # If True, return to MediaPlayer after song selection
             "androidAutoEnabled": False,  # If True, show Android Auto button in bottom bar
+            "phoneMirrorEnabled": False,  # If True, show Phone Mirror button in bottom bar
+            "scrcpyPath": "",  # Custom path to scrcpy executable
         }
             
     
@@ -196,6 +200,10 @@ class SettingsManager(QObject):
 
         # Android Auto settings
         self._android_auto_enabled = self._settings.get("androidAutoEnabled", False)
+
+        # Phone Mirror settings
+        self._phone_mirror_enabled = self._settings.get("phoneMirrorEnabled", False)
+        self._scrcpy_path = self._settings.get("scrcpyPath", "")
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -304,6 +312,8 @@ class SettingsManager(QObject):
             "musicButtonDefaultPage": str,
             "returnToLibraryAfterSelection": bool,
             "androidAutoEnabled": bool,
+            "phoneMirrorEnabled": bool,
+            "scrcpyPath": str,
         }
 
         for key, expected_type in type_checks.items():
@@ -911,7 +921,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def set_last_settings_section(self, section):
         """Set last visited settings section"""
-        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "about"]
+        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "phoneMirrorSettings", "about"]
         if section not in valid_sections:
             return
 
@@ -1003,6 +1013,42 @@ class SettingsManager(QObject):
         self._android_auto_enabled = enabled
         self.update_setting("androidAutoEnabled", enabled, self.androidAutoEnabledChanged)
 
+    # ==================== Phone Mirror Settings ====================
+
+    @Property(bool, notify=phoneMirrorEnabledChanged)
+    def phoneMirrorEnabled(self):
+        """Get whether Phone Mirror is enabled"""
+        return self._phone_mirror_enabled
+
+    @Slot(result=bool)
+    def get_phone_mirror_enabled(self):
+        """Get whether Phone Mirror is enabled"""
+        return self._phone_mirror_enabled
+
+    @Slot(bool)
+    def save_phone_mirror_enabled(self, enabled):
+        """Save whether Phone Mirror is enabled"""
+        print(f"Saving Phone Mirror enabled: {enabled}")
+        self._phone_mirror_enabled = enabled
+        self.update_setting("phoneMirrorEnabled", enabled, self.phoneMirrorEnabledChanged)
+
+    @Property(str, notify=scrcpyPathChanged)
+    def scrcpyPath(self):
+        """Get the custom scrcpy path"""
+        return self._scrcpy_path
+
+    @Slot(result=str)
+    def get_scrcpy_path(self):
+        """Get the custom scrcpy path"""
+        return self._scrcpy_path
+
+    @Slot(str)
+    def save_scrcpy_path(self, path):
+        """Save the custom scrcpy path"""
+        print(f"Saving scrcpy path: {path}")
+        self._scrcpy_path = path
+        self.update_setting("scrcpyPath", path, self.scrcpyPathChanged)
+
     @Slot()
     def reset_to_defaults(self):
         # Save default settings
@@ -1092,3 +1138,9 @@ class SettingsManager(QObject):
 
         self._android_auto_enabled = self._default_settings["androidAutoEnabled"]
         self.androidAutoEnabledChanged.emit(self._android_auto_enabled)
+
+        self._phone_mirror_enabled = self._default_settings["phoneMirrorEnabled"]
+        self.phoneMirrorEnabledChanged.emit(self._phone_mirror_enabled)
+
+        self._scrcpy_path = self._default_settings["scrcpyPath"]
+        self.scrcpyPathChanged.emit(self._scrcpy_path)

@@ -840,6 +840,7 @@ Item {
                             ListElement { name: "OBD"; section: "obdSettings" }
                             ListElement { name: "Clock"; section: "clockSettings" }
                             ListElement { name: "Android Auto"; section: "androidAutoSettings" }
+                            ListElement { name: "Phone Mirror"; section: "phoneMirrorSettings" }
                             ListElement { name: "About"; section: "about" }
                         }
                         
@@ -951,7 +952,8 @@ Item {
                             case "obdSettings": return 3;
                             case "clockSettings": return 4;
                             case "androidAutoSettings": return 5;
-                            case "about": return 6;
+                            case "phoneMirrorSettings": return 6;
+                            case "about": return 7;
                             default: return 0;
                         }
                     }
@@ -3166,6 +3168,172 @@ Item {
                         }
                     }
 
+                    ScrollView { // Phone Mirror Settings Page
+                        contentWidth: parent.width
+                        ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+                        clip: true
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: App.Spacing.sectionSpacing
+
+                            // Section Header
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Phone Mirror"
+                                    font.pixelSize: App.Spacing.overallText * 1.5
+                                    font.bold: true
+                                }
+
+                                SettingDescription {
+                                    text: "Mirror your Android phone screen using scrcpy. Connect your phone via USB with USB debugging enabled."
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Enable/Disable Phone Mirror
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Enable Phone Mirror"
+                                }
+
+                                SettingsToggle {
+                                    id: phoneMirrorEnabledToggle
+                                    Layout.fillWidth: true
+                                    text: checked ? "Phone Mirror button visible in bottom bar" : "Phone Mirror button hidden"
+                                    checked: settingsManager ? settingsManager.phoneMirrorEnabled : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: function(checked) {
+                                        if (settingsManager) {
+                                            settingsManager.save_phone_mirror_enabled(checked)
+                                        }
+                                    }
+
+                                    // Update when setting changes externally
+                                    Connections {
+                                        target: settingsManager
+                                        function onPhoneMirrorEnabledChanged() {
+                                            phoneMirrorEnabledToggle.checked = settingsManager.phoneMirrorEnabled
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "When enabled, a Phone Mirror button will appear in the bottom bar. Requires scrcpy installed and a phone connected via USB with USB debugging enabled."
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Scrcpy Path Setting
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Scrcpy Path"
+                                }
+
+                                SettingDescription {
+                                    text: "Path to the scrcpy executable. Leave empty for auto-detection."
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 10
+
+                                    SettingsTextField {
+                                        id: scrcpyPathField
+                                        Layout.fillWidth: true
+                                        text: settingsManager ? settingsManager.scrcpyPath : ""
+                                        placeholderText: "Auto-detect (leave empty)"
+
+                                        onEditingFinished: {
+                                            if (settingsManager) {
+                                                settingsManager.save_scrcpy_path(text)
+                                                if (phoneMirrorManager) {
+                                                    phoneMirrorManager.setScrcpyPath(text)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Button {
+                                        text: "Browse"
+                                        font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
+
+                                        background: Rectangle {
+                                            color: parent.pressed ? App.Style.accent : App.Style.hoverColor
+                                            radius: 4
+                                            implicitWidth: 80
+                                            implicitHeight: 40
+                                        }
+
+                                        contentItem: Text {
+                                            text: parent.text
+                                            font: parent.font
+                                            color: App.Style.primaryTextColor
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        onClicked: {
+                                            scrcpyFileDialog.open()
+                                        }
+                                    }
+                                }
+
+                                // Update when setting changes externally
+                                Connections {
+                                    target: settingsManager
+                                    function onScrcpyPathChanged() {
+                                        scrcpyPathField.text = settingsManager.scrcpyPath
+                                    }
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Status Info
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Status"
+                                }
+
+                                SettingDescription {
+                                    text: phoneMirrorManager && phoneMirrorManager.isScrcpyInstalled
+                                        ? "scrcpy found: " + phoneMirrorManager.scrcpyPath
+                                        : "scrcpy not found. Set the path above or download from github.com/Genymobile/scrcpy"
+                                    color: phoneMirrorManager && phoneMirrorManager.isScrcpyInstalled
+                                        ? "#44AA44"
+                                        : "#FF6666"
+                                }
+                            }
+
+                            SettingsDivider {}
+
+                            // Bottom spacer
+                            Item {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
+                            }
+                        }
+                    }
+
                     ScrollView { // About Page
                         contentWidth: parent.width
                         ScrollBar.vertical.policy: ScrollBar.AlwaysOff
@@ -3283,6 +3451,31 @@ Item {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // File dialog for selecting scrcpy executable
+    FileDialog {
+        id: scrcpyFileDialog
+        title: "Select scrcpy executable"
+        nameFilters: ["Executable files (*.exe)", "All files (*)"]
+        onAccepted: {
+            // Convert file URL to local path
+            var path = selectedFile.toString()
+            // Remove file:/// prefix on Windows
+            if (path.startsWith("file:///")) {
+                path = path.substring(8)
+            }
+            // Replace forward slashes with backslashes on Windows
+            path = path.replace(/\//g, "\\")
+
+            scrcpyPathField.text = path
+            if (settingsManager) {
+                settingsManager.save_scrcpy_path(path)
+                if (phoneMirrorManager) {
+                    phoneMirrorManager.setScrcpyPath(path)
                 }
             }
         }

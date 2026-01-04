@@ -44,12 +44,15 @@ from backend.svg_manager import SVGManager
 from backend.obd_manager import OBDManager
 from backend.spotify_manager import SpotifyManager
 from backend.android_auto import AndroidAutoManager, WindowContainer
+from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyCapture, ScrcpyCaptureItem
 
 app = QApplication(sys.argv)
 engine = QQmlApplicationEngine()
 
 # Register custom QML types
 qmlRegisterType(WindowContainer, "OCTAVE.AndroidAuto", 1, 0, "WindowContainer")
+qmlRegisterType(EmbeddedScrcpyItem, "OCTAVE.PhoneMirror", 1, 0, "EmbeddedScrcpyItem")
+qmlRegisterType(ScrcpyCaptureItem, "OCTAVE.PhoneMirror", 1, 0, "ScrcpyCaptureItem")
 
 engine.addImportPath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend"))
 
@@ -86,6 +89,20 @@ engine.rootContext().setContextProperty("androidAutoManager", android_auto_manag
 # Register DHU frame provider for seamless Android Auto display
 engine.addImageProvider("dhuframe", android_auto_manager._dhu_capture.frame_provider)
 
+# Phone Mirror Manager
+phone_mirror_manager = PhoneMirrorManager()
+engine.rootContext().setContextProperty("phoneMirrorManager", phone_mirror_manager)
+
+# Scrcpy Capture for frame-based phone mirroring (works around SDL resize issues)
+scrcpy_capture = ScrcpyCapture()
+engine.rootContext().setContextProperty("scrcpyCapture", scrcpy_capture)
+engine.addImageProvider("scrcpyframe", scrcpy_capture.frame_provider)
+
+# Load saved scrcpy path from settings
+saved_scrcpy_path = settings_manager.get_scrcpy_path()
+if saved_scrcpy_path:
+    phone_mirror_manager.setScrcpyPath(saved_scrcpy_path)
+
 # Add the cleanup connection after creating managers:
 def cleanup_on_quit():
     """Save state and cleanup before app exits"""
@@ -93,6 +110,7 @@ def cleanup_on_quit():
     media_manager._clear_temp_files()
     spotify_manager.cleanup()
     android_auto_manager.cleanup()  # Full cleanup: stops DHU, ADB, and head unit server
+    phone_mirror_manager.cleanup()  # Stop phone mirror if running
 
 app.aboutToQuit.connect(cleanup_on_quit)
 
