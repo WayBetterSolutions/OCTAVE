@@ -9,6 +9,7 @@ Item {
     id: androidAutoView
     property StackView stackView
     property ApplicationWindow mainWindow
+    property bool autoLaunchSeamless: false  // Auto-launch seamless DHU when page loads
     width: parent ? parent.width : 0
     height: parent ? parent.height : 0
 
@@ -706,5 +707,10 @@ Item {
     Component.onCompleted: {
         console.log("AndroidAutoView loaded")
         console.log("androidAutoManager available:", androidAutoManager ? "yes" : "no")
+
+        // Auto-launch seamless DHU if requested (from bottom bar button)
+        if (autoLaunchSeamless && androidAutoManager) {
+            androidAutoManager.launchDhuSeamless()
+        }
     }
 }

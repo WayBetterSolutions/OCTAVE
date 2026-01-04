@@ -1052,11 +1052,13 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
+                                    // Navigate to AndroidAutoView and launch seamless DHU
                                     var component = Qt.createComponent("AndroidAutoView.qml")
                                     if (component.status === Component.Ready) {
                                         var page = component.createObject(stackView, {
                                             stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window
+                                            mainWindow: stackView.parent.Window.window,
+                                            autoLaunchSeamless: true
                                         })
                                         if (page) {
                                             stackView.push(page)
@@ -1067,7 +1069,7 @@ Rectangle {
                         }
                     }
                 }
-                
+
                 Item { // SECTION 3: Right section - Clock and other controls
                     id: clockSection
                     property bool mediaControlsVisible: settingsManager ? settingsManager.showBottomBarMediaControls : true
@@ -2153,11 +2155,13 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
+                                    // Navigate to AndroidAutoView and launch seamless DHU
                                     var component = Qt.createComponent("AndroidAutoView.qml")
                                     if (component.status === Component.Ready) {
                                         var page = component.createObject(stackView, {
                                             stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window
+                                            mainWindow: stackView.parent.Window.window,
+                                            autoLaunchSeamless: true
                                         })
                                         if (page) {
                                             stackView.push(page)
@@ -2168,7 +2172,7 @@ Rectangle {
                         }
                     }
                 }
-                
+
                 // SECTION 3: Clock (Bottom section when vertical)
                 Item {
                     Layout.preferredHeight: parent.height * 0.1
