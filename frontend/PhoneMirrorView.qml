@@ -114,10 +114,11 @@ Item {
             onPressed: function(mouse) {
                 var pos = getRelativePosition(mouse.x, mouse.y)
                 if (pos.valid && scrcpyCapture) {
+                    console.log("Phone Mirror: Touch DOWN at rel(" + pos.x.toFixed(3) + "," + pos.y.toFixed(3) + ")")
                     isDragging = true
                     lastX = pos.x
                     lastY = pos.y
-                    // Send relative position (0.0-1.0) - capture will scale to actual window
+                    // Send relative position (0.0-1.0) - ADB will scale to device resolution
                     scrcpyCapture.sendTouchEvent(pos.x, pos.y, true)
                 }
             }
@@ -127,6 +128,7 @@ Item {
                     var pos = getRelativePosition(mouse.x, mouse.y)
                     var finalX = pos.valid ? pos.x : lastX
                     var finalY = pos.valid ? pos.y : lastY
+                    console.log("Phone Mirror: Touch UP at rel(" + finalX.toFixed(3) + "," + finalY.toFixed(3) + ")")
                     scrcpyCapture.sendTouchEvent(finalX, finalY, false)
                 }
                 isDragging = false

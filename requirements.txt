@@ -6,3 +6,7 @@ sounddevice==0.5.1
 spotipy>=2.25.2
 PySide6==6.8.1.1
 keyring==25.7.0
+cryptography>=42.0.0
+av>=12.0.0
+pyusb>=1.2.0
+libusb>=1.0.27

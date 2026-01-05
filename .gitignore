@@ -12,3 +12,13 @@ build/
 # Spotify credentials and cache
 backend/settingsConfigure.json
 backend/.spotify_token_cache
+
+# Bundled tools (downloaded separately, not tracked in git)
+tools/scrcpy/*.exe
+tools/scrcpy/*.dll
+tools/scrcpy/adb
+tools/scrcpy/scrcpy
+tools/scrcpy/scrcpy-server
+tools/scrcpy/*.bat
+tools/scrcpy/*.vbs
+tools/scrcpy/*.png

@@ -82,6 +82,12 @@ except ImportError as e:
         class core:
             class NoBackendError(Exception):
                 pass
+            class Device:
+                """Dummy Device class for type annotations."""
+                pass
+            class Endpoint:
+                """Dummy Endpoint class for type annotations."""
+                pass
             @staticmethod
             def find(*args, **kwargs):
                 return None

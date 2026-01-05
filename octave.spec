@@ -43,6 +43,16 @@ for root, dirs, files in os.walk(BACKEND_DIR):
             dst = os.path.relpath(root, PROJECT_ROOT)
             backend_datas.append((src, dst))
 
+# Bundled tools (scrcpy for phone mirroring)
+TOOLS_DIR = os.path.join(PROJECT_ROOT, 'tools', 'scrcpy')
+tools_datas = []
+if os.path.exists(TOOLS_DIR):
+    for file in os.listdir(TOOLS_DIR):
+        src = os.path.join(TOOLS_DIR, file)
+        if os.path.isfile(src):
+            tools_datas.append((src, 'tools/scrcpy'))
+    print(f"Bundling scrcpy tools: {len(tools_datas)} files")
+
 # Collect PySide6 QML modules
 pyside6_datas = collect_data_files('PySide6', includes=['**/*.qml', '**/*.js'])
 
@@ -96,7 +106,7 @@ a = Analysis(
     ['main.py'],
     pathex=[PROJECT_ROOT],
     binaries=[],
-    datas=frontend_datas + backend_datas + pyside6_datas,
+    datas=frontend_datas + backend_datas + pyside6_datas + tools_datas,
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},

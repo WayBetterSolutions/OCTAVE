@@ -197,6 +197,13 @@ class ScrcpyCapture(QObject):
         self._frame_count = 0
         self._input_state = None  # Track window state during touch
 
+        # ADB-based input (set via setPhoneMirrorManager)
+        self._adb_path: str = ""
+        self._device_serial: str = ""
+        self._device_width: int = 0
+        self._device_height: int = 0
+        self._manager = None
+
     @property
     def frame_provider(self) -> ScrcpyFrameProvider:
         """Get the image provider for QML."""
@@ -263,6 +270,9 @@ class ScrcpyCapture(QObject):
         print(f"[ScrcpyCapture] Starting capture of window {self._hwnd} at {self._target_fps} FPS")
         self._capturing = True
         self._frame_count = 0
+
+        # Fetch device info for ADB-based touch input
+        self._fetchDeviceInfo()
 
         # Ensure window is positioned correctly
         self._position_window_offscreen(self._hwnd)
@@ -393,169 +403,210 @@ class ScrcpyCapture(QObject):
         except Exception as e:
             print(f"[ScrcpyCapture] Capture error: {e}")
 
+    def setPhoneMirrorManager(self, manager):
+        """
+        Set the PhoneMirrorManager reference for ADB access.
+        This allows ScrcpyCapture to automatically get ADB path, device serial,
+        and device resolution for touch input.
+        """
+        self._manager = manager
+        print(f"[ScrcpyCapture] PhoneMirrorManager linked")
+
+    def _fetchDeviceInfo(self):
+        """Fetch ADB path, device serial, and resolution from manager."""
+        if not self._manager:
+            print("[ScrcpyCapture] No manager set, cannot fetch device info")
+            return
+
+        # Get ADB path
+        self._adb_path = self._manager.adbPath
+        print(f"[ScrcpyCapture] ADB path: {self._adb_path}")
+
+        # Get device serial
+        self._device_serial = self._manager.getDeviceSerial()
+        print(f"[ScrcpyCapture] Device serial: {self._device_serial}")
+
+        # Get device resolution
+        resolution_str = self._manager.getDeviceResolution()
+        if resolution_str and 'x' in resolution_str:
+            try:
+                width_str, height_str = resolution_str.split('x')
+                self._device_width = int(width_str)
+                self._device_height = int(height_str)
+                print(f"[ScrcpyCapture] Device resolution: {self._device_width}x{self._device_height}")
+            except ValueError:
+                print(f"[ScrcpyCapture] Failed to parse resolution: {resolution_str}")
+        else:
+            print(f"[ScrcpyCapture] Could not get device resolution")
+
+    def setAdbPath(self, adb_path: str):
+        """Set the ADB path for input commands."""
+        self._adb_path = adb_path
+
+    def setDeviceSerial(self, serial: str):
+        """Set the device serial for ADB commands."""
+        self._device_serial = serial
+
+    def setDeviceResolution(self, width: int, height: int):
+        """Set the device screen resolution for coordinate mapping."""
+        self._device_width = width
+        self._device_height = height
+        print(f"[ScrcpyCapture] Device resolution set to {width}x{height}")
+
+    def _is_landscape(self) -> bool:
+        """Check if the current capture is in landscape mode."""
+        # Compare frame dimensions - landscape if wider than tall
+        return self._last_width > self._last_height
+
+    def _convert_to_device_coords(self, rel_x: float, rel_y: float) -> tuple:
+        """
+        Convert relative coordinates (0-1) to device pixel coordinates.
+        Handles orientation by checking if captured frame is landscape or portrait.
+
+        The device always reports its physical resolution (portrait, e.g. 1080x2316).
+        When in landscape mode, we need to transform the screen coordinates to match
+        the device's coordinate system.
+        """
+        is_landscape = self._is_landscape()
+
+        if is_landscape:
+            # Phone is in landscape mode
+            # The screen shows landscape content (wide), but ADB input coordinates
+            # are ALWAYS in the current screen orientation, not physical portrait.
+            # So we just need to map rel coords to the CURRENT screen dimensions.
+            # In landscape, the effective resolution is height x width (e.g., 2316x1080)
+            device_x = int(rel_x * self._device_height)  # landscape width = portrait height
+            device_y = int(rel_y * self._device_width)   # landscape height = portrait width
+        else:
+            # Portrait mode - direct mapping
+            device_x = int(rel_x * self._device_width)
+            device_y = int(rel_y * self._device_height)
+
+        # Clamp to valid range
+        device_x = max(0, min(device_x, self._device_width - 1))
+        device_y = max(0, min(device_y, self._device_height - 1))
+
+        return device_x, device_y
+
+    @Slot(float, float)
+    def sendTap(self, rel_x: float, rel_y: float):
+        """
+        Send a tap to the Android device using ADB.
+        This bypasses all window manipulation issues.
+
+        Args:
+            rel_x, rel_y: Relative position (0.0 to 1.0) within the display
+        """
+        if not hasattr(self, '_adb_path') or not self._adb_path:
+            print("[ScrcpyCapture] No ADB path set")
+            return
+
+        if not hasattr(self, '_device_width') or self._device_width <= 0:
+            print("[ScrcpyCapture] No device resolution set")
+            return
+
+        # Convert relative position to device pixels (handles orientation)
+        device_x, device_y = self._convert_to_device_coords(rel_x, rel_y)
+
+        # Build ADB command
+        cmd = [self._adb_path]
+        if hasattr(self, '_device_serial') and self._device_serial:
+            cmd.extend(['-s', self._device_serial])
+        cmd.extend(['shell', 'input', 'tap', str(device_x), str(device_y)])
+
+        is_landscape = self._is_landscape()
+        print(f"[ScrcpyCapture] ADB tap: rel({rel_x:.3f},{rel_y:.3f}) -> device({device_x},{device_y}) [{'landscape' if is_landscape else 'portrait'}]")
+
+        # Run ADB command in background thread to avoid blocking
+        import subprocess
+        from threading import Thread
+
+        def run_tap():
+            try:
+                creationflags = 0
+                if platform.system() == "Windows":
+                    creationflags = subprocess.CREATE_NO_WINDOW
+                subprocess.run(cmd, capture_output=True, timeout=2, creationflags=creationflags)
+            except Exception as e:
+                print(f"[ScrcpyCapture] ADB tap error: {e}")
+
+        Thread(target=run_tap, daemon=True).start()
+
+    @Slot(float, float, float, float, int)
+    def sendSwipe(self, rel_x1: float, rel_y1: float, rel_x2: float, rel_y2: float, duration_ms: int = 300):
+        """
+        Send a swipe to the Android device using ADB.
+
+        Args:
+            rel_x1, rel_y1: Start position (0.0 to 1.0)
+            rel_x2, rel_y2: End position (0.0 to 1.0)
+            duration_ms: Swipe duration in milliseconds
+        """
+        if not hasattr(self, '_adb_path') or not self._adb_path:
+            return
+
+        if not hasattr(self, '_device_width') or self._device_width <= 0:
+            return
+
+        # Convert relative positions to device pixels (handles orientation)
+        x1, y1 = self._convert_to_device_coords(rel_x1, rel_y1)
+        x2, y2 = self._convert_to_device_coords(rel_x2, rel_y2)
+
+        # Build ADB command
+        cmd = [self._adb_path]
+        if hasattr(self, '_device_serial') and self._device_serial:
+            cmd.extend(['-s', self._device_serial])
+        cmd.extend(['shell', 'input', 'swipe', str(x1), str(y1), str(x2), str(y2), str(duration_ms)])
+
+        is_landscape = self._is_landscape()
+        print(f"[ScrcpyCapture] ADB swipe: ({x1},{y1}) -> ({x2},{y2}) duration={duration_ms}ms [{'landscape' if is_landscape else 'portrait'}]")
+
+        import subprocess
+        from threading import Thread
+
+        def run_swipe():
+            try:
+                creationflags = 0
+                if platform.system() == "Windows":
+                    creationflags = subprocess.CREATE_NO_WINDOW
+                subprocess.run(cmd, capture_output=True, timeout=5, creationflags=creationflags)
+            except Exception as e:
+                print(f"[ScrcpyCapture] ADB swipe error: {e}")
+
+        Thread(target=run_swipe, daemon=True).start()
+
     @Slot(float, float, bool)
     def sendTouchEvent(self, rel_x: float, rel_y: float, pressed: bool):
         """
-        Send a touch event to scrcpy using real mouse input.
-        Uses the captured frame dimensions for coordinate mapping.
-
-        Args:
-            rel_x, rel_y: Relative position (0.0 to 1.0) within the display
-            pressed: Whether this is a press (True) or release (False)
+        Handle touch events - tap on release, track for swipe.
+        Uses ADB shell input commands for reliable touch forwarding.
         """
-        if not self._hwnd or not self._capturing:
-            return
+        if pressed:
+            # Store start position for potential swipe
+            self._touch_start_x = rel_x
+            self._touch_start_y = rel_y
+            self._touch_moved = False
+            print(f"[ScrcpyCapture] Touch START at rel({rel_x:.3f}, {rel_y:.3f})")
+        else:
+            # On release, check if it was a tap or swipe
+            print(f"[ScrcpyCapture] Touch END at rel({rel_x:.3f}, {rel_y:.3f})")
+            if hasattr(self, '_touch_start_x'):
+                dx = abs(rel_x - self._touch_start_x)
+                dy = abs(rel_y - self._touch_start_y)
 
-        if platform.system() != "Windows":
-            return
-
-        # Use captured frame size (not live window size which may change)
-        if self._last_width <= 0 or self._last_height <= 0:
-            print("[ScrcpyCapture] No frame size yet, ignoring touch")
-            return
-
-        import time
-
-        try:
-            # Convert relative position to client pixels using captured frame size
-            client_x = int(rel_x * self._last_width)
-            client_y = int(rel_y * self._last_height)
-            client_x = max(0, min(client_x, self._last_width - 1))
-            client_y = max(0, min(client_y, self._last_height - 1))
-
-            if pressed:
-                # Save cursor and foreground
-                old_cursor = POINT()
-                user32.GetCursorPos(ctypes.byref(old_cursor))
-                old_foreground = user32.GetForegroundWindow()
-
-                # Get current window rect to know where it is
-                window_rect = RECT()
-                user32.GetWindowRect(self._hwnd, ctypes.byref(window_rect))
-
-                # Get screen size
-                screen_w = user32.GetSystemMetrics(0)
-                screen_h = user32.GetSystemMetrics(1)
-
-                # Calculate where to position window (bottom-right corner)
-                win_w = window_rect.right - window_rect.left
-                win_h = window_rect.bottom - window_rect.top
-                temp_x = screen_w - win_w
-                temp_y = screen_h - win_h
-
-                # Calculate final screen position for click
-                # (temp window position + client offset)
-                screen_x = temp_x + client_x
-                screen_y = temp_y + client_y
-
-                # Make window nearly invisible
-                old_style = user32.GetWindowLongW(self._hwnd, GWL_EXSTYLE)
-                user32.SetWindowLongW(self._hwnd, GWL_EXSTYLE, old_style | WS_EX_LAYERED)
-                user32.SetLayeredWindowAttributes(self._hwnd, 0, 1, LWA_ALPHA)
-
-                # Move window on-screen
-                user32.SetWindowPos(self._hwnd, 0, temp_x, temp_y, 0, 0,
-                                   SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOACTIVATE)
-
-                # Activate and click
-                user32.SetForegroundWindow(self._hwnd)
-                time.sleep(0.02)
-
-                user32.SetCursorPos(screen_x, screen_y)
-                time.sleep(0.01)
-                user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, None)
-
-                # Save state for release
-                self._input_state = {
-                    'old_cursor': old_cursor,
-                    'old_foreground': old_foreground,
-                    'old_style': old_style,
-                    'temp_x': temp_x,
-                    'temp_y': temp_y,
-                }
-
-                print(f"[ScrcpyCapture] Touch DOWN at client ({client_x}, {client_y}), screen ({screen_x}, {screen_y})")
-
-            else:
-                # Release
-                if self._input_state:
-                    # Calculate screen position using saved window position
-                    screen_x = self._input_state['temp_x'] + client_x
-                    screen_y = self._input_state['temp_y'] + client_y
-
-                    user32.SetCursorPos(screen_x, screen_y)
-                    time.sleep(0.01)
-
-                user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, None)
-                print(f"[ScrcpyCapture] Touch UP at client ({client_x}, {client_y})")
-
-                time.sleep(0.02)
-
-                # Restore everything
-                if self._input_state:
-                    # Restore opacity
-                    user32.SetLayeredWindowAttributes(self._hwnd, 0, 255, LWA_ALPHA)
-
-                    # Move window back off-screen
-                    user32.SetWindowPos(self._hwnd, 0, -3000, -3000, 0, 0,
-                                       SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
-
-                    # Restore cursor
-                    user32.SetCursorPos(self._input_state['old_cursor'].x,
-                                       self._input_state['old_cursor'].y)
-
-                    # Restore focus
-                    if self._input_state['old_foreground']:
-                        user32.SetForegroundWindow(self._input_state['old_foreground'])
-
-                    self._input_state = None
-
-        except Exception as e:
-            print(f"[ScrcpyCapture] Touch event error: {e}")
-            import traceback
-            traceback.print_exc()
-            # Try to restore on error
-            if self._input_state:
-                try:
-                    user32.SetLayeredWindowAttributes(self._hwnd, 0, 255, LWA_ALPHA)
-                    user32.SetWindowPos(self._hwnd, 0, -3000, -3000, 0, 0,
-                                       SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
-                except:
-                    pass
-                self._input_state = None
+                if self._touch_moved and (dx > 0.05 or dy > 0.05):
+                    # It was a swipe
+                    print(f"[ScrcpyCapture] Detected SWIPE (moved={self._touch_moved}, dx={dx:.3f}, dy={dy:.3f})")
+                    self.sendSwipe(self._touch_start_x, self._touch_start_y, rel_x, rel_y, 200)
+                else:
+                    # It was a tap
+                    print(f"[ScrcpyCapture] Detected TAP")
+                    self.sendTap(self._touch_start_x, self._touch_start_y)
 
     @Slot(float, float)
     def sendTouchMove(self, rel_x: float, rel_y: float):
-        """
-        Send a touch move event for drag operations.
-
-        Args:
-            rel_x, rel_y: Relative position (0.0 to 1.0) within the display
-        """
-        if not self._hwnd or not self._capturing or not self._input_state:
-            return
-
-        if platform.system() != "Windows":
-            return
-
-        if self._last_width <= 0 or self._last_height <= 0:
-            return
-
-        try:
-            # Convert relative position using captured frame size
-            client_x = int(rel_x * self._last_width)
-            client_y = int(rel_y * self._last_height)
-            client_x = max(0, min(client_x, self._last_width - 1))
-            client_y = max(0, min(client_y, self._last_height - 1))
-
-            # Calculate screen position using saved window position
-            screen_x = self._input_state['temp_x'] + client_x
-            screen_y = self._input_state['temp_y'] + client_y
-
-            user32.SetCursorPos(screen_x, screen_y)
-
-        except Exception as e:
-            print(f"[ScrcpyCapture] Touch move error: {e}")
+        """Track touch movement for swipe detection."""
+        self._touch_moved = True
 
 
 class ScrcpyCaptureItem(QQuickItem):

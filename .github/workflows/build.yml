@@ -27,6 +27,9 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Download scrcpy
+        run: python scripts/download_scrcpy.py
+
       - name: Build with PyInstaller
         run: python -m PyInstaller octave.spec --noconfirm
 
@@ -53,6 +56,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+
+      - name: Download scrcpy
+        run: |
+          # Install scrcpy via Homebrew and copy to tools directory
+          brew install scrcpy
+          mkdir -p tools/scrcpy
+          cp $(which scrcpy) tools/scrcpy/
+          cp $(which adb) tools/scrcpy/
+          # Copy the license
+          curl -L -o tools/scrcpy/LICENSE https://raw.githubusercontent.com/Genymobile/scrcpy/master/LICENSE
 
       - name: Build with PyInstaller
         run: python -m PyInstaller octave.spec --noconfirm
@@ -108,6 +121,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+
+      - name: Download scrcpy
+        run: python scripts/download_scrcpy.py
 
       - name: Build with PyInstaller
         run: python -m PyInstaller octave.spec --noconfirm

@@ -95,6 +95,7 @@ engine.rootContext().setContextProperty("phoneMirrorManager", phone_mirror_manag
 
 # Scrcpy Capture for frame-based phone mirroring (works around SDL resize issues)
 scrcpy_capture = ScrcpyCapture()
+scrcpy_capture.setPhoneMirrorManager(phone_mirror_manager)  # Link to manager for ADB access
 engine.rootContext().setContextProperty("scrcpyCapture", scrcpy_capture)
 engine.addImageProvider("scrcpyframe", scrcpy_capture.frame_provider)
 

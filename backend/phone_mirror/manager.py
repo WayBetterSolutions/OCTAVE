@@ -9,12 +9,28 @@ import subprocess
 import shutil
 import platform
 import os
+import sys
 import time
 from pathlib import Path
 from threading import Thread
 from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, Slot, Property
+
+
+def _get_bundled_tools_dir() -> Path:
+    """Get the path to bundled tools directory.
+
+    Works both in development and when packaged with PyInstaller.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable (PyInstaller)
+        base_path = Path(sys._MEIPASS)
+    else:
+        # Running in development
+        base_path = Path(__file__).parent.parent.parent
+
+    return base_path / "tools" / "scrcpy"
 
 if platform.system() == "Windows":
     import ctypes
@@ -94,7 +110,22 @@ class PhoneMirrorManager(QObject):
             print(f"[PhoneMirror] Effective scrcpy path: {new_effective}")
 
     def _find_scrcpy(self) -> Optional[str]:
-        """Find scrcpy executable."""
+        """Find scrcpy executable.
+
+        Checks bundled location first, then PATH, then common install locations.
+        """
+        # Check bundled location first
+        bundled_dir = _get_bundled_tools_dir()
+        if platform.system() == "Windows":
+            bundled_scrcpy = bundled_dir / "scrcpy.exe"
+        else:
+            bundled_scrcpy = bundled_dir / "scrcpy"
+
+        if bundled_scrcpy.exists() and self._check_scrcpy(str(bundled_scrcpy)):
+            print(f"[PhoneMirror] Using bundled scrcpy: {bundled_scrcpy}")
+            return str(bundled_scrcpy)
+
+        # Check PATH
         scrcpy_in_path = shutil.which("scrcpy")
         if scrcpy_in_path:
             return scrcpy_in_path
@@ -141,7 +172,22 @@ class PhoneMirrorManager(QObject):
             return False
 
     def _find_adb(self) -> Optional[str]:
-        """Find ADB executable."""
+        """Find ADB executable.
+
+        Checks bundled location first, then PATH, then common install locations.
+        """
+        # Check bundled location first (scrcpy package includes adb)
+        bundled_dir = _get_bundled_tools_dir()
+        if platform.system() == "Windows":
+            bundled_adb = bundled_dir / "adb.exe"
+        else:
+            bundled_adb = bundled_dir / "adb"
+
+        if bundled_adb.exists():
+            print(f"[PhoneMirror] Using bundled adb: {bundled_adb}")
+            return str(bundled_adb)
+
+        # Check PATH
         adb_in_path = shutil.which("adb")
         if adb_in_path:
             return adb_in_path
@@ -249,6 +295,43 @@ class PhoneMirrorManager(QObject):
             return ""
         except (subprocess.SubprocessError, OSError):
             return ""
+
+    @Slot(result=str)
+    def getDeviceResolution(self) -> str:
+        """Get the device screen resolution via ADB (e.g., '1080x2400')."""
+        if not self._adb_path:
+            return ""
+
+        try:
+            creationflags = 0
+            if platform.system() == "Windows":
+                creationflags = subprocess.CREATE_NO_WINDOW
+
+            result = subprocess.run(
+                [self._adb_path, "shell", "wm", "size"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                creationflags=creationflags,
+            )
+
+            if result.returncode == 0:
+                # Output format: "Physical size: 1080x2400"
+                output = result.stdout.strip()
+                for line in output.split('\n'):
+                    if 'Physical size:' in line:
+                        # Extract "1080x2400" from "Physical size: 1080x2400"
+                        parts = line.split(':')
+                        if len(parts) >= 2:
+                            return parts[1].strip()
+            return ""
+        except (subprocess.SubprocessError, OSError):
+            return ""
+
+    @Property(str)
+    def adbPath(self) -> str:
+        """Get the ADB executable path."""
+        return self._adb_path or ""
 
     @Property(bool, notify=scrcpyStarted)
     def isRunning(self) -> bool:
