@@ -15,8 +15,8 @@ is_windows = sys.platform == 'win32'
 is_macos = sys.platform == 'darwin'
 is_linux = sys.platform.startswith('linux')
 
-# Project paths
-PROJECT_ROOT = os.path.abspath(SPECPATH)
+# Project paths (SPECPATH is build_scripts/, so go up one level)
+PROJECT_ROOT = os.path.dirname(os.path.abspath(SPECPATH))
 FRONTEND_DIR = os.path.join(PROJECT_ROOT, 'frontend')
 BACKEND_DIR = os.path.join(PROJECT_ROOT, 'backend')
 
@@ -103,7 +103,7 @@ else:
 hidden_imports.extend(collect_submodules('PySide6'))
 
 a = Analysis(
-    ['main.py'],
+    [os.path.join(PROJECT_ROOT, 'main.py')],
     pathex=[PROJECT_ROOT],
     binaries=[],
     datas=frontend_datas + backend_datas + pyside6_datas + tools_datas,
@@ -145,7 +145,7 @@ if is_windows:
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
-        icon=os.path.join(PROJECT_ROOT, 'build_resources', 'icon.ico') if os.path.exists(os.path.join(PROJECT_ROOT, 'build_resources', 'icon.ico')) else None,
+        icon=os.path.join(PROJECT_ROOT, 'build_scripts', 'icon.ico') if os.path.exists(os.path.join(PROJECT_ROOT, 'build_scripts', 'icon.ico')) else None,
     )
 elif is_macos:
     exe = EXE(
@@ -164,7 +164,7 @@ elif is_macos:
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
-        icon=os.path.join(PROJECT_ROOT, 'build_resources', 'icon.icns') if os.path.exists(os.path.join(PROJECT_ROOT, 'build_resources', 'icon.icns')) else None,
+        icon=os.path.join(PROJECT_ROOT, 'build_scripts', 'icon.icns') if os.path.exists(os.path.join(PROJECT_ROOT, 'build_scripts', 'icon.icns')) else None,
     )
 else:  # Linux
     exe = EXE(
@@ -201,7 +201,7 @@ if is_macos:
     app = BUNDLE(
         coll,
         name='OCTAVE.app',
-        icon=os.path.join(PROJECT_ROOT, 'build_resources', 'icon.icns') if os.path.exists(os.path.join(PROJECT_ROOT, 'build_resources', 'icon.icns')) else None,
+        icon=os.path.join(PROJECT_ROOT, 'build_scripts', 'icon.icns') if os.path.exists(os.path.join(PROJECT_ROOT, 'build_scripts', 'icon.icns')) else None,
         bundle_identifier='com.waybettersolutions.octave',
         info_plist={
             'CFBundleName': 'OCTAVE',

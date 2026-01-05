@@ -22,3 +22,6 @@ tools/scrcpy/scrcpy-server
 tools/scrcpy/*.bat
 tools/scrcpy/*.vbs
 tools/scrcpy/*.png
+
+# Generated protobuf files (regenerate with compile_protos.py)
+backend/android_auto/proto/aap_protobuf/**/*_pb2.py

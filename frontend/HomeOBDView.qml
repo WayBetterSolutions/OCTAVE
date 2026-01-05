@@ -89,25 +89,31 @@ Item {
         }
     }
     
-    // Layout - Single column, 4 rows (stacked vertically)
+    // Smart grid layout - 1 column for up to 5 cards, 2 columns for 6-8 cards
+    property int cardCount: obdRepeater.count
+    property int columnCount: cardCount <= 5 ? 1 : 2
+
     GridLayout {
         id: gridLayout
         anchors.fill: parent
         anchors.margins: 10
         columnSpacing: 10
         rowSpacing: 10
-        columns: 1
-        
-        // Statically create displays
+        columns: homeOBDView.columnCount
+
+        // Dynamically create displays (max 8)
         Repeater {
             id: obdRepeater
             model: {
-                // Use the settings if available, or default to 4 standard params (stacked vertically)
+                // Use the settings if available, or default to 4 standard params
+                let params;
                 if (settingsManager && settingsManager.get_home_obd_parameters) {
-                    return settingsManager.get_home_obd_parameters()
+                    params = settingsManager.get_home_obd_parameters()
                 } else {
-                    return ["SPEED", "RPM", "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE"]
+                    params = ["SPEED", "RPM", "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE"]
                 }
+                // Limit to maximum 8 cards
+                return params.slice(0, 8)
             }
             
             delegate: Rectangle {

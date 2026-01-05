@@ -2929,14 +2929,10 @@ Item {
                                                                     settingsManager.save_home_obd_parameters(homeParams);
                                                                 }
                                                             } else {
-                                                                // Add to home screen if space available
-                                                                if (homeParams.length < 4) {
+                                                                // Add to home screen if space available (max 8)
+                                                                if (homeParams.length < 8) {
                                                                     homeParams.push(modelData.command);
                                                                     settingsManager.save_home_obd_parameters(homeParams);
-                                                                } else {
-                                                                    // Show replacement dialog if full
-                                                                    replaceDialog.paramToAdd = modelData.command;
-                                                                    replaceDialog.open();
                                                                 }
                                                             }
                                                         }
@@ -2984,8 +2980,8 @@ Item {
                                 Qt.callLater(function() {
                                     if (settingsManager) {
                                         homeParametersRepeater.model = settingsManager.get_home_obd_parameters();
-                                        homeParametersEmptyRepeater.model = Math.max(0, 4 - (settingsManager ? settingsManager.get_home_obd_parameters().length : 0));
-                                        
+                                        homeParametersEmptyRepeater.model = Math.max(0, 8 - (settingsManager ? settingsManager.get_home_obd_parameters().length : 0));
+
                                         // Also update all home buttons in the parameter list
                                         for (let i = 0; i < parameterListView.count; i++) {
                                             let item = parameterListView.itemAtIndex(i);

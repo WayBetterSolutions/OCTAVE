@@ -4,9 +4,9 @@ OCTAVE Cross-Platform Build Script
 Unified build script that works on Windows, macOS, and Linux.
 
 Usage:
-    python build.py              # Build for current platform
-    python build.py --clean      # Clean build artifacts
-    python build.py --help       # Show help
+    python build_scripts/build.py              # Build for current platform
+    python build_scripts/build.py --clean      # Clean build artifacts
+    python build_scripts/build.py --help       # Show help
 """
 
 import os
@@ -21,7 +21,8 @@ from pathlib import Path
 # Configuration
 APP_NAME = "OCTAVE"
 APP_VERSION = "1.0.0"
-PROJECT_ROOT = Path(__file__).parent.absolute()
+SCRIPT_DIR = Path(__file__).parent.absolute()
+PROJECT_ROOT = SCRIPT_DIR.parent  # build_scripts is inside project root
 
 # Use temp directory for builds to avoid Dropbox sync issues
 import tempfile
@@ -114,7 +115,7 @@ def build_executable(python_path):
     print("\n[Build] Building executable with PyInstaller...")
     print(f"  Using temp build directory: {TEMP_BUILD_DIR}")
 
-    spec_file = PROJECT_ROOT / "octave.spec"
+    spec_file = SCRIPT_DIR / "octave.spec"
 
     if not spec_file.exists():
         print(f"  ERROR: Spec file not found: {spec_file}")
@@ -149,7 +150,7 @@ def create_windows_installer():
         print("  Download from: https://jrsoftware.org/isdl.php")
         return True  # Not a failure, just skipped
 
-    iss_file = PROJECT_ROOT / "build_scripts" / "installer_windows.iss"
+    iss_file = SCRIPT_DIR / "installer_windows.iss"
     return run_command([iscc_path, str(iss_file)])
 
 
@@ -339,9 +340,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python build.py              Build for current platform
-    python build.py --clean      Clean build artifacts only
-    python build.py --clean -b   Clean then build
+    python build_scripts/build.py              Build for current platform
+    python build_scripts/build.py --clean      Clean build artifacts only
+    python build_scripts/build.py --clean -b   Clean then build
 
 Platform-specific outputs:
     Windows: dist/OCTAVE/OCTAVE.exe, dist/OCTAVE_Setup_X.X.X.exe
