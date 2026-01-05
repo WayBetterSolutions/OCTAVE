@@ -3304,6 +3304,44 @@ Item {
 
                             SettingsDivider {}
 
+                            // Audio Forwarding Setting
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Audio Forwarding"
+                                }
+
+                                SettingsToggle {
+                                    id: scrcpyAudioEnabledToggle
+                                    Layout.fillWidth: true
+                                    text: checked ? "Audio from phone plays through OCTAVE" : "Audio forwarding disabled"
+                                    checked: settingsManager ? settingsManager.scrcpyAudioEnabled : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: function(checked) {
+                                        if (settingsManager) {
+                                            settingsManager.save_scrcpy_audio_enabled(checked)
+                                        }
+                                    }
+
+                                    Connections {
+                                        target: settingsManager
+                                        function onScrcpyAudioEnabledChanged() {
+                                            scrcpyAudioEnabledToggle.checked = settingsManager.scrcpyAudioEnabled
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "When enabled, audio from your phone will be forwarded to your computer's speakers. Requires scrcpy 2.0+ and Android 11+."
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             // Status Info
                             ColumnLayout {
                                 Layout.fillWidth: true

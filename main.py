@@ -104,6 +104,17 @@ saved_scrcpy_path = settings_manager.get_scrcpy_path()
 if saved_scrcpy_path:
     phone_mirror_manager.setScrcpyPath(saved_scrcpy_path)
 
+# Load audio setting and initial volume
+phone_mirror_manager.setAudioEnabled(settings_manager.get_scrcpy_audio_enabled())
+# Convert 0-100 volume to 0.0-1.0 with logarithmic curve (matching BottomBar.qml)
+initial_volume = settings_manager.currentVolume / 100.0
+phone_mirror_manager.setVolume(initial_volume ** 2.0)  # Apply log curve
+
+# Connect setting changes to manager
+settings_manager.scrcpyAudioEnabledChanged.connect(
+    lambda enabled: phone_mirror_manager.setAudioEnabled(enabled)
+)
+
 # Add the cleanup connection after creating managers:
 def cleanup_on_quit():
     """Save state and cleanup before app exits"""

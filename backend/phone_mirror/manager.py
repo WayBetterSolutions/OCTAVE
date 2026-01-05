@@ -70,6 +70,7 @@ class PhoneMirrorManager(QObject):
         self._scrcpy_path: Optional[str] = None
         self._custom_scrcpy_path: str = ""
         self._adb_path: Optional[str] = None
+        self._audio_enabled: bool = False
 
         # Singleton scrcpy process
         self._process: Optional[subprocess.Popen] = None
@@ -108,6 +109,29 @@ class PhoneMirrorManager(QObject):
         if old_effective != new_effective:
             self.scrcpyPathChanged.emit()
             print(f"[PhoneMirror] Effective scrcpy path: {new_effective}")
+
+    @Slot(bool)
+    def setAudioEnabled(self, enabled: bool):
+        """Set whether audio forwarding is enabled. Restarts scrcpy if running."""
+        if self._audio_enabled == enabled:
+            return
+
+        print(f"[PhoneMirror] Audio forwarding: {enabled}")
+        self._audio_enabled = enabled
+
+        # If scrcpy is currently running, restart it with new audio setting
+        if self.isRunning:
+            print("[PhoneMirror] Restarting scrcpy to apply audio setting change...")
+            self.stopScrcpy()
+            # Small delay to ensure clean shutdown before restart
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(300, self.startScrcpy)
+
+    @Slot(float)
+    def setVolume(self, volume: float):
+        """Placeholder for volume control - not implemented."""
+        # Volume control removed for simplicity
+        pass
 
     def _find_scrcpy(self) -> Optional[str]:
         """Find scrcpy executable.
@@ -371,17 +395,18 @@ class PhoneMirrorManager(QObject):
         self._is_starting = True
 
         # Build command
-        # Note: Don't use --max-size to allow scrcpy to render at full resolution
-        # and scale dynamically when window is resized
         cmd = [
             scrcpy_path,
             "--video-codec=h264",
-            "--no-audio",
             "--video-bit-rate=8M",
             "--max-fps=60",
             "--window-borderless",
             "--stay-awake",
         ]
+
+        # Audio forwarding - controlled by settings
+        if not self._audio_enabled:
+            cmd.append("--no-audio")
 
         if device_serial:
             cmd.extend(["-s", device_serial])
@@ -416,6 +441,11 @@ class PhoneMirrorManager(QObject):
 
         # Wait for window to appear (up to 10 seconds)
         for _ in range(100):
+            # Check if process was terminated externally
+            if not self._process:
+                self._is_starting = False
+                return
+
             if self._process.poll() is not None:
                 stderr = self._process.stderr.read().decode() if self._process.stderr else ""
                 print(f"[PhoneMirror] scrcpy exited: {stderr}")

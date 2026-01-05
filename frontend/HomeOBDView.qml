@@ -161,6 +161,45 @@ Item {
                     }
                 }
                 
+                // Shift light - positioned on right middle of RPM card
+                Rectangle {
+                    id: shiftLight
+                    visible: param === "RPM"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: 15
+                    width: parent.height * 0.5
+                    height: width
+                    radius: width / 2
+
+                    property bool isActive: (value >= 2000 && value <= 2500) || value >= 5500
+
+                    color: {
+                        if (value >= 5500) {
+                            return "#FF0000"  // Red - shift now!
+                        } else if (value >= 2000 && value <= 2500) {
+                            return "#00FF00"  // Green - ready range
+                        } else {
+                            return "#1a1a1a"  // Dark silhouette when off
+                        }
+                    }
+                    border.color: isActive ? Qt.darker(color, 1.3) : "#333333"
+                    border.width: 2
+
+                    // Glow effect for shift light (only when active)
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: parent.width * 0.6
+                        height: width
+                        radius: width / 2
+                        color: Qt.lighter(parent.color, 1.5)
+                        opacity: 0.6
+                        visible: shiftLight.isActive
+                    }
+
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 5

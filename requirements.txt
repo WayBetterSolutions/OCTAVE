@@ -10,3 +10,4 @@ cryptography>=42.0.0
 av>=12.0.0
 pyusb>=1.2.0
 libusb>=1.0.27
+pycaw>=20240210; sys_platform == "win32"  # Windows audio control for scrcpy volume

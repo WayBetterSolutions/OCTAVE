@@ -72,6 +72,7 @@ class SettingsManager(QObject):
     androidAutoEnabledChanged = Signal(bool)
     phoneMirrorEnabledChanged = Signal(bool)
     scrcpyPathChanged = Signal(str)
+    scrcpyAudioEnabledChanged = Signal(bool)
 
     def __init__(self):
         super().__init__()
@@ -140,6 +141,7 @@ class SettingsManager(QObject):
             "androidAutoEnabled": False,  # If True, show Android Auto button in bottom bar
             "phoneMirrorEnabled": False,  # If True, show Phone Mirror button in bottom bar
             "scrcpyPath": "",  # Custom path to scrcpy executable
+            "scrcpyAudioEnabled": False,  # If True, forward audio from phone
         }
             
     
@@ -204,6 +206,7 @@ class SettingsManager(QObject):
         # Phone Mirror settings
         self._phone_mirror_enabled = self._settings.get("phoneMirrorEnabled", False)
         self._scrcpy_path = self._settings.get("scrcpyPath", "")
+        self._scrcpy_audio_enabled = self._settings.get("scrcpyAudioEnabled", False)
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -314,6 +317,7 @@ class SettingsManager(QObject):
             "androidAutoEnabled": bool,
             "phoneMirrorEnabled": bool,
             "scrcpyPath": str,
+            "scrcpyAudioEnabled": bool,
         }
 
         for key, expected_type in type_checks.items():
@@ -1049,6 +1053,23 @@ class SettingsManager(QObject):
         self._scrcpy_path = path
         self.update_setting("scrcpyPath", path, self.scrcpyPathChanged)
 
+    @Property(bool, notify=scrcpyAudioEnabledChanged)
+    def scrcpyAudioEnabled(self):
+        """Get whether scrcpy audio forwarding is enabled"""
+        return self._scrcpy_audio_enabled
+
+    @Slot(result=bool)
+    def get_scrcpy_audio_enabled(self):
+        """Get whether scrcpy audio forwarding is enabled"""
+        return self._scrcpy_audio_enabled
+
+    @Slot(bool)
+    def save_scrcpy_audio_enabled(self, enabled):
+        """Save whether scrcpy audio forwarding is enabled"""
+        print(f"Saving scrcpy audio enabled: {enabled}")
+        self._scrcpy_audio_enabled = enabled
+        self.update_setting("scrcpyAudioEnabled", enabled, self.scrcpyAudioEnabledChanged)
+
     @Slot()
     def reset_to_defaults(self):
         # Save default settings
@@ -1144,3 +1165,6 @@ class SettingsManager(QObject):
 
         self._scrcpy_path = self._default_settings["scrcpyPath"]
         self.scrcpyPathChanged.emit(self._scrcpy_path)
+
+        self._scrcpy_audio_enabled = self._default_settings["scrcpyAudioEnabled"]
+        self.scrcpyAudioEnabledChanged.emit(self._scrcpy_audio_enabled)

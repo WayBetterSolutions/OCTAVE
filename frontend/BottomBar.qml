@@ -631,6 +631,11 @@ Rectangle {
                                                     spotifyManager.set_volume(Math.round(value))
                                                 }
 
+                                                // Apply to Phone Mirror if running
+                                                if (phoneMirrorManager) {
+                                                    phoneMirrorManager.setVolume(logVolume)
+                                                }
+
                                                 if (value > 0 && muteButton.isMuted) {
                                                     muteButton.isMuted = false
                                                     mediaManager.toggle_mute()
