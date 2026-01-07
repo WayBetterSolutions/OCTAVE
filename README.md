@@ -98,34 +98,7 @@ OCTAVE can control Spotify playback on any of your connected devices (phone, com
 
 ---
 
-## Contributors
-Special thanks to Robert DeGeorge and Marquis Johnson for their significant contributions to this project.
-
-Visit us at [WayBetter Solutions](https://waybetter.solutions/) to follow our journey.
-
----
-
-## Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository  
-2. Create your feature branch:  
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. Commit your changes:  
-   ```bash
-   git commit -m "Add some amazing feature"
-   ```
-4. Push to the branch:  
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-5. Open a Pull Request  
-
----
-
-
 ## License
-Copyright © 2025 Way Better Solutions 
+Copyright © 2025 [Way Better Solutions](https://waybetter.solutions/) - Follow our journey!
+
 This software is released under the MIT License.
