@@ -197,8 +197,8 @@ class DhuCapture(QObject):
                         # Select bitmap into memory DC
                         old_bitmap = gdi32.SelectObject(mem_dc, bitmap)
 
-                        # Copy window content to memory DC
-                        # Use PrintWindow for better compatibility with some windows
+                        # Copy window content to memory DC using PrintWindow
+                        # PW_CLIENTONLY = capture client area only (not title bar)
                         PW_CLIENTONLY = 0x1
                         user32.PrintWindow(self._hwnd, mem_dc, PW_CLIENTONLY)
 

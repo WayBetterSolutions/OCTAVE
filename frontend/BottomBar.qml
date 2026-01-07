@@ -1063,8 +1063,7 @@ Rectangle {
                                     if (component.status === Component.Ready) {
                                         var page = component.createObject(stackView, {
                                             stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window,
-                                            autoLaunchSeamless: true
+                                            mainWindow: stackView.parent.Window.window
                                         })
                                         if (page) {
                                             stackView.push(page)
@@ -2252,8 +2251,7 @@ Rectangle {
                                     if (component.status === Component.Ready) {
                                         var page = component.createObject(stackView, {
                                             stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window,
-                                            autoLaunchSeamless: true
+                                            mainWindow: stackView.parent.Window.window
                                         })
                                         if (page) {
                                             stackView.push(page)

@@ -9,7 +9,6 @@ Item {
     id: androidAutoView
     property StackView stackView
     property ApplicationWindow mainWindow
-    property bool autoLaunchSeamless: true  // Always auto-launch seamless DHU
     width: parent ? parent.width : 0
     height: parent ? parent.height : 0
 
@@ -17,7 +16,6 @@ Item {
 
     // DHU embedding state
     property bool dhuEmbedded: false
-    property int frameCounter: 0  // Used to refresh the image
     property bool launchFailed: false
     property string errorMessage: ""
 
@@ -27,50 +25,36 @@ Item {
         color: "black"
     }
 
-    // Seamless DHU display - shows captured frames from the DHU
-    Rectangle {
-        id: dhuDisplay
+    // Embedded DHU display - the DHU window is embedded directly inside OCTAVE
+    Item {
+        id: dhuContainer
         anchors.fill: parent
-        color: "black"
         visible: dhuEmbedded
 
-        // Display captured DHU frames
-        Image {
-            id: dhuFrame
+        // This is the embedded DHU widget - the actual DHU window becomes a child of this
+        EmbeddedDhuItem {
+            id: embeddedDhu
             anchors.fill: parent
-            fillMode: Image.PreserveAspectFit
-            cache: false
-            asynchronous: false
-            smooth: true
-            antialiasing: true
-            mipmap: true
-            // The source URL includes frameCounter to force refresh
-            source: dhuEmbedded ? "image://dhuframe/frame?" + frameCounter : ""
-        }
 
-        // Touch/click forwarding to DHU
-        MouseArea {
-            anchors.fill: parent
-            onClicked: function(mouse) {
-                // Calculate position relative to the image
-                var imgRect = dhuFrame.paintedWidth > 0 ? {
-                    x: (dhuFrame.width - dhuFrame.paintedWidth) / 2,
-                    y: (dhuFrame.height - dhuFrame.paintedHeight) / 2,
-                    width: dhuFrame.paintedWidth,
-                    height: dhuFrame.paintedHeight
-                } : { x: 0, y: 0, width: dhuFrame.width, height: dhuFrame.height }
-
-                // Only forward if click is within the image bounds
-                if (mouse.x >= imgRect.x && mouse.x <= imgRect.x + imgRect.width &&
-                    mouse.y >= imgRect.y && mouse.y <= imgRect.y + imgRect.height) {
-                    // Scale to DHU coordinates (1920x1080 resolution from headunit.ini)
-                    var dhuX = Math.round((mouse.x - imgRect.x) / imgRect.width * 1920)
-                    var dhuY = Math.round((mouse.y - imgRect.y) / imgRect.height * 1080)
-                    console.log("DHU click:", dhuX, dhuY)
-                    if (androidAutoManager) {
-                        androidAutoManager.sendDhuClick(dhuX, dhuY)
-                    }
+            Component.onCompleted: {
+                if (androidAutoManager) {
+                    connectToManager(androidAutoManager)
                 }
+            }
+
+            onStreamStarted: {
+                console.log("DHU stream started - embedded seamlessly")
+            }
+
+            onStreamStopped: {
+                console.log("DHU stream stopped")
+                androidAutoView.dhuEmbedded = false
+            }
+
+            onErrorOccurred: function(error) {
+                console.log("DHU error:", error)
+                androidAutoView.launchFailed = true
+                androidAutoView.errorMessage = error
             }
         }
 
@@ -112,7 +96,7 @@ Item {
             font.pixelSize: 24
             font.family: androidAutoView.globalFont
             color: "white"
-            visible: dhuEmbedded && frameCounter < 5
+            visible: dhuEmbedded && !embeddedDhu.isStreaming
         }
     }
 
@@ -147,7 +131,6 @@ Item {
             }
 
             onClicked: {
-                // Just go back - don't close DHU, let it run in background
                 stackView.pop()
             }
         }
@@ -377,31 +360,15 @@ Item {
 
         function onDhuEmbeddedChanged(embedded) {
             androidAutoView.dhuEmbedded = embedded
-            if (!embedded) {
-                androidAutoView.frameCounter = 0
-            }
         }
     }
 
-    // Connection to DHU capture for frame updates
-    Connections {
-        target: androidAutoManager ? androidAutoManager.dhuCapture : null
-
-        function onFrameReady() {
-            // Increment counter to force image refresh
-            androidAutoView.frameCounter++
-        }
-    }
-
-    // Timer to force initial frame refresh when DHU becomes embedded
-    Timer {
-        id: initialRefreshTimer
-        interval: 50  // Faster polling
-        repeat: true
-        running: dhuEmbedded && frameCounter < 100  // Run for first ~5 seconds
-        onTriggered: {
-            // Force frame counter increment to ensure image refreshes
-            androidAutoView.frameCounter++
+    // Handle view becoming visible/hidden for detach/reattach
+    onVisibleChanged: {
+        if (visible && dhuEmbedded) {
+            embeddedDhu.reattach()
+        } else if (!visible && dhuEmbedded) {
+            embeddedDhu.detach()
         }
     }
 
@@ -415,8 +382,10 @@ Item {
                 console.log("DHU already running, resuming display")
                 dhuEmbedded = true
                 launchFailed = false
+                // Reattach the embedded window
+                embeddedDhu.reattach()
             } else {
-                // Launch seamless DHU
+                // Launch DHU
                 var success = androidAutoManager.launchDhuSeamless()
                 if (!success) {
                     launchFailed = true
