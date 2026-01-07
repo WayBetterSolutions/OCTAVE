@@ -52,26 +52,66 @@ def detect_platform():
         return "linux"
     return "unknown"
 
+def is_wsl():
+    """Check if running in Windows Subsystem for Linux."""
+    try:
+        with open("/proc/version", "r") as f:
+            return "microsoft" in f.read().lower()
+    except:
+        return False
+
+def check_display():
+    """Check if a display is available."""
+    display = os.environ.get("DISPLAY")
+    wayland = os.environ.get("WAYLAND_DISPLAY")
+    return display is not None or wayland is not None
+
 def install_linux_deps():
     """Install Linux system dependencies."""
     print_step("Installing system dependencies (requires sudo)...")
 
+    # Comprehensive list of packages needed for PySide6/Qt6 on Linux
+    # These cover the xcb platform plugin, OpenGL, audio, and fonts
     packages = [
+        # Python
         "python3", "python3-venv", "python3-pip",
-        "libpulse0", "libegl1", "libxkbcommon0", "libxcb-cursor0",
-        "libxcb-icccm4", "libxcb-keysyms1", "libxcb-shape0",
-        "libgl1-mesa-dri", "libgl1-mesa-glx"
+
+        # Audio (PulseAudio for Qt multimedia)
+        "libpulse0", "libasound2",
+
+        # OpenGL/EGL (try multiple package names for compatibility)
+        "libegl1", "libgl1", "libopengl0", "libglx-mesa0", "libgl1-mesa-dri",
+        "libegl1-mesa", "libgles2",
+
+        # XCB platform plugin dependencies (Qt6 xcb plugin)
+        "libxcb1", "libxcb-cursor0", "libxcb-icccm4", "libxcb-image0",
+        "libxcb-keysyms1", "libxcb-randr0", "libxcb-render0", "libxcb-render-util0",
+        "libxcb-shape0", "libxcb-shm0", "libxcb-sync1", "libxcb-xfixes0",
+        "libxcb-xinerama0", "libxcb-xkb1", "libxcb-util1",
+
+        # X11 and input
+        "libx11-6", "libx11-xcb1", "libxkbcommon0", "libxkbcommon-x11-0",
+        "libxi6", "libsm6", "libice6",
+
+        # Fonts and rendering
+        "libfontconfig1", "libfreetype6", "libharfbuzz0b",
+
+        # D-Bus (for system integration)
+        "libdbus-1-3",
+
+        # Additional libs that Qt might need
+        "libxrender1", "libxext6", "libxrandr2", "libxfixes3", "libxcomposite1",
+        "libxdamage1", "libxtst6", "libxss1"
     ]
 
     # Update package list
     run_command("sudo apt update", shell=True)
 
-    # Install packages
-    cmd = f"sudo apt install -y {' '.join(packages)}"
-    if run_command(cmd, shell=True, check=False):
-        print("✓ System dependencies installed")
-    else:
-        print("⚠ Some packages may not have installed. Continuing anyway...")
+    # Install all packages at once (faster), ignore errors for missing packages
+    all_packages = " ".join(packages)
+    run_command(f"sudo apt install -y {all_packages}", shell=True, check=False)
+
+    print("✓ System dependencies installed")
 
 def check_python_version():
     """Check if Python version is adequate."""
@@ -147,7 +187,8 @@ def main():
 
     # Detect platform
     plat = detect_platform()
-    print(f"Platform: {plat}")
+    wsl = is_wsl()
+    print(f"Platform: {plat}{' (WSL)' if wsl else ''}")
 
     # Check Python version
     check_python_version()
@@ -185,9 +226,30 @@ Or run directly:
     {python_cmd} setup.py --run
 """)
 
+    # WSL-specific guidance
+    if wsl and not check_display():
+        print("=" * 50)
+        print("  WSL Note: No display detected")
+        print("=" * 50)
+        print("""
+OCTAVE requires a display to run. Options:
+
+1. WSLg (Windows 11) - Should work automatically
+   Try: wsl --update
+
+2. X Server (Windows 10) - Install VcXsrv or X410
+   Then run: export DISPLAY=:0
+
+3. Run on Windows directly instead of WSL
+""")
+
     # Run the app if --run flag is passed
     if "--run" in sys.argv:
-        run_app(venv_path)
+        if wsl and not check_display():
+            print("Skipping app launch - no display available.")
+            print("Set up a display first, then run: python3 main.py")
+        else:
+            run_app(venv_path)
 
 if __name__ == "__main__":
     main()

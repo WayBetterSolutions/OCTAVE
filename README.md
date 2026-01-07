@@ -9,18 +9,6 @@ This app was designed to be easy to work with, so it has a Python backend with a
 
 Please feel free to reach out if you think this is cool or if you think its lame you can tell me all about it rob.degeorge@gmail.com
 
-## Quick Start
-
-```bash
-git clone https://github.com/waybettersolutions/octave.git
-cd octave
-python3 setup.py --run
-```
-
-That's it! The setup script automatically detects your OS, installs system dependencies (Linux), creates a virtual environment, installs Python packages, and launches the app.
-
-On Windows, use `python` instead of `python3`.
-
 ## Features
 - **Media Player**: Play MP3 files, switch between playlists, music library stats, shuffle songs, metadata and album art
 - **Spotify Integration**: Control Spotify playback on any connected device (phone, desktop, etc.)
@@ -36,109 +24,36 @@ On Windows, use `python` instead of `python3`.
 ## System Requirements
 
 - **Python**: 3.8 or higher
-- **Operating System**: Windows 10+, macOS 10.14+, or Linux (Ubuntu 20.04+, Raspberry Pi OS Bookworm)
-- **Display**: Touchscreen recommended for in-vehicle use
+- **Operating System**: Windows 10+, macOS 10.14+, or Linux (Ubuntu/Debian, Raspberry Pi OS)
 - **Tested Hardware**: Raspberry Pi 3/4/5 running Bookworm
 
-## Installation
+## Installation & Running
 
-The recommended way to install is using the setup scripts (see [Quick Start](#quick-start)).
-
-<details>
-<summary><strong>Manual Installation (click to expand)</strong></summary>
-
-### Windows
-```cmd
-git clone https://github.com/waybettersolutions/octave.git
-cd octave
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python main.py
-```
-
-### Linux (Ubuntu/Debian/Raspberry Pi)
-```bash
-# Install system dependencies first
-sudo apt update
-sudo apt install -y python3 python3-venv python3-pip \
-    libpulse0 libegl1 libxkbcommon0 libxcb-cursor0 \
-    libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
-    libgl1-mesa-dri libgl1-mesa-glx
-
-# Clone and setup
-git clone https://github.com/waybettersolutions/octave.git
-cd octave
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 main.py
-```
-
-**Optional:** For OBD-II Bluetooth support: `sudo usermod -a -G dialout $USER` (log out and back in after)
-
-### macOS
+**First time setup:**
 ```bash
 git clone https://github.com/waybettersolutions/octave.git
 cd octave
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python3 main.py
+python3 setup.py        # Windows: use 'python' instead of 'python3'
 ```
 
-</details>
-
----
-
-## Troubleshooting
-
-<details>
-<summary><strong>Linux: Missing library errors (click to expand)</strong></summary>
-
-**"cannot open shared object file" errors:**
+**Run the app:**
 ```bash
-sudo apt install libpulse0 libegl1 libxkbcommon0 libxcb-cursor0
+source venv/bin/activate    # Windows: venv\Scripts\activate
+python3 main.py             # Windows: python main.py
 ```
 
-**Qt platform plugin "xcb" errors:**
+**Or do both in one command:**
 ```bash
-sudo apt install libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-cursor0 libgl1-mesa-dri libgl1-mesa-glx
+python3 setup.py --run
 ```
 
-**"python: command not found"** - Use `python3` instead of `python`
+The setup script automatically:
+- Detects your OS
+- Installs system dependencies (Linux)
+- Creates a Python virtual environment
+- Installs all required packages
 
-**"ensurepip is not available":**
-```bash
-sudo apt install python3-venv
-```
-
-</details>
-
-<details>
-<summary><strong>WSL (Windows Subsystem for Linux)</strong></summary>
-
-1. **Clone to your home directory** (not /mnt/c/...) to avoid permission issues:
-   ```bash
-   cd ~
-   git clone https://github.com/waybettersolutions/octave.git
-   ```
-
-2. **GUI support** - WSL2 with WSLg supports GUI apps. Without WSLg, install an X server (VcXsrv) and set `export DISPLAY=:0`
-
-3. **Audio** - May need PulseAudio configured to connect to Windows
-
-</details>
-
-<details>
-<summary><strong>NumPy/Pint compatibility</strong></summary>
-
-If you see `AttributeError: module 'numpy' has no attribute 'cumproduct'`:
-```bash
-pip install --upgrade pint
-```
-
-</details>
+**Optional:** For OBD-II Bluetooth on Linux: `sudo usermod -a -G dialout $USER`
 
 ---
 
