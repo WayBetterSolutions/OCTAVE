@@ -1,0 +1,17 @@
+# Handle line endings automatically for files detected as text
+* text=auto
+
+# Shell scripts should always have LF line endings
+*.sh text eol=lf
+
+# Batch files should have CRLF line endings
+*.bat text eol=crlf
+
+# Python files
+*.py text eol=lf
+
+# Explicitly declare text files
+*.md text
+*.txt text
+*.json text
+*.qml text

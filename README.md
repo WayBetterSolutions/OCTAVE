@@ -9,11 +9,23 @@ This app was designed to be easy to work with, so it has a Python backend with a
 
 Please feel free to reach out if you think this is cool or if you think its lame you can tell me all about it rob.degeorge@gmail.com
 
+## Quick Start
+
+```bash
+git clone https://github.com/waybettersolutions/octave.git
+cd octave
+python3 setup.py --run
+```
+
+That's it! The setup script automatically detects your OS, installs system dependencies (Linux), creates a virtual environment, installs Python packages, and launches the app.
+
+On Windows, use `python` instead of `python3`.
+
 ## Features
-- **Media Player**: Can play MP3 files, switch between playlists, music library stats, ability to shuffle songs, metadata integration including album art
+- **Media Player**: Play MP3 files, switch between playlists, music library stats, shuffle songs, metadata and album art
 - **Spotify Integration**: Control Spotify playback on any connected device (phone, desktop, etc.)
 - **OBD-II Integration**: Real-time vehicle diagnostics with customizable dashboards
-- **Customizable UI**: Built-in custom themes with ability to create your own, all icons are SVG-based and easy to change to what you want, also has UI scaling for fine-tuning your needs
+- **Customizable UI**: Built-in themes with ability to create your own, SVG-based icons, UI scaling
 - **Cross-Platform**: Compatible with Windows, Linux, and macOS
 
 ## Screenshots
@@ -22,17 +34,22 @@ Please feel free to reach out if you think this is cool or if you think its lame
 ![OBD Page](frontend/assets/readme/obd_page.png)
 
 ## System Requirements
-- For now, I've successfully tested this on a Raspberry Pi 3 running Bookworm
+
+- **Python**: 3.8 or higher
+- **Operating System**: Windows 10+, macOS 10.14+, or Linux (Ubuntu 20.04+, Raspberry Pi OS Bookworm)
+- **Display**: Touchscreen recommended for in-vehicle use
+- **Tested Hardware**: Raspberry Pi 3/4/5 running Bookworm
 
 ## Installation
 
-**Requirements:** Python 3.8+
+The recommended way to install is using the setup scripts (see [Quick Start](#quick-start)).
+
+<details>
+<summary><strong>Manual Installation (click to expand)</strong></summary>
 
 ### Windows
-
-Open Command Prompt or PowerShell and run:
 ```cmd
-git clone https://github.com/waybettersolution/octave.git
+git clone https://github.com/waybettersolutions/octave.git
 cd octave
 python -m venv venv
 venv\Scripts\activate
@@ -40,45 +57,88 @@ pip install -r requirements.txt
 python main.py
 ```
 
----
-
-### Linux
-
-Open a terminal and run:
+### Linux (Ubuntu/Debian/Raspberry Pi)
 ```bash
+# Install system dependencies first
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip \
+    libpulse0 libegl1 libxkbcommon0 libxcb-cursor0 \
+    libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
+    libgl1-mesa-dri libgl1-mesa-glx
+
+# Clone and setup
 git clone https://github.com/waybettersolutions/octave.git
 cd octave
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python main.py
+python3 main.py
 ```
 
 **Optional:** For OBD-II Bluetooth support: `sudo usermod -a -G dialout $USER` (log out and back in after)
 
----
-
 ### macOS
-
-Open Terminal and run:
 ```bash
 git clone https://github.com/waybettersolutions/octave.git
 cd octave
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python main.py
+python3 main.py
 ```
+
+</details>
 
 ---
 
 ## Troubleshooting
 
-### NumPy/Pint Compatibility Issue
-If you encounter an error like `AttributeError: module 'numpy' has no attribute 'cumproduct'`, this is due to a compatibility issue between the `pint` library (a dependency of `obd`) and newer versions of NumPy. Fix it by upgrading pint:
+<details>
+<summary><strong>Linux: Missing library errors (click to expand)</strong></summary>
+
+**"cannot open shared object file" errors:**
+```bash
+sudo apt install libpulse0 libegl1 libxkbcommon0 libxcb-cursor0
+```
+
+**Qt platform plugin "xcb" errors:**
+```bash
+sudo apt install libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-cursor0 libgl1-mesa-dri libgl1-mesa-glx
+```
+
+**"python: command not found"** - Use `python3` instead of `python`
+
+**"ensurepip is not available":**
+```bash
+sudo apt install python3-venv
+```
+
+</details>
+
+<details>
+<summary><strong>WSL (Windows Subsystem for Linux)</strong></summary>
+
+1. **Clone to your home directory** (not /mnt/c/...) to avoid permission issues:
+   ```bash
+   cd ~
+   git clone https://github.com/waybettersolutions/octave.git
+   ```
+
+2. **GUI support** - WSL2 with WSLg supports GUI apps. Without WSLg, install an X server (VcXsrv) and set `export DISPLAY=:0`
+
+3. **Audio** - May need PulseAudio configured to connect to Windows
+
+</details>
+
+<details>
+<summary><strong>NumPy/Pint compatibility</strong></summary>
+
+If you see `AttributeError: module 'numpy' has no attribute 'cumproduct'`:
 ```bash
 pip install --upgrade pint
 ```
+
+</details>
 
 ---
 
