@@ -1187,13 +1187,13 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "Auto-Play on Startup"
+                                    text: "Auto-Play"
                                 }
 
                                 SettingsToggle {
                                     id: autoPlayToggle
                                     Layout.fillWidth: true
-                                    text: "Automatically resume playback when app starts"
+                                    text: "Resume on startup"
                                     checked: settingsManager ? settingsManager.autoPlayOnStartup : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1212,10 +1212,6 @@ Item {
                                         }
                                     }
                                 }
-
-                                SettingDescription {
-                                    text: "When enabled, the app will resume playing from where you left off"
-                                }
                             }
 
                             SettingsDivider {}
@@ -1226,13 +1222,13 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "Music Button Default Page"
+                                    text: "Music Button"
                                 }
 
                                 SettingsToggle {
                                     id: musicButtonDefaultPageToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Opens Library first" : "Opens Now Playing first"
+                                    text: checked ? "Opens Library" : "Opens Now Playing"
                                     checked: settingsManager ? settingsManager.musicButtonDefaultPage === "mediaPlayer" : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1250,10 +1246,6 @@ Item {
                                         }
                                     }
                                 }
-
-                                SettingDescription {
-                                    text: "Controls which page opens first when pressing the music button"
-                                }
                             }
 
                             SettingsDivider {}
@@ -1264,13 +1256,13 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "Stay in Now Playing After Song Selection"
+                                    text: "Song Selection"
                                 }
 
                                 SettingsToggle {
                                     id: returnToLibraryToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Return to Library after selecting a song" : "Stay in Now Playing after selecting a song"
+                                    text: checked ? "Return to Library" : "Stay in Now Playing"
                                     checked: settingsManager ? settingsManager.returnToLibraryAfterSelection : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1287,10 +1279,6 @@ Item {
                                             returnToLibraryToggle.checked = settingsManager.returnToLibraryAfterSelection
                                         }
                                     }
-                                }
-
-                                SettingDescription {
-                                    text: "When enabled, selecting a song returns you to the library instead of staying in Now Playing"
                                 }
                             }
 

@@ -55,49 +55,6 @@ The setup script automatically:
 
 **Optional:** For OBD-II Bluetooth on Linux: `sudo usermod -a -G dialout $USER`
 
----
-
-## Spotify Setup
-
-OCTAVE can control Spotify playback on any of your connected devices (phone, computer, etc.). Here's how to set it up:
-
-### Step 1: Create a Spotify Developer App
-
-1. Log in with your Spotify account
-2. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-3. Click **Create App**
-4. Fill in the details:
-   - **App name**: OCTAVE (or whatever you like)
-   - **App description**: Car infotainment controller
-   - **Redirect URI**: `http://127.0.0.1:8888/callback` *(important: enter this exactly)*
-5. Check the box to agree to the terms
-6. Click **Save**
-
-### Step 2: Get Your Credentials
-
-1. Open your newly created app in the dashboard
-2. Click **Settings**
-3. Copy your **Client ID** and **Client Secret**
-
-### Step 3: Configure OCTAVE
-
-1. Open OCTAVE and go to **Settings**
-2. Scroll down to the **Spotify** section
-3. Paste your **Client ID** and **Client Secret**
-4. Click **Connect to Spotify**
-5. A browser window will open - log in and authorize the app
-
-### Step 4: Start Playing
-
-1. Open Spotify on your phone or computer and start playing music
-2. In OCTAVE, go to the **Media Room**
-3. Click the **Local/Spotify** toggle button to switch to Spotify mode
-4. Use the playback controls to control your music
-
-**Note**: OCTAVE acts as a remote controller for Spotify. The music plays on your connected Spotify device (phone, desktop app, etc.), not through OCTAVE directly.
-
----
-
 ## License
 Copyright © 2025 [Way Better Solutions](https://waybetter.solutions/) - Follow our journey!
 

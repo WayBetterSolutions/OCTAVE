@@ -25,3 +25,7 @@ tools/scrcpy/*.png
 
 # Generated protobuf files (regenerate with compile_protos.py)
 backend/android_auto/proto/aap_protobuf/**/*_pb2.py
+
+# Developer mode tools (completely isolated from main codebase)
+# These files simulate OBD data for testing without a real car connection
+dev/
