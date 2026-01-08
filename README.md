@@ -9,15 +9,8 @@ This app was designed to be easy to work with, so it has a Python backend with a
 
 Please feel free to reach out if you think this is cool or if you think its lame you can tell me all about it rob.degeorge@gmail.com
 
-## Features
-- **Media Player**: Play MP3 files, switch between playlists, music library stats, shuffle songs, metadata and album art
-- **Spotify Integration**: Control Spotify playback on any connected device (phone, desktop, etc.)
-- **OBD-II Integration**: Real-time vehicle diagnostics with customizable dashboards
-- **Customizable UI**: Built-in themes with ability to create your own, SVG-based icons, UI scaling
-- **Cross-Platform**: Compatible with Windows, Linux, and macOS
-
 ## Preview
-![OCTAVE Demo](frontend/assets/readme/display.gif)
+<img src="frontend/assets/readme/display.gif" alt="OCTAVE Demo" width="800">
 
 ## System Requirements
 
