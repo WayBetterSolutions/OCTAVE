@@ -16,10 +16,8 @@ Please feel free to reach out if you think this is cool or if you think its lame
 - **Customizable UI**: Built-in themes with ability to create your own, SVG-based icons, UI scaling
 - **Cross-Platform**: Compatible with Windows, Linux, and macOS
 
-## Screenshots
-![Home Page](frontend/assets/readme/home_page.png)
-![Media Page](frontend/assets/readme/media_room.png)
-![OBD Page](frontend/assets/readme/obd_page.png)
+## Demo
+![OCTAVE Demo](frontend/assets/readme/display.gif)
 
 ## System Requirements
 
