@@ -16,14 +16,14 @@ Please feel free to reach out if you think this is cool or if you think its lame
 - **Customizable UI**: Built-in themes with ability to create your own, SVG-based icons, UI scaling
 - **Cross-Platform**: Compatible with Windows, Linux, and macOS
 
-## Demo
+## Preview
 ![OCTAVE Demo](frontend/assets/readme/display.gif)
 
 ## System Requirements
 
 - **Python**: 3.8 or higher
-- **Operating System**: Windows 10+, macOS 10.14+, or Linux (Ubuntu/Debian, Raspberry Pi OS)
-- **Tested Hardware**: Raspberry Pi 3/4/5 running Bookworm
+- **Operating System**: Windows 10+, macOS 10.14+, or Linux (Ubuntu/Debian, Raspberry Pi OS, others)
+
 
 ## Installation & Running
 
