@@ -10,7 +10,7 @@ This app was designed to be easy to work with, so it has a Python backend with a
 Please feel free to reach out if you think this is cool or if you think its lame you can tell me all about it rob.degeorge@gmail.com
 
 ## Preview
-<img src="frontend/assets/readme/display.gif" alt="OCTAVE Demo" width="800">
+<img src="frontend/assets/readme/display.gif" alt="OCTAVE Demo" width="400">
 
 ## System Requirements
 
