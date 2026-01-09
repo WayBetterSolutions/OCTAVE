@@ -47,6 +47,6 @@ The setup script automatically:
 **Optional:** For OBD-II Bluetooth on Linux: `sudo usermod -a -G dialout $USER`
 
 ## License
-Copyright © 2025 [Way Better Solutions](https://waybetter.solutions/) - Follow our journey!
+2026 [Way Better Solutions](https://waybetter.solutions/) - Follow our journey!
 
 This software is released under the MIT License.
