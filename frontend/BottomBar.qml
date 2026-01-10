@@ -827,14 +827,43 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var component = Qt.createComponent("OBDMenu.qml")
-                                    if (component.status === Component.Ready) {
-                                        var page = component.createObject(stackView, {
-                                            stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window
-                                        })
-                                        if (page) {
-                                            stackView.push(page)
+                                    var currentItem = stackView.currentItem
+
+                                    if (currentItem && currentItem.objectName === "obdMenu") {
+                                        // On OBDMenu, go to OBDDiagnostics
+                                        var component = Qt.createComponent("OBDDiagnostics.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) {
+                                                stackView.push(page)
+                                            }
+                                        }
+                                    } else if (currentItem && currentItem.objectName === "obdDiagnostics") {
+                                        // On OBDDiagnostics, go to OBDMenu
+                                        var component = Qt.createComponent("OBDMenu.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) {
+                                                stackView.push(page)
+                                            }
+                                        }
+                                    } else {
+                                        // From other pages, go to OBDMenu (default)
+                                        var component = Qt.createComponent("OBDMenu.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) {
+                                                stackView.push(page)
+                                            }
                                         }
                                     }
                                 }
@@ -2014,14 +2043,43 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var component = Qt.createComponent("OBDMenu.qml")
-                                    if (component.status === Component.Ready) {
-                                        var page = component.createObject(stackView, {
-                                            stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window
-                                        })
-                                        if (page) {
-                                            stackView.push(page)
+                                    var currentItem = stackView.currentItem
+
+                                    if (currentItem && currentItem.objectName === "obdMenu") {
+                                        // On OBDMenu, go to OBDDiagnostics
+                                        var component = Qt.createComponent("OBDDiagnostics.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) {
+                                                stackView.push(page)
+                                            }
+                                        }
+                                    } else if (currentItem && currentItem.objectName === "obdDiagnostics") {
+                                        // On OBDDiagnostics, go to OBDMenu
+                                        var component = Qt.createComponent("OBDMenu.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) {
+                                                stackView.push(page)
+                                            }
+                                        }
+                                    } else {
+                                        // From other pages, go to OBDMenu (default)
+                                        var component = Qt.createComponent("OBDMenu.qml")
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) {
+                                                stackView.push(page)
+                                            }
                                         }
                                     }
                                 }

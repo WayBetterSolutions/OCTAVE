@@ -49,7 +49,7 @@ class OBDConnectionWorker(QObject):
 
 
 class OBDManager(QObject):
-    # Signals for OBD parameters
+    # Signals for OBD parameters - Original 18
     coolantTempChanged = Signal(float)
     voltageChanged = Signal(float)
     engineLoadChanged = Signal(float)
@@ -69,12 +69,100 @@ class OBDManager(QObject):
     engineOilTempChanged = Signal(float)
     ignitionTimingChanged = Signal(float)
 
+    # Signals for additional OBD parameters - Batch 1
+    runTimeChanged = Signal(float)
+    distanceWithMILChanged = Signal(float)
+    fuelRailPressureChanged = Signal(float)
+    fuelRailPressureDirectChanged = Signal(float)
+    barometricPressureChanged = Signal(float)
+    ambientAirTempChanged = Signal(float)
+    relativeThrottlePosChanged = Signal(float)
+    absoluteThrottlePosBChanged = Signal(float)
+    acceleratorPosChanged = Signal(float)
+    catalystTempB1S1Changed = Signal(float)
+    catalystTempB1S2Changed = Signal(float)
+    evapVaporPressureChanged = Signal(float)
+    shortFuelTrim2Changed = Signal(float)
+    longFuelTrim2Changed = Signal(float)
+    o2SensorB1S2Changed = Signal(float)
+    o2SensorB2S1Changed = Signal(float)
+    o2SensorB2S2Changed = Signal(float)
+    distanceSinceCodesCleared = Signal(float)
+    warmupsSinceCodesCleared = Signal(float)
+    absoluteLoadChanged = Signal(float)
+    commandedEGRChanged = Signal(float)
+    egrErrorChanged = Signal(float)
+    ethanoPercentChanged = Signal(float)
+
+    # Signals for additional OBD parameters - Batch 2 (remaining PIDs)
+    # Additional O2 sensors
+    o2SensorB1S3Changed = Signal(float)
+    o2SensorB1S4Changed = Signal(float)
+    o2SensorB2S3Changed = Signal(float)
+    o2SensorB2S4Changed = Signal(float)
+    # Wide-range O2 sensors voltage
+    o2S1WRVoltageChanged = Signal(float)
+    o2S2WRVoltageChanged = Signal(float)
+    o2S3WRVoltageChanged = Signal(float)
+    o2S4WRVoltageChanged = Signal(float)
+    o2S5WRVoltageChanged = Signal(float)
+    o2S6WRVoltageChanged = Signal(float)
+    o2S7WRVoltageChanged = Signal(float)
+    o2S8WRVoltageChanged = Signal(float)
+    # Wide-range O2 sensors current
+    o2S1WRCurrentChanged = Signal(float)
+    o2S2WRCurrentChanged = Signal(float)
+    o2S3WRCurrentChanged = Signal(float)
+    o2S4WRCurrentChanged = Signal(float)
+    o2S5WRCurrentChanged = Signal(float)
+    o2S6WRCurrentChanged = Signal(float)
+    o2S7WRCurrentChanged = Signal(float)
+    o2S8WRCurrentChanged = Signal(float)
+    # Bank 2 catalyst temps
+    catalystTempB2S1Changed = Signal(float)
+    catalystTempB2S2Changed = Signal(float)
+    # Additional throttle/accelerator
+    throttlePosCChanged = Signal(float)
+    acceleratorPosEChanged = Signal(float)
+    acceleratorPosFChanged = Signal(float)
+    throttleActuatorChanged = Signal(float)
+    # Fuel system
+    evaporativePurgeChanged = Signal(float)
+    fuelRailPressureAbsChanged = Signal(float)
+    fuelInjectTimingChanged = Signal(float)
+    fuelRateChanged = Signal(float)
+    # Time-based
+    runTimeMILChanged = Signal(float)
+    timeSinceDTCClearedChanged = Signal(float)
+    # Other
+    maxMAFChanged = Signal(float)
+    fuelTypeChanged = Signal(float)
+    evapVaporPressureAbsChanged = Signal(float)
+    evapVaporPressureAltChanged = Signal(float)
+    shortO2TrimB1Changed = Signal(float)
+    longO2TrimB1Changed = Signal(float)
+    shortO2TrimB2Changed = Signal(float)
+    longO2TrimB2Changed = Signal(float)
+    relativeAccelPosChanged = Signal(float)
+    hybridBatteryRemainingChanged = Signal(float)
+    elmVoltageChanged = Signal(float)
+
     # Connection status signals
     connectionStatusChanged = Signal(str)
     connectionStatusDetailChanged = Signal(str)
     connectionProgressChanged = Signal(int)
     devicePresenceChanged = Signal(bool)
-    availablePortsChanged = Signal(list)  # New signal for discovered ports
+    availablePortsChanged = Signal(list)  # Signal for discovered ports
+    supportedCommandsChanged = Signal(list)  # Signal for vehicle-supported commands
+    scanProgressChanged = Signal(int, str)  # progress (0-100), message
+    scanCompleteChanged = Signal(list)  # list of supported command names
+
+    # Diagnostic signals
+    dtcCodesChanged = Signal(list)  # List of DTC tuples [(code, description), ...]
+    dtcCountChanged = Signal(int)  # Number of DTCs
+    milStatusChanged = Signal(bool)  # Check Engine Light status
+    dtcClearResult = Signal(bool, str)  # success, message
+    freezeFrameChanged = Signal(list)  # Freeze frame DTCs
 
     def __init__(self, settings_manager=None):
         super().__init__()
@@ -85,7 +173,7 @@ class OBDManager(QObject):
         # Thread safety lock
         self._lock = threading.Lock()
 
-        # OBD parameter values
+        # OBD parameter values - Original 18
         self._coolant_temp = 0.0
         self._voltage = 0.0
         self._engine_load = 0.0
@@ -104,6 +192,93 @@ class OBDManager(QObject):
         self._fuel_pressure = 0.0
         self._oil_temp = 0.0
         self._ignition_timing = 0.0
+
+        # Additional OBD parameter values
+        self._run_time = 0.0
+        self._distance_with_mil = 0.0
+        self._fuel_rail_pressure = 0.0
+        self._fuel_rail_pressure_direct = 0.0
+        self._barometric_pressure = 0.0
+        self._ambient_air_temp = 0.0
+        self._relative_throttle_pos = 0.0
+        self._absolute_throttle_pos_b = 0.0
+        self._accelerator_pos = 0.0
+        self._catalyst_temp_b1s1 = 0.0
+        self._catalyst_temp_b1s2 = 0.0
+        self._evap_vapor_pressure = 0.0
+        self._short_fuel_trim_2 = 0.0
+        self._long_fuel_trim_2 = 0.0
+        self._o2_sensor_b1s2 = 0.0
+        self._o2_sensor_b2s1 = 0.0
+        self._o2_sensor_b2s2 = 0.0
+        self._distance_since_codes_cleared = 0.0
+        self._warmups_since_codes_cleared = 0.0
+        self._absolute_load = 0.0
+        self._commanded_egr = 0.0
+        self._egr_error = 0.0
+        self._ethanol_percent = 0.0
+
+        # Batch 2 parameter values - Additional O2 sensors
+        self._o2_sensor_b1s3 = 0.0
+        self._o2_sensor_b1s4 = 0.0
+        self._o2_sensor_b2s3 = 0.0
+        self._o2_sensor_b2s4 = 0.0
+        # Wide-range O2 sensors voltage
+        self._o2_s1_wr_voltage = 0.0
+        self._o2_s2_wr_voltage = 0.0
+        self._o2_s3_wr_voltage = 0.0
+        self._o2_s4_wr_voltage = 0.0
+        self._o2_s5_wr_voltage = 0.0
+        self._o2_s6_wr_voltage = 0.0
+        self._o2_s7_wr_voltage = 0.0
+        self._o2_s8_wr_voltage = 0.0
+        # Wide-range O2 sensors current
+        self._o2_s1_wr_current = 0.0
+        self._o2_s2_wr_current = 0.0
+        self._o2_s3_wr_current = 0.0
+        self._o2_s4_wr_current = 0.0
+        self._o2_s5_wr_current = 0.0
+        self._o2_s6_wr_current = 0.0
+        self._o2_s7_wr_current = 0.0
+        self._o2_s8_wr_current = 0.0
+        # Bank 2 catalyst temps
+        self._catalyst_temp_b2s1 = 0.0
+        self._catalyst_temp_b2s2 = 0.0
+        # Additional throttle/accelerator
+        self._throttle_pos_c = 0.0
+        self._accelerator_pos_e = 0.0
+        self._accelerator_pos_f = 0.0
+        self._throttle_actuator = 0.0
+        # Fuel system
+        self._evaporative_purge = 0.0
+        self._fuel_rail_pressure_abs = 0.0
+        self._fuel_inject_timing = 0.0
+        self._fuel_rate = 0.0
+        # Time-based
+        self._run_time_mil = 0.0
+        self._time_since_dtc_cleared = 0.0
+        # Other
+        self._max_maf = 0.0
+        self._fuel_type = 0.0
+        self._evap_vapor_pressure_abs = 0.0
+        self._evap_vapor_pressure_alt = 0.0
+        self._short_o2_trim_b1 = 0.0
+        self._long_o2_trim_b1 = 0.0
+        self._short_o2_trim_b2 = 0.0
+        self._long_o2_trim_b2 = 0.0
+        self._relative_accel_pos = 0.0
+        self._hybrid_battery_remaining = 0.0
+        self._elm_voltage = 0.0
+
+        # Supported commands detected from vehicle
+        self._supported_commands = []
+        self._is_scanning = False
+
+        # Diagnostic data
+        self._dtc_codes = []  # List of (code, description) tuples
+        self._dtc_count = 0
+        self._mil_status = False  # Check Engine Light
+        self._freeze_frame_dtcs = []
 
         # Connection management
         self._connection_attempts = 0
@@ -551,12 +726,11 @@ class OBDManager(QObject):
         except Exception as e:
             print(f"[OBD] Error refreshing watchers: {e}")
 
-    def _setup_watchers(self):
-        """Set up watchers based on settings"""
-        if not self._connection:
-            return
-
-        commands_to_watch = {
+    def _get_all_commands(self):
+        """Return dict of all supported OBD commands with their callbacks.
+        This is the master list of parameters OCTAVE can monitor."""
+        return {
+            # Original 18 parameters
             "COOLANT_TEMP": (obd.commands.COOLANT_TEMP, self._update_coolant),
             "CONTROL_MODULE_VOLTAGE": (obd.commands.CONTROL_MODULE_VOLTAGE, self._update_voltage),
             "ENGINE_LOAD": (obd.commands.ENGINE_LOAD, self._update_load),
@@ -574,16 +748,108 @@ class OBDManager(QObject):
             "O2_B1S1": (obd.commands.O2_B1S1, self._update_o2_sensor),
             "FUEL_PRESSURE": (obd.commands.FUEL_PRESSURE, self._update_fuel_pressure),
             "OIL_TEMP": (obd.commands.OIL_TEMP, self._update_oil_temp),
+            # Additional parameters
+            "RUN_TIME": (obd.commands.RUN_TIME, self._update_run_time),
+            "DISTANCE_W_MIL": (obd.commands.DISTANCE_W_MIL, self._update_distance_with_mil),
+            "FUEL_RAIL_PRESSURE_VAC": (obd.commands.FUEL_RAIL_PRESSURE_VAC, self._update_fuel_rail_pressure),
+            "FUEL_RAIL_PRESSURE_DIRECT": (obd.commands.FUEL_RAIL_PRESSURE_DIRECT, self._update_fuel_rail_pressure_direct),
+            "BAROMETRIC_PRESSURE": (obd.commands.BAROMETRIC_PRESSURE, self._update_barometric_pressure),
+            "AMBIANT_AIR_TEMP": (obd.commands.AMBIANT_AIR_TEMP, self._update_ambient_air_temp),
+            "RELATIVE_THROTTLE_POS": (obd.commands.RELATIVE_THROTTLE_POS, self._update_relative_throttle_pos),
+            "THROTTLE_POS_B": (obd.commands.THROTTLE_POS_B, self._update_absolute_throttle_pos_b),
+            "ACCELERATOR_POS_D": (obd.commands.ACCELERATOR_POS_D, self._update_accelerator_pos),
+            "CATALYST_TEMP_B1S1": (obd.commands.CATALYST_TEMP_B1S1, self._update_catalyst_temp_b1s1),
+            "CATALYST_TEMP_B1S2": (obd.commands.CATALYST_TEMP_B1S2, self._update_catalyst_temp_b1s2),
+            "EVAP_VAPOR_PRESSURE": (obd.commands.EVAP_VAPOR_PRESSURE, self._update_evap_vapor_pressure),
+            "SHORT_FUEL_TRIM_2": (obd.commands.SHORT_FUEL_TRIM_2, self._update_short_fuel_trim_2),
+            "LONG_FUEL_TRIM_2": (obd.commands.LONG_FUEL_TRIM_2, self._update_long_fuel_trim_2),
+            "O2_B1S2": (obd.commands.O2_B1S2, self._update_o2_sensor_b1s2),
+            "O2_B2S1": (obd.commands.O2_B2S1, self._update_o2_sensor_b2s1),
+            "O2_B2S2": (obd.commands.O2_B2S2, self._update_o2_sensor_b2s2),
+            "DISTANCE_SINCE_DTC_CLEAR": (obd.commands.DISTANCE_SINCE_DTC_CLEAR, self._update_distance_since_codes_cleared),
+            "WARMUPS_SINCE_DTC_CLEAR": (obd.commands.WARMUPS_SINCE_DTC_CLEAR, self._update_warmups_since_codes_cleared),
+            "ABSOLUTE_LOAD": (obd.commands.ABSOLUTE_LOAD, self._update_absolute_load),
+            "COMMANDED_EGR": (obd.commands.COMMANDED_EGR, self._update_commanded_egr),
+            "EGR_ERROR": (obd.commands.EGR_ERROR, self._update_egr_error),
+            "ETHANOL_PERCENT": (obd.commands.ETHANOL_PERCENT, self._update_ethanol_percent),
+            # Batch 2 - Additional O2 sensors
+            "O2_B1S3": (obd.commands.O2_B1S3, self._update_o2_sensor_b1s3),
+            "O2_B1S4": (obd.commands.O2_B1S4, self._update_o2_sensor_b1s4),
+            "O2_B2S3": (obd.commands.O2_B2S3, self._update_o2_sensor_b2s3),
+            "O2_B2S4": (obd.commands.O2_B2S4, self._update_o2_sensor_b2s4),
+            # Wide-range O2 sensors voltage
+            "O2_S1_WR_VOLTAGE": (obd.commands.O2_S1_WR_VOLTAGE, self._update_o2_s1_wr_voltage),
+            "O2_S2_WR_VOLTAGE": (obd.commands.O2_S2_WR_VOLTAGE, self._update_o2_s2_wr_voltage),
+            "O2_S3_WR_VOLTAGE": (obd.commands.O2_S3_WR_VOLTAGE, self._update_o2_s3_wr_voltage),
+            "O2_S4_WR_VOLTAGE": (obd.commands.O2_S4_WR_VOLTAGE, self._update_o2_s4_wr_voltage),
+            "O2_S5_WR_VOLTAGE": (obd.commands.O2_S5_WR_VOLTAGE, self._update_o2_s5_wr_voltage),
+            "O2_S6_WR_VOLTAGE": (obd.commands.O2_S6_WR_VOLTAGE, self._update_o2_s6_wr_voltage),
+            "O2_S7_WR_VOLTAGE": (obd.commands.O2_S7_WR_VOLTAGE, self._update_o2_s7_wr_voltage),
+            "O2_S8_WR_VOLTAGE": (obd.commands.O2_S8_WR_VOLTAGE, self._update_o2_s8_wr_voltage),
+            # Wide-range O2 sensors current
+            "O2_S1_WR_CURRENT": (obd.commands.O2_S1_WR_CURRENT, self._update_o2_s1_wr_current),
+            "O2_S2_WR_CURRENT": (obd.commands.O2_S2_WR_CURRENT, self._update_o2_s2_wr_current),
+            "O2_S3_WR_CURRENT": (obd.commands.O2_S3_WR_CURRENT, self._update_o2_s3_wr_current),
+            "O2_S4_WR_CURRENT": (obd.commands.O2_S4_WR_CURRENT, self._update_o2_s4_wr_current),
+            "O2_S5_WR_CURRENT": (obd.commands.O2_S5_WR_CURRENT, self._update_o2_s5_wr_current),
+            "O2_S6_WR_CURRENT": (obd.commands.O2_S6_WR_CURRENT, self._update_o2_s6_wr_current),
+            "O2_S7_WR_CURRENT": (obd.commands.O2_S7_WR_CURRENT, self._update_o2_s7_wr_current),
+            "O2_S8_WR_CURRENT": (obd.commands.O2_S8_WR_CURRENT, self._update_o2_s8_wr_current),
+            # Bank 2 catalyst temps
+            "CATALYST_TEMP_B2S1": (obd.commands.CATALYST_TEMP_B2S1, self._update_catalyst_temp_b2s1),
+            "CATALYST_TEMP_B2S2": (obd.commands.CATALYST_TEMP_B2S2, self._update_catalyst_temp_b2s2),
+            # Additional throttle/accelerator
+            "THROTTLE_POS_C": (obd.commands.THROTTLE_POS_C, self._update_throttle_pos_c),
+            "ACCELERATOR_POS_E": (obd.commands.ACCELERATOR_POS_E, self._update_accelerator_pos_e),
+            "ACCELERATOR_POS_F": (obd.commands.ACCELERATOR_POS_F, self._update_accelerator_pos_f),
+            "THROTTLE_ACTUATOR": (obd.commands.THROTTLE_ACTUATOR, self._update_throttle_actuator),
+            # Fuel system
+            "EVAPORATIVE_PURGE": (obd.commands.EVAPORATIVE_PURGE, self._update_evaporative_purge),
+            "FUEL_RAIL_PRESSURE_ABS": (obd.commands.FUEL_RAIL_PRESSURE_ABS, self._update_fuel_rail_pressure_abs),
+            "FUEL_INJECT_TIMING": (obd.commands.FUEL_INJECT_TIMING, self._update_fuel_inject_timing),
+            "FUEL_RATE": (obd.commands.FUEL_RATE, self._update_fuel_rate),
+            # Time-based
+            "RUN_TIME_MIL": (obd.commands.RUN_TIME_MIL, self._update_run_time_mil),
+            "TIME_SINCE_DTC_CLEARED": (obd.commands.TIME_SINCE_DTC_CLEARED, self._update_time_since_dtc_cleared),
+            # Other
+            "MAX_MAF": (obd.commands.MAX_MAF, self._update_max_maf),
+            "FUEL_TYPE": (obd.commands.FUEL_TYPE, self._update_fuel_type),
+            "EVAP_VAPOR_PRESSURE_ABS": (obd.commands.EVAP_VAPOR_PRESSURE_ABS, self._update_evap_vapor_pressure_abs),
+            "EVAP_VAPOR_PRESSURE_ALT": (obd.commands.EVAP_VAPOR_PRESSURE_ALT, self._update_evap_vapor_pressure_alt),
+            "SHORT_O2_TRIM_B1": (obd.commands.SHORT_O2_TRIM_B1, self._update_short_o2_trim_b1),
+            "LONG_O2_TRIM_B1": (obd.commands.LONG_O2_TRIM_B1, self._update_long_o2_trim_b1),
+            "SHORT_O2_TRIM_B2": (obd.commands.SHORT_O2_TRIM_B2, self._update_short_o2_trim_b2),
+            "LONG_O2_TRIM_B2": (obd.commands.LONG_O2_TRIM_B2, self._update_long_o2_trim_b2),
+            "RELATIVE_ACCEL_POS": (obd.commands.RELATIVE_ACCEL_POS, self._update_relative_accel_pos),
+            "HYBRID_BATTERY_REMAINING": (obd.commands.HYBRID_BATTERY_REMAINING, self._update_hybrid_battery_remaining),
+            "ELM_VOLTAGE": (obd.commands.ELM_VOLTAGE, self._update_elm_voltage),
         }
+
+    def _setup_watchers(self):
+        """Set up watchers based on settings"""
+        if not self._connection:
+            return
+
+        commands_to_watch = self._get_all_commands()
 
         for param, (command, callback) in commands_to_watch.items():
             should_watch = True
             if self._settings_manager:
-                should_watch = self._settings_manager.get_obd_parameter_enabled(param, True)
+                # Default to False for new parameters, True for original ones
+                default_enabled = param in [
+                    "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE", "ENGINE_LOAD", "THROTTLE_POS",
+                    "INTAKE_TEMP", "TIMING_ADVANCE", "MAF", "SPEED", "RPM", "COMMANDED_EQUIV_RATIO",
+                    "FUEL_LEVEL", "INTAKE_PRESSURE", "SHORT_FUEL_TRIM_1", "LONG_FUEL_TRIM_1",
+                    "O2_B1S1", "FUEL_PRESSURE", "OIL_TEMP"
+                ]
+                should_watch = self._settings_manager.get_obd_parameter_enabled(param, default_enabled)
 
             if should_watch:
-                print(f"[OBD] Watching: {param}")
-                self._connection.watch(command, callback=callback)
+                try:
+                    print(f"[OBD] Watching: {param}")
+                    self._connection.watch(command, callback=callback)
+                except Exception as e:
+                    print(f"[OBD] Could not watch {param}: {e}")
 
     # Callback functions
     def _update_coolant(self, r):
@@ -674,6 +940,345 @@ class OBDManager(QObject):
         if not r.is_null():
             self._oil_temp = float(r.value.magnitude)
             self.engineOilTempChanged.emit(self._oil_temp)
+
+    # Additional callback functions for new parameters
+    def _update_run_time(self, r):
+        if not r.is_null():
+            self._run_time = float(r.value.magnitude)
+            self.runTimeChanged.emit(self._run_time)
+
+    def _update_distance_with_mil(self, r):
+        if not r.is_null():
+            self._distance_with_mil = float(r.value.magnitude)
+            self.distanceWithMILChanged.emit(self._distance_with_mil)
+
+    def _update_fuel_rail_pressure(self, r):
+        if not r.is_null():
+            self._fuel_rail_pressure = float(r.value.magnitude)
+            self.fuelRailPressureChanged.emit(self._fuel_rail_pressure)
+
+    def _update_fuel_rail_pressure_direct(self, r):
+        if not r.is_null():
+            self._fuel_rail_pressure_direct = float(r.value.magnitude)
+            self.fuelRailPressureDirectChanged.emit(self._fuel_rail_pressure_direct)
+
+    def _update_barometric_pressure(self, r):
+        if not r.is_null():
+            self._barometric_pressure = float(r.value.magnitude)
+            self.barometricPressureChanged.emit(self._barometric_pressure)
+
+    def _update_ambient_air_temp(self, r):
+        if not r.is_null():
+            self._ambient_air_temp = float(r.value.magnitude)
+            self.ambientAirTempChanged.emit(self._ambient_air_temp)
+
+    def _update_relative_throttle_pos(self, r):
+        if not r.is_null():
+            self._relative_throttle_pos = float(r.value.magnitude)
+            self.relativeThrottlePosChanged.emit(self._relative_throttle_pos)
+
+    def _update_absolute_throttle_pos_b(self, r):
+        if not r.is_null():
+            self._absolute_throttle_pos_b = float(r.value.magnitude)
+            self.absoluteThrottlePosBChanged.emit(self._absolute_throttle_pos_b)
+
+    def _update_accelerator_pos(self, r):
+        if not r.is_null():
+            self._accelerator_pos = float(r.value.magnitude)
+            self.acceleratorPosChanged.emit(self._accelerator_pos)
+
+    def _update_catalyst_temp_b1s1(self, r):
+        if not r.is_null():
+            self._catalyst_temp_b1s1 = float(r.value.magnitude)
+            self.catalystTempB1S1Changed.emit(self._catalyst_temp_b1s1)
+
+    def _update_catalyst_temp_b1s2(self, r):
+        if not r.is_null():
+            self._catalyst_temp_b1s2 = float(r.value.magnitude)
+            self.catalystTempB1S2Changed.emit(self._catalyst_temp_b1s2)
+
+    def _update_evap_vapor_pressure(self, r):
+        if not r.is_null():
+            self._evap_vapor_pressure = float(r.value.magnitude)
+            self.evapVaporPressureChanged.emit(self._evap_vapor_pressure)
+
+    def _update_short_fuel_trim_2(self, r):
+        if not r.is_null():
+            self._short_fuel_trim_2 = float(r.value.magnitude)
+            self.shortFuelTrim2Changed.emit(self._short_fuel_trim_2)
+
+    def _update_long_fuel_trim_2(self, r):
+        if not r.is_null():
+            self._long_fuel_trim_2 = float(r.value.magnitude)
+            self.longFuelTrim2Changed.emit(self._long_fuel_trim_2)
+
+    def _update_o2_sensor_b1s2(self, r):
+        if not r.is_null():
+            self._o2_sensor_b1s2 = float(r.value.magnitude)
+            self.o2SensorB1S2Changed.emit(self._o2_sensor_b1s2)
+
+    def _update_o2_sensor_b2s1(self, r):
+        if not r.is_null():
+            self._o2_sensor_b2s1 = float(r.value.magnitude)
+            self.o2SensorB2S1Changed.emit(self._o2_sensor_b2s1)
+
+    def _update_o2_sensor_b2s2(self, r):
+        if not r.is_null():
+            self._o2_sensor_b2s2 = float(r.value.magnitude)
+            self.o2SensorB2S2Changed.emit(self._o2_sensor_b2s2)
+
+    def _update_distance_since_codes_cleared(self, r):
+        if not r.is_null():
+            self._distance_since_codes_cleared = float(r.value.magnitude)
+            self.distanceSinceCodesCleared.emit(self._distance_since_codes_cleared)
+
+    def _update_warmups_since_codes_cleared(self, r):
+        if not r.is_null():
+            self._warmups_since_codes_cleared = float(r.value.magnitude)
+            self.warmupsSinceCodesCleared.emit(self._warmups_since_codes_cleared)
+
+    def _update_absolute_load(self, r):
+        if not r.is_null():
+            self._absolute_load = float(r.value.magnitude)
+            self.absoluteLoadChanged.emit(self._absolute_load)
+
+    def _update_commanded_egr(self, r):
+        if not r.is_null():
+            self._commanded_egr = float(r.value.magnitude)
+            self.commandedEGRChanged.emit(self._commanded_egr)
+
+    def _update_egr_error(self, r):
+        if not r.is_null():
+            self._egr_error = float(r.value.magnitude)
+            self.egrErrorChanged.emit(self._egr_error)
+
+    def _update_ethanol_percent(self, r):
+        if not r.is_null():
+            self._ethanol_percent = float(r.value.magnitude)
+            self.ethanoPercentChanged.emit(self._ethanol_percent)
+
+    # Batch 2 callback functions - Additional O2 sensors
+    def _update_o2_sensor_b1s3(self, r):
+        if not r.is_null():
+            self._o2_sensor_b1s3 = float(r.value.magnitude)
+            self.o2SensorB1S3Changed.emit(self._o2_sensor_b1s3)
+
+    def _update_o2_sensor_b1s4(self, r):
+        if not r.is_null():
+            self._o2_sensor_b1s4 = float(r.value.magnitude)
+            self.o2SensorB1S4Changed.emit(self._o2_sensor_b1s4)
+
+    def _update_o2_sensor_b2s3(self, r):
+        if not r.is_null():
+            self._o2_sensor_b2s3 = float(r.value.magnitude)
+            self.o2SensorB2S3Changed.emit(self._o2_sensor_b2s3)
+
+    def _update_o2_sensor_b2s4(self, r):
+        if not r.is_null():
+            self._o2_sensor_b2s4 = float(r.value.magnitude)
+            self.o2SensorB2S4Changed.emit(self._o2_sensor_b2s4)
+
+    # Wide-range O2 sensors voltage
+    def _update_o2_s1_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s1_wr_voltage = float(r.value.magnitude)
+            self.o2S1WRVoltageChanged.emit(self._o2_s1_wr_voltage)
+
+    def _update_o2_s2_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s2_wr_voltage = float(r.value.magnitude)
+            self.o2S2WRVoltageChanged.emit(self._o2_s2_wr_voltage)
+
+    def _update_o2_s3_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s3_wr_voltage = float(r.value.magnitude)
+            self.o2S3WRVoltageChanged.emit(self._o2_s3_wr_voltage)
+
+    def _update_o2_s4_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s4_wr_voltage = float(r.value.magnitude)
+            self.o2S4WRVoltageChanged.emit(self._o2_s4_wr_voltage)
+
+    def _update_o2_s5_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s5_wr_voltage = float(r.value.magnitude)
+            self.o2S5WRVoltageChanged.emit(self._o2_s5_wr_voltage)
+
+    def _update_o2_s6_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s6_wr_voltage = float(r.value.magnitude)
+            self.o2S6WRVoltageChanged.emit(self._o2_s6_wr_voltage)
+
+    def _update_o2_s7_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s7_wr_voltage = float(r.value.magnitude)
+            self.o2S7WRVoltageChanged.emit(self._o2_s7_wr_voltage)
+
+    def _update_o2_s8_wr_voltage(self, r):
+        if not r.is_null():
+            self._o2_s8_wr_voltage = float(r.value.magnitude)
+            self.o2S8WRVoltageChanged.emit(self._o2_s8_wr_voltage)
+
+    # Wide-range O2 sensors current
+    def _update_o2_s1_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s1_wr_current = float(r.value.magnitude)
+            self.o2S1WRCurrentChanged.emit(self._o2_s1_wr_current)
+
+    def _update_o2_s2_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s2_wr_current = float(r.value.magnitude)
+            self.o2S2WRCurrentChanged.emit(self._o2_s2_wr_current)
+
+    def _update_o2_s3_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s3_wr_current = float(r.value.magnitude)
+            self.o2S3WRCurrentChanged.emit(self._o2_s3_wr_current)
+
+    def _update_o2_s4_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s4_wr_current = float(r.value.magnitude)
+            self.o2S4WRCurrentChanged.emit(self._o2_s4_wr_current)
+
+    def _update_o2_s5_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s5_wr_current = float(r.value.magnitude)
+            self.o2S5WRCurrentChanged.emit(self._o2_s5_wr_current)
+
+    def _update_o2_s6_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s6_wr_current = float(r.value.magnitude)
+            self.o2S6WRCurrentChanged.emit(self._o2_s6_wr_current)
+
+    def _update_o2_s7_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s7_wr_current = float(r.value.magnitude)
+            self.o2S7WRCurrentChanged.emit(self._o2_s7_wr_current)
+
+    def _update_o2_s8_wr_current(self, r):
+        if not r.is_null():
+            self._o2_s8_wr_current = float(r.value.magnitude)
+            self.o2S8WRCurrentChanged.emit(self._o2_s8_wr_current)
+
+    # Bank 2 catalyst temps
+    def _update_catalyst_temp_b2s1(self, r):
+        if not r.is_null():
+            self._catalyst_temp_b2s1 = float(r.value.magnitude)
+            self.catalystTempB2S1Changed.emit(self._catalyst_temp_b2s1)
+
+    def _update_catalyst_temp_b2s2(self, r):
+        if not r.is_null():
+            self._catalyst_temp_b2s2 = float(r.value.magnitude)
+            self.catalystTempB2S2Changed.emit(self._catalyst_temp_b2s2)
+
+    # Additional throttle/accelerator
+    def _update_throttle_pos_c(self, r):
+        if not r.is_null():
+            self._throttle_pos_c = float(r.value.magnitude)
+            self.throttlePosCChanged.emit(self._throttle_pos_c)
+
+    def _update_accelerator_pos_e(self, r):
+        if not r.is_null():
+            self._accelerator_pos_e = float(r.value.magnitude)
+            self.acceleratorPosEChanged.emit(self._accelerator_pos_e)
+
+    def _update_accelerator_pos_f(self, r):
+        if not r.is_null():
+            self._accelerator_pos_f = float(r.value.magnitude)
+            self.acceleratorPosFChanged.emit(self._accelerator_pos_f)
+
+    def _update_throttle_actuator(self, r):
+        if not r.is_null():
+            self._throttle_actuator = float(r.value.magnitude)
+            self.throttleActuatorChanged.emit(self._throttle_actuator)
+
+    # Fuel system
+    def _update_evaporative_purge(self, r):
+        if not r.is_null():
+            self._evaporative_purge = float(r.value.magnitude)
+            self.evaporativePurgeChanged.emit(self._evaporative_purge)
+
+    def _update_fuel_rail_pressure_abs(self, r):
+        if not r.is_null():
+            self._fuel_rail_pressure_abs = float(r.value.magnitude)
+            self.fuelRailPressureAbsChanged.emit(self._fuel_rail_pressure_abs)
+
+    def _update_fuel_inject_timing(self, r):
+        if not r.is_null():
+            self._fuel_inject_timing = float(r.value.magnitude)
+            self.fuelInjectTimingChanged.emit(self._fuel_inject_timing)
+
+    def _update_fuel_rate(self, r):
+        if not r.is_null():
+            self._fuel_rate = float(r.value.magnitude)
+            self.fuelRateChanged.emit(self._fuel_rate)
+
+    # Time-based
+    def _update_run_time_mil(self, r):
+        if not r.is_null():
+            self._run_time_mil = float(r.value.magnitude)
+            self.runTimeMILChanged.emit(self._run_time_mil)
+
+    def _update_time_since_dtc_cleared(self, r):
+        if not r.is_null():
+            self._time_since_dtc_cleared = float(r.value.magnitude)
+            self.timeSinceDTCClearedChanged.emit(self._time_since_dtc_cleared)
+
+    # Other
+    def _update_max_maf(self, r):
+        if not r.is_null():
+            self._max_maf = float(r.value.magnitude)
+            self.maxMAFChanged.emit(self._max_maf)
+
+    def _update_fuel_type(self, r):
+        if not r.is_null():
+            self._fuel_type = float(r.value.magnitude)
+            self.fuelTypeChanged.emit(self._fuel_type)
+
+    def _update_evap_vapor_pressure_abs(self, r):
+        if not r.is_null():
+            self._evap_vapor_pressure_abs = float(r.value.magnitude)
+            self.evapVaporPressureAbsChanged.emit(self._evap_vapor_pressure_abs)
+
+    def _update_evap_vapor_pressure_alt(self, r):
+        if not r.is_null():
+            self._evap_vapor_pressure_alt = float(r.value.magnitude)
+            self.evapVaporPressureAltChanged.emit(self._evap_vapor_pressure_alt)
+
+    def _update_short_o2_trim_b1(self, r):
+        if not r.is_null():
+            self._short_o2_trim_b1 = float(r.value.magnitude)
+            self.shortO2TrimB1Changed.emit(self._short_o2_trim_b1)
+
+    def _update_long_o2_trim_b1(self, r):
+        if not r.is_null():
+            self._long_o2_trim_b1 = float(r.value.magnitude)
+            self.longO2TrimB1Changed.emit(self._long_o2_trim_b1)
+
+    def _update_short_o2_trim_b2(self, r):
+        if not r.is_null():
+            self._short_o2_trim_b2 = float(r.value.magnitude)
+            self.shortO2TrimB2Changed.emit(self._short_o2_trim_b2)
+
+    def _update_long_o2_trim_b2(self, r):
+        if not r.is_null():
+            self._long_o2_trim_b2 = float(r.value.magnitude)
+            self.longO2TrimB2Changed.emit(self._long_o2_trim_b2)
+
+    def _update_relative_accel_pos(self, r):
+        if not r.is_null():
+            self._relative_accel_pos = float(r.value.magnitude)
+            self.relativeAccelPosChanged.emit(self._relative_accel_pos)
+
+    def _update_hybrid_battery_remaining(self, r):
+        if not r.is_null():
+            self._hybrid_battery_remaining = float(r.value.magnitude)
+            self.hybridBatteryRemainingChanged.emit(self._hybrid_battery_remaining)
+
+    def _update_elm_voltage(self, r):
+        if not r.is_null():
+            self._elm_voltage = float(r.value.magnitude)
+            self.elmVoltageChanged.emit(self._elm_voltage)
 
     # Getter methods
     @Slot(result=float)
@@ -825,3 +1430,290 @@ class OBDManager(QObject):
     def set_connection_timeout(self, timeout_seconds):
         """Set the connection timeout"""
         self._connection_timeout = max(5, min(60, timeout_seconds))
+
+    # ==================== Vehicle Scan Functions ====================
+
+    @Slot(result=list)
+    def get_all_parameter_names(self):
+        """Get list of all parameter names that OCTAVE supports"""
+        return list(self._get_all_commands().keys())
+
+    @Slot(result=list)
+    def get_supported_commands(self):
+        """Get list of commands supported by the connected vehicle"""
+        return self._supported_commands
+
+    @Slot(result=bool)
+    def is_scanning(self):
+        """Check if a vehicle scan is currently in progress"""
+        return self._is_scanning
+
+    @Slot()
+    def scan_vehicle(self):
+        """Scan the connected vehicle for supported OBD commands.
+        This queries the vehicle to find which PIDs it supports."""
+        if not self._connection or not self._connected:
+            print("[OBD] Cannot scan - not connected to vehicle")
+            self.scanProgressChanged.emit(0, "Not connected to vehicle")
+            return
+
+        if self._is_scanning:
+            print("[OBD] Scan already in progress")
+            return
+
+        self._is_scanning = True
+        self.scanProgressChanged.emit(0, "Starting vehicle scan...")
+
+        # Run scan in a separate thread to avoid blocking UI
+        scan_thread = threading.Thread(target=self._do_vehicle_scan, daemon=True)
+        scan_thread.start()
+
+    def _do_vehicle_scan(self):
+        """Perform the actual vehicle scan (runs in background thread)"""
+        try:
+            # Get supported commands from the connection
+            supported = self._connection.supported_commands
+
+            if not supported:
+                QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, "No supported commands found"))
+                QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
+                self._is_scanning = False
+                return
+
+            # Get the commands we can actually use (intersection with our supported commands)
+            our_commands = self._get_all_commands()
+            supported_names = []
+
+            total = len(our_commands)
+            for i, (param_name, (command, _)) in enumerate(our_commands.items()):
+                progress = int((i / total) * 100)
+                QTimer.singleShot(0, lambda p=progress, n=param_name: self.scanProgressChanged.emit(p, f"Checking {n}..."))
+
+                # Check if this command is in the vehicle's supported set
+                if command in supported:
+                    supported_names.append(param_name)
+                    print(f"[OBD] Vehicle supports: {param_name}")
+
+            self._supported_commands = supported_names
+
+            # Emit completion signals on main thread
+            QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, f"Found {len(supported_names)} supported parameters"))
+            QTimer.singleShot(0, lambda: self.supportedCommandsChanged.emit(supported_names))
+            QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit(supported_names))
+
+            print(f"[OBD] Vehicle scan complete: {len(supported_names)} supported parameters")
+
+        except Exception as e:
+            print(f"[OBD] Scan error: {e}")
+            QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, f"Scan error: {e}"))
+
+        finally:
+            self._is_scanning = False
+
+    @Slot(list)
+    def enable_scanned_parameters(self, param_names):
+        """Enable all the parameters found during scan"""
+        if not self._settings_manager:
+            return
+
+        for param in param_names:
+            self._settings_manager.save_obd_parameter_enabled(param, True)
+
+        print(f"[OBD] Enabled {len(param_names)} scanned parameters")
+
+    @Slot()
+    def enable_all_supported(self):
+        """Enable all parameters that the vehicle supports"""
+        if self._supported_commands:
+            self.enable_scanned_parameters(self._supported_commands)
+
+    # ==================== Diagnostic Commands ====================
+
+    @Slot()
+    def read_dtc(self):
+        """Read Diagnostic Trouble Codes from the vehicle"""
+        if not self._connection or not self._connected:
+            print("[OBD] Cannot read DTCs - not connected")
+            self.dtcCodesChanged.emit([])
+            return
+
+        print("[OBD] Reading DTCs...")
+        threading.Thread(target=self._do_read_dtc, daemon=True).start()
+
+    def _do_read_dtc(self):
+        """Read DTCs in background thread"""
+        try:
+            response = self._connection.query(obd.commands.GET_DTC)
+
+            if response.is_null():
+                print("[OBD] No DTCs found (null response)")
+                self._dtc_codes = []
+                self._dtc_count = 0
+                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
+                return
+
+            # Response value is a list of tuples: [(code, description), ...]
+            dtcs = response.value if response.value else []
+            # Convert to list of dicts for QML
+            dtc_list = [{"code": code, "description": desc} for code, desc in dtcs]
+
+            self._dtc_codes = dtc_list
+            self._dtc_count = len(dtc_list)
+
+            print(f"[OBD] Found {len(dtc_list)} DTCs: {dtc_list}")
+
+            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit(dtc_list))
+            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(len(dtc_list)))
+
+        except Exception as e:
+            print(f"[OBD] Error reading DTCs: {e}")
+            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+
+    @Slot()
+    def read_current_dtc(self):
+        """Read DTCs from the current/last driving cycle"""
+        if not self._connection or not self._connected:
+            print("[OBD] Cannot read current DTCs - not connected")
+            return
+
+        print("[OBD] Reading current DTCs...")
+        threading.Thread(target=self._do_read_current_dtc, daemon=True).start()
+
+    def _do_read_current_dtc(self):
+        """Read current DTCs in background thread"""
+        try:
+            response = self._connection.query(obd.commands.GET_CURRENT_DTC)
+
+            if response.is_null():
+                print("[OBD] No current DTCs found")
+                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                return
+
+            dtcs = response.value if response.value else []
+            dtc_list = [{"code": code, "description": desc} for code, desc in dtcs]
+
+            print(f"[OBD] Found {len(dtc_list)} current DTCs")
+            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit(dtc_list))
+
+        except Exception as e:
+            print(f"[OBD] Error reading current DTCs: {e}")
+
+    @Slot()
+    def read_freeze_frame(self):
+        """Read freeze frame DTCs"""
+        if not self._connection or not self._connected:
+            print("[OBD] Cannot read freeze frame - not connected")
+            return
+
+        print("[OBD] Reading freeze frame DTCs...")
+        threading.Thread(target=self._do_read_freeze_frame, daemon=True).start()
+
+    def _do_read_freeze_frame(self):
+        """Read freeze frame in background thread"""
+        try:
+            response = self._connection.query(obd.commands.FREEZE_DTC)
+
+            if response.is_null():
+                print("[OBD] No freeze frame data")
+                self._freeze_frame_dtcs = []
+                QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit([]))
+                return
+
+            dtcs = response.value if response.value else []
+            dtc_list = [{"code": code, "description": desc} for code, desc in dtcs]
+            self._freeze_frame_dtcs = dtc_list
+
+            print(f"[OBD] Freeze frame DTCs: {dtc_list}")
+            QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit(dtc_list))
+
+        except Exception as e:
+            print(f"[OBD] Error reading freeze frame: {e}")
+
+    @Slot()
+    def clear_dtc(self):
+        """Clear all DTCs and reset the MIL (Check Engine Light).
+        WARNING: This will turn off the check engine light!"""
+        if not self._connection or not self._connected:
+            print("[OBD] Cannot clear DTCs - not connected")
+            self.dtcClearResult.emit(False, "Not connected to vehicle")
+            return
+
+        print("[OBD] Clearing DTCs...")
+        threading.Thread(target=self._do_clear_dtc, daemon=True).start()
+
+    def _do_clear_dtc(self):
+        """Clear DTCs in background thread"""
+        try:
+            response = self._connection.query(obd.commands.CLEAR_DTC)
+
+            if response.is_null():
+                print("[OBD] Clear DTC command returned null")
+                QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, "Clear command failed"))
+                return
+
+            # Clear successful
+            self._dtc_codes = []
+            self._dtc_count = 0
+            self._mil_status = False
+
+            print("[OBD] DTCs cleared successfully")
+            QTimer.singleShot(0, lambda: self.dtcClearResult.emit(True, "DTCs cleared successfully"))
+            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
+            QTimer.singleShot(0, lambda: self.milStatusChanged.emit(False))
+
+        except Exception as e:
+            print(f"[OBD] Error clearing DTCs: {e}")
+            QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, str(e)))
+
+    @Slot()
+    def read_status(self):
+        """Read vehicle status including MIL and DTC count"""
+        if not self._connection or not self._connected:
+            print("[OBD] Cannot read status - not connected")
+            return
+
+        print("[OBD] Reading vehicle status...")
+        threading.Thread(target=self._do_read_status, daemon=True).start()
+
+    def _do_read_status(self):
+        """Read status in background thread"""
+        try:
+            response = self._connection.query(obd.commands.STATUS)
+
+            if response.is_null():
+                print("[OBD] Status command returned null")
+                return
+
+            status = response.value
+            self._mil_status = status.MIL
+            self._dtc_count = status.DTC_count
+
+            print(f"[OBD] MIL: {self._mil_status}, DTC count: {self._dtc_count}")
+
+            QTimer.singleShot(0, lambda: self.milStatusChanged.emit(self._mil_status))
+            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(self._dtc_count))
+
+        except Exception as e:
+            print(f"[OBD] Error reading status: {e}")
+
+    @Slot(result=list)
+    def get_dtc_codes(self):
+        """Get the last read DTCs"""
+        return self._dtc_codes
+
+    @Slot(result=int)
+    def get_dtc_count(self):
+        """Get the number of DTCs"""
+        return self._dtc_count
+
+    @Slot(result=bool)
+    def get_mil_status(self):
+        """Get MIL (Check Engine Light) status"""
+        return self._mil_status
+
+    @Slot(result=list)
+    def get_freeze_frame(self):
+        """Get freeze frame DTCs"""
+        return self._freeze_frame_dtcs
