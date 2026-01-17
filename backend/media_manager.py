@@ -539,6 +539,8 @@ class MediaManager(QObject):
             self._current_index = (self._current_index + 1) % len(self._current_playlist)
             next_song = self._current_playlist[self._current_index]
             self.play_file(next_song)
+            # Save playback state on track change (survives power loss)
+            self._save_playback_state()
         except Exception as e:
             print(f"Error in next_track: {e}")
 
@@ -557,6 +559,8 @@ class MediaManager(QObject):
             self._current_index = (self._current_index - 1) % len(self._current_playlist)
             prev_song = self._current_playlist[self._current_index]
             self.play_file(prev_song)
+            # Save playback state on track change (survives power loss)
+            self._save_playback_state()
         except Exception as e:
             print(f"Error in previous_track: {e}")
         

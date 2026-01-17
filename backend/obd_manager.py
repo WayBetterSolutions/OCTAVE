@@ -1471,13 +1471,15 @@ class OBDManager(QObject):
     def _do_vehicle_scan(self):
         """Perform the actual vehicle scan (runs in background thread)"""
         try:
+            # Stop async polling to safely access connection properties
+            self._connection.stop()
+
             # Get supported commands from the connection
             supported = self._connection.supported_commands
 
             if not supported:
                 QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, "No supported commands found"))
                 QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
-                self._is_scanning = False
                 return
 
             # Get the commands we can actually use (intersection with our supported commands)
@@ -1509,6 +1511,8 @@ class OBDManager(QObject):
 
         finally:
             self._is_scanning = False
+            # Resume async polling
+            self._connection.start()
 
     @Slot(list)
     def enable_scanned_parameters(self, param_names):
@@ -1543,6 +1547,9 @@ class OBDManager(QObject):
     def _do_read_dtc(self):
         """Read DTCs in background thread"""
         try:
+            # Stop async polling to allow query
+            self._connection.stop()
+
             response = self._connection.query(obd.commands.GET_DTC)
 
             if response.is_null():
@@ -1569,6 +1576,9 @@ class OBDManager(QObject):
         except Exception as e:
             print(f"[OBD] Error reading DTCs: {e}")
             QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+        finally:
+            # Resume async polling
+            self._connection.start()
 
     @Slot()
     def read_current_dtc(self):
@@ -1583,6 +1593,9 @@ class OBDManager(QObject):
     def _do_read_current_dtc(self):
         """Read current DTCs in background thread"""
         try:
+            # Stop async polling to allow query
+            self._connection.stop()
+
             response = self._connection.query(obd.commands.GET_CURRENT_DTC)
 
             if response.is_null():
@@ -1598,6 +1611,9 @@ class OBDManager(QObject):
 
         except Exception as e:
             print(f"[OBD] Error reading current DTCs: {e}")
+        finally:
+            # Resume async polling
+            self._connection.start()
 
     @Slot()
     def read_freeze_frame(self):
@@ -1612,6 +1628,9 @@ class OBDManager(QObject):
     def _do_read_freeze_frame(self):
         """Read freeze frame in background thread"""
         try:
+            # Stop async polling to allow query
+            self._connection.stop()
+
             response = self._connection.query(obd.commands.FREEZE_DTC)
 
             if response.is_null():
@@ -1629,6 +1648,9 @@ class OBDManager(QObject):
 
         except Exception as e:
             print(f"[OBD] Error reading freeze frame: {e}")
+        finally:
+            # Resume async polling
+            self._connection.start()
 
     @Slot()
     def clear_dtc(self):
@@ -1645,6 +1667,9 @@ class OBDManager(QObject):
     def _do_clear_dtc(self):
         """Clear DTCs in background thread"""
         try:
+            # Stop async polling to allow query
+            self._connection.stop()
+
             response = self._connection.query(obd.commands.CLEAR_DTC)
 
             if response.is_null():
@@ -1666,6 +1691,9 @@ class OBDManager(QObject):
         except Exception as e:
             print(f"[OBD] Error clearing DTCs: {e}")
             QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, str(e)))
+        finally:
+            # Resume async polling
+            self._connection.start()
 
     @Slot()
     def read_status(self):
@@ -1680,6 +1708,9 @@ class OBDManager(QObject):
     def _do_read_status(self):
         """Read status in background thread"""
         try:
+            # Stop async polling to allow query
+            self._connection.stop()
+
             response = self._connection.query(obd.commands.STATUS)
 
             if response.is_null():
@@ -1697,6 +1728,9 @@ class OBDManager(QObject):
 
         except Exception as e:
             print(f"[OBD] Error reading status: {e}")
+        finally:
+            # Resume async polling
+            self._connection.start()
 
     @Slot(result=list)
     def get_dtc_codes(self):

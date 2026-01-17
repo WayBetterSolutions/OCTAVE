@@ -121,24 +121,29 @@ Item {
 
                     Column {
                         anchors.centerIn: parent
+                        width: parent.width - 16
                         spacing: 8
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Read DTCs"
-                            font.pixelSize: 40
+                            font.pixelSize: Math.min(32, parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Stored trouble codes"
-                            font.pixelSize: 24
+                            font.pixelSize: Math.min(18, parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -165,24 +170,29 @@ Item {
 
                     Column {
                         anchors.centerIn: parent
+                        width: parent.width - 16
                         spacing: 8
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Current DTCs"
-                            font.pixelSize: 40
+                            font.pixelSize: Math.min(32, parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Active this drive cycle"
-                            font.pixelSize: 24
+                            font.pixelSize: Math.min(18, parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -209,24 +219,29 @@ Item {
 
                     Column {
                         anchors.centerIn: parent
+                        width: parent.width - 16
                         spacing: 8
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Read Status"
-                            font.pixelSize: 40
+                            font.pixelSize: Math.min(32, parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "CEL & DTC count"
-                            font.pixelSize: 24
+                            font.pixelSize: Math.min(18, parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -253,24 +268,29 @@ Item {
 
                     Column {
                         anchors.centerIn: parent
+                        width: parent.width - 16
                         spacing: 8
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Freeze Frame"
-                            font.pixelSize: 40
+                            font.pixelSize: Math.min(32, parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Snapshot at fault"
-                            font.pixelSize: 24
+                            font.pixelSize: Math.min(18, parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -505,24 +525,29 @@ Item {
 
                     Column {
                         anchors.centerIn: parent
+                        width: parent.width - 16
                         spacing: 8
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Clear DTCs"
-                            font.pixelSize: 40
+                            font.pixelSize: Math.min(32, parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
+                            elide: Text.ElideRight
                         }
 
                         Text {
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            width: parent.width
+                            horizontalAlignment: Text.AlignHCenter
                             text: "Reset CEL & codes"
-                            font.pixelSize: 24
+                            font.pixelSize: Math.min(18, parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
+                            elide: Text.ElideRight
                         }
                     }
 
@@ -543,6 +568,7 @@ Item {
         id: clearConfirmDialog
         title: "Clear Diagnostic Trouble Codes"
         anchors.centerIn: parent
+        width: 400
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
 
@@ -558,6 +584,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
+                Layout.preferredWidth: 360
                 text: "Are you sure you want to clear all DTCs?"
                 font.pixelSize: 16
                 font.family: obdDiagnosticsPage.globalFont
