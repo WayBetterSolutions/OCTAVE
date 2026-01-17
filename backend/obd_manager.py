@@ -1469,13 +1469,22 @@ class OBDManager(QObject):
         scan_thread.start()
 
     def _do_vehicle_scan(self):
-        """Perform the actual vehicle scan (runs in background thread)"""
+        """Perform the actual vehicle scan (runs in background thread) using a sync connection"""
+        sync_conn = None
         try:
-            # Stop async polling to safely access connection properties
+            # Stop async polling while we use the port
             self._connection.stop()
 
-            # Get supported commands from the connection
-            supported = self._connection.supported_commands
+            # Create a fresh sync connection to get supported commands
+            sync_conn = self._create_sync_connection()
+            if not sync_conn:
+                print("[OBD] Failed to create sync connection for vehicle scan")
+                QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, "Connection failed"))
+                QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
+                return
+
+            # Get supported commands from the sync connection
+            supported = sync_conn.supported_commands
 
             if not supported:
                 QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, "No supported commands found"))
@@ -1511,6 +1520,8 @@ class OBDManager(QObject):
 
         finally:
             self._is_scanning = False
+            if sync_conn:
+                sync_conn.close()
             # Resume async polling
             self._connection.start()
 
@@ -1533,6 +1544,23 @@ class OBDManager(QObject):
 
     # ==================== Diagnostic Commands ====================
 
+    def _create_sync_connection(self):
+        """Create a temporary synchronous OBD connection for diagnostic queries.
+        This mirrors the approach used in test scripts that work reliably."""
+        port = self._get_configured_port()
+        try:
+            # Create a simple synchronous connection like the test scripts
+            sync_conn = obd.OBD(port, fast=False, timeout=30)
+            if sync_conn.is_connected():
+                return sync_conn
+            else:
+                print(f"[OBD] Sync connection failed to connect on {port}")
+                sync_conn.close()
+                return None
+        except Exception as e:
+            print(f"[OBD] Error creating sync connection: {e}")
+            return None
+
     @Slot()
     def read_dtc(self):
         """Read Diagnostic Trouble Codes from the vehicle"""
@@ -1545,12 +1573,20 @@ class OBDManager(QObject):
         threading.Thread(target=self._do_read_dtc, daemon=True).start()
 
     def _do_read_dtc(self):
-        """Read DTCs in background thread"""
+        """Read DTCs in background thread using a sync connection"""
+        sync_conn = None
         try:
-            # Stop async polling to allow query
+            # Stop async polling while we use the port
             self._connection.stop()
 
-            response = self._connection.query(obd.commands.GET_DTC)
+            # Create a fresh sync connection (like the working test script)
+            sync_conn = self._create_sync_connection()
+            if not sync_conn:
+                print("[OBD] Failed to create sync connection for DTC read")
+                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                return
+
+            response = sync_conn.query(obd.commands.GET_DTC)
 
             if response.is_null():
                 print("[OBD] No DTCs found (null response)")
@@ -1577,6 +1613,9 @@ class OBDManager(QObject):
             print(f"[OBD] Error reading DTCs: {e}")
             QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
         finally:
+            # Close sync connection
+            if sync_conn:
+                sync_conn.close()
             # Resume async polling
             self._connection.start()
 
@@ -1591,12 +1630,20 @@ class OBDManager(QObject):
         threading.Thread(target=self._do_read_current_dtc, daemon=True).start()
 
     def _do_read_current_dtc(self):
-        """Read current DTCs in background thread"""
+        """Read current DTCs in background thread using a sync connection"""
+        sync_conn = None
         try:
-            # Stop async polling to allow query
+            # Stop async polling while we use the port
             self._connection.stop()
 
-            response = self._connection.query(obd.commands.GET_CURRENT_DTC)
+            # Create a fresh sync connection
+            sync_conn = self._create_sync_connection()
+            if not sync_conn:
+                print("[OBD] Failed to create sync connection for current DTC read")
+                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                return
+
+            response = sync_conn.query(obd.commands.GET_CURRENT_DTC)
 
             if response.is_null():
                 print("[OBD] No current DTCs found")
@@ -1612,6 +1659,8 @@ class OBDManager(QObject):
         except Exception as e:
             print(f"[OBD] Error reading current DTCs: {e}")
         finally:
+            if sync_conn:
+                sync_conn.close()
             # Resume async polling
             self._connection.start()
 
@@ -1626,12 +1675,20 @@ class OBDManager(QObject):
         threading.Thread(target=self._do_read_freeze_frame, daemon=True).start()
 
     def _do_read_freeze_frame(self):
-        """Read freeze frame in background thread"""
+        """Read freeze frame in background thread using a sync connection"""
+        sync_conn = None
         try:
-            # Stop async polling to allow query
+            # Stop async polling while we use the port
             self._connection.stop()
 
-            response = self._connection.query(obd.commands.FREEZE_DTC)
+            # Create a fresh sync connection
+            sync_conn = self._create_sync_connection()
+            if not sync_conn:
+                print("[OBD] Failed to create sync connection for freeze frame read")
+                QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit([]))
+                return
+
+            response = sync_conn.query(obd.commands.FREEZE_DTC)
 
             if response.is_null():
                 print("[OBD] No freeze frame data")
@@ -1649,6 +1706,8 @@ class OBDManager(QObject):
         except Exception as e:
             print(f"[OBD] Error reading freeze frame: {e}")
         finally:
+            if sync_conn:
+                sync_conn.close()
             # Resume async polling
             self._connection.start()
 
@@ -1665,12 +1724,20 @@ class OBDManager(QObject):
         threading.Thread(target=self._do_clear_dtc, daemon=True).start()
 
     def _do_clear_dtc(self):
-        """Clear DTCs in background thread"""
+        """Clear DTCs in background thread using a sync connection"""
+        sync_conn = None
         try:
-            # Stop async polling to allow query
+            # Stop async polling while we use the port
             self._connection.stop()
 
-            response = self._connection.query(obd.commands.CLEAR_DTC)
+            # Create a fresh sync connection
+            sync_conn = self._create_sync_connection()
+            if not sync_conn:
+                print("[OBD] Failed to create sync connection for clear DTC")
+                QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, "Connection failed"))
+                return
+
+            response = sync_conn.query(obd.commands.CLEAR_DTC)
 
             if response.is_null():
                 print("[OBD] Clear DTC command returned null")
@@ -1692,6 +1759,8 @@ class OBDManager(QObject):
             print(f"[OBD] Error clearing DTCs: {e}")
             QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, str(e)))
         finally:
+            if sync_conn:
+                sync_conn.close()
             # Resume async polling
             self._connection.start()
 
@@ -1706,12 +1775,19 @@ class OBDManager(QObject):
         threading.Thread(target=self._do_read_status, daemon=True).start()
 
     def _do_read_status(self):
-        """Read status in background thread"""
+        """Read status in background thread using a sync connection"""
+        sync_conn = None
         try:
-            # Stop async polling to allow query
+            # Stop async polling while we use the port
             self._connection.stop()
 
-            response = self._connection.query(obd.commands.STATUS)
+            # Create a fresh sync connection
+            sync_conn = self._create_sync_connection()
+            if not sync_conn:
+                print("[OBD] Failed to create sync connection for status read")
+                return
+
+            response = sync_conn.query(obd.commands.STATUS)
 
             if response.is_null():
                 print("[OBD] Status command returned null")
@@ -1729,6 +1805,8 @@ class OBDManager(QObject):
         except Exception as e:
             print(f"[OBD] Error reading status: {e}")
         finally:
+            if sync_conn:
+                sync_conn.close()
             # Resume async polling
             self._connection.start()
 
