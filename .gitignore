@@ -29,3 +29,7 @@ backend/android_auto/proto/aap_protobuf/**/*_pb2.py
 # Developer mode tools (completely isolated from main codebase)
 # These files simulate OBD data for testing without a real car connection
 dev/
+
+# Test scripts
+test_*.py
+clear_dtc.py
