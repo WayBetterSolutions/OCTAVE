@@ -2344,7 +2344,6 @@ Item {
                                         
                                         function onConnectionStatusChanged(status) {
                                             connectionStatusRect.connecting = (status === "Connecting")
-                                            connectionTimeoutTimer.stop()
                                         }
                                         
                                         function onConnectionProgressChanged(progress) {
@@ -3374,7 +3373,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Path to the scrcpy executable. Leave empty for auto-detection."
+                                    text: "Leave empty to auto-detect scrcpy on your system PATH."
                                 }
 
                                 RowLayout {
@@ -3385,7 +3384,7 @@ Item {
                                         id: scrcpyPathField
                                         Layout.fillWidth: true
                                         text: settingsManager ? settingsManager.scrcpyPath : ""
-                                        placeholderText: "Auto-detect (leave empty)"
+                                        placeholderText: "Auto-detect"
 
                                         onEditingFinished: {
                                             if (settingsManager) {

@@ -30,20 +30,23 @@ Item {
         target: obdManager
 
         function onDtcCodesChanged(codes) {
+            console.log("[OBDDiagnostics] onDtcCodesChanged received, count:", codes ? codes.length : "null")
             dtcCodes = codes
             isLoading = false
             statusMessage = codes.length > 0 ? "Found " + codes.length + " DTC(s)" : "No DTCs found"
 
             // Output to terminal
-            if (codes.length > 0) {
+            if (codes && codes.length > 0) {
                 terminalOutput.appendLine("[FOUND] " + codes.length + " DTC(s) detected:")
                 for (var i = 0; i < codes.length; i++) {
                     var dtc = codes[i]
+                    console.log("[OBDDiagnostics] DTC:", dtc.code, "-", dtc.description)
                     terminalOutput.appendLine("[DTC] " + dtc.code + " - " + dtc.description)
                 }
             } else {
                 terminalOutput.appendLine("[DONE] No trouble codes found")
             }
+            console.log("[OBDDiagnostics] Terminal lines count:", terminalOutput.lines.length)
         }
 
         function onDtcCountChanged(count) {
@@ -52,6 +55,7 @@ Item {
         }
 
         function onMilStatusChanged(status) {
+            console.log("[OBDDiagnostics] onMilStatusChanged received:", status)
             milStatus = status
             if (status) {
                 terminalOutput.appendLine("[WARN] Check Engine Light is ON")
@@ -476,6 +480,7 @@ Item {
                         property int maxLines: 50
 
                         function appendLine(text) {
+                            console.log("[Terminal] appendLine called with:", text)
                             var lineColor = "#00ff00"  // Default green
 
                             if (text.indexOf("[ERROR]") === 0) {
@@ -506,6 +511,7 @@ Item {
                             }
 
                             lines = newLines
+                            console.log("[Terminal] lines now has", lines.length, "items")
                         }
 
                         function clear() {

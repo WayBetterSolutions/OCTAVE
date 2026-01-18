@@ -1836,8 +1836,11 @@ class OBDManager(QObject):
 
             print(f"[OBD] Found {len(dtc_list)} DTCs: {dtc_list}")
 
-            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit(dtc_list))
-            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(len(dtc_list)))
+            # Capture values for lambda to ensure correct data is emitted
+            codes = dtc_list
+            count = len(dtc_list)
+            QTimer.singleShot(0, lambda c=codes: self.dtcCodesChanged.emit(c))
+            QTimer.singleShot(0, lambda n=count: self.dtcCountChanged.emit(n))
 
         except Exception as e:
             print(f"[OBD] Error reading DTCs: {e}")
@@ -1889,7 +1892,8 @@ class OBDManager(QObject):
             dtc_list = [{"code": code, "description": desc} for code, desc in dtcs]
 
             print(f"[OBD] Found {len(dtc_list)} current DTCs")
-            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit(dtc_list))
+            codes = dtc_list
+            QTimer.singleShot(0, lambda c=codes: self.dtcCodesChanged.emit(c))
 
         except Exception as e:
             print(f"[OBD] Error reading current DTCs: {e}")
@@ -1942,7 +1946,8 @@ class OBDManager(QObject):
             self._freeze_frame_dtcs = dtc_list
 
             print(f"[OBD] Freeze frame DTCs: {dtc_list}")
-            QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit(dtc_list))
+            ff_data = dtc_list
+            QTimer.singleShot(0, lambda d=ff_data: self.freezeFrameChanged.emit(d))
 
         except Exception as e:
             print(f"[OBD] Error reading freeze frame: {e}")
@@ -2055,8 +2060,11 @@ class OBDManager(QObject):
 
             print(f"[OBD] MIL: {self._mil_status}, DTC count: {self._dtc_count}")
 
-            QTimer.singleShot(0, lambda: self.milStatusChanged.emit(self._mil_status))
-            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(self._dtc_count))
+            # Capture values for lambda to avoid race conditions
+            mil = self._mil_status
+            dtc_count = self._dtc_count
+            QTimer.singleShot(0, lambda m=mil: self.milStatusChanged.emit(m))
+            QTimer.singleShot(0, lambda c=dtc_count: self.dtcCountChanged.emit(c))
 
         except Exception as e:
             print(f"[OBD] Error reading status: {e}")
