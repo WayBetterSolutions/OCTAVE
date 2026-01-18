@@ -20,19 +20,26 @@ class OBDConnectionWorker(QObject):
         super().__init__()
         self._port = None
         self._fast_mode = True
-        self._timeout = 10
+        self._timeout = 5  # Reduced from 10s for faster connection
+        self._cached_protocol = None
 
-    def set_params(self, port, fast_mode, timeout):
+    def set_params(self, port, fast_mode, timeout, cached_protocol=None):
         self._port = port
         self._fast_mode = fast_mode
         self._timeout = timeout
+        self._cached_protocol = cached_protocol
 
     def do_connect(self):
         """Perform the actual OBD connection - runs in worker thread"""
         try:
-            self.connectionProgress.emit(20, "Initializing OBD adapter...")
+            if self._cached_protocol:
+                self.connectionProgress.emit(20, f"Connecting with cached protocol...")
+                print(f"[OBD] Attempting connection with cached protocol: {self._cached_protocol}")
+            else:
+                self.connectionProgress.emit(20, "Initializing OBD adapter...")
 
             # Create the connection (this is the blocking call)
+            # Note: python-obd will auto-detect protocol if not specified
             connection = obd.Async(
                 portstr=self._port,
                 fast=self._fast_mode,
@@ -290,13 +297,14 @@ class OBDManager(QObject):
         self._connection_detail = "Waiting for startup..."
         self._is_connecting = False
         self._last_reconnect_time = 0
+        self._last_successful_protocol = None  # Cache last working protocol for faster reconnects
 
         # Auto-reconnect settings (loaded from settings_manager)
         self._auto_reconnect_delay = 5.0  # seconds
         self._force_stop_reconnect = False  # Used to stop reconnects on close()
 
-        # Connection timeout (configurable)
-        self._connection_timeout = 10  # seconds
+        # Connection timeout (configurable) - reduced from 10s for faster connection
+        self._connection_timeout = 5  # seconds
 
         # Connection monitor thread
         self._monitor_thread = None
@@ -336,7 +344,7 @@ class OBDManager(QObject):
         # Startup timer - defer connection to not block init
         self._startup_timer = QTimer()
         self._startup_timer.setSingleShot(True)
-        self._startup_timer.setInterval(1500)  # 1.5 second delay after startup
+        self._startup_timer.setInterval(500)  # Reduced from 1.5s - just enough for UI to settle
         self._startup_timer.timeout.connect(self._initial_connect)
         self._startup_timer.start()
 
@@ -539,7 +547,7 @@ class OBDManager(QObject):
 
         # Create worker and thread for non-blocking connection using Qt threading
         self._worker = OBDConnectionWorker()
-        self._worker.set_params(port, fast_mode, self._connection_timeout)
+        self._worker.set_params(port, fast_mode, self._connection_timeout, self._last_successful_protocol)
 
         self._worker_thread = QThread()
         self._worker.moveToThread(self._worker_thread)
@@ -566,6 +574,13 @@ class OBDManager(QObject):
             self._connection = connection
             self._connected = True
             self._connection_attempts = 0
+
+            # Cache the successful protocol for faster reconnects
+            try:
+                self._last_successful_protocol = connection.protocol_name()
+                print(f"[OBD] Caching successful protocol: {self._last_successful_protocol}")
+            except:
+                pass
 
             self.connectionStatusChanged.emit("Connected")
             self.connectionStatusDetailChanged.emit("OBD interface connected successfully")
@@ -661,8 +676,8 @@ class OBDManager(QObject):
             self._device_scanner_timer.start()
             return
 
-        # Calculate backoff delay (5s, 10s, 15s, 20s, 25s, 30s max)
-        delay = min(30, 5 + (self._connection_attempts * 5))
+        # Calculate backoff delay (2s, 4s, 6s, 8s, 10s max) - reduced for faster reconnects
+        delay = min(10, 2 + (self._connection_attempts * 2))
         self.connectionStatusDetailChanged.emit(f"Retry in {delay}s... ({self._connection_attempts}/{max_attempts})")
         print(f"[OBD] Auto-reconnect in {delay}s (attempt {self._connection_attempts + 1}/{max_attempts})")
 
@@ -1649,8 +1664,8 @@ class OBDManager(QObject):
             # Stop async polling
             self._connection.stop()
 
-            # Wait for port to be released
-            time.sleep(0.5)
+            # Wait for port to be released (reduced from 0.5s)
+            time.sleep(0.2)
 
             # Check if we were cancelled during the wait (rapid menu switching)
             with self._diagnostic_mode_lock:
@@ -1666,7 +1681,7 @@ class OBDManager(QObject):
             port = self._get_configured_port()
             print(f"[OBD] Creating diagnostic sync connection on port: {port}")
             try:
-                self._diagnostic_sync_conn = obd.OBD(port, fast=False, timeout=30)
+                self._diagnostic_sync_conn = obd.OBD(port, fast=False, timeout=10)
                 if self._diagnostic_sync_conn.is_connected():
                     print(f"[OBD] Diagnostic mode active - sync connection ready on {port}")
                     print(f"[OBD] Diagnostic sync connection status: {self._diagnostic_sync_conn.status()}")
@@ -1731,7 +1746,7 @@ class OBDManager(QObject):
 
             # Resume async polling
             if self._connection:
-                time.sleep(0.3)  # Brief pause before resuming
+                time.sleep(0.1)  # Brief pause before resuming (reduced from 0.3s)
                 self._connection.start()
                 print("[OBD] Async polling resumed")
 
@@ -1765,11 +1780,11 @@ class OBDManager(QObject):
         This mirrors the approach used in test scripts that work reliably."""
         port = self._get_configured_port()
         try:
-            # Wait for async connection to fully release the port
-            time.sleep(0.5)
+            # Wait for async connection to fully release the port (reduced from 0.5s)
+            time.sleep(0.2)
 
             # Create a simple synchronous connection like the test scripts
-            sync_conn = obd.OBD(port, fast=False, timeout=30)
+            sync_conn = obd.OBD(port, fast=False, timeout=10)
             if sync_conn.is_connected():
                 return sync_conn
             else:
