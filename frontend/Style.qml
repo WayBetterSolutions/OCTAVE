@@ -1370,6 +1370,8 @@ QtObject {
     // OBD Page
     property color obdBoxBackground: activeTheme.obd.boxBackground
     property color obdBarColor: activeTheme.obd.barColor
+    property color obdLabelColor: activeTheme.obd.labelColor ? activeTheme.obd.labelColor : secondaryTextColor
+    property color obdValueColor: activeTheme.obd.valueColor ? activeTheme.obd.valueColor : primaryTextColor
 
     // Settings
     property color sidebarColor: activeTheme.base

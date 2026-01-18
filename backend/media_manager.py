@@ -558,12 +558,74 @@ class MediaManager(QObject):
         nav_color = adjust_brightness(accent, 0.7)
         nav_color2 = adjust_brightness(accent2, 0.75)
 
+        def get_luminance(rgb):
+            """Calculate relative luminance for WCAG contrast calculations"""
+            def channel_luminance(c):
+                c = c / 255.0
+                return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+            r, g, b = rgb[0], rgb[1], rgb[2]
+            return 0.2126 * channel_luminance(r) + 0.7152 * channel_luminance(g) + 0.0722 * channel_luminance(b)
+
+        def get_contrast_ratio(rgb1, rgb2):
+            """Calculate contrast ratio between two colors (WCAG formula)"""
+            l1 = get_luminance(rgb1)
+            l2 = get_luminance(rgb2)
+            lighter = max(l1, l2)
+            darker = min(l1, l2)
+            return (lighter + 0.05) / (darker + 0.05)
+
+        def get_readable_text_color(background_rgb):
+            """Return white or black text based on background luminance for best readability"""
+            lum = get_luminance(background_rgb)
+            # Use white text on dark backgrounds, black text on light backgrounds
+            # Threshold of 0.179 is the midpoint for WCAG contrast
+            if lum < 0.3:  # More generous threshold for dark backgrounds
+                return [245, 245, 245]  # Bright white text
+            else:
+                return [25, 25, 25]  # Near black text
+
+        def get_secondary_text_color(background_rgb):
+            """Return a secondary text color with good contrast but less prominent"""
+            lum = get_luminance(background_rgb)
+            if lum < 0.3:  # Dark background
+                return [210, 210, 210]  # Brighter secondary text (was 180)
+            else:
+                return [60, 60, 60]  # Darker secondary text for light backgrounds
+
+        def ensure_icon_contrast(icon_rgb, background_rgb, min_contrast=3.0):
+            """Ensure icon color has sufficient contrast against background.
+            If not, brighten or darken the icon color until it does."""
+            contrast = get_contrast_ratio(icon_rgb, background_rgb)
+            if contrast >= min_contrast:
+                return icon_rgb  # Already good
+
+            bg_lum = get_luminance(background_rgb)
+            adjusted = icon_rgb[:]
+
+            # Try brightening or darkening based on background
+            if bg_lum < 0.5:
+                # Dark background - brighten the icon
+                for factor in [1.3, 1.5, 1.8, 2.0, 2.5, 3.0]:
+                    adjusted = adjust_brightness(icon_rgb, factor)
+                    if get_contrast_ratio(adjusted, background_rgb) >= min_contrast:
+                        return adjusted
+                # If still not enough, return a light color
+                return [220, 200, 150]  # Fallback light gold
+            else:
+                # Light background - darken the icon
+                for factor in [0.7, 0.5, 0.4, 0.3, 0.2]:
+                    adjusted = adjust_brightness(icon_rgb, factor)
+                    if get_contrast_ratio(adjusted, background_rgb) >= min_contrast:
+                        return adjusted
+                # If still not enough, return a dark color
+                return [50, 40, 30]  # Fallback dark
+
+            return adjusted
+
         if is_dark:
             # Dark theme based on album art
             base = adjust_brightness(primary_rgb, 0.15)  # Very dark version
             base_alt = adjust_brightness(primary_rgb, 0.22)  # Slightly lighter
-            text_primary = [240, 240, 240]
-            text_secondary = [180, 180, 180]
             hover = adjust_brightness(primary_rgb, 0.30)
             paused = adjust_brightness(primary_rgb, 0.25)
             playing = adjust_brightness(primary_rgb, 0.35)
@@ -572,17 +634,27 @@ class MediaManager(QObject):
             base = adjust_brightness(primary_rgb, 2.5)  # Very light version
             base = adjust_saturation(base, 0.3)  # Desaturate for background
             base_alt = adjust_brightness(base, 0.92)
-            text_primary = [40, 40, 40]
-            text_secondary = [100, 100, 100]
             hover = adjust_brightness(base, 0.88)
             paused = adjust_brightness(base, 0.85)
             playing = adjust_brightness(base, 0.80)
+
+        # Calculate text colors based on actual background luminance for guaranteed readability
+        text_primary = get_readable_text_color(base)
+        text_secondary = get_secondary_text_color(base)
+
+        # Ensure all icon colors have sufficient contrast against the base background
+        accent_visible = ensure_icon_contrast(accent, base)
+        accent2_visible = ensure_icon_contrast(accent2, base)
+        accent3_visible = ensure_icon_contrast(accent3, base)
+        accent4_visible = ensure_icon_contrast(accent4, base)
+        nav_color_visible = ensure_icon_contrast(nav_color, base)
+        nav_color2_visible = ensure_icon_contrast(nav_color2, base)
 
         # Build theme object with varied colors like CosmicVoyager
         theme = {
             "base": rgb_to_hex(base),
             "baseAlt": rgb_to_hex(base_alt),
-            "accent": rgb_to_hex(accent),
+            "accent": rgb_to_hex(accent_visible),
             "text": {
                 "primary": rgb_to_hex(text_primary),
                 "secondary": rgb_to_hex(text_secondary)
@@ -593,41 +665,43 @@ class MediaManager(QObject):
                 "playing": rgb_to_hex(playing)
             },
             "sliders": {
-                "volume": rgb_to_hex(accent),
-                "media": rgb_to_hex(accent2),
-                "settings": rgb_to_hex(accent3)
+                "volume": rgb_to_hex(accent_visible),
+                "media": rgb_to_hex(accent2_visible),
+                "settings": rgb_to_hex(accent3_visible)
             },
             "bottombar": {
-                "previous": rgb_to_hex(nav_color),       # Dimmed primary for nav
-                "play": rgb_to_hex(accent),              # Bright primary for emphasis
-                "pause": rgb_to_hex(accent),             # Match play
-                "next": rgb_to_hex(nav_color),           # Match previous
-                "volume": rgb_to_hex(accent2),           # Secondary color for volume
-                "shuffle": rgb_to_hex(accent3),          # Tertiary for shuffle
+                "previous": rgb_to_hex(nav_color_visible),       # Dimmed primary for nav
+                "play": rgb_to_hex(accent_visible),              # Bright primary for emphasis
+                "pause": rgb_to_hex(accent_visible),             # Match play
+                "next": rgb_to_hex(nav_color_visible),           # Match previous
+                "volume": rgb_to_hex(accent2_visible),           # Secondary color for volume
+                "shuffle": rgb_to_hex(accent3_visible),          # Tertiary for shuffle
                 "toggleShade": rgb_to_hex(hover),
-                "homeButton": rgb_to_hex(accent),        # Primary accent
-                "obdButton": rgb_to_hex(accent4),        # Quaternary for OBD (distinct)
-                "mediaButton": rgb_to_hex(accent2),      # Secondary for media
-                "settingsButton": rgb_to_hex(accent3),   # Tertiary for settings
-                "androidAutoButton": rgb_to_hex(nav_color2),
-                "phoneMirrorButton": rgb_to_hex(accent4)  # Quaternary for phone mirror
+                "homeButton": rgb_to_hex(accent_visible),        # Primary accent
+                "obdButton": rgb_to_hex(accent4_visible),        # Quaternary for OBD (distinct)
+                "mediaButton": rgb_to_hex(accent2_visible),      # Secondary for media
+                "settingsButton": rgb_to_hex(accent3_visible),   # Tertiary for settings
+                "androidAutoButton": rgb_to_hex(nav_color2_visible),
+                "phoneMirrorButton": rgb_to_hex(accent4_visible)  # Quaternary for phone mirror
             },
             "mediaroom": {
-                "previous": rgb_to_hex(nav_color),
-                "play": rgb_to_hex(adjust_brightness(accent, 1.1)),  # Brighter than bottombar
-                "pause": rgb_to_hex(adjust_brightness(accent, 1.1)),
-                "next": rgb_to_hex(nav_color),
-                "left": rgb_to_hex(accent4),             # Quaternary for arrows
-                "right": rgb_to_hex(accent4),
-                "shuffle": rgb_to_hex(accent3),          # Tertiary for shuffle
+                "previous": rgb_to_hex(nav_color_visible),
+                "play": rgb_to_hex(ensure_icon_contrast(adjust_brightness(accent, 1.1), base)),  # Brighter than bottombar
+                "pause": rgb_to_hex(ensure_icon_contrast(adjust_brightness(accent, 1.1), base)),
+                "next": rgb_to_hex(nav_color_visible),
+                "left": rgb_to_hex(accent4_visible),             # Quaternary for arrows
+                "right": rgb_to_hex(accent4_visible),
+                "shuffle": rgb_to_hex(accent3_visible),          # Tertiary for shuffle
                 "toggleShade": rgb_to_hex(paused)
             },
             "mainmenu": {
-                "mediaContainer": rgb_to_hex(adjust_brightness(accent2, 0.6))
+                "mediaContainer": rgb_to_hex(adjust_brightness(accent2_visible, 0.6))
             },
             "obd": {
                 "boxBackground": rgb_to_hex(base_alt),
-                "barColor": rgb_to_hex(accent4)  # Quaternary matches OBD button
+                "barColor": rgb_to_hex(ensure_icon_contrast(accent4, base_alt)),  # Visible against OBD box
+                "labelColor": rgb_to_hex(get_secondary_text_color(base_alt)),  # Readable labels
+                "valueColor": rgb_to_hex(get_readable_text_color(base_alt))   # Readable values
             }
         }
 
