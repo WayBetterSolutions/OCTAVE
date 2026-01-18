@@ -79,6 +79,9 @@ class SettingsManager(QObject):
     # Settings menu visibility signals
     settingsMenuVisibilityChanged = Signal()  # Emitted when any menu visibility changes
 
+    # Generic settings changed signal - emitted when save_setting is called
+    genericSettingChanged = Signal(str)  # Emits the key that changed
+
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
@@ -1216,6 +1219,30 @@ class SettingsManager(QObject):
         print(f"[AlbumArtCapture] set_album_art_colors called, length: {len(colors_json) if colors_json else 0}")
         self._album_art_colors = colors_json
         self.albumArtColorsChanged.emit(colors_json)
+
+    # ==================== Generic Setting Access ====================
+    # These methods allow QML to get/set arbitrary settings without dedicated properties
+    # Useful for per-parameter OBD settings like RPM shift light configuration
+
+    @Slot(str, result='QVariant')
+    def get_setting(self, key, default_value=None):
+        """Get a setting value by key with optional default"""
+        settings = self.load_settings()
+        return settings.get(key, default_value)
+
+    @Slot(str, 'QVariant', result='QVariant')
+    def get_setting_with_default(self, key, default_value):
+        """Get a setting value by key with a specified default value"""
+        settings = self.load_settings()
+        return settings.get(key, default_value)
+
+    @Slot(str, 'QVariant')
+    def save_setting(self, key, value):
+        """Save a single setting by key"""
+        settings = self.load_settings()
+        settings[key] = value
+        self.save_settings(settings)
+        self.genericSettingChanged.emit(key)
 
     @Slot()
     def reset_to_defaults(self):

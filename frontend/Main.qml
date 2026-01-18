@@ -71,8 +71,35 @@ ApplicationWindow {
     property int screenHeight: settingsManager ? settingsManager.screenHeight : 720
 
     // Bottom bar orientation property
-    property bool isVerticalLayout: settingsManager ? 
+    property bool isVerticalLayout: settingsManager ?
                                    settingsManager.bottomBarOrientation === "side" : false
+
+    // Global shift light flash properties
+    property real currentRpm: 0
+    property var shiftLightFlags: []
+    property var activeShiftFlag: null
+    property bool shiftLightFlashVisible: true
+    property real fullScreenFlashOpacity: settingsManager ? settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5) : 0.5
+
+    // Function to find active flag based on current RPM
+    function findActiveFlag() {
+        if (!shiftLightFlags || shiftLightFlags.length === 0) {
+            activeShiftFlag = null
+            return
+        }
+        // Check from highest priority (last) to lowest (first)
+        var active = null
+        for (var i = shiftLightFlags.length - 1; i >= 0; i--) {
+            var flag = shiftLightFlags[i]
+            var low = flag.rpmLow !== undefined ? flag.rpmLow : flag.rpm
+            var high = flag.rpmHigh !== undefined ? flag.rpmHigh : 99999
+            if (currentRpm >= low && currentRpm <= high) {
+                active = flag
+                break
+            }
+        }
+        activeShiftFlag = active
+    }
 
     // Set initial window size
     width: screenWidth
@@ -164,6 +191,9 @@ ApplicationWindow {
                 App.Style.customThemesUpdated()
             })
         }
+
+        // Load shift light flags for global full screen flash
+        loadShiftLightFlags()
     }
 
     // Window resize handlers
@@ -302,7 +332,7 @@ ApplicationWindow {
             stackView: stackView
             mainWindow: mainWindow
             isVertical: isVerticalLayout
-            
+
             // Force update on orientation change
             onIsVerticalChanged: {
                 // Trigger a layout update
@@ -319,6 +349,43 @@ ApplicationWindow {
                     anchors.top = undefined
                     height = parent.height * App.Spacing.bottomBarHeightPercent
                 }
+            }
+        }
+
+    }
+
+    // Global full screen flash overlay - uses Overlay.overlay to be above EVERYTHING including popups
+    Loader {
+        id: globalFlashLoader
+        active: mainWindow.activeShiftFlag !== null &&
+                mainWindow.activeShiftFlag.fullScreenFlash === true
+
+        onActiveChanged: {
+            console.log("[GlobalFlash] Loader active changed to:", active)
+        }
+
+        sourceComponent: Rectangle {
+            id: globalFullScreenFlash
+            parent: Overlay.overlay ? Overlay.overlay : mainWindow.contentItem
+            x: 0
+            y: 0
+            width: mainWindow.width
+            height: mainWindow.height
+            z: 2147483647  // Max int32 for highest possible z-index
+            visible: mainWindow.shiftLightFlashVisible
+            color: mainWindow.activeShiftFlag ? mainWindow.activeShiftFlag.color : "transparent"
+            opacity: mainWindow.fullScreenFlashOpacity
+
+            Component.onCompleted: {
+                console.log("[GlobalFlash] Overlay created, parent:", parent, "size:", width, "x", height)
+                console.log("[GlobalFlash] Overlay.overlay exists:", Overlay.overlay !== null)
+            }
+
+            // Update size when window resizes
+            Connections {
+                target: mainWindow
+                function onWidthChanged() { globalFullScreenFlash.width = mainWindow.width }
+                function onHeightChanged() { globalFullScreenFlash.height = mainWindow.height }
             }
         }
     }
@@ -515,6 +582,64 @@ ApplicationWindow {
                 height = newHeight
             }
             App.Spacing.updateDimensions(width, height)
+        }
+    }
+
+    // Load shift light flags from settings
+    function loadShiftLightFlags() {
+        if (settingsManager) {
+            try {
+                var savedFlags = settingsManager.get_setting_with_default("rpm_flags", "[]")
+                shiftLightFlags = JSON.parse(savedFlags)
+            } catch(e) {
+                shiftLightFlags = []
+            }
+            fullScreenFlashOpacity = settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5)
+        }
+    }
+
+    // OBD manager connections for global shift light flash
+    Connections {
+        target: obdManager
+        enabled: obdManager !== null
+
+        function onRpmChanged(rpm) {
+            mainWindow.currentRpm = rpm
+            mainWindow.findActiveFlag()
+            // Debug: log when we get RPM and find a flag
+            if (mainWindow.activeShiftFlag !== null) {
+                console.log("[GlobalFlash] RPM:", rpm, "Active flag:", JSON.stringify(mainWindow.activeShiftFlag))
+            }
+        }
+    }
+
+    // Settings manager connections for shift light settings changes
+    Connections {
+        target: settingsManager
+        function onGenericSettingChanged(key) {
+            if (key.startsWith("rpm_")) {
+                mainWindow.loadShiftLightFlags()
+            }
+        }
+    }
+
+    // Flash timer for global shift light
+    Timer {
+        id: globalFlashTimer
+        interval: mainWindow.activeShiftFlag ? mainWindow.activeShiftFlag.flashSpeed : 100
+        running: mainWindow.activeShiftFlag !== null && mainWindow.activeShiftFlag.flash === true
+        repeat: true
+        onTriggered: {
+            mainWindow.shiftLightFlashVisible = !mainWindow.shiftLightFlashVisible
+        }
+    }
+
+    // Reset flash visibility when flag changes
+    onActiveShiftFlagChanged: {
+        shiftLightFlashVisible = true
+        // Load flags on first activation if not loaded
+        if (shiftLightFlags.length === 0) {
+            loadShiftLightFlags()
         }
     }
 }

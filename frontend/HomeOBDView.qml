@@ -11,6 +11,13 @@ Item {
     // fontFamily always returns a valid font (systemDefaultFont or custom font)
     property string globalFont: App.Style.fontFamily
 
+    // Full screen flash settings (opacity is global, but enabled is per-flag)
+    property real fullScreenFlashOpacity: settingsManager ? settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5) : 0.5
+
+    // Track if any shift light is active and flashing (will be set by the RPM card)
+    property var activeShiftFlag: null
+    property bool shiftLightFlashVisible: true
+
     // Properties - expanded to include all possible OBD parameters
     property var parameterInfo: {
         "SPEED": {title: "Speed", unit: "MPH", minValue: 0, maxValue: 160},
@@ -168,9 +175,10 @@ Item {
                 }
                 
                 // Shift light - positioned on right middle of RPM card
+                // Uses flag-based settings from settingsManager
                 Rectangle {
                     id: shiftLight
-                    visible: param === "RPM"
+                    visible: param === "RPM" && shiftLightEnabled
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.rightMargin: 15
@@ -178,16 +186,79 @@ Item {
                     height: width
                     radius: width / 2
 
-                    property bool isActive: (value >= 2000 && value <= 2500) || value >= 5500
+                    // Load shift light settings
+                    property bool shiftLightEnabled: settingsManager ? settingsManager.get_setting_with_default("rpm_shift_light_enabled", true) : true
+                    property var flags: {
+                        if (settingsManager) {
+                            try {
+                                var savedFlags = settingsManager.get_setting_with_default("rpm_flags", "[]")
+                                return JSON.parse(savedFlags)
+                            } catch(e) {
+                                return []
+                            }
+                        }
+                        return []
+                    }
+
+                    // Find the active flag based on current RPM value (range-based)
+                    property var activeFlag: {
+                        if (!flags || flags.length === 0) return null
+                        // Find the flag whose range contains the current RPM
+                        // Check from highest priority (last) to lowest (first)
+                        var active = null
+                        for (var i = flags.length - 1; i >= 0; i--) {
+                            var flag = flags[i]
+                            // Support both old format (rpm) and new format (rpmLow/rpmHigh)
+                            var low = flag.rpmLow !== undefined ? flag.rpmLow : flag.rpm
+                            var high = flag.rpmHigh !== undefined ? flag.rpmHigh : 99999
+                            if (value >= low && value <= high) {
+                                active = flag
+                                break
+                            }
+                        }
+                        return active
+                    }
+
+                    property bool isActive: activeFlag !== null
+
+                    // Flash timer for flashing flags
+                    property bool flashVisible: true
+                    Timer {
+                        id: flashTimer
+                        interval: shiftLight.activeFlag ? shiftLight.activeFlag.flashSpeed : 100
+                        running: shiftLight.activeFlag && shiftLight.activeFlag.flash
+                        repeat: true
+                        onTriggered: {
+                            shiftLight.flashVisible = !shiftLight.flashVisible
+                            // Update parent for full screen flash
+                            homeOBDView.shiftLightFlashVisible = shiftLight.flashVisible
+                        }
+                    }
+
+                    // Reset flash visibility when flag changes or flash stops
+                    onActiveFlagChanged: {
+                        flashVisible = true
+                        homeOBDView.shiftLightFlashVisible = true
+                    }
+
+                    // Update parent with active flag for full screen flash
+                    onIsActiveChanged: {
+                        if (isActive) {
+                            homeOBDView.activeShiftFlag = activeFlag
+                        } else {
+                            homeOBDView.activeShiftFlag = null
+                        }
+                    }
 
                     color: {
-                        if (value >= 5500) {
-                            return "#FF0000"  // Red - shift now!
-                        } else if (value >= 2000 && value <= 2500) {
-                            return "#00FF00"  // Green - ready range
-                        } else {
-                            return "#1a1a1a"  // Dark silhouette when off
+                        if (activeFlag) {
+                            // If flashing and flash is off, show dark
+                            if (activeFlag.flash && !flashVisible) {
+                                return "#1a1a1a"
+                            }
+                            return activeFlag.color
                         }
+                        return "#1a1a1a"  // Dark silhouette when off
                     }
                     border.color: isActive ? Qt.darker(color, 1.3) : "#333333"
                     border.width: 2
@@ -200,10 +271,29 @@ Item {
                         radius: width / 2
                         color: Qt.lighter(parent.color, 1.5)
                         opacity: 0.6
-                        visible: shiftLight.isActive
+                        visible: shiftLight.isActive && shiftLight.flashVisible
                     }
 
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                    // Reload settings when they change
+                    Connections {
+                        target: settingsManager
+                        function onGenericSettingChanged(key) {
+                            // Only reload if RPM-related settings changed
+                            if (key.startsWith("rpm_")) {
+                                shiftLight.shiftLightEnabled = settingsManager.get_setting_with_default("rpm_shift_light_enabled", true)
+                                try {
+                                    var savedFlags = settingsManager.get_setting_with_default("rpm_flags", "[]")
+                                    shiftLight.flags = JSON.parse(savedFlags)
+                                } catch(e) {
+                                    shiftLight.flags = []
+                                }
+                                // Also reload full screen flash opacity at the view level
+                                homeOBDView.fullScreenFlashOpacity = settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5)
+                            }
+                        }
+                    }
                 }
 
                 ColumnLayout {
@@ -271,5 +361,24 @@ Item {
     // Refresh on component completion
     Component.onCompleted: {
         refreshOBDValues();
+    }
+
+    // Full screen flash overlay
+    Rectangle {
+        id: fullScreenFlashOverlay
+        anchors.fill: parent
+        z: 1000  // Make sure it's on top of everything
+        // Check if active flag has fullScreenFlash enabled (per-flag setting)
+        visible: homeOBDView.activeShiftFlag !== null &&
+                 homeOBDView.activeShiftFlag.fullScreenFlash === true &&
+                 homeOBDView.shiftLightFlashVisible
+        color: homeOBDView.activeShiftFlag ? homeOBDView.activeShiftFlag.color : "transparent"
+        opacity: homeOBDView.fullScreenFlashOpacity
+
+        // Allow clicks to pass through
+        MouseArea {
+            anchors.fill: parent
+            enabled: false
+        }
     }
 }
