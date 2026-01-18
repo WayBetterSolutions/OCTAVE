@@ -1760,42 +1760,46 @@ class OBDManager(QObject):
                 self._diagnostic_mode = False
                 self._diagnostic_mode_transitioning = False
 
-            # Resume async polling
-            if self._connection and self._connected:
-                time.sleep(0.1)  # Brief pause before resuming (reduced from 0.3s)
-                try:
-                    # Re-establish watchers before starting to ensure proper data flow
-                    # This is needed because the diagnostic sync connection may have
-                    # interfered with the async connection's state
-                    self._connection.unwatch_all()
-                    self._setup_watchers()
-                    self._connection.start()
-                    print("[OBD] Async polling resumed with watchers re-established")
-                except Exception as e:
-                    print(f"[OBD] Error resuming async polling: {e}")
+            # The diagnostic sync connection likely corrupted the async connection's
+            # serial port state. We need to do a full reconnect to restore data flow.
+            # Simply calling start() on the old connection won't work reliably.
+            was_connected = self._connected
+            if self._connection or was_connected:
+                print("[OBD] Performing full reconnect after diagnostic mode...")
+                # Close the old async connection completely
+                if self._connection:
+                    try:
+                        self._connection.close()
+                    except Exception as e:
+                        print(f"[OBD] Error closing old async connection: {e}")
+                    self._connection = None
 
-            # ALWAYS resume the data watchdog timer if we have a connection
-            # even if the connection.start() failed - the watchdog will detect issues
-            if self._connected:
-                self._last_data_received = time.time()
-                self._data_watchdog_timer.start()
-                print("[OBD] Data watchdog resumed")
+                # Mark as disconnected during reconnect
+                self._connected = False
+                self.connectionStatusChanged.emit("Reconnecting")
+                self.connectionStatusDetailChanged.emit("Reconnecting after diagnostic mode...")
+
+                # Brief pause for port to be released
+                time.sleep(0.2)
+
+                # Trigger a fresh connection
+                self._connection_attempts = 0
+                self._start_connection()
+                print("[OBD] Fresh async connection initiated")
             else:
-                print("[OBD] Not resuming watchdog - not connected")
+                print("[OBD] No connection to resume")
 
         except Exception as e:
             print(f"[OBD] Error exiting diagnostic mode: {e}")
             with self._diagnostic_mode_lock:
                 self._diagnostic_mode = False
                 self._diagnostic_mode_transitioning = False
-            # Still try to resume watchdog on error if connected
-            if self._connected:
-                try:
-                    self._last_data_received = time.time()
-                    self._data_watchdog_timer.start()
-                    print("[OBD] Data watchdog resumed (after error)")
-                except:
-                    pass
+            # Try to reconnect on error
+            try:
+                self._connection_attempts = 0
+                self._start_connection()
+            except:
+                pass
 
     @Slot(result=bool)
     def is_diagnostic_mode(self):
