@@ -1539,14 +1539,19 @@ class OBDManager(QObject):
     def _do_vehicle_scan(self):
         """Perform the actual vehicle scan (runs in background thread) using a sync connection"""
         sync_conn = None
+        use_diagnostic_conn = self._diagnostic_mode and self._diagnostic_sync_conn
         try:
-            # Stop async polling while we use the port
-            self._connection.stop()
+            if use_diagnostic_conn:
+                # Use the persistent diagnostic connection
+                sync_conn = self._diagnostic_sync_conn
+            else:
+                # Stop async polling while we use the port
+                self._connection.stop()
+                # Create a fresh sync connection to get supported commands
+                sync_conn = self._create_sync_connection()
 
-            # Create a fresh sync connection to get supported commands
-            sync_conn = self._create_sync_connection()
             if not sync_conn:
-                print("[OBD] Failed to create sync connection for vehicle scan")
+                print("[OBD] Failed to get sync connection for vehicle scan")
                 QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, "Connection failed"))
                 QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
                 return
@@ -1588,10 +1593,13 @@ class OBDManager(QObject):
 
         finally:
             self._is_scanning = False
-            if sync_conn:
-                sync_conn.close()
-            # Resume async polling
-            self._connection.start()
+            if not use_diagnostic_conn:
+                # Only close and resume if we created a temporary connection
+                if sync_conn:
+                    sync_conn.close()
+                # Resume async polling
+                if self._connection:
+                    self._connection.start()
 
     @Slot(list)
     def enable_scanned_parameters(self, param_names):
@@ -1634,6 +1642,10 @@ class OBDManager(QObject):
         print("[OBD] Entering diagnostic mode - pausing async polling...")
 
         try:
+            # Stop the data watchdog timer to prevent false reconnects
+            self._data_watchdog_timer.stop()
+            print("[OBD] Data watchdog paused for diagnostic mode")
+
             # Stop async polling
             self._connection.stop()
 
@@ -1645,16 +1657,23 @@ class OBDManager(QObject):
                 if not self._diagnostic_mode_transitioning:
                     print("[OBD] Diagnostic mode entry cancelled")
                     self._connection.start()  # Resume async since we stopped it
+                    # Resume watchdog since we're not entering diagnostic mode
+                    self._last_data_received = time.time()
+                    self._data_watchdog_timer.start()
                     return
 
             # Create a persistent sync connection for diagnostic queries
             port = self._get_configured_port()
+            print(f"[OBD] Creating diagnostic sync connection on port: {port}")
             try:
                 self._diagnostic_sync_conn = obd.OBD(port, fast=False, timeout=30)
                 if self._diagnostic_sync_conn.is_connected():
                     print(f"[OBD] Diagnostic mode active - sync connection ready on {port}")
+                    print(f"[OBD] Diagnostic sync connection status: {self._diagnostic_sync_conn.status()}")
+                    print(f"[OBD] Diagnostic sync connection protocol: {self._diagnostic_sync_conn.protocol_name()}")
                 else:
                     print(f"[OBD] Warning: Diagnostic sync connection failed on {port}")
+                    print(f"[OBD] Connection status: {self._diagnostic_sync_conn.status()}")
                     self._diagnostic_sync_conn.close()
                     self._diagnostic_sync_conn = None
             except Exception as e:
@@ -1669,10 +1688,12 @@ class OBDManager(QObject):
             print(f"[OBD] Error entering diagnostic mode: {e}")
             with self._diagnostic_mode_lock:
                 self._diagnostic_mode_transitioning = False
-            # Try to resume async polling on error
+            # Try to resume async polling and watchdog on error
             if self._connection:
                 try:
                     self._connection.start()
+                    self._last_data_received = time.time()
+                    self._data_watchdog_timer.start()
                 except:
                     pass
 
@@ -1713,6 +1734,11 @@ class OBDManager(QObject):
                 time.sleep(0.3)  # Brief pause before resuming
                 self._connection.start()
                 print("[OBD] Async polling resumed")
+
+                # Resume the data watchdog timer and reset timestamp
+                self._last_data_received = time.time()
+                self._data_watchdog_timer.start()
+                print("[OBD] Data watchdog resumed")
 
         except Exception as e:
             print(f"[OBD] Error exiting diagnostic mode: {e}")
@@ -1784,10 +1810,15 @@ class OBDManager(QObject):
                 QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
                 return
 
+            # Log connection status for debugging
+            print(f"[OBD] DTC read - sync connection status: {sync_conn.status()}")
+            print(f"[OBD] DTC read - sync connection port: {sync_conn.port_name()}")
+
             response = sync_conn.query(obd.commands.GET_DTC)
+            print(f"[OBD] DTC response: {response}")
 
             if response.is_null():
-                print("[OBD] No DTCs found (null response)")
+                print("[OBD] No DTCs found (null response) - vehicle may not support GET_DTC or no codes stored")
                 self._dtc_codes = []
                 self._dtc_count = 0
                 QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
@@ -1796,6 +1827,7 @@ class OBDManager(QObject):
 
             # Response value is a list of tuples: [(code, description), ...]
             dtcs = response.value if response.value else []
+            print(f"[OBD] Raw DTC response value: {response.value}")
             # Convert to list of dicts for QML
             dtc_list = [{"code": code, "description": desc} for code, desc in dtcs]
 
@@ -1816,7 +1848,8 @@ class OBDManager(QObject):
                 if sync_conn:
                     sync_conn.close()
                 # Resume async polling
-                self._connection.start()
+                if self._connection:
+                    self._connection.start()
 
     @Slot()
     def read_current_dtc(self):
@@ -1866,7 +1899,8 @@ class OBDManager(QObject):
                 if sync_conn:
                     sync_conn.close()
                 # Resume async polling
-                self._connection.start()
+                if self._connection:
+                    self._connection.start()
 
     @Slot()
     def read_freeze_frame(self):
@@ -1918,7 +1952,8 @@ class OBDManager(QObject):
                 if sync_conn:
                     sync_conn.close()
                 # Resume async polling
-                self._connection.start()
+                if self._connection:
+                    self._connection.start()
 
     @Slot()
     def clear_dtc(self):
@@ -1975,7 +2010,8 @@ class OBDManager(QObject):
                 if sync_conn:
                     sync_conn.close()
                 # Resume async polling
-                self._connection.start()
+                if self._connection:
+                    self._connection.start()
 
     @Slot()
     def read_status(self):
@@ -2031,7 +2067,8 @@ class OBDManager(QObject):
                 if sync_conn:
                     sync_conn.close()
                 # Resume async polling
-                self._connection.start()
+                if self._connection:
+                    self._connection.start()
 
     @Slot(result=list)
     def get_dtc_codes(self):

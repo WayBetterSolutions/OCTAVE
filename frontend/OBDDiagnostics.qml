@@ -623,17 +623,22 @@ Item {
     // Enter diagnostic mode on component creation (pauses async polling)
     Component.onCompleted: {
         if (obdManager) {
-            terminalOutput.appendLine("[INFO] Entering diagnostic mode...")
-            obdManager.enter_diagnostic_mode()
-            terminalOutput.appendLine("[INFO] Diagnostic mode initialized")
-            terminalOutput.appendLine("[SCAN] Reading vehicle status...")
-            obdManager.read_status()
+            if (obdManager.is_connected()) {
+                terminalOutput.appendLine("[INFO] Entering diagnostic mode...")
+                obdManager.enter_diagnostic_mode()
+                terminalOutput.appendLine("[INFO] Diagnostic mode initialized")
+                terminalOutput.appendLine("[SCAN] Reading vehicle status...")
+                obdManager.read_status()
+            } else {
+                terminalOutput.appendLine("[WARN] OBD not connected - diagnostic commands unavailable")
+                terminalOutput.appendLine("[INFO] Connect to vehicle first, then return to this menu")
+            }
         }
     }
 
     // Exit diagnostic mode when leaving (resumes async polling)
     Component.onDestruction: {
-        if (obdManager) {
+        if (obdManager && obdManager.is_diagnostic_mode()) {
             console.log("[OBD] OBDDiagnostics component being destroyed, exiting diagnostic mode")
             obdManager.exit_diagnostic_mode()
         }
