@@ -847,9 +847,22 @@ Item {
                         delegate: Item {
                             required property string name
                             required property string section
-                            
+
+                            // Check visibility from settings manager
+                            property bool sectionVisible: settingsManager ? settingsManager.is_settings_section_visible(section) : true
+
                             width: navListView.width
-                            height: App.Spacing.settingsButtonHeight
+                            height: sectionVisible ? App.Spacing.settingsButtonHeight : 0
+                            visible: sectionVisible
+                            clip: true
+
+                            // Update visibility when settings change
+                            Connections {
+                                target: settingsManager
+                                function onSettingsMenuVisibilityChanged() {
+                                    sectionVisible = settingsManager.is_settings_section_visible(section)
+                                }
+                            }
                             
                             // Active indicator
                             Rectangle {

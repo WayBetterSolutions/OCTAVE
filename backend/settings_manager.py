@@ -76,6 +76,9 @@ class SettingsManager(QObject):
     scrcpyAudioEnabledChanged = Signal(bool)
     albumArtColorsChanged = Signal(str)  # JSON string with album art theme colors
 
+    # Settings menu visibility signals
+    settingsMenuVisibilityChanged = Signal()  # Emitted when any menu visibility changes
+
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
@@ -221,6 +224,17 @@ class SettingsManager(QObject):
             "phoneMirrorEnabled": False,  # If True, show Phone Mirror button in bottom bar
             "scrcpyPath": "",  # Custom path to scrcpy executable
             "scrcpyAudioEnabled": False,  # If True, forward audio from phone
+            # Settings menu section visibility (all visible by default)
+            "settingsMenuVisibility": {
+                "deviceSettings": True,
+                "mediaSettings": True,
+                "displaySettings": True,
+                "obdSettings": True,
+                "clockSettings": True,
+                "androidAutoSettings": True,
+                "phoneMirrorSettings": True,
+                "about": True
+            }
         }
             
     
@@ -286,6 +300,16 @@ class SettingsManager(QObject):
         self._phone_mirror_enabled = self._settings.get("phoneMirrorEnabled", False)
         self._scrcpy_path = self._settings.get("scrcpyPath", "")
         self._scrcpy_audio_enabled = self._settings.get("scrcpyAudioEnabled", False)
+
+        # Settings menu visibility
+        self._settings_menu_visibility = self._settings.get(
+            "settingsMenuVisibility",
+            self._default_settings["settingsMenuVisibility"]
+        )
+        # Ensure all sections exist (in case new sections were added)
+        for section in self._default_settings["settingsMenuVisibility"]:
+            if section not in self._settings_menu_visibility:
+                self._settings_menu_visibility[section] = True
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -397,6 +421,7 @@ class SettingsManager(QObject):
             "phoneMirrorEnabled": bool,
             "scrcpyPath": str,
             "scrcpyAudioEnabled": bool,
+            "settingsMenuVisibility": dict,
         }
 
         for key, expected_type in type_checks.items():
@@ -1149,6 +1174,35 @@ class SettingsManager(QObject):
         self._scrcpy_audio_enabled = enabled
         self.update_setting("scrcpyAudioEnabled", enabled, self.scrcpyAudioEnabledChanged)
 
+    # ==================== Settings Menu Visibility ====================
+
+    @Property(str, notify=settingsMenuVisibilityChanged)
+    def settingsMenuVisibility(self):
+        """Get settings menu visibility as JSON string"""
+        return json.dumps(self._settings_menu_visibility)
+
+    @Slot(result=str)
+    def get_settings_menu_visibility(self):
+        """Get settings menu visibility as JSON string"""
+        return json.dumps(self._settings_menu_visibility)
+
+    @Slot(str, result=bool)
+    def is_settings_section_visible(self, section):
+        """Check if a specific settings section is visible"""
+        return self._settings_menu_visibility.get(section, True)
+
+    @Slot(str, bool)
+    def save_settings_section_visibility(self, section, visible):
+        """Save visibility for a specific settings section"""
+        print(f"Saving settings section visibility: {section} = {visible}")
+        self._settings_menu_visibility[section] = visible
+        # Save to disk
+        settings = self.load_settings()
+        settings["settingsMenuVisibility"] = self._settings_menu_visibility
+        self.save_settings(settings)
+        # Emit signal (no parameters)
+        self.settingsMenuVisibilityChanged.emit()
+
     # ==================== Album Art Colors ====================
 
     @Property(str, notify=albumArtColorsChanged)
@@ -1261,6 +1315,9 @@ class SettingsManager(QObject):
 
         self._scrcpy_audio_enabled = self._default_settings["scrcpyAudioEnabled"]
         self.scrcpyAudioEnabledChanged.emit(self._scrcpy_audio_enabled)
+
+        self._settings_menu_visibility = self._default_settings["settingsMenuVisibility"].copy()
+        self.settingsMenuVisibilityChanged.emit()
 
     # ==================== Git Commit Info ====================
 
