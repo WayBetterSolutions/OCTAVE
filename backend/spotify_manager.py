@@ -1138,11 +1138,16 @@ class SpotifyManager(QObject):
 
             img = Image.open(temp_path)
             img = img.convert('RGB')
-            img = img.resize((100, 100), Image.Resampling.LANCZOS)
+            # Use LANCZOS resampling - handle both old and new Pillow versions
+            try:
+                resample = Image.Resampling.LANCZOS
+            except AttributeError:
+                resample = Image.LANCZOS
+            img = img.resize((100, 100), resample)
 
             pixels = np.array(img).reshape(-1, 3)
 
-            # K-means clustering to find dominant colors
+            # Use simple k-means to find dominant colors
             colors = self._kmeans_colors(pixels, k=5)
 
             # Sort by vibrancy
@@ -1238,17 +1243,27 @@ class SpotifyManager(QObject):
             lum = get_luminance(background_rgb)
             return [210, 210, 210] if lum < 0.3 else [60, 60, 60]
 
+        def cap_brightness(rgb, max_brightness=0.85):
+            """Cap the brightness of a color to prevent overly bright/washed out colors"""
+            r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            if v > max_brightness:
+                v = max_brightness
+                s = min(1.0, s * 1.1)  # Boost saturation when capping brightness
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            return [int(r * 255), int(g * 255), int(b * 255)]
+
         def ensure_icon_contrast(icon_rgb, background_rgb, min_contrast=3.0):
             contrast = get_contrast_ratio(icon_rgb, background_rgb)
             if contrast >= min_contrast:
-                return icon_rgb
+                return cap_brightness(icon_rgb)
             bg_lum = get_luminance(background_rgb)
             if bg_lum < 0.5:
                 for factor in [1.3, 1.5, 1.8, 2.0, 2.5, 3.0]:
                     adjusted = adjust_brightness(icon_rgb, factor)
                     if get_contrast_ratio(adjusted, background_rgb) >= min_contrast:
-                        return adjusted
-                return [220, 200, 150]
+                        return cap_brightness(adjusted)
+                return [200, 180, 130]  # Fallback muted gold
             else:
                 for factor in [0.7, 0.5, 0.4, 0.3, 0.2]:
                     adjusted = adjust_brightness(icon_rgb, factor)

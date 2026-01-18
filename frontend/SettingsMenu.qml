@@ -3557,6 +3557,75 @@ Item {
                                     }
                                 }
 
+                                // Build/Commit info section
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: commitInfoColumn.implicitHeight + App.Spacing.overallSpacing * 2
+                                    color: Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
+                                    radius: App.Spacing.overallRadius
+
+                                    ColumnLayout {
+                                        id: commitInfoColumn
+                                        anchors.fill: parent
+                                        anchors.margins: App.Spacing.overallSpacing
+                                        spacing: App.Spacing.overallSpacing * 0.5
+
+                                        Text {
+                                            text: "Latest Build"
+                                            color: App.Style.accent
+                                            font.pixelSize: App.Spacing.overallText * 0.9
+                                            font.family: settingsMenu.globalFont
+                                            font.bold: true
+                                        }
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: App.Spacing.overallSpacing
+
+                                            Text {
+                                                text: "Commit:"
+                                                color: App.Style.secondaryTextColor
+                                                font.pixelSize: App.Spacing.overallText * 0.85
+                                                font.family: settingsMenu.globalFont
+                                            }
+                                            Text {
+                                                text: settingsManager ? settingsManager.get_git_commit_hash() : "unknown"
+                                                color: App.Style.primaryTextColor
+                                                font.pixelSize: App.Spacing.overallText * 0.85
+                                                font.family: settingsMenu.globalFont
+                                            }
+                                        }
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: App.Spacing.overallSpacing
+
+                                            Text {
+                                                text: "Date:"
+                                                color: App.Style.secondaryTextColor
+                                                font.pixelSize: App.Spacing.overallText * 0.85
+                                                font.family: settingsMenu.globalFont
+                                            }
+                                            Text {
+                                                text: settingsManager ? settingsManager.get_git_commit_date() : "unknown"
+                                                color: App.Style.primaryTextColor
+                                                font.pixelSize: App.Spacing.overallText * 0.85
+                                                font.family: settingsMenu.globalFont
+                                            }
+                                        }
+
+                                        Text {
+                                            text: settingsManager ? settingsManager.get_git_commit_message() : ""
+                                            color: App.Style.secondaryTextColor
+                                            font.pixelSize: App.Spacing.overallText * 0.8
+                                            font.family: settingsMenu.globalFont
+                                            font.italic: true
+                                            wrapMode: Text.WordWrap
+                                            Layout.fillWidth: true
+                                            visible: text !== ""
+                                        }
+                                    }
+                                }
 
                                 // Description text
                                 Text {

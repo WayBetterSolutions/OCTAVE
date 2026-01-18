@@ -450,7 +450,12 @@ class MediaManager(QObject):
             # Open and resize image for faster processing
             img = Image.open(image_path)
             img = img.convert('RGB')
-            img = img.resize((100, 100), Image.Resampling.LANCZOS)
+            # Use LANCZOS resampling - handle both old and new Pillow versions
+            try:
+                resample = Image.Resampling.LANCZOS
+            except AttributeError:
+                resample = Image.LANCZOS
+            img = img.resize((100, 100), resample)
 
             # Convert to numpy array
             pixels = np.array(img).reshape(-1, 3)
@@ -592,12 +597,24 @@ class MediaManager(QObject):
             else:
                 return [60, 60, 60]  # Darker secondary text for light backgrounds
 
+        def cap_brightness(rgb, max_brightness=0.85):
+            """Cap the brightness of a color to prevent overly bright/washed out colors"""
+            r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            if v > max_brightness:
+                v = max_brightness
+                # Also boost saturation slightly when capping brightness to keep color vibrant
+                s = min(1.0, s * 1.1)
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            return [int(r * 255), int(g * 255), int(b * 255)]
+
         def ensure_icon_contrast(icon_rgb, background_rgb, min_contrast=3.0):
             """Ensure icon color has sufficient contrast against background.
             If not, brighten or darken the icon color until it does."""
             contrast = get_contrast_ratio(icon_rgb, background_rgb)
             if contrast >= min_contrast:
-                return icon_rgb  # Already good
+                # Cap brightness to prevent overly bright colors
+                return cap_brightness(icon_rgb)
 
             bg_lum = get_luminance(background_rgb)
             adjusted = icon_rgb[:]
@@ -608,9 +625,10 @@ class MediaManager(QObject):
                 for factor in [1.3, 1.5, 1.8, 2.0, 2.5, 3.0]:
                     adjusted = adjust_brightness(icon_rgb, factor)
                     if get_contrast_ratio(adjusted, background_rgb) >= min_contrast:
-                        return adjusted
-                # If still not enough, return a light color
-                return [220, 200, 150]  # Fallback light gold
+                        # Cap brightness to prevent overly bright colors
+                        return cap_brightness(adjusted)
+                # If still not enough, return a light color (but not too bright)
+                return [200, 180, 130]  # Fallback muted gold
             else:
                 # Light background - darken the icon
                 for factor in [0.7, 0.5, 0.4, 0.3, 0.2]:

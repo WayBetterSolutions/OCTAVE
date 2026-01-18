@@ -3,6 +3,7 @@ from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer
 import os
 import sys
 import tempfile
+import subprocess
 from typing import List
 
 # Platform-specific imports for file locking
@@ -1260,3 +1261,75 @@ class SettingsManager(QObject):
 
         self._scrcpy_audio_enabled = self._default_settings["scrcpyAudioEnabled"]
         self.scrcpyAudioEnabledChanged.emit(self._scrcpy_audio_enabled)
+
+    # ==================== Git Commit Info ====================
+
+    def _get_git_repo_dir(self):
+        """Get the root directory of the git repository"""
+        # Try to find the repo root from the backend directory
+        current_dir = self.backend_dir
+        # Go up one level from backend/ to get the repo root
+        repo_dir = os.path.dirname(current_dir)
+        return repo_dir
+
+    @Slot(result=str)
+    def get_git_commit_hash(self):
+        """Get the short hash of the latest git commit"""
+        try:
+            repo_dir = self._get_git_repo_dir()
+            result = subprocess.run(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception as e:
+            print(f"Error getting git commit hash: {e}")
+        return "unknown"
+
+    @Slot(result=str)
+    def get_git_commit_date(self):
+        """Get the date/time of the latest git commit"""
+        try:
+            repo_dir = self._get_git_repo_dir()
+            result = subprocess.run(
+                ['git', 'log', '-1', '--format=%ci'],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                # Format: "2026-01-18 14:30:45 -0500"
+                # Return a more readable format
+                date_str = result.stdout.strip()
+                if date_str:
+                    # Parse and reformat to be more readable
+                    parts = date_str.split()
+                    if len(parts) >= 2:
+                        return f"{parts[0]} at {parts[1][:5]}"  # "2026-01-18 at 14:30"
+                return date_str
+        except Exception as e:
+            print(f"Error getting git commit date: {e}")
+        return "unknown"
+
+    @Slot(result=str)
+    def get_git_commit_message(self):
+        """Get the subject line of the latest git commit"""
+        try:
+            repo_dir = self._get_git_repo_dir()
+            result = subprocess.run(
+                ['git', 'log', '-1', '--format=%s'],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception as e:
+            print(f"Error getting git commit message: {e}")
+        return ""
