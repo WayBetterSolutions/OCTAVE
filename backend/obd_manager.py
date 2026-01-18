@@ -171,6 +171,13 @@ class OBDManager(QObject):
     dtcClearResult = Signal(bool, str)  # success, message
     freezeFrameChanged = Signal(list)  # Freeze frame DTCs
 
+    # Internal signals for thread-safe emission from background threads
+    _emitDtcCodes = Signal(list)
+    _emitDtcCount = Signal(int)
+    _emitMilStatus = Signal(bool)
+    _emitDtcClearResult = Signal(bool, str)
+    _emitFreezeFrame = Signal(list)
+
     def __init__(self, settings_manager=None):
         super().__init__()
         self._connection = None
@@ -347,6 +354,15 @@ class OBDManager(QObject):
         self._startup_timer.setInterval(500)  # Reduced from 1.5s - just enough for UI to settle
         self._startup_timer.timeout.connect(self._initial_connect)
         self._startup_timer.start()
+
+        # Connect internal signals to public signals for thread-safe emission
+        # This allows background threads to emit via internal signals which are then
+        # properly forwarded to QML on the main thread
+        self._emitDtcCodes.connect(self._forwardDtcCodes)
+        self._emitDtcCount.connect(self._forwardDtcCount)
+        self._emitMilStatus.connect(self._forwardMilStatus)
+        self._emitDtcClearResult.connect(self._forwardDtcClearResult)
+        self._emitFreezeFrame.connect(self._forwardFreezeFrame)
 
         # Connect to settings changes
         if self._settings_manager:
@@ -1745,21 +1761,41 @@ class OBDManager(QObject):
                 self._diagnostic_mode_transitioning = False
 
             # Resume async polling
-            if self._connection:
+            if self._connection and self._connected:
                 time.sleep(0.1)  # Brief pause before resuming (reduced from 0.3s)
-                self._connection.start()
-                print("[OBD] Async polling resumed")
+                try:
+                    # Re-establish watchers before starting to ensure proper data flow
+                    # This is needed because the diagnostic sync connection may have
+                    # interfered with the async connection's state
+                    self._connection.unwatch_all()
+                    self._setup_watchers()
+                    self._connection.start()
+                    print("[OBD] Async polling resumed with watchers re-established")
+                except Exception as e:
+                    print(f"[OBD] Error resuming async polling: {e}")
 
-                # Resume the data watchdog timer and reset timestamp
+            # ALWAYS resume the data watchdog timer if we have a connection
+            # even if the connection.start() failed - the watchdog will detect issues
+            if self._connected:
                 self._last_data_received = time.time()
                 self._data_watchdog_timer.start()
                 print("[OBD] Data watchdog resumed")
+            else:
+                print("[OBD] Not resuming watchdog - not connected")
 
         except Exception as e:
             print(f"[OBD] Error exiting diagnostic mode: {e}")
             with self._diagnostic_mode_lock:
                 self._diagnostic_mode = False
                 self._diagnostic_mode_transitioning = False
+            # Still try to resume watchdog on error if connected
+            if self._connected:
+                try:
+                    self._last_data_received = time.time()
+                    self._data_watchdog_timer.start()
+                    print("[OBD] Data watchdog resumed (after error)")
+                except:
+                    pass
 
     @Slot(result=bool)
     def is_diagnostic_mode(self):
@@ -1822,7 +1858,7 @@ class OBDManager(QObject):
 
             if not sync_conn:
                 print("[OBD] Failed to get sync connection for DTC read")
-                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                self._emitDtcCodes.emit([])
                 return
 
             # Log connection status for debugging
@@ -1836,8 +1872,8 @@ class OBDManager(QObject):
                 print("[OBD] No DTCs found (null response) - vehicle may not support GET_DTC or no codes stored")
                 self._dtc_codes = []
                 self._dtc_count = 0
-                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
-                QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
+                self._emitDtcCodes.emit([])
+                self._emitDtcCount.emit(0)
                 return
 
             # Response value is a list of tuples: [(code, description), ...]
@@ -1851,15 +1887,13 @@ class OBDManager(QObject):
 
             print(f"[OBD] Found {len(dtc_list)} DTCs: {dtc_list}")
 
-            # Capture values for lambda to ensure correct data is emitted
-            codes = dtc_list
-            count = len(dtc_list)
-            QTimer.singleShot(0, lambda c=codes: self.dtcCodesChanged.emit(c))
-            QTimer.singleShot(0, lambda n=count: self.dtcCountChanged.emit(n))
+            # Emit signals via internal signals for thread-safe delivery to QML
+            self._emitDtcCodes.emit(dtc_list)
+            self._emitDtcCount.emit(len(dtc_list))
 
         except Exception as e:
             print(f"[OBD] Error reading DTCs: {e}")
-            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+            self._emitDtcCodes.emit([])
         finally:
             if not use_diagnostic_conn:
                 # Only close and resume if we created a temporary connection
@@ -1893,14 +1927,14 @@ class OBDManager(QObject):
 
             if not sync_conn:
                 print("[OBD] Failed to get sync connection for current DTC read")
-                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                self._emitDtcCodes.emit([])
                 return
 
             response = sync_conn.query(obd.commands.GET_CURRENT_DTC)
 
             if response.is_null():
                 print("[OBD] No current DTCs found")
-                QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+                self._emitDtcCodes.emit([])
                 return
 
             dtcs = response.value if response.value else []
@@ -1908,11 +1942,11 @@ class OBDManager(QObject):
 
             print(f"[OBD] Found {len(dtc_list)} current DTCs")
             codes = dtc_list
-            QTimer.singleShot(0, lambda c=codes: self.dtcCodesChanged.emit(c))
+            self._emitDtcCodes.emit(codes)
 
         except Exception as e:
             print(f"[OBD] Error reading current DTCs: {e}")
-            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
+            self._emitDtcCodes.emit([])
         finally:
             if not use_diagnostic_conn:
                 if sync_conn:
@@ -1945,7 +1979,7 @@ class OBDManager(QObject):
 
             if not sync_conn:
                 print("[OBD] Failed to get sync connection for freeze frame read")
-                QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit([]))
+                self._emitFreezeFrame.emit([])
                 return
 
             response = sync_conn.query(obd.commands.FREEZE_DTC)
@@ -1953,7 +1987,7 @@ class OBDManager(QObject):
             if response.is_null():
                 print("[OBD] No freeze frame data")
                 self._freeze_frame_dtcs = []
-                QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit([]))
+                self._emitFreezeFrame.emit([])
                 return
 
             dtcs = response.value if response.value else []
@@ -1961,12 +1995,11 @@ class OBDManager(QObject):
             self._freeze_frame_dtcs = dtc_list
 
             print(f"[OBD] Freeze frame DTCs: {dtc_list}")
-            ff_data = dtc_list
-            QTimer.singleShot(0, lambda d=ff_data: self.freezeFrameChanged.emit(d))
+            self._emitFreezeFrame.emit(dtc_list)
 
         except Exception as e:
             print(f"[OBD] Error reading freeze frame: {e}")
-            QTimer.singleShot(0, lambda: self.freezeFrameChanged.emit([]))
+            self._emitFreezeFrame.emit([])
         finally:
             if not use_diagnostic_conn:
                 if sync_conn:
@@ -2001,14 +2034,14 @@ class OBDManager(QObject):
 
             if not sync_conn:
                 print("[OBD] Failed to get sync connection for clear DTC")
-                QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, "Connection failed"))
+                self._emitDtcClearResult.emit(False, "Connection failed")
                 return
 
             response = sync_conn.query(obd.commands.CLEAR_DTC)
 
             if response.is_null():
                 print("[OBD] Clear DTC command returned null")
-                QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, "Clear command failed"))
+                self._emitDtcClearResult.emit(False, "Clear command failed")
                 return
 
             # Clear successful
@@ -2017,14 +2050,14 @@ class OBDManager(QObject):
             self._mil_status = False
 
             print("[OBD] DTCs cleared successfully")
-            QTimer.singleShot(0, lambda: self.dtcClearResult.emit(True, "DTCs cleared successfully"))
-            QTimer.singleShot(0, lambda: self.dtcCodesChanged.emit([]))
-            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
-            QTimer.singleShot(0, lambda: self.milStatusChanged.emit(False))
+            self._emitDtcClearResult.emit(True, "DTCs cleared successfully")
+            self._emitDtcCodes.emit([])
+            self._emitDtcCount.emit(0)
+            self._emitMilStatus.emit(False)
 
         except Exception as e:
             print(f"[OBD] Error clearing DTCs: {e}")
-            QTimer.singleShot(0, lambda: self.dtcClearResult.emit(False, str(e)))
+            self._emitDtcClearResult.emit(False, str(e))
         finally:
             if not use_diagnostic_conn:
                 if sync_conn:
@@ -2057,16 +2090,16 @@ class OBDManager(QObject):
 
             if not sync_conn:
                 print("[OBD] Failed to get sync connection for status read")
-                QTimer.singleShot(0, lambda: self.milStatusChanged.emit(False))
-                QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
+                self._emitMilStatus.emit(False)
+                self._emitDtcCount.emit(0)
                 return
 
             response = sync_conn.query(obd.commands.STATUS)
 
             if response.is_null():
                 print("[OBD] Status command returned null")
-                QTimer.singleShot(0, lambda: self.milStatusChanged.emit(False))
-                QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
+                self._emitMilStatus.emit(False)
+                self._emitDtcCount.emit(0)
                 return
 
             status = response.value
@@ -2075,16 +2108,14 @@ class OBDManager(QObject):
 
             print(f"[OBD] MIL: {self._mil_status}, DTC count: {self._dtc_count}")
 
-            # Capture values for lambda to avoid race conditions
-            mil = self._mil_status
-            dtc_count = self._dtc_count
-            QTimer.singleShot(0, lambda m=mil: self.milStatusChanged.emit(m))
-            QTimer.singleShot(0, lambda c=dtc_count: self.dtcCountChanged.emit(c))
+            # Emit signals via internal signals for thread-safe delivery to QML
+            self._emitMilStatus.emit(self._mil_status)
+            self._emitDtcCount.emit(self._dtc_count)
 
         except Exception as e:
             print(f"[OBD] Error reading status: {e}")
-            QTimer.singleShot(0, lambda: self.milStatusChanged.emit(False))
-            QTimer.singleShot(0, lambda: self.dtcCountChanged.emit(0))
+            self._emitMilStatus.emit(False)
+            self._emitDtcCount.emit(0)
         finally:
             if not use_diagnostic_conn:
                 if sync_conn:
@@ -2092,6 +2123,41 @@ class OBDManager(QObject):
                 # Resume async polling
                 if self._connection:
                     self._connection.start()
+
+    # ==================== Thread-safe signal forwarding ====================
+    # These slots receive signals from background threads and re-emit them on the main thread
+
+    @Slot(list)
+    def _forwardDtcCodes(self, codes):
+        """Forward DTC codes signal to QML (runs on main thread)"""
+        print(f"[OBD] Forwarding dtcCodesChanged signal with {len(codes) if codes else 0} codes")
+        self.dtcCodesChanged.emit(codes)
+
+    @Slot(int)
+    def _forwardDtcCount(self, count):
+        """Forward DTC count signal to QML (runs on main thread)"""
+        print(f"[OBD] Forwarding dtcCountChanged signal with count: {count}")
+        self.dtcCountChanged.emit(count)
+
+    @Slot(bool)
+    def _forwardMilStatus(self, status):
+        """Forward MIL status signal to QML (runs on main thread)"""
+        print(f"[OBD] Forwarding milStatusChanged signal with status: {status}")
+        self.milStatusChanged.emit(status)
+
+    @Slot(bool, str)
+    def _forwardDtcClearResult(self, success, message):
+        """Forward DTC clear result signal to QML (runs on main thread)"""
+        print(f"[OBD] Forwarding dtcClearResult signal: {success}, {message}")
+        self.dtcClearResult.emit(success, message)
+
+    @Slot(list)
+    def _forwardFreezeFrame(self, data):
+        """Forward freeze frame signal to QML (runs on main thread)"""
+        print(f"[OBD] Forwarding freezeFrameChanged signal with {len(data) if data else 0} items")
+        self.freezeFrameChanged.emit(data)
+
+    # ==================== Diagnostic data getters ====================
 
     @Slot(result=list)
     def get_dtc_codes(self):

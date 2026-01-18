@@ -28,9 +28,10 @@ Item {
     // OBD Diagnostic Connections
     Connections {
         target: obdManager
+        enabled: obdManager !== null
 
         function onDtcCodesChanged(codes) {
-            console.log("[OBDDiagnostics] onDtcCodesChanged received, count:", codes ? codes.length : "null")
+            console.log("[OBDDiagnostics] onDtcCodesChanged SIGNAL RECEIVED, count:", codes ? codes.length : "null")
             dtcCodes = codes
             isLoading = false
             statusMessage = codes.length > 0 ? "Found " + codes.length + " DTC(s)" : "No DTCs found"
@@ -50,13 +51,15 @@ Item {
         }
 
         function onDtcCountChanged(count) {
+            console.log("[OBDDiagnostics] onDtcCountChanged SIGNAL RECEIVED:", count)
             dtcCount = count
             terminalOutput.appendLine("[INFO] DTC count: " + count)
         }
 
         function onMilStatusChanged(status) {
-            console.log("[OBDDiagnostics] onMilStatusChanged received:", status)
+            console.log("[OBDDiagnostics] onMilStatusChanged SIGNAL RECEIVED:", status)
             milStatus = status
+            isLoading = false
             if (status) {
                 terminalOutput.appendLine("[WARN] Check Engine Light is ON")
             } else {
@@ -65,6 +68,7 @@ Item {
         }
 
         function onDtcClearResult(success, message) {
+            console.log("[OBDDiagnostics] onDtcClearResult SIGNAL RECEIVED:", success, message)
             isLoading = false
             statusMessage = message
             if (success) {
@@ -78,10 +82,11 @@ Item {
         }
 
         function onFreezeFrameChanged(data) {
+            console.log("[OBDDiagnostics] onFreezeFrameChanged SIGNAL RECEIVED, count:", data ? data.length : "null")
             freezeFrameData = data
             isLoading = false
 
-            if (data.length > 0) {
+            if (data && data.length > 0) {
                 terminalOutput.appendLine("[FOUND] Freeze frame data:")
                 for (var i = 0; i < data.length; i++) {
                     var ff = data[i]
@@ -89,6 +94,28 @@ Item {
                 }
             } else {
                 terminalOutput.appendLine("[DONE] No freeze frame data stored")
+            }
+        }
+    }
+
+    // Handle diagnostic mode based on visibility
+    // This is crucial because StackView.push() doesn't destroy the page,
+    // so Component.onDestruction won't be called when navigating away
+    onVisibleChanged: {
+        if (visible) {
+            console.log("[OBDDiagnostics] Page became visible, obdManager exists:", obdManager !== null)
+            // Re-enter diagnostic mode if we're becoming visible again
+            if (obdManager && obdManager.is_connected() && !obdManager.is_diagnostic_mode()) {
+                console.log("[OBDDiagnostics] Re-entering diagnostic mode on visibility")
+                terminalOutput.appendLine("[INFO] Re-entering diagnostic mode...")
+                obdManager.enter_diagnostic_mode()
+            }
+        } else {
+            console.log("[OBDDiagnostics] Page became hidden")
+            // Exit diagnostic mode when page becomes hidden (navigating away)
+            if (obdManager && obdManager.is_diagnostic_mode()) {
+                console.log("[OBDDiagnostics] Exiting diagnostic mode on hide")
+                obdManager.exit_diagnostic_mode()
             }
         }
     }
@@ -642,7 +669,9 @@ Item {
         }
     }
 
-    // Exit diagnostic mode when leaving (resumes async polling)
+    // Fallback: Exit diagnostic mode when component is destroyed
+    // Note: onVisibleChanged handles the normal StackView navigation case,
+    // but this catches the case when the component is actually destroyed
     Component.onDestruction: {
         if (obdManager && obdManager.is_diagnostic_mode()) {
             console.log("[OBD] OBDDiagnostics component being destroyed, exiting diagnostic mode")

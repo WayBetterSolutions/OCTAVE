@@ -129,6 +129,9 @@ class SpotifyManager(QObject):
     # Status progress signal for terminal-style feedback
     statusProgress = Signal(str)  # Status messages with prefixes like [INFO], [ERROR], etc.
 
+    # Album Art Capture signal (matches MediaManager)
+    albumColorsExtracted = Signal(str)  # JSON string with extracted album art colors
+
     # Internal signal for thread-safe initialization after auth
     _authCompleted = Signal()
 
@@ -199,11 +202,23 @@ class SpotifyManager(QObject):
 
         self._settings_manager = None
 
+        # Album Art Capture theme state
+        self._album_art_capture_active = False
+        self._last_extracted_image_url = ""  # Avoid re-extracting same image
+
     @Slot(QObject)
     def connect_settings_manager(self, settings_manager):
         """Connect to settings manager to load/save credentials"""
         self._settings_manager = settings_manager
         self._load_credentials()
+
+        # Connect theme change signal for Album Art Capture
+        if hasattr(settings_manager, 'themeSettingChanged'):
+            settings_manager.themeSettingChanged.connect(self._on_theme_changed)
+
+        # Check if Album Art Capture is already active
+        current_theme = settings_manager.themeSetting
+        self._album_art_capture_active = (current_theme == "Album Art Capture")
 
     def _load_credentials(self):
         """Load Spotify credentials from settings"""
@@ -1001,6 +1016,10 @@ class SpotifyManager(QObject):
                 )
                 self.durationChanged.emit(self._current_track['duration_ms'])
 
+                # Extract album art colors if Album Art Capture is active
+                if self._current_track['image']:
+                    self._on_track_changed_for_theme(self._current_track['image'])
+
     def _interpolate_position(self):
         """Interpolate position between API polls for smooth UI updates"""
         if not self._is_playing or self._last_poll_timestamp == 0:
@@ -1068,3 +1087,265 @@ class SpotifyManager(QObject):
     def get_current_file(self):
         """Get current track name (for compatibility with MediaManager)"""
         return self._current_track.get('name', '')
+
+    # ==================== Album Art Capture Methods ====================
+
+    def _on_theme_changed(self, theme):
+        """Handle theme change - track if Album Art Capture is active"""
+        self._album_art_capture_active = (theme == "Album Art Capture")
+        print(f"[SpotifyManager] Theme changed to: {theme}, Album Art Capture active: {self._album_art_capture_active}")
+
+        if self._album_art_capture_active:
+            # Extract colors from current album art
+            image_url = self.get_current_album_art()
+            if image_url:
+                self._extract_colors_from_url(image_url)
+
+    def _on_track_changed_for_theme(self, image_url):
+        """Called when track changes - extract colors if Album Art Capture is active"""
+        if self._album_art_capture_active and image_url and image_url != self._last_extracted_image_url:
+            print(f"[SpotifyManager] Track changed, extracting colors for Album Art Capture")
+            self._extract_colors_from_url(image_url)
+
+    def _extract_colors_from_url(self, image_url):
+        """Extract colors from a Spotify album art URL"""
+        import urllib.request
+        import tempfile
+        import colorsys
+        import json
+
+        if not image_url:
+            return
+
+        # Avoid re-extracting same image
+        if image_url == self._last_extracted_image_url:
+            return
+        self._last_extracted_image_url = image_url
+
+        print(f"[SpotifyManager AlbumArtCapture] Extracting colors from: {image_url}")
+
+        try:
+            # Download image to temp file
+            temp_dir = os.path.join(self.backend_dir, 'temp')
+            os.makedirs(temp_dir, exist_ok=True)
+            temp_path = os.path.join(temp_dir, 'spotify_album_art.jpg')
+
+            urllib.request.urlretrieve(image_url, temp_path)
+
+            # Now extract colors using same logic as MediaManager
+            from PIL import Image
+            import numpy as np
+
+            img = Image.open(temp_path)
+            img = img.convert('RGB')
+            img = img.resize((100, 100), Image.Resampling.LANCZOS)
+
+            pixels = np.array(img).reshape(-1, 3)
+
+            # K-means clustering to find dominant colors
+            colors = self._kmeans_colors(pixels, k=5)
+
+            # Sort by vibrancy
+            def color_vibrancy(rgb):
+                r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+                h, s, v = colorsys.rgb_to_hsv(r, g, b)
+                return s * v
+
+            colors = sorted(colors, key=color_vibrancy, reverse=True)
+
+            # Calculate luminance to determine light/dark theme
+            def luminance(rgb):
+                r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+                return 0.299 * r + 0.587 * g + 0.114 * b
+
+            avg_luminance = np.mean([luminance(p) for p in pixels[:1000]])
+            is_dark_image = avg_luminance < 0.5
+
+            # Generate theme
+            theme_json = self._generate_theme_from_colors(colors, is_dark_image)
+
+            if theme_json:
+                print(f"[SpotifyManager AlbumArtCapture] Generated theme, length: {len(theme_json)}")
+                # Update settings manager and emit signal
+                if self._settings_manager:
+                    self._settings_manager.set_album_art_colors(theme_json)
+                self.albumColorsExtracted.emit(theme_json)
+
+        except Exception as e:
+            print(f"[SpotifyManager AlbumArtCapture] Error extracting colors: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _kmeans_colors(self, pixels, k=5, max_iterations=10):
+        """Simple k-means clustering to find dominant colors"""
+        import numpy as np
+
+        np.random.seed(42)
+        indices = np.random.choice(len(pixels), k, replace=False)
+        centroids = pixels[indices].astype(float)
+
+        for _ in range(max_iterations):
+            distances = np.sqrt(((pixels[:, np.newaxis] - centroids) ** 2).sum(axis=2))
+            labels = np.argmin(distances, axis=1)
+            new_centroids = np.array([
+                pixels[labels == i].mean(axis=0) if np.sum(labels == i) > 0 else centroids[i]
+                for i in range(k)
+            ])
+            if np.allclose(centroids, new_centroids):
+                break
+            centroids = new_centroids
+
+        return centroids.astype(int).tolist()
+
+    def _generate_theme_from_colors(self, colors, is_dark):
+        """Generate a complete theme palette from extracted colors"""
+        import json
+        import colorsys
+
+        def rgb_to_hex(rgb):
+            return "#{:02x}{:02x}{:02x}".format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+        def adjust_brightness(rgb, factor):
+            r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            v = max(0, min(1, v * factor))
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            return [int(r * 255), int(g * 255), int(b * 255)]
+
+        def adjust_saturation(rgb, factor):
+            r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            s = max(0, min(1, s * factor))
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            return [int(r * 255), int(g * 255), int(b * 255)]
+
+        def get_luminance(rgb):
+            def channel_luminance(c):
+                c = c / 255.0
+                return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+            return 0.2126 * channel_luminance(rgb[0]) + 0.7152 * channel_luminance(rgb[1]) + 0.0722 * channel_luminance(rgb[2])
+
+        def get_contrast_ratio(rgb1, rgb2):
+            l1, l2 = get_luminance(rgb1), get_luminance(rgb2)
+            lighter, darker = max(l1, l2), min(l1, l2)
+            return (lighter + 0.05) / (darker + 0.05)
+
+        def get_readable_text_color(background_rgb):
+            lum = get_luminance(background_rgb)
+            return [245, 245, 245] if lum < 0.3 else [25, 25, 25]
+
+        def get_secondary_text_color(background_rgb):
+            lum = get_luminance(background_rgb)
+            return [210, 210, 210] if lum < 0.3 else [60, 60, 60]
+
+        def ensure_icon_contrast(icon_rgb, background_rgb, min_contrast=3.0):
+            contrast = get_contrast_ratio(icon_rgb, background_rgb)
+            if contrast >= min_contrast:
+                return icon_rgb
+            bg_lum = get_luminance(background_rgb)
+            if bg_lum < 0.5:
+                for factor in [1.3, 1.5, 1.8, 2.0, 2.5, 3.0]:
+                    adjusted = adjust_brightness(icon_rgb, factor)
+                    if get_contrast_ratio(adjusted, background_rgb) >= min_contrast:
+                        return adjusted
+                return [220, 200, 150]
+            else:
+                for factor in [0.7, 0.5, 0.4, 0.3, 0.2]:
+                    adjusted = adjust_brightness(icon_rgb, factor)
+                    if get_contrast_ratio(adjusted, background_rgb) >= min_contrast:
+                        return adjusted
+                return [50, 40, 30]
+
+        # Get colors from palette
+        primary_rgb = colors[0]
+        secondary_rgb = colors[1] if len(colors) > 1 else colors[0]
+        tertiary_rgb = colors[2] if len(colors) > 2 else secondary_rgb
+        quaternary_rgb = colors[3] if len(colors) > 3 else tertiary_rgb
+
+        # Create accent colors
+        accent = adjust_brightness(adjust_saturation(primary_rgb, 1.4), 1.2)
+        accent2 = adjust_brightness(adjust_saturation(secondary_rgb, 1.3), 1.15)
+        accent3 = adjust_brightness(adjust_saturation(tertiary_rgb, 1.25), 1.1)
+        accent4 = adjust_brightness(adjust_saturation(quaternary_rgb, 1.2), 1.05)
+        nav_color = adjust_brightness(accent, 0.7)
+        nav_color2 = adjust_brightness(accent2, 0.75)
+
+        if is_dark:
+            base = adjust_brightness(primary_rgb, 0.15)
+            base_alt = adjust_brightness(primary_rgb, 0.22)
+            hover = adjust_brightness(primary_rgb, 0.30)
+            paused = adjust_brightness(primary_rgb, 0.25)
+            playing = adjust_brightness(primary_rgb, 0.35)
+        else:
+            base = adjust_saturation(adjust_brightness(primary_rgb, 2.5), 0.3)
+            base_alt = adjust_brightness(base, 0.92)
+            hover = adjust_brightness(base, 0.88)
+            paused = adjust_brightness(base, 0.85)
+            playing = adjust_brightness(base, 0.80)
+
+        text_primary = get_readable_text_color(base)
+        text_secondary = get_secondary_text_color(base)
+
+        # Ensure icon visibility
+        accent_visible = ensure_icon_contrast(accent, base)
+        accent2_visible = ensure_icon_contrast(accent2, base)
+        accent3_visible = ensure_icon_contrast(accent3, base)
+        accent4_visible = ensure_icon_contrast(accent4, base)
+        nav_color_visible = ensure_icon_contrast(nav_color, base)
+        nav_color2_visible = ensure_icon_contrast(nav_color2, base)
+
+        theme = {
+            "base": rgb_to_hex(base),
+            "baseAlt": rgb_to_hex(base_alt),
+            "accent": rgb_to_hex(accent_visible),
+            "text": {
+                "primary": rgb_to_hex(text_primary),
+                "secondary": rgb_to_hex(text_secondary)
+            },
+            "states": {
+                "hover": rgb_to_hex(hover),
+                "paused": rgb_to_hex(paused),
+                "playing": rgb_to_hex(playing)
+            },
+            "sliders": {
+                "volume": rgb_to_hex(accent_visible),
+                "media": rgb_to_hex(accent2_visible),
+                "settings": rgb_to_hex(accent3_visible)
+            },
+            "bottombar": {
+                "previous": rgb_to_hex(nav_color_visible),
+                "play": rgb_to_hex(accent_visible),
+                "pause": rgb_to_hex(accent_visible),
+                "next": rgb_to_hex(nav_color_visible),
+                "volume": rgb_to_hex(accent2_visible),
+                "shuffle": rgb_to_hex(accent3_visible),
+                "toggleShade": rgb_to_hex(hover),
+                "homeButton": rgb_to_hex(accent_visible),
+                "obdButton": rgb_to_hex(accent4_visible),
+                "mediaButton": rgb_to_hex(accent2_visible),
+                "settingsButton": rgb_to_hex(accent3_visible),
+                "androidAutoButton": rgb_to_hex(nav_color2_visible),
+                "phoneMirrorButton": rgb_to_hex(accent4_visible)
+            },
+            "mediaroom": {
+                "previous": rgb_to_hex(nav_color_visible),
+                "play": rgb_to_hex(ensure_icon_contrast(adjust_brightness(accent, 1.1), base)),
+                "pause": rgb_to_hex(ensure_icon_contrast(adjust_brightness(accent, 1.1), base)),
+                "next": rgb_to_hex(nav_color_visible),
+                "left": rgb_to_hex(accent4_visible),
+                "right": rgb_to_hex(accent4_visible),
+                "shuffle": rgb_to_hex(accent3_visible),
+                "toggleShade": rgb_to_hex(paused)
+            },
+            "mainmenu": {
+                "mediaContainer": rgb_to_hex(adjust_brightness(accent2_visible, 0.6))
+            },
+            "obd": {
+                "boxBackground": rgb_to_hex(base_alt),
+                "barColor": rgb_to_hex(ensure_icon_contrast(accent4, base_alt)),
+                "labelColor": rgb_to_hex(get_secondary_text_color(base_alt)),
+                "valueColor": rgb_to_hex(get_readable_text_color(base_alt))
+            }
+        }
+
+        return json.dumps(theme)

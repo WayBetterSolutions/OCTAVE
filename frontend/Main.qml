@@ -251,6 +251,18 @@ ApplicationWindow {
         }
     }
 
+    // Spotify manager connections for Album Art Capture
+    Connections {
+        target: spotifyManager
+
+        function onAlbumColorsExtracted(themeJson) {
+            console.log("[AlbumArtCapture Spotify] Received albumColorsExtracted!")
+            console.log("[AlbumArtCapture Spotify] themeJson:", themeJson ? themeJson.substring(0, 100) : "null")
+            lastAppliedAlbumArtColors = themeJson
+            App.Style.updateAlbumArtTheme(themeJson)
+        }
+    }
+
     // Main layout container
     Item {
         anchors.fill: parent

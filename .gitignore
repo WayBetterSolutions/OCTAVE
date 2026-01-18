@@ -33,3 +33,11 @@ dev/
 # Test scripts
 test_*.py
 clear_dtc.py
+
+# Temp files (editor swap files, crash recovery, etc.)
+*.tmp
+*.tmp.*
+*~
+*.swp
+*.swo
+*.bak
