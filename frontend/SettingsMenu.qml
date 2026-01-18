@@ -2326,37 +2326,13 @@ Item {
                                     // Connection menu with options
                                     Menu {
                                         id: connectionMenu
-                                        
-                                        MenuItem {
-                                            text: "Reconnect"
-                                            onTriggered: {
-                                                if (obdManager) {
-                                                    clickAnimation.start()
-                                                    obdManager.reconnect()
-                                                }
-                                            }
-                                        }
-                                        
+
                                         MenuItem {
                                             text: "Reset Connection"
                                             onTriggered: {
                                                 if (obdManager) {
                                                     clickAnimation.start()
                                                     obdManager.reset_connection()
-                                                }
-                                            }
-                                        }
-                                        
-                                        MenuItem {
-                                            text: "Check Device Presence"
-                                            onTriggered: {
-                                                if (obdManager) {
-                                                    let present = obdManager.check_device_presence()
-                                                    if (present) {
-                                                        deviceFoundNotification.open()
-                                                    } else {
-                                                        deviceNotFoundNotification.open()
-                                                    }
                                                 }
                                             }
                                         }
@@ -2424,46 +2400,6 @@ Item {
                                     }
                                 }
 
-                                Popup {
-                                    id: deviceFoundNotification
-                                    x: (parent.width - width) / 2
-                                    y: parent.height - height - 20
-                                    width: 300
-                                    height: 60
-                                    modal: false
-                                    focus: true
-                                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-                                    
-                                    background: Rectangle {
-                                        color: App.Style.accent
-                                        radius: 4
-                                    }
-                                    
-                                    contentItem: Text {
-                                        text: "OBD device found!"
-                                        color: "white"
-                                        wrapMode: Text.WordWrap
-                                        font.pixelSize: App.Spacing.overallText
-                                        font.family: settingsMenu.globalFont
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    
-                                    enter: Transition {
-                                        NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: 200 }
-                                    }
-                                    
-                                    exit: Transition {
-                                        NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 200 }
-                                    }
-                                    
-                                    Timer {
-                                        interval: 2000
-                                        running: deviceFoundNotification.visible
-                                        onTriggered: deviceFoundNotification.close()
-                                    }
-                                }
-                                
                                 SettingDescription {
                                     text: "Click the status bar above to attempt reconnection"
                                 }

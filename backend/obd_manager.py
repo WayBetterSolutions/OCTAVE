@@ -298,6 +298,14 @@ class OBDManager(QObject):
         self._monitor_thread = None
         self._stop_monitor = False
 
+        # Data watchdog - detect stale connections where no data is being received
+        self._last_data_received = 0  # timestamp of last data callback
+        self._data_watchdog_timeout = 30.0  # seconds without data before reconnecting
+        self._has_active_watchers = False  # Track if any parameters are being watched
+        self._data_watchdog_timer = QTimer()
+        self._data_watchdog_timer.setInterval(5000)  # Check every 5 seconds
+        self._data_watchdog_timer.timeout.connect(self._check_data_watchdog)
+
         # Worker thread for non-blocking connections
         self._worker_thread = None
         self._worker = None
@@ -563,6 +571,11 @@ class OBDManager(QObject):
             self._connection.start()
             self._start_connection_monitor()
 
+            # Start the data watchdog timer to detect stale connections
+            self._last_data_received = time.time()  # Initialize timestamp
+            self._data_watchdog_timer.start()
+            print("[OBD] Data watchdog started")
+
             # Stop background scanning while connected
             self._device_scanner_timer.stop()
 
@@ -701,6 +714,36 @@ class OBDManager(QObject):
 
             time.sleep(check_interval)
 
+    def _check_data_watchdog(self):
+        """Check if data is still being received - detect stale connections"""
+        if not self._connected or not self._connection:
+            return
+
+        # If no watchers are active, don't trigger reconnect (no data expected)
+        if not self._has_active_watchers:
+            return
+
+        current_time = time.time()
+        time_since_data = current_time - self._last_data_received
+
+        if self._last_data_received > 0 and time_since_data > self._data_watchdog_timeout:
+            print(f"[OBD] Data watchdog triggered - no data for {time_since_data:.1f}s, reconnecting...")
+            self.connectionStatusChanged.emit("Stale Connection")
+            self.connectionStatusDetailChanged.emit("No data received, reconnecting...")
+            self._data_watchdog_timer.stop()
+            # Use QTimer.singleShot to avoid threading issues
+            QTimer.singleShot(100, self._trigger_watchdog_reconnect)
+
+    def _trigger_watchdog_reconnect(self):
+        """Handle reconnect from watchdog timeout"""
+        self._cleanup_connection()
+        self._connection_attempts = 0  # Reset attempts for fresh start
+        self._start_connection()
+
+    def _mark_data_received(self):
+        """Called by data callbacks to mark that fresh data was received"""
+        self._last_data_received = time.time()
+
     def _refresh_watchers(self):
         """Refresh OBD watchers when parameters change (no full reconnect needed)"""
         if not self._connection or not self._connected:
@@ -825,12 +868,22 @@ class OBDManager(QObject):
             "ELM_VOLTAGE": (obd.commands.ELM_VOLTAGE, self._update_elm_voltage),
         }
 
+    def _wrap_callback_with_watchdog(self, callback):
+        """Wrap a callback to update the data watchdog timestamp"""
+        def wrapped(r):
+            # Update watchdog timestamp on any response (even null responses)
+            self._mark_data_received()
+            # Call the original callback
+            callback(r)
+        return wrapped
+
     def _setup_watchers(self):
         """Set up watchers based on settings"""
         if not self._connection:
             return
 
         commands_to_watch = self._get_all_commands()
+        watcher_count = 0
 
         for param, (command, callback) in commands_to_watch.items():
             should_watch = True
@@ -847,9 +900,16 @@ class OBDManager(QObject):
             if should_watch:
                 try:
                     print(f"[OBD] Watching: {param}")
-                    self._connection.watch(command, callback=callback)
+                    # Wrap callback to update watchdog timestamp on any data received
+                    wrapped_callback = self._wrap_callback_with_watchdog(callback)
+                    self._connection.watch(command, callback=wrapped_callback)
+                    watcher_count += 1
                 except Exception as e:
                     print(f"[OBD] Could not watch {param}: {e}")
+
+        # Track if we have active watchers for the data watchdog
+        self._has_active_watchers = watcher_count > 0
+        print(f"[OBD] Set up {watcher_count} watchers")
 
     # Callback functions
     def _update_coolant(self, r):
@@ -1371,6 +1431,10 @@ class OBDManager(QObject):
 
     def _cleanup_connection(self):
         """Clean up existing connection before reconnecting"""
+        # Stop the data watchdog timer
+        self._data_watchdog_timer.stop()
+        self._last_data_received = 0
+
         self._stop_monitor = True
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=1.0)
