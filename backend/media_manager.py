@@ -7,6 +7,9 @@ import os
 import random
 import re
 import hashlib
+import colorsys
+from PIL import Image
+import numpy as np
 
 
 def is_safe_path(base_path, target_path):
@@ -65,6 +68,7 @@ class MediaManager(QObject):
     playlistsChanged = Signal()         # When playlist list updates
     currentPlaylistChanged = Signal(str)  # When active playlist changes
     scanProgress = Signal(str)           # Terminal-style feedback during scan
+    albumColorsExtracted = Signal(str)    # JSON string with extracted album art colors
     
     
     def __init__(self):
@@ -106,6 +110,9 @@ class MediaManager(QObject):
         self._metadata_cache_max = 1000  # Maximum metadata cache entries
         self._access_count = {}  # Track album art access for LRU caching
         
+        # Album Art Capture theme active state
+        self._album_art_capture_active = False
+
         # Statistics cache
         self._stats_cache = {
             "total_duration_ms": 0,
@@ -141,8 +148,11 @@ class MediaManager(QObject):
         
         # Clear temp files on startup
         self._clear_temp_files()
-        
+
         self._settings_manager = None
+
+        # Connect our own signal for Album Art Capture theme updates
+        self.currentMediaChanged.connect(self._on_media_changed_for_theme)
 
     def __del__(self):
         """Clean up resources on destruction"""
@@ -433,7 +443,239 @@ class MediaManager(QObject):
         except Exception as e:
             print(f"Error getting album art: {e}")
             return ""
-            
+
+    def _extract_album_colors(self, image_path):
+        """Extract dominant colors from album art image using k-means clustering"""
+        try:
+            # Open and resize image for faster processing
+            img = Image.open(image_path)
+            img = img.convert('RGB')
+            img = img.resize((100, 100), Image.Resampling.LANCZOS)
+
+            # Convert to numpy array
+            pixels = np.array(img).reshape(-1, 3)
+
+            # Use simple k-means to find dominant colors
+            colors = self._kmeans_colors(pixels, k=5)
+
+            # Sort colors by vibrancy (saturation * brightness)
+            def color_vibrancy(rgb):
+                r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+                h, s, v = colorsys.rgb_to_hsv(r, g, b)
+                return s * v
+
+            colors = sorted(colors, key=color_vibrancy, reverse=True)
+
+            # Calculate luminance to determine if we need light or dark theme
+            def luminance(rgb):
+                r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+                return 0.299 * r + 0.587 * g + 0.114 * b
+
+            # Average luminance of the image
+            avg_luminance = np.mean([luminance(p) for p in pixels[:1000]])  # Sample 1000 pixels
+            is_dark_image = avg_luminance < 0.5
+
+            # Generate theme colors with all extracted colors for variety
+            theme_colors = self._generate_theme_from_colors(colors, is_dark_image)
+
+            return theme_colors
+
+        except Exception as e:
+            print(f"Error extracting colors: {e}")
+            return None
+
+    def _kmeans_colors(self, pixels, k=5, max_iterations=10):
+        """Simple k-means clustering to find dominant colors"""
+        # Random initialization
+        np.random.seed(42)  # For consistency
+        indices = np.random.choice(len(pixels), k, replace=False)
+        centroids = pixels[indices].astype(float)
+
+        for _ in range(max_iterations):
+            # Assign pixels to nearest centroid
+            distances = np.sqrt(((pixels[:, np.newaxis] - centroids) ** 2).sum(axis=2))
+            labels = np.argmin(distances, axis=1)
+
+            # Update centroids
+            new_centroids = np.array([
+                pixels[labels == i].mean(axis=0) if np.sum(labels == i) > 0 else centroids[i]
+                for i in range(k)
+            ])
+
+            if np.allclose(centroids, new_centroids):
+                break
+            centroids = new_centroids
+
+        return centroids.astype(int).tolist()
+
+    def _generate_theme_from_colors(self, colors, is_dark):
+        """Generate a complete theme palette from extracted colors with variety"""
+        import json
+
+        def rgb_to_hex(rgb):
+            return "#{:02x}{:02x}{:02x}".format(int(rgb[0]), int(rgb[1]), int(rgb[2]))
+
+        def adjust_brightness(rgb, factor):
+            """Adjust brightness of RGB color"""
+            r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            v = max(0, min(1, v * factor))
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            return [int(r * 255), int(g * 255), int(b * 255)]
+
+        def adjust_saturation(rgb, factor):
+            """Adjust saturation of RGB color"""
+            r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            s = max(0, min(1, s * factor))
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            return [int(r * 255), int(g * 255), int(b * 255)]
+
+        # Get primary colors from the extracted palette (sorted by vibrancy)
+        primary_rgb = colors[0]  # Most vibrant
+        secondary_rgb = colors[1] if len(colors) > 1 else colors[0]
+        tertiary_rgb = colors[2] if len(colors) > 2 else secondary_rgb
+        quaternary_rgb = colors[3] if len(colors) > 3 else tertiary_rgb
+
+        # Create accent colors with MORE contrast between them
+        # Primary: boost saturation and brightness significantly
+        accent = adjust_saturation(primary_rgb, 1.4)
+        accent = adjust_brightness(accent, 1.2)
+
+        # Secondary: different treatment - keep saturation, adjust brightness differently
+        accent2 = adjust_saturation(secondary_rgb, 1.3)
+        accent2 = adjust_brightness(accent2, 1.15)
+
+        # Tertiary: moderate boost
+        accent3 = adjust_saturation(tertiary_rgb, 1.25)
+        accent3 = adjust_brightness(accent3, 1.1)
+
+        # Quaternary: for additional variety
+        accent4 = adjust_saturation(quaternary_rgb, 1.2)
+        accent4 = adjust_brightness(accent4, 1.05)
+
+        # Create softer/dimmer versions for nav buttons (more contrast from main accents)
+        nav_color = adjust_brightness(accent, 0.7)
+        nav_color2 = adjust_brightness(accent2, 0.75)
+
+        if is_dark:
+            # Dark theme based on album art
+            base = adjust_brightness(primary_rgb, 0.15)  # Very dark version
+            base_alt = adjust_brightness(primary_rgb, 0.22)  # Slightly lighter
+            text_primary = [240, 240, 240]
+            text_secondary = [180, 180, 180]
+            hover = adjust_brightness(primary_rgb, 0.30)
+            paused = adjust_brightness(primary_rgb, 0.25)
+            playing = adjust_brightness(primary_rgb, 0.35)
+        else:
+            # Light theme based on album art
+            base = adjust_brightness(primary_rgb, 2.5)  # Very light version
+            base = adjust_saturation(base, 0.3)  # Desaturate for background
+            base_alt = adjust_brightness(base, 0.92)
+            text_primary = [40, 40, 40]
+            text_secondary = [100, 100, 100]
+            hover = adjust_brightness(base, 0.88)
+            paused = adjust_brightness(base, 0.85)
+            playing = adjust_brightness(base, 0.80)
+
+        # Build theme object with varied colors like CosmicVoyager
+        theme = {
+            "base": rgb_to_hex(base),
+            "baseAlt": rgb_to_hex(base_alt),
+            "accent": rgb_to_hex(accent),
+            "text": {
+                "primary": rgb_to_hex(text_primary),
+                "secondary": rgb_to_hex(text_secondary)
+            },
+            "states": {
+                "hover": rgb_to_hex(hover),
+                "paused": rgb_to_hex(paused),
+                "playing": rgb_to_hex(playing)
+            },
+            "sliders": {
+                "volume": rgb_to_hex(accent),
+                "media": rgb_to_hex(accent2),
+                "settings": rgb_to_hex(accent3)
+            },
+            "bottombar": {
+                "previous": rgb_to_hex(nav_color),       # Dimmed primary for nav
+                "play": rgb_to_hex(accent),              # Bright primary for emphasis
+                "pause": rgb_to_hex(accent),             # Match play
+                "next": rgb_to_hex(nav_color),           # Match previous
+                "volume": rgb_to_hex(accent2),           # Secondary color for volume
+                "shuffle": rgb_to_hex(accent3),          # Tertiary for shuffle
+                "toggleShade": rgb_to_hex(hover),
+                "homeButton": rgb_to_hex(accent),        # Primary accent
+                "obdButton": rgb_to_hex(accent4),        # Quaternary for OBD (distinct)
+                "mediaButton": rgb_to_hex(accent2),      # Secondary for media
+                "settingsButton": rgb_to_hex(accent3),   # Tertiary for settings
+                "androidAutoButton": rgb_to_hex(nav_color2),
+                "phoneMirrorButton": rgb_to_hex(accent4)  # Quaternary for phone mirror
+            },
+            "mediaroom": {
+                "previous": rgb_to_hex(nav_color),
+                "play": rgb_to_hex(adjust_brightness(accent, 1.1)),  # Brighter than bottombar
+                "pause": rgb_to_hex(adjust_brightness(accent, 1.1)),
+                "next": rgb_to_hex(nav_color),
+                "left": rgb_to_hex(accent4),             # Quaternary for arrows
+                "right": rgb_to_hex(accent4),
+                "shuffle": rgb_to_hex(accent3),          # Tertiary for shuffle
+                "toggleShade": rgb_to_hex(paused)
+            },
+            "mainmenu": {
+                "mediaContainer": rgb_to_hex(adjust_brightness(accent2, 0.6))
+            },
+            "obd": {
+                "boxBackground": rgb_to_hex(base_alt),
+                "barColor": rgb_to_hex(accent4)  # Quaternary matches OBD button
+            }
+        }
+
+        return json.dumps(theme)
+
+    @Slot(str)
+    def extract_colors_from_album_art(self, filename):
+        """Extract colors from album art and emit signal with theme colors"""
+        import sys
+        print(f"[AlbumArtCapture] extract_colors_from_album_art called with: {filename}", flush=True)
+        sys.stdout.flush()
+        try:
+            # First get the album art (this may already be cached)
+            art_url = self.get_album_art(filename)
+            print(f"[AlbumArtCapture] Got album art URL: {art_url}")
+            if not art_url:
+                print(f"[AlbumArtCapture] No album art found for: {filename}")
+                return
+
+            # Convert URL to file path using QUrl for proper cross-platform handling
+            qurl = QUrl(art_url)
+            image_path = qurl.toLocalFile()
+            print(f"[AlbumArtCapture] Converted to local path: {image_path}")
+
+            if not image_path or not os.path.exists(image_path):
+                print(f"[AlbumArtCapture] Album art file not found: {image_path}")
+                return
+
+            print(f"[AlbumArtCapture] Extracting colors from: {image_path}")
+
+            # Extract colors
+            theme_json = self._extract_album_colors(image_path)
+            if theme_json:
+                # Use slot method on settings_manager (property-based approach for better QML reactivity)
+                if self._settings_manager:
+                    self._settings_manager.set_album_art_colors(theme_json)
+                    print(f"[AlbumArtCapture] Called set_album_art_colors for: {filename}")
+                else:
+                    # Fallback to direct signal
+                    self.albumColorsExtracted.emit(theme_json)
+                    print(f"[AlbumArtCapture] Emitted via mediaManager for: {filename}")
+            else:
+                print(f"[AlbumArtCapture] Failed to extract colors for: {filename}")
+        except Exception as e:
+            import traceback
+            print(f"[AlbumArtCapture] Error extracting colors from album art: {e}")
+            traceback.print_exc()
+
     @Slot(result=str)
     def get_current_file(self):
         """Get currently playing file without auto-playing"""
@@ -977,6 +1219,9 @@ class MediaManager(QObject):
 
     @Slot(QObject)
     def connect_settings_manager(self, settings_manager):
+        # Guard against double initialization
+        if self._settings_manager is not None:
+            return
         self._settings_manager = settings_manager
         # Set library root from settings and scan for playlists
         if self._settings_manager:
@@ -986,6 +1231,55 @@ class MediaManager(QObject):
 
             # Restore last playback state after library is scanned
             QTimer.singleShot(500, self._restore_playback_state)
+
+            # Connect theme change to trigger album art color extraction
+            self._settings_manager.themeSettingChanged.connect(self._on_theme_changed)
+
+            # Check if Album Art Capture is already active on startup
+            current_theme = self._settings_manager.themeSetting
+            self._album_art_capture_active = (current_theme == "Album Art Capture")
+
+            # If Album Art Capture is active on startup, trigger initial extraction after restore
+            if self._album_art_capture_active:
+                # Delay extraction to allow playback state restore to complete first
+                QTimer.singleShot(1000, self._extract_colors_on_startup)
+
+    def _on_theme_changed(self, theme):
+        """Handle theme change - extract colors if Album Art Capture is selected"""
+        import sys
+        print(f"[AlbumArtCapture] Theme changed to: {theme}", flush=True)
+        sys.stdout.flush()
+
+        # Track if Album Art Capture is active
+        self._album_art_capture_active = (theme == "Album Art Capture")
+
+        if self._album_art_capture_active:
+            # Get current file and extract colors
+            current_file = self.get_current_file()
+            print(f"[AlbumArtCapture] Current file: {current_file}", flush=True)
+            sys.stdout.flush()
+            if current_file:
+                self.extract_colors_from_album_art(current_file)
+
+    def _on_media_changed_for_theme(self, filename):
+        """Handle media change - extract colors if Album Art Capture is active"""
+        import sys
+        if self._album_art_capture_active and filename:
+            print(f"[AlbumArtCapture] Media changed, extracting colors for: {filename}", flush=True)
+            sys.stdout.flush()
+            self.extract_colors_from_album_art(filename)
+
+    def _extract_colors_on_startup(self):
+        """Extract colors on startup if Album Art Capture theme is already active"""
+        import sys
+        print(f"[AlbumArtCapture] Startup extraction triggered", flush=True)
+        sys.stdout.flush()
+        if self._album_art_capture_active:
+            current_file = self.get_current_file()
+            print(f"[AlbumArtCapture] Startup - current file: {current_file}", flush=True)
+            sys.stdout.flush()
+            if current_file:
+                self.extract_colors_from_album_art(current_file)
 
     def _restore_playback_state(self):
         """Restore last played song and position from settings"""

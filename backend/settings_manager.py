@@ -73,8 +73,10 @@ class SettingsManager(QObject):
     phoneMirrorEnabledChanged = Signal(bool)
     scrcpyPathChanged = Signal(str)
     scrcpyAudioEnabledChanged = Signal(bool)
+    albumArtColorsChanged = Signal(str)  # JSON string with album art theme colors
 
     def __init__(self):
+        self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
         # Use proper app data directory for settings (not bundled app directory)
         self.app_data_dir = get_app_data_dir()
@@ -1145,6 +1147,20 @@ class SettingsManager(QObject):
         print(f"Saving scrcpy audio enabled: {enabled}")
         self._scrcpy_audio_enabled = enabled
         self.update_setting("scrcpyAudioEnabled", enabled, self.scrcpyAudioEnabledChanged)
+
+    # ==================== Album Art Colors ====================
+
+    @Property(str, notify=albumArtColorsChanged)
+    def albumArtColors(self):
+        """Get the current album art theme colors JSON"""
+        return self._album_art_colors
+
+    @Slot(str)
+    def set_album_art_colors(self, colors_json):
+        """Set album art theme colors and emit signal"""
+        print(f"[AlbumArtCapture] set_album_art_colors called, length: {len(colors_json) if colors_json else 0}")
+        self._album_art_colors = colors_json
+        self.albumArtColorsChanged.emit(colors_json)
 
     @Slot()
     def reset_to_defaults(self):

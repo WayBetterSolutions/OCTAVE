@@ -30,6 +30,38 @@ ApplicationWindow {
     property string lastSettingsSection: settingsManager ? settingsManager.lastSettingsSection : "deviceSettings"
     property string fontSetting: settingsManager ? settingsManager.fontSetting : "System Default"
 
+    // Album Art Colors - track last applied to detect changes
+    property string lastAppliedAlbumArtColors: ""
+
+    // Timer to poll for album art color changes (workaround for PySide6 signal issues)
+    Timer {
+        id: albumArtColorTimer
+        interval: 250  // Check every 250ms for faster response
+        repeat: true
+        running: true
+        property int tickCount: 0
+        onTriggered: {
+            tickCount++
+            if (!settingsManager) return
+
+            var isAlbumArtTheme = App.Style.currentTheme === "Album Art Capture"
+            var newColors = settingsManager.albumArtColors
+
+            // Debug log every 20 ticks (5 seconds)
+            if (tickCount % 20 === 1) {
+                console.log("[AlbumArtCapture] Timer: theme=" + App.Style.currentTheme +
+                           ", colorsLen=" + (newColors ? newColors.length : 0) +
+                           ", lastLen=" + lastAppliedAlbumArtColors.length)
+            }
+
+            if (isAlbumArtTheme && newColors && newColors.length > 0 && newColors !== lastAppliedAlbumArtColors) {
+                console.log("[AlbumArtCapture] Applying new colors, length:", newColors.length)
+                lastAppliedAlbumArtColors = newColors
+                App.Style.updateAlbumArtTheme(newColors)
+            }
+        }
+    }
+
     // Font loading properties
     property var loadedFonts: ({})
     property var fontLoaders: []
@@ -61,6 +93,8 @@ ApplicationWindow {
 
     // Initialize settings and theme
     Component.onCompleted: {
+        console.log("[QML] Main.qml Component.onCompleted - QML console working!")
+
         // Capture the system default font at startup (before any custom font is applied)
         systemDefaultFont = font.family
         // Also store it in Style for other components to use
@@ -68,6 +102,7 @@ ApplicationWindow {
 
         if (settingsManager) {
             // Load theme
+            console.log("[QML] Loading theme:", settingsManager.themeSetting)
             if (settingsManager.themeSetting) {
                 App.Style.setTheme(settingsManager.themeSetting)
             }
@@ -107,6 +142,9 @@ ApplicationWindow {
                 App.Style.addCustomTheme(themeName, themeObj)
             })
         }
+
+        // Note: albumColorsExtracted signal is connected via Connections component below
+        // for better reliability with PySide6 signals
         
         // Update theme list when custom themes change
         if (settingsManager) {
@@ -182,11 +220,34 @@ ApplicationWindow {
                 isVerticalLayout = settingsManager.bottomBarOrientation === "side"
                 // Force an update of the bottom bar
                 bottomBar.isVertical = isVerticalLayout
-                
+
                 // Force recalculation of z-order
                 stackView.z = 1
                 bottomBar.z = 0
             }
+        }
+
+        function onAlbumArtColorsChanged(themeJson) {
+            console.log("[AlbumArtCapture] settingsManager received albumArtColorsChanged!")
+            // In PySide6, signal arguments may not pass through Connections properly
+            // So we read directly from the property as a workaround
+            var colors = settingsManager.albumArtColors
+            console.log("[AlbumArtCapture] Colors from property, length:", colors ? colors.length : "null")
+            if (colors && colors.length > 0) {
+                console.log("[AlbumArtCapture] Updating theme with new colors...")
+                App.Style.updateAlbumArtTheme(colors)
+            }
+        }
+    }
+
+    // Media manager connections for Album Art Capture (backup)
+    Connections {
+        target: mediaManager
+
+        function onAlbumColorsExtracted(themeJson) {
+            console.log("[AlbumArtCapture] Connections received albumColorsExtracted!")
+            console.log("[AlbumArtCapture] themeJson:", themeJson ? themeJson.substring(0, 100) : "null")
+            App.Style.updateAlbumArtTheme(themeJson)
         }
     }
 
@@ -386,10 +447,33 @@ ApplicationWindow {
     }
 
     function updateTheme(newTheme) {
+        console.warn("[AlbumArtCapture] updateTheme called with:", newTheme)
         if (settingsManager) {
             settingsManager.save_theme_setting(newTheme)
             App.Style.setTheme(newTheme)
             theme = newTheme
+
+            // If Album Art Capture is selected, immediately extract colors from current song
+            console.warn("[AlbumArtCapture] Checking if Album Art Capture, mediaManager exists:", typeof mediaManager)
+            if (newTheme === "Album Art Capture") {
+                try {
+                    if (mediaManager) {
+                        let currentFile = mediaManager.get_current_file()
+                        console.warn("[AlbumArtCapture] Theme selected, current file:", currentFile)
+                        if (currentFile) {
+                            console.warn("[AlbumArtCapture] Calling extract_colors_from_album_art now...")
+                            mediaManager.extract_colors_from_album_art(currentFile)
+                            console.warn("[AlbumArtCapture] Call completed")
+                        } else {
+                            console.warn("[AlbumArtCapture] No current file!")
+                        }
+                    } else {
+                        console.warn("[AlbumArtCapture] mediaManager is null/undefined!")
+                    }
+                } catch (e) {
+                    console.error("[AlbumArtCapture] Error:", e)
+                }
+            }
         }
     }
 

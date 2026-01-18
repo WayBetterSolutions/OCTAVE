@@ -1256,7 +1256,9 @@ Rectangle {
                         if (!useSpotify) {
                             var src = playing ? "./assets/pause_button.svg" : "./assets/play_button.svg"
                             playButtonImage.source = src
-                            playButtonImageVertical.source = src
+                            if (typeof playButtonImageVertical !== "undefined" && playButtonImageVertical) {
+                                playButtonImageVertical.source = src
+                            }
                         }
                     }
                     function onMuteChanged(muted) {

@@ -43,6 +43,10 @@ QtObject {
     // This will store our custom themes that are loaded from settings
     property var customThemes: ({})
 
+    // Dynamic album art theme - updated in real-time based on current song
+    property var albumArtTheme: null
+    property bool isAlbumArtCaptureActive: currentTheme === "Album Art Capture"
+
     // Define theme palettes (built-in themes)
     readonly property var themes: ({
         "SolarizedLight": {
@@ -823,6 +827,7 @@ QtObject {
                 "barColor": "#FFE499"
             }
         },
+        
         "CosmicVoyager": {
         "base": "#0A0E17",
         "baseAlt": "#151C29",
@@ -1185,18 +1190,116 @@ QtObject {
             "boxBackground": "#17172A",
             "barColor": "#00E5FF" // Match OBD button
         }
+    },
+
+    // Album Art Capture - Default placeholder (dynamically updated)
+    "Album Art Capture": {
+        "base": "#1a1a2e",
+        "baseAlt": "#16213e",
+        "accent": "#e94560",
+        "text": {
+            "primary": "#f0f0f0",
+            "secondary": "#b4b4b4"
+        },
+        "states": {
+            "hover": "#2a2a4e",
+            "paused": "#252545",
+            "playing": "#303060"
+        },
+        "sliders": {
+            "volume": "#e94560",
+            "media": "#0f3460",
+            "settings": "#e94560"
+        },
+        "bottombar": {
+            "previous": "#e94560",
+            "play": "#e94560",
+            "pause": "#e94560",
+            "next": "#e94560",
+            "volume": "#e94560",
+            "shuffle": "#e94560",
+            "toggleShade": "#2a2a4e",
+            "homeButton": "#e94560",
+            "obdButton": "#e94560",
+            "mediaButton": "#e94560",
+            "settingsButton": "#e94560",
+            "androidAutoButton": "#e94560",
+            "phoneMirrorButton": "#e94560"
+        },
+        "mediaroom": {
+            "previous": "#d43850",
+            "play": "#e94560",
+            "pause": "#e94560",
+            "next": "#d43850",
+            "left": "#c93048",
+            "right": "#c93048",
+            "shuffle": "#0f3460",
+            "toggleShade": "#252545"
+        },
+        "mainmenu": {
+            "mediaContainer": "#8c2a3a"
+        },
+        "obd": {
+            "boxBackground": "#16213e",
+            "barColor": "#e94560"
+        }
     }
     })
 
-    // Helper function to get current theme
-    function getCurrentTheme() {
+    // Reactive current theme object - this is what all color bindings should use
+    // It updates whenever currentTheme changes OR when album art colors are extracted
+    property var activeTheme: {
+        // If Album Art Capture is active and we have dynamic colors, use them
+        if (currentTheme === "Album Art Capture" && albumArtTheme) {
+            return albumArtTheme
+        }
         // Check if theme is a custom theme first
         if (customThemes[currentTheme]) {
             return customThemes[currentTheme]
         }
         // Fall back to built-in themes
-        return themes[currentTheme] || themes["Nightfall"]
+        return themes[currentTheme] || themes["SolarizedLight"]
     }
+
+    // Helper function for backward compatibility
+    function getCurrentTheme() {
+        return activeTheme
+    }
+
+    // Function to update the Album Art Capture theme with new colors
+    function updateAlbumArtTheme(themeJson) {
+        console.log("[AlbumArtCapture QML] updateAlbumArtTheme called")
+        try {
+            let newTheme = JSON.parse(themeJson)
+            console.log("[AlbumArtCapture QML] Parsed theme, base color:", newTheme.base, "accent:", newTheme.accent)
+
+            // Store the new theme - this should trigger activeTheme to re-evaluate
+            albumArtTheme = newTheme
+
+            // If Album Art Capture is currently active, trigger a visual refresh
+            if (currentTheme === "Album Art Capture") {
+                console.log("[AlbumArtCapture QML] Theme is active, forcing refresh...")
+
+                // Force activeTheme binding to re-evaluate by toggling currentTheme
+                let savedTheme = currentTheme
+                currentTheme = ""
+                currentTheme = savedTheme
+
+                // Update SVG colors with varied colors from the theme
+                svgManager.update_svg_colors_from_theme(themeJson)
+
+                // Emit signal for any listeners
+                albumArtThemeUpdated()
+
+                console.log("[AlbumArtCapture QML] UI refresh complete")
+            }
+        } catch (e) {
+            console.log("[AlbumArtCapture QML] Error parsing album art theme:", e)
+        }
+    }
+
+    // Signal emitted when album art theme colors are updated
+    signal albumArtThemeUpdated()
     
     // Function to add a custom theme
     function addCustomTheme(name, themeObject) {
@@ -1213,73 +1316,79 @@ QtObject {
     }
 
     // Color properties that reference the theme
-    property color volumeSliderColor: getCurrentTheme().sliders.volume
-    property color bottomBarGradientStart: getCurrentTheme().base
-    property color bottomBarGradientEnd: getCurrentTheme().baseAlt
-    property color clockTextColor: getCurrentTheme().accent
-    property color bottomBarPreviousButton: getCurrentTheme().bottombar.previous
-    property color bottomBarPlayButton: getCurrentTheme().bottombar.play
-    property color bottomBarPauseButton: getCurrentTheme().bottombar.pause
-    property color bottomBarNextButton: getCurrentTheme().bottombar.next
-    property color bottomBarVolumeButton: getCurrentTheme().bottombar.volume
-    property color bottomBarShuffleButton: getCurrentTheme().bottombar.shuffle
-    property color bottomBarToggleShade: getCurrentTheme().bottombar.toggleShade
-    property color bottomBarActiveToggleButton: getCurrentTheme().accent
+    property color volumeSliderColor: activeTheme.sliders.volume
+    property color bottomBarGradientStart: activeTheme.base
+    property color bottomBarGradientEnd: activeTheme.baseAlt
+    property color clockTextColor: activeTheme.accent
+    property color bottomBarPreviousButton: activeTheme.bottombar.previous
+    property color bottomBarPlayButton: activeTheme.bottombar.play
+    property color bottomBarPauseButton: activeTheme.bottombar.pause
+    property color bottomBarNextButton: activeTheme.bottombar.next
+    property color bottomBarVolumeButton: activeTheme.bottombar.volume
+    property color bottomBarShuffleButton: activeTheme.bottombar.shuffle
+    property color bottomBarToggleShade: activeTheme.bottombar.toggleShade
+    property color bottomBarActiveToggleButton: activeTheme.accent
     
     // New nav button colors
-    property color bottomBarHomeButton: getCurrentTheme().bottombar.homeButton
-    property color bottomBarOBDButton: getCurrentTheme().bottombar.obdButton
-    property color bottomBarMediaButton: getCurrentTheme().bottombar.mediaButton
-    property color bottomBarSettingsButton: getCurrentTheme().bottombar.settingsButton
-    property color bottomBarAndroidAutoButton: getCurrentTheme().bottombar.androidAutoButton
-    property color bottomBarPhoneMirrorButton: getCurrentTheme().bottombar.phoneMirrorButton
+    property color bottomBarHomeButton: activeTheme.bottombar.homeButton
+    property color bottomBarOBDButton: activeTheme.bottombar.obdButton
+    property color bottomBarMediaButton: activeTheme.bottombar.mediaButton
+    property color bottomBarSettingsButton: activeTheme.bottombar.settingsButton
+    property color bottomBarAndroidAutoButton: activeTheme.bottombar.androidAutoButton
+    property color bottomBarPhoneMirrorButton: activeTheme.bottombar.phoneMirrorButton
 
     // MediaRoom
-    property color metadataColor: getCurrentTheme().accent
-    property color mediaRoomSlider: getCurrentTheme().sliders.media
-    property color mediaRoomSeekColor: getCurrentTheme().sliders.volume
-    property color mediaRoomPreviousButton: getCurrentTheme().mediaroom.previous
-    property color mediaRoomPlayButton: getCurrentTheme().mediaroom.play
-    property color mediaRoomPauseButton: getCurrentTheme().mediaroom.pause
-    property color mediaRoomNextButton: getCurrentTheme().mediaroom.next
-    property color mediaRoomLeftButton: getCurrentTheme().mediaroom.left
-    property color mediaRoomRightButton: getCurrentTheme().mediaroom.right
-    property color mediaRoomToggleButton: getCurrentTheme().mediaroom.shuffle
-    property color mediaRoomToggleShade: getCurrentTheme().mediaroom.toggleShade
+    property color metadataColor: activeTheme.accent
+    property color mediaRoomSlider: activeTheme.sliders.media
+    property color mediaRoomSeekColor: activeTheme.sliders.volume
+    property color mediaRoomPreviousButton: activeTheme.mediaroom.previous
+    property color mediaRoomPlayButton: activeTheme.mediaroom.play
+    property color mediaRoomPauseButton: activeTheme.mediaroom.pause
+    property color mediaRoomNextButton: activeTheme.mediaroom.next
+    property color mediaRoomLeftButton: activeTheme.mediaroom.left
+    property color mediaRoomRightButton: activeTheme.mediaroom.right
+    property color mediaRoomToggleButton: activeTheme.mediaroom.shuffle
+    property color mediaRoomToggleShade: activeTheme.mediaroom.toggleShade
 
     // MediaPlayer
-    property color accent: getCurrentTheme().accent
-    property color primaryTextColor: getCurrentTheme().text.primary
-    property color secondaryTextColor: getCurrentTheme().text.secondary
-    property color hoverColor: getCurrentTheme().states.hover
-    property color hoverPausedColor: getCurrentTheme().states.paused
-    property color hoverPlayingColor: getCurrentTheme().states.paused
-    property color pausedHighlightColor: getCurrentTheme().states.paused
-    property color playingHighlightColor: getCurrentTheme().states.playing
-    property color rowBackgroundColor: getCurrentTheme().base
-    property color backgroundColor: getCurrentTheme().base
-    property color headerBackgroundColor: getCurrentTheme().baseAlt
-    property color headerTextColor: getCurrentTheme().text.primary
+    property color accent: activeTheme.accent
+    property color primaryTextColor: activeTheme.text.primary
+    property color secondaryTextColor: activeTheme.text.secondary
+    property color hoverColor: activeTheme.states.hover
+    property color hoverPausedColor: activeTheme.states.paused
+    property color hoverPlayingColor: activeTheme.states.paused
+    property color pausedHighlightColor: activeTheme.states.paused
+    property color playingHighlightColor: activeTheme.states.playing
+    property color rowBackgroundColor: activeTheme.base
+    property color backgroundColor: activeTheme.base
+    property color headerBackgroundColor: activeTheme.baseAlt
+    property color headerTextColor: activeTheme.text.primary
 
     // MainMenu
-    property color mediaContentArea: getCurrentTheme().mainmenu.mediaContainer
+    property color mediaContentArea: activeTheme.mainmenu.mediaContainer
 
     // OBD Page
-    property color obdBoxBackground: getCurrentTheme().obd.boxBackground
-    property color obdBarColor: getCurrentTheme().obd.barColor
+    property color obdBoxBackground: activeTheme.obd.boxBackground
+    property color obdBarColor: activeTheme.obd.barColor
 
     // Settings
-    property color sidebarColor: getCurrentTheme().base
-    property color contentColor: getCurrentTheme().baseAlt
-    property color settingsSliderColor: getCurrentTheme().sliders.settings
+    property color sidebarColor: activeTheme.base
+    property color contentColor: activeTheme.baseAlt
+    property color settingsSliderColor: activeTheme.sliders.settings
     
     // Function to update theme
     function setTheme(theme) {
         if (themes[theme] || customThemes[theme]) {
             currentTheme = theme
             // Determine the correct theme object to get button colors
-            let themeObj = themes[theme] || customThemes[theme]
-            svgManager.update_svg_color(themeObj.bottombar.play)
+            let themeObj
+            if (theme === "Album Art Capture" && albumArtTheme) {
+                themeObj = albumArtTheme
+            } else {
+                themeObj = themes[theme] || customThemes[theme]
+            }
+            // Update SVG colors with varied colors from the theme
+            svgManager.update_svg_colors_from_theme(JSON.stringify(themeObj))
         }
     }
     
