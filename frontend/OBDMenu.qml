@@ -404,11 +404,19 @@ Item {
 
         // RPM Settings state
         property bool shiftLightEnabled: true
+        property bool showOnHomeCard: true       // Show indicator on home OBD card
         property int maxRpm: 8000
         property int selectedFlagIndex: -1  // Which flag is selected for editing (-1 = none)
         property real fullScreenFlashOpacity: 0.5
 
-        // Flags list - each flag has: rpmLow, rpmHigh, color, flash, flashSpeed, fullScreenFlash
+        // Shift light appearance settings
+        property real shiftLightSize: 0.5        // Size as percentage of card height (0.25 - 1.0)
+        property real glowSize: 0.6              // Inner glow size percentage (0.0 - 1.0)
+        property real glowIntensity: 0.6         // Inner glow opacity (0.0 - 1.0)
+        property int colorTransitionSpeed: 100   // Color animation duration in ms (0 - 500)
+        property bool pulseEnabled: false        // Enable pulse animation when active
+
+        // Flags list - each flag has: rpmLow, rpmHigh, color, flash, flashSpeed, fullScreenFlash, fullScreenFlashOpacity
         property var flags: []
 
         // Default colors for new flags
@@ -418,8 +426,15 @@ Item {
         onOpened: {
             if (settingsManager) {
                 shiftLightEnabled = settingsManager.get_setting_with_default("rpm_shift_light_enabled", true)
+                showOnHomeCard = settingsManager.get_setting_with_default("rpm_show_on_home_card", true)
                 maxRpm = settingsManager.get_setting_with_default("rpm_max_rpm", 8000)
                 fullScreenFlashOpacity = settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5)
+                // Load appearance settings
+                shiftLightSize = settingsManager.get_setting_with_default("rpm_shift_light_size", 0.5)
+                glowSize = settingsManager.get_setting_with_default("rpm_glow_size", 0.6)
+                glowIntensity = settingsManager.get_setting_with_default("rpm_glow_intensity", 0.6)
+                colorTransitionSpeed = settingsManager.get_setting_with_default("rpm_color_transition_speed", 100)
+                pulseEnabled = settingsManager.get_setting_with_default("rpm_pulse_enabled", false)
                 var savedFlags = settingsManager.get_setting_with_default("rpm_flags", "[]")
                 try {
                     flags = JSON.parse(savedFlags)
@@ -456,7 +471,8 @@ Item {
                 color: defaultColors[colorIndex],
                 flash: false,
                 flashSpeed: 100,
-                fullScreenFlash: false
+                fullScreenFlash: false,
+                fullScreenFlashOpacity: 0.5
             }
             var newFlags = flags.slice()  // Create a copy
             newFlags.push(newFlag)
@@ -508,7 +524,7 @@ Item {
         }
 
         background: Rectangle {
-            color: App.Style.contentColor
+            color: Qt.rgba(App.Style.contentColor.r, App.Style.contentColor.g, App.Style.contentColor.b, 0.95)
             radius: App.Spacing.overallMargin
             border.color: App.Style.accent
             border.width: 2
@@ -528,24 +544,12 @@ Item {
             Text {
                 id: rpmPopupHeader
                 text: "RPM Shift Light Settings"
-                font.pixelSize: App.Spacing.overallText * 2.5
+                font.pixelSize: App.Spacing.overallText * 1.6
                 font.bold: true
                 font.family: obdPage.globalFont
                 color: App.Style.primaryTextColor
                 anchors.top: parent.top
                 anchors.topMargin: App.Spacing.overallMargin
-                anchors.horizontalCenter: parent.horizontalCenter
-            }
-
-            // Subtitle
-            Text {
-                id: rpmPopupSubtitle
-                text: "Add flags to trigger shift light at different RPM points"
-                font.pixelSize: App.Spacing.overallText * 1.2
-                font.family: obdPage.globalFont
-                color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                anchors.top: rpmPopupHeader.bottom
-                anchors.topMargin: App.Spacing.overallSpacing * 0.5
                 anchors.horizontalCenter: parent.horizontalCenter
             }
 
@@ -583,7 +587,7 @@ Item {
             // Settings content in scrollable area
             ScrollView {
                 id: rpmSettingsScrollView
-                anchors.top: rpmPopupSubtitle.bottom
+                anchors.top: rpmPopupHeader.bottom
                 anchors.topMargin: App.Spacing.overallSpacing
                 anchors.bottom: rpmCloseBtn.top
                 anchors.bottomMargin: App.Spacing.overallSpacing
@@ -602,12 +606,12 @@ Item {
                     // === SHIFT LIGHT ENABLE/DISABLE ===
                     Rectangle {
                         width: parent.width
-                        height: App.Spacing.overallText * 4
+                        height: 60
                         radius: App.Spacing.overallMargin * 0.5
-                        color: shiftLightToggleMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
+                        color: shiftLightRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
                         MouseArea {
-                            id: shiftLightToggleMouse
+                            id: shiftLightRowMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             onClicked: {
@@ -622,88 +626,351 @@ Item {
                             anchors.fill: parent
                             anchors.leftMargin: App.Spacing.overallMargin
                             anchors.rightMargin: App.Spacing.overallMargin
-                            spacing: App.Spacing.overallSpacing
+                            spacing: App.Spacing.overallSpacing * 2
 
                             Text {
                                 text: "Enable Shift Light"
-                                font.pixelSize: App.Spacing.overallText * 1.4
+                                font.pixelSize: App.Spacing.overallText * 1.1
                                 font.family: obdPage.globalFont
                                 color: App.Style.primaryTextColor
                                 Layout.fillWidth: true
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        rpmSettingsPopup.shiftLightEnabled = !rpmSettingsPopup.shiftLightEnabled
+                                        if (settingsManager) {
+                                            settingsManager.save_setting("rpm_shift_light_enabled", rpmSettingsPopup.shiftLightEnabled)
+                                        }
+                                    }
+                                }
                             }
 
-                            // Toggle switch
-                            Rectangle {
-                                Layout.preferredWidth: App.Spacing.overallText * 5
-                                Layout.preferredHeight: App.Spacing.overallText * 2.5
-                                radius: height / 2
-                                color: rpmSettingsPopup.shiftLightEnabled ?
-                                    Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.6) :
-                                    Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.4)
+                            // Toggle switch - matches SettingsMenu styling exactly
+                            Item {
+                                Layout.preferredWidth: 80
+                                Layout.preferredHeight: 40
 
-                                Behavior on color { ColorAnimation { duration: 200 } }
-
+                                // Main track
                                 Rectangle {
-                                    width: parent.height - 8
-                                    height: parent.height - 8
+                                    id: shiftLightTrack
+                                    anchors.fill: parent
                                     radius: height / 2
-                                    x: rpmSettingsPopup.shiftLightEnabled ? parent.width - width - 4 : 4
-                                    y: 4
+                                    color: rpmSettingsPopup.shiftLightEnabled ?
+                                        Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) :
+                                        Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
+
+                                    // Subtle gradient overlay
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: parent.radius
+                                        gradient: Gradient {
+                                            GradientStop { position: 0.0; color: "transparent" }
+                                            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.05) }
+                                        }
+                                    }
+
+                                    // Animated highlight
+                                    Rectangle {
+                                        id: shiftLightHighlight
+                                        width: rpmSettingsPopup.shiftLightEnabled ? parent.width : 0
+                                        height: parent.height
+                                        radius: parent.radius
+                                        anchors.right: rpmSettingsPopup.shiftLightEnabled ? parent.right : undefined
+                                        anchors.left: !rpmSettingsPopup.shiftLightEnabled ? parent.left : undefined
+                                        color: App.Style.accent
+                                        opacity: rpmSettingsPopup.shiftLightEnabled ? 0.5 : 0
+
+                                        Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                                        Behavior on opacity { NumberAnimation { duration: 300 } }
+                                    }
+
+                                    // ON/OFF text
+                                    Text {
+                                        anchors {
+                                            left: rpmSettingsPopup.shiftLightEnabled ? undefined : parent.left
+                                            right: rpmSettingsPopup.shiftLightEnabled ? parent.right : undefined
+                                            margins: 10
+                                            verticalCenter: parent.verticalCenter
+                                        }
+                                        text: rpmSettingsPopup.shiftLightEnabled ? "ON" : "OFF"
+                                        font.pixelSize: App.Spacing.overallText * 0.8
+                                        font.bold: true
+                                        font.family: obdPage.globalFont
+                                        color: rpmSettingsPopup.shiftLightEnabled ? App.Style.accent :
+                                            Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
+                                        visible: width < (parent.width - shiftLightHandle.width - 10)
+
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                    }
+                                }
+
+                                // Handle
+                                Rectangle {
+                                    id: shiftLightHandle
+                                    width: 40
+                                    height: 40
+                                    radius: width / 2
+                                    x: rpmSettingsPopup.shiftLightEnabled ? parent.width - width : 0
+                                    y: 0
                                     color: "white"
 
-                                    Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+                                    // Inner indicator
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width * 0.4
+                                        height: width
+                                        radius: width / 2
+                                        color: App.Style.accent
+                                        opacity: rpmSettingsPopup.shiftLightEnabled ? 1 : 0
+                                        scale: rpmSettingsPopup.shiftLightEnabled ? 1 : 0.5
+
+                                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                    }
+
+                                    layer.enabled: true
+                                    layer.effect: DropShadow {
+                                        verticalOffset: 2
+                                        radius: 6.0
+                                        samples: 17
+                                        color: Qt.rgba(0, 0, 0, 0.2)
+                                    }
+
+                                    scale: shiftLightToggleMouse.pressed ? 0.95 : 1.0
+
+                                    Behavior on x {
+                                        NumberAnimation {
+                                            duration: 300
+                                            easing.type: Easing.OutBack
+                                            easing.overshoot: 0.6
+                                        }
+                                    }
+                                    Behavior on scale { NumberAnimation { duration: 100 } }
+                                }
+
+                                // Interactive area with pulse animation
+                                MouseArea {
+                                    id: shiftLightToggleMouse
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        rpmSettingsPopup.shiftLightEnabled = !rpmSettingsPopup.shiftLightEnabled
+                                        if (settingsManager) {
+                                            settingsManager.save_setting("rpm_shift_light_enabled", rpmSettingsPopup.shiftLightEnabled)
+                                        }
+                                    }
+                                    onPressed: {
+                                        shiftLightPulseAnimation.start()
+                                    }
+
+                                    SequentialAnimation {
+                                        id: shiftLightPulseAnimation
+                                        PropertyAnimation {
+                                            target: shiftLightHandle
+                                            property: "scale"
+                                            to: 0.9
+                                            duration: 100
+                                        }
+                                        PropertyAnimation {
+                                            target: shiftLightHandle
+                                            property: "scale"
+                                            to: 1.0
+                                            duration: 100
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // === SECTION DIVIDER ===
+                    // === SHOW ON HOME CARD TOGGLE ===
                     Rectangle {
                         width: parent.width
-                        height: 1
-                        color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
-                    }
+                        height: 60
+                        radius: App.Spacing.overallMargin * 0.5
+                        color: showOnHomeCardRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
-                    // === MAX RPM SETTING ===
-                    Text {
-                        text: "Vehicle Settings"
-                        font.pixelSize: App.Spacing.overallText * 1.6
-                        font.bold: true
-                        font.family: obdPage.globalFont
-                        color: App.Style.accent
-                        leftPadding: App.Spacing.overallMargin
-                    }
-
-                    Column {
-                        width: parent.width
-                        spacing: App.Spacing.overallSpacing * 0.5
+                        MouseArea {
+                            id: showOnHomeCardRowMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: {
+                                rpmSettingsPopup.showOnHomeCard = !rpmSettingsPopup.showOnHomeCard
+                                if (settingsManager) {
+                                    settingsManager.save_setting("rpm_show_on_home_card", rpmSettingsPopup.showOnHomeCard)
+                                }
+                            }
+                        }
 
                         RowLayout {
-                            width: parent.width
+                            anchors.fill: parent
+                            anchors.leftMargin: App.Spacing.overallMargin
+                            anchors.rightMargin: App.Spacing.overallMargin
+                            spacing: App.Spacing.overallSpacing * 2
 
                             Text {
-                                text: "Max RPM (Redline)"
-                                font.pixelSize: App.Spacing.overallText * 1.2
+                                text: "Show Indicator on Home"
+                                font.pixelSize: App.Spacing.overallText * 1.1
                                 font.family: obdPage.globalFont
                                 color: App.Style.primaryTextColor
                                 Layout.fillWidth: true
-                                leftPadding: App.Spacing.overallMargin
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        rpmSettingsPopup.showOnHomeCard = !rpmSettingsPopup.showOnHomeCard
+                                        if (settingsManager) {
+                                            settingsManager.save_setting("rpm_show_on_home_card", rpmSettingsPopup.showOnHomeCard)
+                                        }
+                                    }
+                                }
                             }
 
-                            Text {
-                                text: rpmSettingsPopup.maxRpm + " RPM"
-                                font.pixelSize: App.Spacing.overallText * 1.2
-                                font.bold: true
-                                font.family: obdPage.globalFont
-                                color: "#FF0000"
-                                rightPadding: App.Spacing.overallMargin
+                            // Toggle switch
+                            Item {
+                                Layout.preferredWidth: 80
+                                Layout.preferredHeight: 40
+
+                                Rectangle {
+                                    id: showOnHomeCardTrack
+                                    anchors.fill: parent
+                                    radius: height / 2
+                                    color: rpmSettingsPopup.showOnHomeCard ?
+                                        Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) :
+                                        Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: parent.radius
+                                        gradient: Gradient {
+                                            GradientStop { position: 0.0; color: "transparent" }
+                                            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.05) }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        width: rpmSettingsPopup.showOnHomeCard ? parent.width : 0
+                                        height: parent.height
+                                        radius: parent.radius
+                                        anchors.right: rpmSettingsPopup.showOnHomeCard ? parent.right : undefined
+                                        anchors.left: !rpmSettingsPopup.showOnHomeCard ? parent.left : undefined
+                                        color: App.Style.accent
+                                        opacity: rpmSettingsPopup.showOnHomeCard ? 0.5 : 0
+
+                                        Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                                        Behavior on opacity { NumberAnimation { duration: 300 } }
+                                    }
+
+                                    Text {
+                                        anchors {
+                                            left: rpmSettingsPopup.showOnHomeCard ? undefined : parent.left
+                                            right: rpmSettingsPopup.showOnHomeCard ? parent.right : undefined
+                                            margins: 10
+                                            verticalCenter: parent.verticalCenter
+                                        }
+                                        text: rpmSettingsPopup.showOnHomeCard ? "ON" : "OFF"
+                                        font.pixelSize: App.Spacing.overallText * 0.8
+                                        font.bold: true
+                                        font.family: obdPage.globalFont
+                                        color: rpmSettingsPopup.showOnHomeCard ? App.Style.accent :
+                                            Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
+                                        visible: width < (parent.width - showOnHomeCardHandle.width - 10)
+
+                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: showOnHomeCardHandle
+                                    width: 40
+                                    height: 40
+                                    radius: width / 2
+                                    x: rpmSettingsPopup.showOnHomeCard ? parent.width - width : 0
+                                    y: 0
+                                    color: "white"
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.width * 0.4
+                                        height: width
+                                        radius: width / 2
+                                        color: App.Style.accent
+                                        opacity: rpmSettingsPopup.showOnHomeCard ? 1 : 0
+                                        scale: rpmSettingsPopup.showOnHomeCard ? 1 : 0.5
+
+                                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                                        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                    }
+
+                                    layer.enabled: true
+                                    layer.effect: DropShadow {
+                                        verticalOffset: 2
+                                        radius: 6.0
+                                        samples: 17
+                                        color: Qt.rgba(0, 0, 0, 0.2)
+                                    }
+
+                                    scale: showOnHomeCardToggleMouse.pressed ? 0.95 : 1.0
+
+                                    Behavior on x {
+                                        NumberAnimation {
+                                            duration: 300
+                                            easing.type: Easing.OutBack
+                                            easing.overshoot: 0.6
+                                        }
+                                    }
+                                    Behavior on scale { NumberAnimation { duration: 100 } }
+                                }
+
+                                MouseArea {
+                                    id: showOnHomeCardToggleMouse
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        rpmSettingsPopup.showOnHomeCard = !rpmSettingsPopup.showOnHomeCard
+                                        if (settingsManager) {
+                                            settingsManager.save_setting("rpm_show_on_home_card", rpmSettingsPopup.showOnHomeCard)
+                                        }
+                                    }
+                                    onPressed: {
+                                        showOnHomeCardPulseAnimation.start()
+                                    }
+
+                                    SequentialAnimation {
+                                        id: showOnHomeCardPulseAnimation
+                                        PropertyAnimation {
+                                            target: showOnHomeCardHandle
+                                            property: "scale"
+                                            to: 0.9
+                                            duration: 100
+                                        }
+                                        PropertyAnimation {
+                                            target: showOnHomeCardHandle
+                                            property: "scale"
+                                            to: 1.0
+                                            duration: 100
+                                        }
+                                    }
+                                }
                             }
+                        }
+                    }
+
+                    // === MAX RPM SETTING ===
+                    RowLayout {
+                        width: parent.width
+                        Layout.leftMargin: App.Spacing.overallMargin
+                        Layout.rightMargin: App.Spacing.overallMargin
+
+                        Text {
+                            text: "Redline"
+                            font.pixelSize: App.Spacing.overallText * 1.1
+                            font.family: obdPage.globalFont
+                            color: App.Style.primaryTextColor
                         }
 
                         Slider {
                             id: maxRpmSlider
-                            width: parent.width - App.Spacing.overallMargin * 2
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            Layout.fillWidth: true
                             implicitHeight: App.Spacing.overallSliderHeight * 2.5
                             from: 4000
                             to: 12000
@@ -713,6 +980,24 @@ Item {
                                 rpmSettingsPopup.maxRpm = value
                                 if (settingsManager) {
                                     settingsManager.save_setting("rpm_max_rpm", value)
+                                }
+                                // Clamp flag rpmHigh values that exceed new max
+                                var needsSave = false
+                                var newFlags = rpmSettingsPopup.flags.slice()
+                                for (var i = 0; i < newFlags.length; i++) {
+                                    if (newFlags[i].rpmHigh > value) {
+                                        newFlags[i] = Object.assign({}, newFlags[i])
+                                        newFlags[i].rpmHigh = value
+                                        // Also clamp rpmLow if it exceeds new rpmHigh
+                                        if (newFlags[i].rpmLow > value) {
+                                            newFlags[i].rpmLow = value
+                                        }
+                                        needsSave = true
+                                    }
+                                }
+                                if (needsSave) {
+                                    rpmSettingsPopup.flags = newFlags
+                                    rpmSettingsPopup.saveFlags()
                                 }
                             }
 
@@ -743,31 +1028,16 @@ Item {
                                 border.width: 2
                             }
                         }
-                    }
 
-                    // === SECTION DIVIDER ===
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
-                    }
-
-                    // === RPM BAR WITH FLAGS ===
-                    Text {
-                        text: "RPM Flags"
-                        font.pixelSize: App.Spacing.overallText * 1.6
-                        font.bold: true
-                        font.family: obdPage.globalFont
-                        color: App.Style.accent
-                        leftPadding: App.Spacing.overallMargin
-                    }
-
-                    Text {
-                        text: "Click on the bar or drag flags to set trigger points"
-                        font.pixelSize: App.Spacing.overallText
-                        font.family: obdPage.globalFont
-                        color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                        leftPadding: App.Spacing.overallMargin
+                        Text {
+                            text: rpmSettingsPopup.maxRpm
+                            font.pixelSize: App.Spacing.overallText * 1.1
+                            font.bold: true
+                            font.family: obdPage.globalFont
+                            color: "#FF0000"
+                            Layout.preferredWidth: App.Spacing.overallText * 4
+                            horizontalAlignment: Text.AlignRight
+                        }
                     }
 
                     // RPM Bar visualization with flags
@@ -819,7 +1089,7 @@ Item {
                                     Text {
                                         anchors.centerIn: parent
                                         text: (index + 1).toString()
-                                        font.pixelSize: App.Spacing.overallText * 1.2
+                                        font.pixelSize: App.Spacing.overallText * 1.1
                                         font.bold: true
                                         font.family: obdPage.globalFont
                                         color: "white"
@@ -979,7 +1249,7 @@ Item {
 
                                 Text {
                                     text: "RPM Low (Start)"
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.family: obdPage.globalFont
                                     color: App.Style.primaryTextColor
                                     Layout.fillWidth: true
@@ -988,7 +1258,7 @@ Item {
 
                                 Text {
                                     text: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.rpmLow + " RPM" : ""
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.bold: true
                                     font.family: obdPage.globalFont
                                     color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.primaryTextColor
@@ -1048,7 +1318,7 @@ Item {
 
                                 Text {
                                     text: "RPM High (End)"
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.family: obdPage.globalFont
                                     color: App.Style.primaryTextColor
                                     Layout.fillWidth: true
@@ -1057,7 +1327,7 @@ Item {
 
                                 Text {
                                     text: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.rpmHigh + " RPM" : ""
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.bold: true
                                     font.family: obdPage.globalFont
                                     color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.primaryTextColor
@@ -1114,7 +1384,7 @@ Item {
 
                             Text {
                                 text: "Color"
-                                font.pixelSize: App.Spacing.overallText * 1.2
+                                font.pixelSize: App.Spacing.overallText * 1.1
                                 font.family: obdPage.globalFont
                                 color: App.Style.primaryTextColor
                                 leftPadding: App.Spacing.overallMargin
@@ -1149,12 +1419,12 @@ Item {
                         // Flash toggle for selected flag
                         Rectangle {
                             width: parent.width
-                            height: App.Spacing.overallText * 4
+                            height: 60
                             radius: App.Spacing.overallMargin * 0.5
-                            color: flagFlashToggleMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
+                            color: flagFlashRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
                             MouseArea {
-                                id: flagFlashToggleMouse
+                                id: flagFlashRowMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
@@ -1167,36 +1437,154 @@ Item {
                                 anchors.fill: parent
                                 anchors.leftMargin: App.Spacing.overallMargin
                                 anchors.rightMargin: App.Spacing.overallMargin
-                                spacing: App.Spacing.overallSpacing
+                                spacing: App.Spacing.overallSpacing * 2
 
                                 Text {
                                     text: "Flash when triggered"
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.family: obdPage.globalFont
                                     color: App.Style.primaryTextColor
                                     Layout.fillWidth: true
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            var currentFlash = flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.flash
+                                            rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "flash", !currentFlash)
+                                        }
+                                    }
                                 }
 
-                                Rectangle {
-                                    id: flashToggleSwitch
-                                    Layout.preferredWidth: App.Spacing.overallText * 5
-                                    Layout.preferredHeight: App.Spacing.overallText * 2.5
-                                    radius: height / 2
-                                    color: (flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.flash) ?
-                                        Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.6) :
-                                        Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.4)
+                                // Toggle switch - matches SettingsMenu styling exactly
+                                Item {
+                                    id: flagFlashToggleItem
+                                    Layout.preferredWidth: 80
+                                    Layout.preferredHeight: 40
 
-                                    Behavior on color { ColorAnimation { duration: 200 } }
+                                    property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.flash
 
                                     Rectangle {
-                                        width: parent.height - 8
-                                        height: parent.height - 8
+                                        id: flagFlashTrack
+                                        anchors.fill: parent
                                         radius: height / 2
-                                        x: (flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.flash) ? parent.width - width - 4 : 4
-                                        y: 4
+                                        color: flagFlashToggleItem.isChecked ?
+                                            Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) :
+                                            Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
+
+                                        // Subtle gradient overlay
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: parent.radius
+                                            gradient: Gradient {
+                                                GradientStop { position: 0.0; color: "transparent" }
+                                                GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.05) }
+                                            }
+                                        }
+
+                                        // Animated highlight
+                                        Rectangle {
+                                            width: flagFlashToggleItem.isChecked ? parent.width : 0
+                                            height: parent.height
+                                            radius: parent.radius
+                                            anchors.right: flagFlashToggleItem.isChecked ? parent.right : undefined
+                                            anchors.left: !flagFlashToggleItem.isChecked ? parent.left : undefined
+                                            color: App.Style.accent
+                                            opacity: flagFlashToggleItem.isChecked ? 0.5 : 0
+
+                                            Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                                        }
+
+                                        // ON/OFF text
+                                        Text {
+                                            anchors {
+                                                left: flagFlashToggleItem.isChecked ? undefined : parent.left
+                                                right: flagFlashToggleItem.isChecked ? parent.right : undefined
+                                                margins: 10
+                                                verticalCenter: parent.verticalCenter
+                                            }
+                                            text: flagFlashToggleItem.isChecked ? "ON" : "OFF"
+                                            font.pixelSize: App.Spacing.overallText * 0.8
+                                            font.bold: true
+                                            font.family: obdPage.globalFont
+                                            color: flagFlashToggleItem.isChecked ? App.Style.accent :
+                                                Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
+                                            visible: width < (parent.width - flagFlashHandle.width - 10)
+
+                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                        }
+                                    }
+
+                                    // Handle
+                                    Rectangle {
+                                        id: flagFlashHandle
+                                        width: 40
+                                        height: 40
+                                        radius: width / 2
+                                        x: flagFlashToggleItem.isChecked ? parent.width - width : 0
+                                        y: 0
                                         color: "white"
 
-                                        Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+                                        // Inner indicator
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: parent.width * 0.4
+                                            height: width
+                                            radius: width / 2
+                                            color: App.Style.accent
+                                            opacity: flagFlashToggleItem.isChecked ? 1 : 0
+                                            scale: flagFlashToggleItem.isChecked ? 1 : 0.5
+
+                                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                        }
+
+                                        layer.enabled: true
+                                        layer.effect: DropShadow {
+                                            verticalOffset: 2
+                                            radius: 6.0
+                                            samples: 17
+                                            color: Qt.rgba(0, 0, 0, 0.2)
+                                        }
+
+                                        scale: flagFlashToggleMouse.pressed ? 0.95 : 1.0
+
+                                        Behavior on x {
+                                            NumberAnimation {
+                                                duration: 300
+                                                easing.type: Easing.OutBack
+                                                easing.overshoot: 0.6
+                                            }
+                                        }
+                                        Behavior on scale { NumberAnimation { duration: 100 } }
+                                    }
+
+                                    // Interactive area with pulse animation
+                                    MouseArea {
+                                        id: flagFlashToggleMouse
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "flash", !flagFlashToggleItem.isChecked)
+                                        }
+                                        onPressed: {
+                                            flagFlashPulseAnimation.start()
+                                        }
+
+                                        SequentialAnimation {
+                                            id: flagFlashPulseAnimation
+                                            PropertyAnimation {
+                                                target: flagFlashHandle
+                                                property: "scale"
+                                                to: 0.9
+                                                duration: 100
+                                            }
+                                            PropertyAnimation {
+                                                target: flagFlashHandle
+                                                property: "scale"
+                                                to: 1.0
+                                                duration: 100
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1213,7 +1601,7 @@ Item {
 
                                 Text {
                                     text: "Flash Speed"
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.family: obdPage.globalFont
                                     color: App.Style.primaryTextColor
                                     Layout.fillWidth: true
@@ -1222,7 +1610,7 @@ Item {
 
                                 Text {
                                     text: (flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.flashSpeed : 100) + " ms"
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.bold: true
                                     font.family: obdPage.globalFont
                                     color: App.Style.primaryTextColor
@@ -1291,15 +1679,15 @@ Item {
                             }
                         }
 
-                        // Full screen flash toggle for this flag
+                        // Full screen overlay toggle for this flag
                         Rectangle {
                             width: parent.width
-                            height: App.Spacing.overallText * 4
+                            height: 60
                             radius: App.Spacing.overallMargin * 0.5
-                            color: fullScreenFlashFlagToggleMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
+                            color: fullScreenRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
                             MouseArea {
-                                id: fullScreenFlashFlagToggleMouse
+                                id: fullScreenRowMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
@@ -1312,282 +1700,230 @@ Item {
                                 anchors.fill: parent
                                 anchors.leftMargin: App.Spacing.overallMargin
                                 anchors.rightMargin: App.Spacing.overallMargin
-                                spacing: App.Spacing.overallSpacing
+                                spacing: App.Spacing.overallSpacing * 2
 
                                 Text {
-                                    text: "Full screen flash"
-                                    font.pixelSize: App.Spacing.overallText * 1.2
+                                    text: "Full screen overlay"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
                                     font.family: obdPage.globalFont
                                     color: App.Style.primaryTextColor
                                     Layout.fillWidth: true
-                                }
 
-                                Rectangle {
-                                    id: fullScreenFlashFlagToggle
-                                    Layout.preferredWidth: App.Spacing.overallText * 5
-                                    Layout.preferredHeight: App.Spacing.overallText * 2.5
-                                    radius: height / 2
-                                    color: (flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlash) ?
-                                        Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.6) :
-                                        Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.4)
-
-                                    Behavior on color { ColorAnimation { duration: 200 } }
-
-                                    Rectangle {
-                                        width: parent.height - 8
-                                        height: parent.height - 8
-                                        radius: height / 2
-                                        x: (flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlash) ? parent.width - width - 4 : 4
-                                        y: 4
-                                        color: "white"
-
-                                        Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutBack } }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            var currentFullScreen = flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.fullScreenFlash : false
+                                            rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "fullScreenFlash", !currentFullScreen)
+                                        }
                                     }
                                 }
-                            }
-                        }
-                    }
 
-                    // === SECTION DIVIDER ===
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
-                    }
+                                // Toggle switch - matches SettingsMenu styling exactly
+                                Item {
+                                    id: fullScreenToggleItem
+                                    Layout.preferredWidth: 80
+                                    Layout.preferredHeight: 40
 
-                    // === FULL SCREEN FLASH OPACITY (Global setting) ===
-                    Text {
-                        text: "Full Screen Flash Opacity"
-                        font.pixelSize: App.Spacing.overallText * 1.6
-                        font.bold: true
-                        font.family: obdPage.globalFont
-                        color: App.Style.accent
-                        leftPadding: App.Spacing.overallMargin
-                    }
+                                    property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlash
 
-                    Text {
-                        text: "Controls opacity when any flag has full screen flash enabled"
-                        font.pixelSize: App.Spacing.overallText
-                        font.family: obdPage.globalFont
-                        color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                        leftPadding: App.Spacing.overallMargin
-                    }
-
-                    Column {
-                        width: parent.width
-                        spacing: App.Spacing.overallSpacing * 0.5
-
-                        RowLayout {
-                            width: parent.width
-
-                            Text {
-                                text: "Flash Opacity"
-                                font.pixelSize: App.Spacing.overallText * 1.2
-                                font.family: obdPage.globalFont
-                                color: App.Style.primaryTextColor
-                                Layout.fillWidth: true
-                                leftPadding: App.Spacing.overallMargin
-                            }
-
-                            Text {
-                                text: Math.round(rpmSettingsPopup.fullScreenFlashOpacity * 100) + "%"
-                                font.pixelSize: App.Spacing.overallText * 1.2
-                                font.bold: true
-                                font.family: obdPage.globalFont
-                                color: App.Style.primaryTextColor
-                                rightPadding: App.Spacing.overallMargin
-                            }
-                        }
-
-                        Slider {
-                            id: fullScreenOpacitySlider
-                            width: parent.width - App.Spacing.overallMargin * 2
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            implicitHeight: App.Spacing.overallSliderHeight * 2.5
-                            from: 0.1
-                            to: 1.0
-                            stepSize: 0.05
-                            value: rpmSettingsPopup.fullScreenFlashOpacity
-                            onMoved: {
-                                rpmSettingsPopup.fullScreenFlashOpacity = value
-                                if (settingsManager) {
-                                    settingsManager.save_setting("rpm_fullscreen_flash_opacity", value)
-                                }
-                            }
-
-                            background: Rectangle {
-                                x: fullScreenOpacitySlider.leftPadding
-                                y: fullScreenOpacitySlider.topPadding + fullScreenOpacitySlider.availableHeight / 2 - height / 2
-                                width: fullScreenOpacitySlider.availableWidth
-                                height: App.Spacing.overallSliderHeight * 0.5
-                                radius: height / 2
-                                color: Qt.darker(App.Style.contentColor, 1.2)
-
-                                Rectangle {
-                                    width: fullScreenOpacitySlider.visualPosition * parent.width
-                                    height: parent.height
-                                    color: App.Style.accent
-                                    radius: height / 2
-                                }
-                            }
-
-                            handle: Rectangle {
-                                x: fullScreenOpacitySlider.leftPadding + fullScreenOpacitySlider.visualPosition * (fullScreenOpacitySlider.availableWidth - width)
-                                y: fullScreenOpacitySlider.topPadding + fullScreenOpacitySlider.availableHeight / 2 - height / 2
-                                width: App.Spacing.overallSliderHeight * 1.5
-                                height: width
-                                radius: width / 2
-                                color: fullScreenOpacitySlider.pressed ? Qt.darker("white", 1.1) : "white"
-                                border.color: App.Style.accent
-                                border.width: 2
-                            }
-                        }
-
-                        RowLayout {
-                            width: parent.width - App.Spacing.overallMargin * 2
-                            anchors.horizontalCenter: parent.horizontalCenter
-
-                            Text {
-                                text: "Subtle"
-                                font.pixelSize: App.Spacing.overallText * 0.9
-                                font.family: obdPage.globalFont
-                                color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                            }
-                            Item { Layout.fillWidth: true }
-                            Text {
-                                text: "Intense"
-                                font.pixelSize: App.Spacing.overallText * 0.9
-                                font.family: obdPage.globalFont
-                                color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                            }
-                        }
-
-                        // Preview of flash opacity
-                        Rectangle {
-                            width: parent.width - App.Spacing.overallMargin * 2
-                            height: App.Spacing.overallText * 4
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            radius: App.Spacing.overallMargin * 0.5
-                            color: Qt.rgba(1, 0, 0, rpmSettingsPopup.fullScreenFlashOpacity)
-                            border.color: Qt.darker("#FF0000", 1.3)
-                            border.width: 1
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "Opacity Preview"
-                                font.pixelSize: App.Spacing.overallText
-                                font.family: obdPage.globalFont
-                                color: rpmSettingsPopup.fullScreenFlashOpacity > 0.5 ? "white" : App.Style.primaryTextColor
-                            }
-                        }
-                    }
-
-                    // === SECTION DIVIDER ===
-                    Rectangle {
-                        width: parent.width
-                        height: 1
-                        color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
-                        visible: rpmSettingsPopup.flags.length > 0
-                    }
-
-                    // === PREVIEW SECTION ===
-                    Text {
-                        text: "Preview"
-                        font.pixelSize: App.Spacing.overallText * 1.6
-                        font.bold: true
-                        font.family: obdPage.globalFont
-                        color: App.Style.accent
-                        leftPadding: App.Spacing.overallMargin
-                        visible: rpmSettingsPopup.flags.length > 0
-                    }
-
-                    // Preview of shift lights based on flags
-                    Rectangle {
-                        width: parent.width
-                        height: App.Spacing.overallText * 10
-                        color: "transparent"
-                        visible: rpmSettingsPopup.flags.length > 0
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: App.Spacing.overallSpacing * 2
-
-                            // Off state
-                            Column {
-                                spacing: App.Spacing.overallSpacing * 0.5
-                                Rectangle {
-                                    width: App.Spacing.overallText * 4
-                                    height: width
-                                    radius: width / 2
-                                    color: "#1a1a1a"
-                                    border.color: "#333333"
-                                    border.width: 2
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                                Text {
-                                    text: "Off"
-                                    font.pixelSize: App.Spacing.overallText
-                                    font.family: obdPage.globalFont
-                                    color: App.Style.primaryTextColor
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                                Text {
-                                    text: "< " + (rpmSettingsPopup.flags.length > 0 ? rpmSettingsPopup.flags[0].rpmLow : 0)
-                                    font.pixelSize: App.Spacing.overallText * 0.8
-                                    font.family: obdPage.globalFont
-                                    color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                            }
-
-                            // Show each flag's light
-                            Repeater {
-                                model: rpmSettingsPopup.flags
-
-                                Column {
-                                    spacing: App.Spacing.overallSpacing * 0.5
                                     Rectangle {
-                                        width: App.Spacing.overallText * 4
-                                        height: width
-                                        radius: width / 2
-                                        color: modelData.color
-                                        border.color: Qt.darker(modelData.color, 1.3)
-                                        border.width: 2
-                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        id: fullScreenTrack
+                                        anchors.fill: parent
+                                        radius: height / 2
+                                        color: fullScreenToggleItem.isChecked ?
+                                            Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) :
+                                            Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
 
+                                        // Subtle gradient overlay
                                         Rectangle {
-                                            anchors.centerIn: parent
-                                            width: parent.width * 0.6
-                                            height: width
-                                            radius: width / 2
-                                            color: Qt.lighter(parent.color, 1.5)
-                                            opacity: 0.6
+                                            anchors.fill: parent
+                                            radius: parent.radius
+                                            gradient: Gradient {
+                                                GradientStop { position: 0.0; color: "transparent" }
+                                                GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.05) }
+                                            }
                                         }
 
-                                        // Flag number
+                                        // Animated highlight
+                                        Rectangle {
+                                            width: fullScreenToggleItem.isChecked ? parent.width : 0
+                                            height: parent.height
+                                            radius: parent.radius
+                                            anchors.right: fullScreenToggleItem.isChecked ? parent.right : undefined
+                                            anchors.left: !fullScreenToggleItem.isChecked ? parent.left : undefined
+                                            color: App.Style.accent
+                                            opacity: fullScreenToggleItem.isChecked ? 0.5 : 0
+
+                                            Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                                        }
+
+                                        // ON/OFF text
                                         Text {
-                                            anchors.centerIn: parent
-                                            text: (index + 1).toString()
-                                            font.pixelSize: App.Spacing.overallText * 1.2
+                                            anchors {
+                                                left: fullScreenToggleItem.isChecked ? undefined : parent.left
+                                                right: fullScreenToggleItem.isChecked ? parent.right : undefined
+                                                margins: 10
+                                                verticalCenter: parent.verticalCenter
+                                            }
+                                            text: fullScreenToggleItem.isChecked ? "ON" : "OFF"
+                                            font.pixelSize: App.Spacing.overallText * 0.8
                                             font.bold: true
                                             font.family: obdPage.globalFont
-                                            color: "white"
+                                            color: fullScreenToggleItem.isChecked ? App.Style.accent :
+                                                Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
+                                            visible: width < (parent.width - fullScreenHandle.width - 10)
+
+                                            Behavior on color { ColorAnimation { duration: 200 } }
                                         }
                                     }
-                                    Text {
-                                        text: modelData.rpmLow + " - " + modelData.rpmHigh
-                                        font.pixelSize: App.Spacing.overallText * 0.9
-                                        font.family: obdPage.globalFont
-                                        color: App.Style.primaryTextColor
-                                        anchors.horizontalCenter: parent.horizontalCenter
+
+                                    // Handle
+                                    Rectangle {
+                                        id: fullScreenHandle
+                                        width: 40
+                                        height: 40
+                                        radius: width / 2
+                                        x: fullScreenToggleItem.isChecked ? parent.width - width : 0
+                                        y: 0
+                                        color: "white"
+
+                                        // Inner indicator
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: parent.width * 0.4
+                                            height: width
+                                            radius: width / 2
+                                            color: App.Style.accent
+                                            opacity: fullScreenToggleItem.isChecked ? 1 : 0
+                                            scale: fullScreenToggleItem.isChecked ? 1 : 0.5
+
+                                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                        }
+
+                                        layer.enabled: true
+                                        layer.effect: DropShadow {
+                                            verticalOffset: 2
+                                            radius: 6.0
+                                            samples: 17
+                                            color: Qt.rgba(0, 0, 0, 0.2)
+                                        }
+
+                                        scale: fullScreenFlashFlagToggleMouse.pressed ? 0.95 : 1.0
+
+                                        Behavior on x {
+                                            NumberAnimation {
+                                                duration: 300
+                                                easing.type: Easing.OutBack
+                                                easing.overshoot: 0.6
+                                            }
+                                        }
+                                        Behavior on scale { NumberAnimation { duration: 100 } }
                                     }
-                                    Text {
-                                        text: "RPM"
-                                        font.pixelSize: App.Spacing.overallText * 0.8
-                                        font.family: obdPage.globalFont
-                                        color: Qt.darker(App.Style.primaryTextColor, 1.3)
-                                        anchors.horizontalCenter: parent.horizontalCenter
+
+                                    // Interactive area with pulse animation
+                                    MouseArea {
+                                        id: fullScreenFlashFlagToggleMouse
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "fullScreenFlash", !fullScreenToggleItem.isChecked)
+                                        }
+                                        onPressed: {
+                                            fullScreenPulseAnimation.start()
+                                        }
+
+                                        SequentialAnimation {
+                                            id: fullScreenPulseAnimation
+                                            PropertyAnimation {
+                                                target: fullScreenHandle
+                                                property: "scale"
+                                                to: 0.9
+                                                duration: 100
+                                            }
+                                            PropertyAnimation {
+                                                target: fullScreenHandle
+                                                property: "scale"
+                                                to: 1.0
+                                                duration: 100
+                                            }
+                                        }
                                     }
+                                }
+                            }
+                        }
+
+                        // Overlay opacity slider (only visible when full screen overlay is enabled for this flag)
+                        Column {
+                            width: parent.width
+                            spacing: App.Spacing.overallSpacing * 0.5
+                            visible: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlash
+
+                            RowLayout {
+                                width: parent.width
+
+                                Text {
+                                    text: "Overlay Opacity"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    Layout.fillWidth: true
+                                    leftPadding: App.Spacing.overallMargin
+                                }
+
+                                Text {
+                                    text: Math.round((flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlashOpacity !== undefined ? flagSettingsColumn.currentFlag.fullScreenFlashOpacity : 0.5) * 100) + "%"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.bold: true
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    rightPadding: App.Spacing.overallMargin
+                                }
+                            }
+
+                            Slider {
+                                id: flagOpacitySlider
+                                width: parent.width - App.Spacing.overallMargin * 2
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                implicitHeight: App.Spacing.overallSliderHeight * 2.5
+                                from: 0.1
+                                to: 1.0
+                                stepSize: 0.05
+                                value: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlashOpacity !== undefined ? flagSettingsColumn.currentFlag.fullScreenFlashOpacity : 0.5
+                                onMoved: {
+                                    rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "fullScreenFlashOpacity", value)
+                                }
+
+                                background: Rectangle {
+                                    x: flagOpacitySlider.leftPadding
+                                    y: flagOpacitySlider.topPadding + flagOpacitySlider.availableHeight / 2 - height / 2
+                                    width: flagOpacitySlider.availableWidth
+                                    height: App.Spacing.overallSliderHeight * 0.5
+                                    radius: height / 2
+                                    color: Qt.darker(App.Style.contentColor, 1.2)
+
+                                    // Filled portion shows actual opacity preview
+                                    Rectangle {
+                                        width: flagOpacitySlider.visualPosition * parent.width
+                                        height: parent.height
+                                        radius: height / 2
+                                        color: {
+                                            var flagColor = flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
+                                            var opacityVal = flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlashOpacity !== undefined ? flagSettingsColumn.currentFlag.fullScreenFlashOpacity : 0.5
+                                            return Qt.rgba(Qt.lighter(flagColor, 1).r, Qt.lighter(flagColor, 1).g, Qt.lighter(flagColor, 1).b, opacityVal)
+                                        }
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: flagOpacitySlider.leftPadding + flagOpacitySlider.visualPosition * (flagOpacitySlider.availableWidth - width)
+                                    y: flagOpacitySlider.topPadding + flagOpacitySlider.availableHeight / 2 - height / 2
+                                    width: App.Spacing.overallSliderHeight * 1.5
+                                    height: width
+                                    radius: width / 2
+                                    color: flagOpacitySlider.pressed ? Qt.darker("white", 1.1) : "white"
+                                    border.color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
+                                    border.width: 2
                                 }
                             }
                         }

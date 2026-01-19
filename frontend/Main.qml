@@ -79,6 +79,7 @@ ApplicationWindow {
     property var shiftLightFlags: []
     property var activeShiftFlag: null
     property bool shiftLightFlashVisible: true
+    property bool shiftLightEnabled: settingsManager ? settingsManager.get_setting_with_default("rpm_shift_light_enabled", true) : true
     property real fullScreenFlashOpacity: settingsManager ? settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5) : 0.5
 
     // Function to find active flag based on current RPM
@@ -120,6 +121,7 @@ ApplicationWindow {
 
     // Initialize settings and theme
     Component.onCompleted: {
+        console.log("[GlobalFlash] ========== Main.qml Component.onCompleted START ==========")
         console.log("[QML] Main.qml Component.onCompleted - QML console working!")
 
         // Capture the system default font at startup (before any custom font is applied)
@@ -194,6 +196,28 @@ ApplicationWindow {
 
         // Load shift light flags for global full screen flash
         loadShiftLightFlags()
+        console.log("[GlobalFlash] Loaded flags:", JSON.stringify(shiftLightFlags))
+
+        // Debug: Check if obdManager is available and connect signal manually
+        console.log("[GlobalFlash] obdManager available:", obdManager !== null && obdManager !== undefined)
+        if (obdManager) {
+            console.log("[GlobalFlash] obdManager.rpmChanged exists:", obdManager.rpmChanged !== null && obdManager.rpmChanged !== undefined)
+            if (obdManager.rpmChanged) {
+                console.log("[GlobalFlash] Manually connecting to obdManager.rpmChanged signal")
+                obdManager.rpmChanged.connect(function(rpm) {
+                    mainWindow.currentRpm = rpm
+                    mainWindow.findActiveFlag()
+                    if (mainWindow.activeShiftFlag !== null) {
+                        console.log("[GlobalFlash] RPM:", rpm, "Active flag:", mainWindow.activeShiftFlag.color, "fullScreenFlash:", mainWindow.activeShiftFlag.fullScreenFlash)
+                    }
+                })
+                console.log("[GlobalFlash] Signal connection established!")
+            } else {
+                console.log("[GlobalFlash] ERROR: obdManager.rpmChanged is null/undefined")
+            }
+        } else {
+            console.log("[GlobalFlash] ERROR: obdManager is null/undefined")
+        }
     }
 
     // Window resize handlers
@@ -295,13 +319,14 @@ ApplicationWindow {
 
     // Main layout container
     Item {
+        id: mainContainer
         anchors.fill: parent
-        
+
         // Main stack view with adaptive anchoring
         StackView {
             id: stackView
             z: 1
-            
+
             // Different anchoring based on orientation
             anchors {
                 left: isVerticalLayout ? bottomBar.right : parent.left
@@ -309,13 +334,13 @@ ApplicationWindow {
                 top: parent.top
                 bottom: isVerticalLayout ? parent.bottom : bottomBar.top
             }
-            
+
             initialItem: MainMenu {
                 stackView: stackView
                 windowWidth: mainWindow.width
                 windowHeight: mainWindow.height
             }
-            
+
             // Disable transitions for better performance
             pushEnter: null
             pushExit: null
@@ -352,40 +377,26 @@ ApplicationWindow {
             }
         }
 
-    }
-
-    // Global full screen flash overlay - uses Overlay.overlay to be above EVERYTHING including popups
-    Loader {
-        id: globalFlashLoader
-        active: mainWindow.activeShiftFlag !== null &&
-                mainWindow.activeShiftFlag.fullScreenFlash === true
-
-        onActiveChanged: {
-            console.log("[GlobalFlash] Loader active changed to:", active)
-        }
-
-        sourceComponent: Rectangle {
+        // Global full screen overlay - INSIDE the main container for cross-platform compatibility
+        // Must be last child to render on top of StackView and BottomBar
+        Rectangle {
             id: globalFullScreenFlash
-            parent: Overlay.overlay ? Overlay.overlay : mainWindow.contentItem
-            x: 0
-            y: 0
-            width: mainWindow.width
-            height: mainWindow.height
-            z: 2147483647  // Max int32 for highest possible z-index
-            visible: mainWindow.shiftLightFlashVisible
+            anchors.fill: parent
+            z: 999999  // High z-index to be above all other content
+            visible: mainWindow.shiftLightEnabled &&
+                     mainWindow.activeShiftFlag !== null &&
+                     mainWindow.activeShiftFlag.fullScreenFlash === true &&
+                     mainWindow.shiftLightFlashVisible
             color: mainWindow.activeShiftFlag ? mainWindow.activeShiftFlag.color : "transparent"
-            opacity: mainWindow.fullScreenFlashOpacity
+            // Use per-flag opacity if available, otherwise fall back to global setting
+            opacity: mainWindow.activeShiftFlag && mainWindow.activeShiftFlag.fullScreenFlashOpacity !== undefined ?
+                     mainWindow.activeShiftFlag.fullScreenFlashOpacity : mainWindow.fullScreenFlashOpacity
+
+            // Allow clicks to pass through
+            enabled: false
 
             Component.onCompleted: {
-                console.log("[GlobalFlash] Overlay created, parent:", parent, "size:", width, "x", height)
-                console.log("[GlobalFlash] Overlay.overlay exists:", Overlay.overlay !== null)
-            }
-
-            // Update size when window resizes
-            Connections {
-                target: mainWindow
-                function onWidthChanged() { globalFullScreenFlash.width = mainWindow.width }
-                function onHeightChanged() { globalFullScreenFlash.height = mainWindow.height }
+                console.log("[GlobalFlash] Overlay Rectangle created inside mainContainer")
             }
         }
     }
@@ -594,24 +605,13 @@ ApplicationWindow {
             } catch(e) {
                 shiftLightFlags = []
             }
+            shiftLightEnabled = settingsManager.get_setting_with_default("rpm_shift_light_enabled", true)
             fullScreenFlashOpacity = settingsManager.get_setting_with_default("rpm_fullscreen_flash_opacity", 0.5)
         }
     }
 
-    // OBD manager connections for global shift light flash
-    Connections {
-        target: obdManager
-        enabled: obdManager !== null
-
-        function onRpmChanged(rpm) {
-            mainWindow.currentRpm = rpm
-            mainWindow.findActiveFlag()
-            // Debug: log when we get RPM and find a flag
-            if (mainWindow.activeShiftFlag !== null) {
-                console.log("[GlobalFlash] RPM:", rpm, "Active flag:", JSON.stringify(mainWindow.activeShiftFlag))
-            }
-        }
-    }
+    // Note: OBD manager signal connection is done manually in Component.onCompleted
+    // for better reliability with PySide6
 
     // Settings manager connections for shift light settings changes
     Connections {

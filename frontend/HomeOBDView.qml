@@ -178,16 +178,17 @@ Item {
                 // Uses flag-based settings from settingsManager
                 Rectangle {
                     id: shiftLight
-                    visible: param === "RPM" && shiftLightEnabled
+                    visible: param === "RPM" && shiftLightEnabled && showOnHomeCard
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.rightMargin: 15
-                    width: parent.height * 0.5
+                    width: parent.height * shiftLightSize
                     height: width
                     radius: width / 2
 
                     // Load shift light settings
                     property bool shiftLightEnabled: settingsManager ? settingsManager.get_setting_with_default("rpm_shift_light_enabled", true) : true
+                    property bool showOnHomeCard: settingsManager ? settingsManager.get_setting_with_default("rpm_show_on_home_card", true) : true
                     property var flags: {
                         if (settingsManager) {
                             try {
@@ -199,6 +200,13 @@ Item {
                         }
                         return []
                     }
+
+                    // Appearance settings
+                    property real shiftLightSize: settingsManager ? settingsManager.get_setting_with_default("rpm_shift_light_size", 0.5) : 0.5
+                    property real glowSize: settingsManager ? settingsManager.get_setting_with_default("rpm_glow_size", 0.6) : 0.6
+                    property real glowIntensity: settingsManager ? settingsManager.get_setting_with_default("rpm_glow_intensity", 0.6) : 0.6
+                    property int colorTransitionSpeed: settingsManager ? settingsManager.get_setting_with_default("rpm_color_transition_speed", 100) : 100
+                    property bool pulseEnabled: settingsManager ? settingsManager.get_setting_with_default("rpm_pulse_enabled", false) : false
 
                     // Find the active flag based on current RPM value (range-based)
                     property var activeFlag: {
@@ -235,6 +243,35 @@ Item {
                         }
                     }
 
+                    // Pulse animation timer
+                    Timer {
+                        id: pulseTimer
+                        interval: 800
+                        running: shiftLight.isActive && shiftLight.pulseEnabled && shiftLight.flashVisible
+                        repeat: true
+                        onTriggered: {
+                            pulseAnimation.start()
+                        }
+                    }
+
+                    SequentialAnimation {
+                        id: pulseAnimation
+                        PropertyAnimation {
+                            target: shiftLight
+                            property: "scale"
+                            to: 1.15
+                            duration: 200
+                            easing.type: Easing.OutQuad
+                        }
+                        PropertyAnimation {
+                            target: shiftLight
+                            property: "scale"
+                            to: 1.0
+                            duration: 400
+                            easing.type: Easing.InOutQuad
+                        }
+                    }
+
                     // Reset flash visibility when flag changes or flash stops
                     onActiveFlagChanged: {
                         flashVisible = true
@@ -243,10 +280,19 @@ Item {
 
                     // Update parent with active flag for full screen flash
                     onIsActiveChanged: {
-                        if (isActive) {
+                        if (isActive && shiftLightEnabled) {
                             homeOBDView.activeShiftFlag = activeFlag
                         } else {
                             homeOBDView.activeShiftFlag = null
+                        }
+                    }
+
+                    // Clear active flag when shift light is disabled
+                    onShiftLightEnabledChanged: {
+                        if (!shiftLightEnabled) {
+                            homeOBDView.activeShiftFlag = null
+                        } else if (isActive) {
+                            homeOBDView.activeShiftFlag = activeFlag
                         }
                     }
 
@@ -265,16 +311,17 @@ Item {
 
                     // Glow effect for shift light (only when active)
                     Rectangle {
+                        id: shiftLightGlow
                         anchors.centerIn: parent
-                        width: parent.width * 0.6
+                        width: parent.width * shiftLight.glowSize
                         height: width
                         radius: width / 2
                         color: Qt.lighter(parent.color, 1.5)
-                        opacity: 0.6
-                        visible: shiftLight.isActive && shiftLight.flashVisible
+                        opacity: shiftLight.glowIntensity
+                        visible: shiftLight.isActive && shiftLight.flashVisible && shiftLight.glowSize > 0
                     }
 
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Behavior on color { ColorAnimation { duration: shiftLight.colorTransitionSpeed } }
 
                     // Reload settings when they change
                     Connections {
@@ -283,6 +330,12 @@ Item {
                             // Only reload if RPM-related settings changed
                             if (key.startsWith("rpm_")) {
                                 shiftLight.shiftLightEnabled = settingsManager.get_setting_with_default("rpm_shift_light_enabled", true)
+                                shiftLight.showOnHomeCard = settingsManager.get_setting_with_default("rpm_show_on_home_card", true)
+                                shiftLight.shiftLightSize = settingsManager.get_setting_with_default("rpm_shift_light_size", 0.5)
+                                shiftLight.glowSize = settingsManager.get_setting_with_default("rpm_glow_size", 0.6)
+                                shiftLight.glowIntensity = settingsManager.get_setting_with_default("rpm_glow_intensity", 0.6)
+                                shiftLight.colorTransitionSpeed = settingsManager.get_setting_with_default("rpm_color_transition_speed", 100)
+                                shiftLight.pulseEnabled = settingsManager.get_setting_with_default("rpm_pulse_enabled", false)
                                 try {
                                     var savedFlags = settingsManager.get_setting_with_default("rpm_flags", "[]")
                                     shiftLight.flags = JSON.parse(savedFlags)
@@ -361,24 +414,5 @@ Item {
     // Refresh on component completion
     Component.onCompleted: {
         refreshOBDValues();
-    }
-
-    // Full screen flash overlay
-    Rectangle {
-        id: fullScreenFlashOverlay
-        anchors.fill: parent
-        z: 1000  // Make sure it's on top of everything
-        // Check if active flag has fullScreenFlash enabled (per-flag setting)
-        visible: homeOBDView.activeShiftFlag !== null &&
-                 homeOBDView.activeShiftFlag.fullScreenFlash === true &&
-                 homeOBDView.shiftLightFlashVisible
-        color: homeOBDView.activeShiftFlag ? homeOBDView.activeShiftFlag.color : "transparent"
-        opacity: homeOBDView.fullScreenFlashOpacity
-
-        // Allow clicks to pass through
-        MouseArea {
-            anchors.fill: parent
-            enabled: false
-        }
     }
 }
