@@ -14,6 +14,9 @@ from urllib.parse import urlparse, parse_qs
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
+from backend.logging_config import get_logger
+logger = get_logger(__name__)
+
 try:
     import spotipy
     from spotipy.oauth2 import SpotifyOAuth
@@ -21,14 +24,14 @@ try:
     SPOTIPY_AVAILABLE = True
 except ImportError:
     SPOTIPY_AVAILABLE = False
-    print("Warning: spotipy not installed. Run: pip install spotipy")
+    logger.warning("spotipy not installed. Run: pip install spotipy")
 
 try:
     import keyring
     KEYRING_AVAILABLE = True
 except ImportError:
     KEYRING_AVAILABLE = False
-    print("Warning: keyring not installed. Token storage will be less secure.")
+    logger.warning("keyring not installed. Token storage will be less secure.")
 
 
 class KeyringCacheHandler(CacheHandler):
@@ -55,7 +58,7 @@ class KeyringCacheHandler(CacheHandler):
                 if token_string:
                     return json.loads(token_string)
             except Exception as e:
-                print(f"Keyring read error: {e}")
+                logger.debug(f"Keyring read error: {e}")
 
         # Fallback to file cache
         if os.path.exists(self._cache_file):
@@ -63,7 +66,7 @@ class KeyringCacheHandler(CacheHandler):
                 with open(self._cache_file, 'r') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"File cache read error: {e}")
+                logger.debug(f"File cache read error: {e}")
         return None
 
     def save_token_to_cache(self, token_info):
@@ -74,14 +77,14 @@ class KeyringCacheHandler(CacheHandler):
                 keyring.set_password(self.SERVICE_NAME, self.USERNAME, token_string)
                 return
             except Exception as e:
-                print(f"Keyring write error: {e}")
+                logger.debug(f"Keyring write error: {e}")
 
         # Fallback to file cache
         try:
             with open(self._cache_file, 'w') as f:
                 json.dump(token_info, f)
         except Exception as e:
-            print(f"File cache write error: {e}")
+            logger.debug(f"File cache write error: {e}")
 
     def delete_cached_token(self):
         """Remove token from OS keychain and fallback file"""
@@ -91,14 +94,14 @@ class KeyringCacheHandler(CacheHandler):
             except keyring.errors.PasswordDeleteError:
                 pass  # Token didn't exist
             except Exception as e:
-                print(f"Keyring delete error: {e}")
+                logger.debug(f"Keyring delete error: {e}")
 
         # Also delete file cache
         if os.path.exists(self._cache_file):
             try:
                 os.remove(self._cache_file)
             except Exception as e:
-                print(f"File cache delete error: {e}")
+                logger.debug(f"File cache delete error: {e}")
 
 
 class SpotifyManager(QObject):
@@ -240,7 +243,7 @@ class SpotifyManager(QObject):
             self._refresh_playlists()
             self._pending_auth_manager = None
             self.statusProgress.emit("[DONE] Successfully connected to Spotify!")
-            print("Spotify: Post-auth setup completed on main thread")
+            logger.info("Post-auth setup completed on main thread")
 
     @Slot(result=bool)
     def is_available(self):
@@ -320,7 +323,7 @@ class SpotifyManager(QObject):
                 self._refresh_devices()
                 self._refresh_playlists()
                 self.statusProgress.emit("[SUCCESS] Connected with cached token")
-                print("Spotify: Connected with cached token")
+                logger.info("Connected with cached token")
             else:
                 # Need to authenticate - get auth URL
                 self.statusProgress.emit("[INFO] No cached token, starting OAuth flow...")
@@ -334,7 +337,7 @@ class SpotifyManager(QObject):
         except Exception as e:
             self.statusProgress.emit(f"[ERROR] Authentication failed: {str(e)}")
             self.errorOccurred.emit(f"Authentication failed: {str(e)}")
-            print(f"Spotify auth error: {e}")
+            logger.error(f"Auth error: {e}")
 
     def _start_auth_server(self, auth_manager):
         """Start a local HTTP server to catch OAuth callback"""
@@ -383,7 +386,7 @@ class SpotifyManager(QObject):
                             <p>Spotify connected. You can close this window.</p>
                             </body></html>
                         """)
-                        print("Spotify: Successfully authenticated")
+                        logger.info("Successfully authenticated")
                     except Exception as e:
                         manager.errorOccurred.emit(f"Token exchange failed: {str(e)}")
                         self.send_response(500)
@@ -406,7 +409,7 @@ class SpotifyManager(QObject):
 
         # Open browser for user to authenticate
         auth_url = auth_manager.get_authorize_url()
-        print(f"Spotify auth URL: {auth_url}")
+        logger.debug(f"Auth URL: {auth_url}")
 
         # Open browser for authentication
         import platform
@@ -417,18 +420,18 @@ class SpotifyManager(QObject):
                 # Use os.startfile on Windows (safe, no shell injection risk)
                 os.startfile(auth_url)
                 opened = True
-                print("Spotify: Opened browser via os.startfile")
+                logger.debug("Opened browser via os.startfile")
             except Exception as e:
-                print(f"os.startfile failed: {e}")
+                logger.debug(f"os.startfile failed: {e}")
 
         if not opened:
             try:
                 # Fallback: standard webbrowser module (cross-platform)
                 webbrowser.open(auth_url)
                 opened = True
-                print("Spotify: Opened browser via webbrowser module")
+                logger.debug("Opened browser via webbrowser module")
             except Exception as e:
-                print(f"webbrowser.open failed: {e}")
+                logger.debug(f"webbrowser.open failed: {e}")
 
         if not opened:
             # Last resort: emit URL for user to copy manually
@@ -452,12 +455,12 @@ class SpotifyManager(QObject):
 
         self.connectionStateChanged.emit(False)
         self.statusProgress.emit("[DONE] Disconnected from Spotify")
-        print("Spotify: Disconnected")
+        logger.info("Disconnected")
 
     @Slot()
     def cleanup(self):
         """Stop all timers and threads - call before app exit"""
-        print("Spotify: Cleaning up...")
+        logger.debug("Cleaning up...")
 
         # Stop timers first to prevent new tasks
         self._poll_timer.stop()
@@ -472,7 +475,7 @@ class SpotifyManager(QObject):
         # Shutdown executor - cancel pending tasks
         self._executor.shutdown(wait=False, cancel_futures=True)
 
-        print("Spotify: Cleanup complete")
+        logger.debug("Cleanup complete")
 
     # ==================== Playback Control ====================
 
@@ -666,7 +669,7 @@ class SpotifyManager(QObject):
                 result = self._sp.devices()
                 return result.get('devices', [])
             except Exception as e:
-                print(f"Spotify device refresh error: {e}")
+                logger.error(f"Device refresh error: {e}")
                 return []
 
         def on_done(future):
@@ -746,7 +749,7 @@ class SpotifyManager(QObject):
                     'image': p['images'][0]['url'] if p['images'] else ''
                 } for p in results.get('items', [])]
             except Exception as e:
-                print(f"Spotify playlist refresh error: {e}")
+                logger.error(f"Playlist refresh error: {e}")
                 return []
 
         def on_done(future):
@@ -795,15 +798,15 @@ class SpotifyManager(QObject):
             return tracks
 
         except Exception as e:
-            print(f"Spotify get playlist tracks error: {e}")
+            logger.error(f"Get playlist tracks error: {e}")
             return []
 
     @Slot(str)
     def select_spotify_playlist(self, playlist_id):
         """Select a Spotify playlist and load its tracks"""
-        print(f"select_spotify_playlist called with ID: {playlist_id}")
+        logger.debug(f"select_spotify_playlist called with ID: {playlist_id}")
         if not self._sp:
-            print("Error: Spotify client not connected")
+            logger.warning("Spotify client not connected")
             return
 
         # Find playlist name from stored playlists
@@ -813,16 +816,16 @@ class SpotifyManager(QObject):
                 playlist_name = p['name']
                 break
 
-        print(f"Found playlist name: {playlist_name}")
+        logger.debug(f"Found playlist name: {playlist_name}")
 
         # Load tracks
         self._spotify_tracks = self.get_playlist_tracks(playlist_id)
         self._current_spotify_playlist_id = playlist_id
         self._current_spotify_playlist_name = playlist_name
 
-        print(f"Loaded {len(self._spotify_tracks)} tracks")
+        logger.debug(f"Loaded {len(self._spotify_tracks)} tracks")
         if self._spotify_tracks:
-            print(f"First track: {self._spotify_tracks[0]}")
+            logger.debug(f"First track: {self._spotify_tracks[0]}")
 
         # Emit signals
         self.spotifyTracksChanged.emit(self._spotify_tracks)
@@ -1093,7 +1096,7 @@ class SpotifyManager(QObject):
     def _on_theme_changed(self, theme):
         """Handle theme change - track if Album Art Capture is active"""
         self._album_art_capture_active = (theme == "Album Art Capture")
-        print(f"[SpotifyManager] Theme changed to: {theme}, Album Art Capture active: {self._album_art_capture_active}")
+        logger.debug(f"Theme changed to: {theme}, Album Art Capture active: {self._album_art_capture_active}")
 
         if self._album_art_capture_active:
             # Extract colors from current album art
@@ -1104,7 +1107,7 @@ class SpotifyManager(QObject):
     def _on_track_changed_for_theme(self, image_url):
         """Called when track changes - extract colors if Album Art Capture is active"""
         if self._album_art_capture_active and image_url and image_url != self._last_extracted_image_url:
-            print(f"[SpotifyManager] Track changed, extracting colors for Album Art Capture")
+            logger.debug(f"Track changed, extracting colors for Album Art Capture")
             self._extract_colors_from_url(image_url)
 
     def _extract_colors_from_url(self, image_url):
@@ -1122,7 +1125,7 @@ class SpotifyManager(QObject):
             return
         self._last_extracted_image_url = image_url
 
-        print(f"[SpotifyManager AlbumArtCapture] Extracting colors from: {image_url}")
+        logger.debug(f"Extracting colors from: {image_url}")
 
         try:
             # Download image to temp file
@@ -1170,16 +1173,14 @@ class SpotifyManager(QObject):
             theme_json = self._generate_theme_from_colors(colors, is_dark_image)
 
             if theme_json:
-                print(f"[SpotifyManager AlbumArtCapture] Generated theme, length: {len(theme_json)}")
+                logger.debug(f"Generated theme, length: {len(theme_json)}")
                 # Update settings manager and emit signal
                 if self._settings_manager:
                     self._settings_manager.set_album_art_colors(theme_json)
                 self.albumColorsExtracted.emit(theme_json)
 
         except Exception as e:
-            print(f"[SpotifyManager AlbumArtCapture] Error extracting colors: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error extracting colors: {e}", exc_info=True)
 
     def _kmeans_colors(self, pixels, k=5, max_iterations=10):
         """Simple k-means clustering to find dominant colors"""

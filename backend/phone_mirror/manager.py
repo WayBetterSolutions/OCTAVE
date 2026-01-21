@@ -17,6 +17,10 @@ from typing import Optional
 
 from PySide6.QtCore import QObject, Signal, Slot, Property
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 def _get_bundled_tools_dir() -> Path:
     """Get the path to bundled tools directory.
@@ -98,7 +102,7 @@ class PhoneMirrorManager(QObject):
     @Slot(str)
     def setScrcpyPath(self, path: str):
         """Set a custom scrcpy path."""
-        print(f"[PhoneMirror] Setting custom scrcpy path: {path}")
+        logger.debug(f" Setting custom scrcpy path: {path}")
         old_effective = self._get_effective_scrcpy_path()
         self._custom_scrcpy_path = path.strip()
 
@@ -108,7 +112,7 @@ class PhoneMirrorManager(QObject):
         new_effective = self._get_effective_scrcpy_path()
         if old_effective != new_effective:
             self.scrcpyPathChanged.emit()
-            print(f"[PhoneMirror] Effective scrcpy path: {new_effective}")
+            logger.debug(f" Effective scrcpy path: {new_effective}")
 
     @Slot(bool)
     def setAudioEnabled(self, enabled: bool):
@@ -116,12 +120,12 @@ class PhoneMirrorManager(QObject):
         if self._audio_enabled == enabled:
             return
 
-        print(f"[PhoneMirror] Audio forwarding: {enabled}")
+        logger.debug(f" Audio forwarding: {enabled}")
         self._audio_enabled = enabled
 
         # If scrcpy is currently running, restart it with new audio setting
         if self.isRunning:
-            print("[PhoneMirror] Restarting scrcpy to apply audio setting change...")
+            logger.debug("Restarting scrcpy to apply audio setting change...")
             self.stopScrcpy()
             # Small delay to ensure clean shutdown before restart
             from PySide6.QtCore import QTimer
@@ -146,7 +150,7 @@ class PhoneMirrorManager(QObject):
             bundled_scrcpy = bundled_dir / "scrcpy"
 
         if bundled_scrcpy.exists() and self._check_scrcpy(str(bundled_scrcpy)):
-            print(f"[PhoneMirror] Using bundled scrcpy: {bundled_scrcpy}")
+            logger.debug(f" Using bundled scrcpy: {bundled_scrcpy}")
             return str(bundled_scrcpy)
 
         # Check PATH
@@ -208,7 +212,7 @@ class PhoneMirrorManager(QObject):
             bundled_adb = bundled_dir / "adb"
 
         if bundled_adb.exists():
-            print(f"[PhoneMirror] Using bundled adb: {bundled_adb}")
+            logger.debug(f" Using bundled adb: {bundled_adb}")
             return str(bundled_adb)
 
         # Check PATH
@@ -372,14 +376,14 @@ class PhoneMirrorManager(QObject):
         """Start scrcpy process (singleton - only one instance allowed)."""
         # Already running?
         if self._process and self._process.poll() is None:
-            print("[PhoneMirror] scrcpy already running, emitting existing handle")
+            logger.debug("scrcpy already running, emitting existing handle")
             if self._scrcpy_hwnd:
                 self.scrcpyStarted.emit(self._scrcpy_hwnd)
             return
 
         # Already starting?
         if self._is_starting:
-            print("[PhoneMirror] scrcpy already starting, ignoring duplicate request")
+            logger.debug("scrcpy already starting, ignoring duplicate request")
             return
 
         scrcpy_path = self._get_effective_scrcpy_path()
@@ -411,7 +415,7 @@ class PhoneMirrorManager(QObject):
         if device_serial:
             cmd.extend(["-s", device_serial])
 
-        print(f"[PhoneMirror] Starting scrcpy: {' '.join(cmd)}")
+        logger.debug(f" Starting scrcpy: {' '.join(cmd)}")
 
         try:
             scrcpy_dir = str(Path(scrcpy_path).parent)
@@ -426,7 +430,7 @@ class PhoneMirrorManager(QObject):
             Thread(target=self._find_scrcpy_window, daemon=True).start()
 
         except Exception as e:
-            print(f"[PhoneMirror] Failed to start scrcpy: {e}")
+            logger.debug(f" Failed to start scrcpy: {e}")
             self._is_starting = False
             self.scrcpyError.emit(str(e))
 
@@ -448,7 +452,7 @@ class PhoneMirrorManager(QObject):
 
             if self._process.poll() is not None:
                 stderr = self._process.stderr.read().decode() if self._process.stderr else ""
-                print(f"[PhoneMirror] scrcpy exited: {stderr}")
+                logger.debug(f" scrcpy exited: {stderr}")
                 self._is_starting = False
                 self.scrcpyError.emit(f"scrcpy failed: {stderr[:100]}")
                 return
@@ -459,12 +463,12 @@ class PhoneMirrorManager(QObject):
             time.sleep(0.1)
 
         if not hwnd:
-            print("[PhoneMirror] Could not find scrcpy window")
+            logger.debug("Could not find scrcpy window")
             self._is_starting = False
             self.scrcpyError.emit("Could not find scrcpy window")
             return
 
-        print(f"[PhoneMirror] Found scrcpy window: {hwnd}")
+        logger.debug(f" Found scrcpy window: {hwnd}")
         self._scrcpy_hwnd = hwnd
         self._is_starting = False
 
@@ -490,7 +494,7 @@ class PhoneMirrorManager(QObject):
     @Slot()
     def stopScrcpy(self):
         """Stop the scrcpy process."""
-        print("[PhoneMirror] Stopping scrcpy...")
+        logger.debug("Stopping scrcpy...")
 
         self._scrcpy_hwnd = None
         self._is_starting = False

@@ -2,6 +2,9 @@ import os
 import re
 from PySide6.QtCore import QObject, Signal, Slot
 
+from backend.logging_config import get_logger
+logger = get_logger(__name__)
+
 # Valid CSS named colors (subset of most common ones)
 VALID_NAMED_COLORS = {
     'white', 'black', 'red', 'green', 'blue', 'yellow', 'cyan', 'magenta',
@@ -47,10 +50,10 @@ class SVGManager(QObject):
     @Slot(str)
     def update_svg_color(self, color):
         """Update all media control SVGs to use the specified color"""
-        print(f"[SVGManager] update_svg_color called with: {color}")
+        logger.debug(f" update_svg_color called with: {color}")
         # Validate color input before processing
         if not self._is_valid_color(color):
-            print(f"[SVGManager] Invalid color value rejected: {color}")
+            logger.debug(f" Invalid color value rejected: {color}")
             return
 
         svg_files = [
@@ -88,9 +91,9 @@ class SVGManager(QObject):
                     with open(file_path, 'w') as file:
                         file.write(content)
                 except Exception as e:
-                    print(f"Error updating {svg_name}: {e}")
+                    logger.error(f"Error updating {svg_name}: {e}")
             else:
-                print(f"File not found: {svg_name}")
+                logger.warning(f"File not found: {svg_name}")
 
         self.svgUpdated.emit()
 
@@ -99,12 +102,12 @@ class SVGManager(QObject):
         """Update a specific SVG file with the given color"""
         # Validate color input before processing
         if not self._is_valid_color(color):
-            print(f"Invalid color value rejected: {color}")
+            logger.warning(f"Invalid color value rejected: {color}")
             return
 
         # Validate svg_name to prevent path traversal
         if '..' in svg_name or '/' in svg_name or '\\' in svg_name:
-            print(f"Invalid SVG filename rejected: {svg_name}")
+            logger.warning(f"Invalid SVG filename rejected: {svg_name}")
             return
 
         file_path = os.path.join(self.svg_dir, svg_name)
@@ -125,7 +128,7 @@ class SVGManager(QObject):
 
                 self.svgUpdated.emit()
             except Exception as e:
-                print(f"Error updating {svg_name}: {e}")
+                logger.error(f"Error updating {svg_name}: {e}")
 
     @Slot(str)
     def update_svg_colors_from_theme(self, theme_json):
@@ -154,7 +157,7 @@ class SVGManager(QObject):
                 "settings_button.svg": bottombar.get("settingsButton", bottombar.get("play")),
             }
 
-            print(f"[SVGManager] Updating SVGs with varied colors from theme")
+            logger.debug(f" Updating SVGs with varied colors from theme")
 
             for svg_name, color in svg_color_map.items():
                 if not color or not self._is_valid_color(color):
@@ -176,12 +179,12 @@ class SVGManager(QObject):
                         with open(file_path, 'w') as file:
                             file.write(content)
                     except Exception as e:
-                        print(f"Error updating {svg_name}: {e}")
+                        logger.error(f"Error updating {svg_name}: {e}")
 
             # Emit signal once after all updates
             self.svgUpdated.emit()
 
         except json.JSONDecodeError as e:
-            print(f"[SVGManager] Error parsing theme JSON: {e}")
+            logger.debug(f" Error parsing theme JSON: {e}")
         except Exception as e:
-            print(f"[SVGManager] Error updating SVG colors: {e}")
+            logger.debug(f" Error updating SVG colors: {e}")

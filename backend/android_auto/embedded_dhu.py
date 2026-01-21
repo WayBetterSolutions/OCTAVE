@@ -11,6 +11,10 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QPointF, Qt
 from PySide6.QtQuick import QQuickItem
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import wintypes
@@ -129,13 +133,13 @@ class EmbeddedDhuItem(QQuickItem):
 
         self._manager = manager
         if manager:
-            print("[EmbeddedDhu] Connecting to manager")
+            logger.debug("Connecting to manager")
             manager.dhuWindowReady.connect(self._on_dhu_started, Qt.QueuedConnection)
             manager.dhuEmbeddedChanged.connect(self._on_dhu_state_changed, Qt.QueuedConnection)
 
             # If manager already has a running DHU, embed it
             if manager.isDhuEmbedded and manager.dhuWindowHandle:
-                print(f"[EmbeddedDhu] Manager already has DHU running, hwnd={manager.dhuWindowHandle}")
+                logger.debug(f"Manager already has DHU running, hwnd={manager.dhuWindowHandle}")
                 QTimer.singleShot(100, lambda: self._embed_window(manager.dhuWindowHandle))
 
     def _embed_window(self, hwnd: int):
@@ -144,13 +148,13 @@ class EmbeddedDhuItem(QQuickItem):
             return
 
         if not user32.IsWindow(hwnd):
-            print("[EmbeddedDhu] Window no longer exists")
+            logger.debug("Window no longer exists")
             self.errorOccurred.emit("DHU window no longer exists")
             return
 
         self._parent_hwnd = self._get_qt_window_handle()
         if not self._parent_hwnd:
-            print("[EmbeddedDhu] Could not get parent window handle")
+            logger.debug("Could not get parent window handle")
             self.errorOccurred.emit("Could not get parent window handle")
             return
 
@@ -159,7 +163,7 @@ class EmbeddedDhuItem(QQuickItem):
 
         # Embed if not already parented to us
         if current_parent != self._parent_hwnd:
-            print(f"[EmbeddedDhu] Embedding window {hwnd} into {self._parent_hwnd}")
+            logger.debug(f"Embedding window {hwnd} into {self._parent_hwnd}")
 
             # First restore from minimized if needed
             user32.ShowWindow(hwnd, SW_RESTORE)
@@ -185,7 +189,7 @@ class EmbeddedDhuItem(QQuickItem):
             user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0,
                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED)
         else:
-            print(f"[EmbeddedDhu] Window {hwnd} already parented correctly, just showing")
+            logger.debug(f"Window {hwnd} already parented correctly, just showing")
 
         self._dhu_hwnd = hwnd
         self._embedded = True
@@ -198,7 +202,7 @@ class EmbeddedDhuItem(QQuickItem):
         width = int(self.width())
         height = int(self.height())
 
-        print(f"[EmbeddedDhu] Positioning window at ({x}, {y}) size {width}x{height}")
+        logger.debug(f"Positioning window at ({x}, {y}) size {width}x{height}")
 
         # Position and resize
         if width > 0 and height > 0:
@@ -211,12 +215,12 @@ class EmbeddedDhuItem(QQuickItem):
         self._update_timer.start(16)  # ~60fps updates
 
         self.streamStarted.emit()
-        print("[EmbeddedDhu] Window embedded successfully")
+        logger.debug("Window embedded successfully")
 
     @Slot(int)
     def _on_dhu_started(self, hwnd: int):
         """Called when manager reports DHU window is ready."""
-        print(f"[EmbeddedDhu] Received DHU started signal, hwnd={hwnd}")
+        logger.debug(f"Received DHU started signal, hwnd={hwnd}")
 
         if platform.system() != "Windows":
             return
@@ -232,7 +236,7 @@ class EmbeddedDhuItem(QQuickItem):
     def _on_dhu_state_changed(self, embedded: bool):
         """Called when manager reports DHU embedding state changed."""
         if not embedded:
-            print("[EmbeddedDhu] DHU stopped")
+            logger.debug("DHU stopped")
             self._cleanup()
             self.streamStopped.emit()
 
@@ -254,7 +258,7 @@ class EmbeddedDhuItem(QQuickItem):
             return
 
         if not user32.IsWindow(self._dhu_hwnd):
-            print("[EmbeddedDhu] Window no longer exists, cleaning up")
+            logger.debug("Window no longer exists, cleaning up")
             self._cleanup()
             self.streamStopped.emit()
             return
@@ -276,7 +280,7 @@ class EmbeddedDhuItem(QQuickItem):
     @Slot()
     def detach(self):
         """Hide the embedded window temporarily (for when view is deactivated)."""
-        print("[EmbeddedDhu] Detaching (hiding)...")
+        logger.debug("Detaching (hiding)...")
 
         self._update_timer.stop()
         self._is_hidden = True
@@ -287,7 +291,7 @@ class EmbeddedDhuItem(QQuickItem):
     @Slot()
     def reattach(self):
         """Show the embedded window again (for when view is reactivated)."""
-        print("[EmbeddedDhu] Reattaching (showing)...")
+        logger.debug("Reattaching (showing)...")
 
         if self._manager and self._manager.isDhuEmbedded:
             hwnd = self._manager.dhuWindowHandle
@@ -295,9 +299,9 @@ class EmbeddedDhuItem(QQuickItem):
                 # Small delay to let QML layout settle
                 QTimer.singleShot(50, lambda: self._embed_window(hwnd))
         else:
-            print("[EmbeddedDhu] No running DHU to reattach")
+            logger.debug("No running DHU to reattach")
 
     def componentComplete(self):
         """Called when the QML component is fully loaded."""
         super().componentComplete()
-        print("[EmbeddedDhu] Component complete")
+        logger.debug("Component complete")

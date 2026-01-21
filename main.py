@@ -1,10 +1,24 @@
 import sys
 import os
 import platform
+import argparse
+
+# Force Qt Quick Controls to use Basic style (allows Slider customization)
+os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
+
+# Parse command line arguments for debug mode
+parser = argparse.ArgumentParser(description='OCTAVE Infotainment System')
+parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+args, _ = parser.parse_known_args()
+
+# Initialize logging FIRST (before other imports that might log)
+from backend.logging_config import setup_logging, get_logger
+setup_logging(debug=args.debug)
+logger = get_logger(__name__)
 
 # Check system type
 system_name = platform.system()
-print(f"Detected operating system: {system_name}")
+logger.info(f"Detected operating system: {system_name}")
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QGuiApplication

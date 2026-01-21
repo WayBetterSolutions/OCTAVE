@@ -12,7 +12,6 @@ Usage:
     manager.closeDhu()           # Close DHU
 """
 
-import logging
 import subprocess
 import os
 import platform
@@ -23,7 +22,9 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer
 
-logger = logging.getLogger(__name__)
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class AndroidAutoManager(QObject):
@@ -143,7 +144,7 @@ class AndroidAutoManager(QObject):
     def _start_headunit_server(self, adb_path) -> bool:
         """Start the head unit server on the phone via ADB."""
         try:
-            print("[AA Manager] Starting head unit server on phone...")
+            logger.info("Starting head unit server on phone...")
             self.connectionProgress.emit("Starting head unit server on phone...")
 
             # Try starting via activity
@@ -159,7 +160,7 @@ class AndroidAutoManager(QObject):
             time.sleep(2)
 
             if self._is_headunit_server_running(adb_path):
-                print("[AA Manager] Head unit server started successfully")
+                logger.info("Head unit server started successfully")
                 return True
 
             # Try direct service start
@@ -174,14 +175,14 @@ class AndroidAutoManager(QObject):
             time.sleep(1)
 
             if self._is_headunit_server_running(adb_path):
-                print("[AA Manager] Head unit server started successfully")
+                logger.info("Head unit server started successfully")
                 return True
 
-            print("[AA Manager] Could not auto-start head unit server")
+            logger.warning("Could not auto-start head unit server")
             return False
 
         except Exception as e:
-            print(f"[AA Manager] Error starting head unit server: {e}")
+            logger.error(f"Error starting head unit server: {e}")
             return False
 
     def _setup_adb_forward(self) -> bool:
@@ -189,7 +190,7 @@ class AndroidAutoManager(QObject):
         adb_path = self._find_adb_path()
 
         if not adb_path:
-            print("[AA Manager] ADB not found")
+            logger.warning("ADB not found")
             return False
 
         try:
@@ -201,7 +202,7 @@ class AndroidAutoManager(QObject):
                 timeout=10
             )
 
-            print(f"[AA Manager] Running ADB forward: {adb_path}")
+            logger.debug(f"Running ADB forward: {adb_path}")
             result = subprocess.run(
                 [str(adb_path), "forward", "tcp:5277", "tcp:5277"],
                 capture_output=True,
@@ -210,17 +211,17 @@ class AndroidAutoManager(QObject):
             )
 
             if result.returncode == 0:
-                print(f"[AA Manager] ADB forward successful")
+                logger.debug("ADB forward successful")
                 return True
             else:
-                print(f"[AA Manager] ADB forward failed: {result.stderr.strip()}")
+                logger.error(f"ADB forward failed: {result.stderr.strip()}")
                 return False
 
         except subprocess.TimeoutExpired:
-            print("[AA Manager] ADB forward timed out")
+            logger.error("ADB forward timed out")
             return False
         except Exception as e:
-            print(f"[AA Manager] ADB forward error: {e}")
+            logger.error(f"ADB forward error: {e}")
             return False
 
     def _prepare_adb_connection(self) -> bool:
@@ -230,7 +231,7 @@ class AndroidAutoManager(QObject):
         """
         adb_path = self._find_adb_path()
         if not adb_path:
-            print("[AA Manager] ADB not found - cannot prepare connection")
+            logger.warning("ADB not found - cannot prepare connection")
             self.error.emit("ADB not found. Install Android SDK platform-tools.")
             return False
 
@@ -245,12 +246,12 @@ class AndroidAutoManager(QObject):
             lines = result.stdout.strip().split('\n')
             devices = [l for l in lines[1:] if l.strip() and 'device' in l]
             if not devices:
-                print("[AA Manager] No Android device connected")
+                logger.warning("No Android device connected")
                 self.error.emit("No Android device connected. Connect your phone via USB.")
                 return False
-            print(f"[AA Manager] Found {len(devices)} connected device(s)")
+            logger.info(f"Found {len(devices)} connected device(s)")
         except Exception as e:
-            print(f"[AA Manager] Failed to check devices: {e}")
+            logger.error(f"Failed to check devices: {e}")
             return False
 
         # Setup fresh port forwarding
@@ -262,13 +263,13 @@ class AndroidAutoManager(QObject):
         # Check if head unit server is running
         if not self._is_headunit_server_running(adb_path):
             if not self._start_headunit_server(adb_path):
-                print("[AA Manager] Please start 'Head unit server' manually on your phone")
+                logger.info("Please start 'Head unit server' manually on your phone")
                 self.connectionProgress.emit("Please start 'Head unit server' in Android Auto developer settings...")
 
                 # Wait for user to start the server
                 for i in range(60):
                     if self._is_headunit_server_running(adb_path):
-                        print("[AA Manager] Head unit server detected!")
+                        logger.info("Head unit server detected!")
                         self.connectionProgress.emit("Head unit server started!")
                         time.sleep(0.5)
                         break
@@ -277,11 +278,11 @@ class AndroidAutoManager(QObject):
                         remaining = 60 - i
                         self.connectionProgress.emit(f"Waiting for head unit server... ({remaining}s)")
                 else:
-                    print("[AA Manager] Timed out waiting for head unit server")
+                    logger.warning("Timed out waiting for head unit server")
                     self.error.emit("Head unit server not started. Please start it and try again.")
                     return False
         else:
-            print("[AA Manager] Head unit server already running")
+            logger.debug("Head unit server already running")
 
         return True
 
@@ -338,7 +339,7 @@ After installation, click "Launch Android Auto" button."""
                     title = buffer.value
                     if "Desktop Head Unit" in title or "Android Auto" in title:
                         found_hwnd[0] = hwnd
-                        print(f"[AA Manager] Found DHU window: '{title}' (hwnd={hwnd})")
+                        logger.debug(f"Found DHU window: '{title}' (hwnd={hwnd})")
                         return False
                 return True
 
@@ -347,7 +348,7 @@ After installation, click "Launch Android Auto" button."""
             return found_hwnd[0]
 
         except Exception as e:
-            print(f"[AA Manager] Error finding DHU window: {e}")
+            logger.error(f"Error finding DHU window: {e}")
             return 0
 
     @Slot(result=bool)
@@ -363,7 +364,7 @@ After installation, click "Launch Android Auto" button."""
         dhu_path = self._find_dhu_path()
 
         if not dhu_path:
-            print("[AA Manager] Google DHU not found.")
+            logger.warning("Google DHU not found")
             self.error.emit("Google DHU not installed.")
             return False
 
@@ -374,7 +375,7 @@ After installation, click "Launch Android Auto" button."""
 
             self.connectionProgress.emit("Please start 'Head unit server' on your phone...")
 
-            print(f"[AA Manager] Launching DHU for seamless capture: {dhu_path}")
+            logger.info(f"Launching DHU for seamless capture: {dhu_path}")
 
             # Create DHU config file for higher resolution
             android_dir = Path.home() / ".android"
@@ -385,9 +386,9 @@ After installation, click "Launch Android Auto" button."""
                     f.write("[general]\n")
                     f.write("resolution = 1920 1080\n")
                     f.write("dpi = 160\n")
-                print(f"[AA Manager] Created DHU config at {config_path}")
+                logger.debug(f"Created DHU config at {config_path}")
             except Exception as e:
-                print(f"[AA Manager] Could not create DHU config: {e}")
+                logger.warning(f"Could not create DHU config: {e}")
 
             # Launch DHU - start hidden, we'll move it off-screen immediately
             if platform.system() == "Windows":
@@ -415,7 +416,7 @@ After installation, click "Launch Android Auto" button."""
             return True
 
         except Exception as e:
-            print(f"[AA Manager] Failed to launch DHU: {e}")
+            logger.error(f"Failed to launch DHU: {e}")
             self.error.emit(f"Failed to launch DHU: {e}")
             return False
 
@@ -423,7 +424,7 @@ After installation, click "Launch Android Auto" button."""
     def _poll_and_hide_dhu(self):
         """Aggressively poll for DHU window and hide it immediately."""
         if not self._dhu_process or self._dhu_process.poll() is not None:
-            print("[AA Manager] DHU process ended")
+            logger.warning("DHU process ended")
             self.error.emit("DHU closed unexpectedly")
             return
 
@@ -454,7 +455,7 @@ After installation, click "Launch Android Auto" button."""
             user32.SetWindowPos(hwnd, 0, -3000, -3000, 0, 0,
                                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
 
-            print(f"[AA Manager] DHU window {hwnd} hidden off-screen")
+            logger.debug(f"DHU window {hwnd} hidden off-screen")
 
             # Wait a bit for window to fully initialize, then start capture
             self._dhu_hwnd = hwnd
@@ -465,7 +466,7 @@ After installation, click "Launch Android Auto" button."""
             if self._hide_poll_count < 50:  # Try for up to 5 seconds
                 QTimer.singleShot(100, self._poll_and_hide_dhu)
             else:
-                print("[AA Manager] Timeout waiting for DHU window")
+                logger.error("Timeout waiting for DHU window")
                 self.error.emit("Could not find DHU window")
 
     @Slot()
@@ -480,7 +481,7 @@ After installation, click "Launch Android Auto" button."""
         self.dhuEmbeddedChanged.emit(True)
         self.dhuWindowReady.emit(self._dhu_hwnd)
         self.connectionProgress.emit("Android Auto running")
-        print(f"[AA Manager] DHU window ready for embedding: {self._dhu_hwnd}")
+        logger.info(f"DHU window ready for embedding: {self._dhu_hwnd}")
 
     @Slot()
     def _setup_seamless_capture(self):
@@ -488,7 +489,7 @@ After installation, click "Launch Android Auto" button."""
         hwnd = self._find_dhu_window()
         if hwnd:
             self._dhu_hwnd = hwnd
-            print(f"[AA Manager] DHU window found for capture: {hwnd}")
+            logger.debug(f"DHU window found for capture: {hwnd}")
 
             # Start capturing
             self._dhu_capture.setWindowHandle(hwnd)
@@ -502,10 +503,10 @@ After installation, click "Launch Android Auto" button."""
         else:
             # Retry
             if self._dhu_process and self._dhu_process.poll() is None:
-                print("[AA Manager] DHU window not found yet, retrying...")
+                logger.debug("DHU window not found yet, retrying...")
                 QTimer.singleShot(1000, self._setup_seamless_capture)
             else:
-                print("[AA Manager] DHU process ended")
+                logger.warning("DHU process ended")
                 self.error.emit("DHU closed unexpectedly")
 
     @Slot()
@@ -516,7 +517,7 @@ After installation, click "Launch Android Auto" button."""
     @Slot(str)
     def _on_dhu_capture_error(self, error_msg: str):
         """Handle capture errors."""
-        print(f"[AA Manager] Capture error: {error_msg}")
+        logger.error(f"Capture error: {error_msg}")
         self.error.emit(error_msg)
 
     @Property(QObject, constant=True)
@@ -540,7 +541,7 @@ After installation, click "Launch Android Auto" button."""
                 self._dhu_process.terminate()
                 self._dhu_process.wait(timeout=5)
             except Exception as e:
-                print(f"[AA Manager] Error closing DHU: {e}")
+                logger.error(f"Error closing DHU: {e}")
                 try:
                     self._dhu_process.kill()
                 except:
@@ -557,7 +558,7 @@ After installation, click "Launch Android Auto" button."""
         Full cleanup when OCTAVE is closing.
         Stops DHU and cleans up ADB connections.
         """
-        print("[AA Manager] Cleaning up Android Auto...")
+        logger.info("Cleaning up Android Auto...")
 
         self.closeDhu()
 
@@ -570,4 +571,4 @@ After installation, click "Launch Android Auto" button."""
                 text=True,
                 timeout=10
             )
-            print("[AA Manager] Cleanup complete")
+            logger.info("Cleanup complete")

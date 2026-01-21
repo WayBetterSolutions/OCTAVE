@@ -14,6 +14,10 @@ from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QByteArray, 
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtQuick import QQuickImageProvider
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import wintypes
@@ -119,7 +123,7 @@ class DhuCapture(QObject):
     def setWindowHandle(self, hwnd: int):
         """Set the window handle to capture."""
         self._hwnd = hwnd
-        print(f"[DhuCapture] Window handle set to: {hwnd}")
+        logger.debug(f"Window handle set to: {hwnd}")
 
     @Slot()
     def startCapture(self):
@@ -135,7 +139,7 @@ class DhuCapture(QObject):
             self.error.emit("Screen capture only supported on Windows")
             return
 
-        print(f"[DhuCapture] Starting capture of window {self._hwnd}")
+        logger.info(f"Starting capture of window {self._hwnd}")
         self._capturing = True
 
         # Start capture timer
@@ -151,7 +155,7 @@ class DhuCapture(QObject):
         if not self._capturing:
             return
 
-        print("[DhuCapture] Stopping capture")
+        logger.info("Stopping capture")
         self._capturing = False
 
         if self._capture_timer:
@@ -242,7 +246,7 @@ class DhuCapture(QObject):
                 user32.ReleaseDC(self._hwnd, hwnd_dc)
 
         except Exception as e:
-            print(f"[DhuCapture] Capture error: {e}")
+            logger.error(f"Capture error: {e}")
 
     @Slot(int, int)
     def sendMouseClick(self, x: int, y: int):
@@ -336,10 +340,10 @@ class DhuCapture(QObject):
             if old_foreground:
                 user32.SetForegroundWindow(old_foreground)
 
-            print(f"[DhuCapture] Click ({x},{y}) -> scaled ({scaled_x},{scaled_y}) -> screen ({point.x},{point.y})")
+            logger.debug(f"Click ({x},{y}) -> scaled ({scaled_x},{scaled_y}) -> screen ({point.x},{point.y})")
 
         except Exception as e:
-            print(f"[DhuCapture] Mouse click error: {e}")
+            logger.error(f"Mouse click error: {e}")
 
     @Slot(int, int, bool)
     def sendMouseEvent(self, x: int, y: int, pressed: bool):
@@ -363,4 +367,4 @@ class DhuCapture(QObject):
                 user32.SendMessageW(self._hwnd, WM_LBUTTONUP, 0, lparam)
 
         except Exception as e:
-            print(f"[DhuCapture] Mouse event error: {e}")
+            logger.error(f"Mouse event error: {e}")

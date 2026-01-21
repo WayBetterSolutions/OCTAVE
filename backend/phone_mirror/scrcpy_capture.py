@@ -15,6 +15,10 @@ from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QPointF
 from PySide6.QtGui import QImage
 from PySide6.QtQuick import QQuickImageProvider, QQuickItem
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import wintypes
@@ -229,7 +233,7 @@ class ScrcpyCapture(QObject):
     def setWindowHandle(self, hwnd: int):
         """Set the scrcpy window handle to capture."""
         self._hwnd = hwnd
-        print(f"[ScrcpyCapture] Window handle set to: {hwnd}")
+        logger.debug(f" Window handle set to: {hwnd}")
 
         if platform.system() == "Windows" and hwnd:
             # Move window off-screen immediately
@@ -251,7 +255,7 @@ class ScrcpyCapture(QObject):
         # Show window (needed for capture to work)
         user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
 
-        print(f"[ScrcpyCapture] Window positioned off-screen")
+        logger.debug(f" Window positioned off-screen")
 
     @Slot()
     def startCapture(self):
@@ -267,7 +271,7 @@ class ScrcpyCapture(QObject):
             self.error.emit("Screen capture only supported on Windows")
             return
 
-        print(f"[ScrcpyCapture] Starting capture of window {self._hwnd} at {self._target_fps} FPS")
+        logger.debug(f" Starting capture of window {self._hwnd} at {self._target_fps} FPS")
         self._capturing = True
         self._frame_count = 0
 
@@ -290,7 +294,7 @@ class ScrcpyCapture(QObject):
         if not self._capturing:
             return
 
-        print(f"[ScrcpyCapture] Stopping capture (captured {self._frame_count} frames)")
+        logger.debug(f" Stopping capture (captured {self._frame_count} frames)")
         self._capturing = False
 
         if self._capture_timer:
@@ -308,7 +312,7 @@ class ScrcpyCapture(QObject):
             return
 
         if not user32.IsWindow(self._hwnd):
-            print("[ScrcpyCapture] Window no longer exists")
+            logger.debug("Window no longer exists")
             self.stopCapture()
             self.error.emit("Scrcpy window closed")
             return
@@ -330,7 +334,7 @@ class ScrcpyCapture(QObject):
                 self._last_width = width
                 self._last_height = height
                 self.frameSizeChanged.emit(width, height)
-                print(f"[ScrcpyCapture] Frame size: {width}x{height}")
+                logger.debug(f" Frame size: {width}x{height}")
 
             # Get window DC
             hwnd_dc = user32.GetDC(self._hwnd)
@@ -401,7 +405,7 @@ class ScrcpyCapture(QObject):
                 user32.ReleaseDC(self._hwnd, hwnd_dc)
 
         except Exception as e:
-            print(f"[ScrcpyCapture] Capture error: {e}")
+            logger.debug(f" Capture error: {e}")
 
     def setPhoneMirrorManager(self, manager):
         """
@@ -410,21 +414,21 @@ class ScrcpyCapture(QObject):
         and device resolution for touch input.
         """
         self._manager = manager
-        print(f"[ScrcpyCapture] PhoneMirrorManager linked")
+        logger.debug(f" PhoneMirrorManager linked")
 
     def _fetchDeviceInfo(self):
         """Fetch ADB path, device serial, and resolution from manager."""
         if not self._manager:
-            print("[ScrcpyCapture] No manager set, cannot fetch device info")
+            logger.debug("No manager set, cannot fetch device info")
             return
 
         # Get ADB path
         self._adb_path = self._manager.adbPath
-        print(f"[ScrcpyCapture] ADB path: {self._adb_path}")
+        logger.debug(f" ADB path: {self._adb_path}")
 
         # Get device serial
         self._device_serial = self._manager.getDeviceSerial()
-        print(f"[ScrcpyCapture] Device serial: {self._device_serial}")
+        logger.debug(f" Device serial: {self._device_serial}")
 
         # Get device resolution
         resolution_str = self._manager.getDeviceResolution()
@@ -433,11 +437,11 @@ class ScrcpyCapture(QObject):
                 width_str, height_str = resolution_str.split('x')
                 self._device_width = int(width_str)
                 self._device_height = int(height_str)
-                print(f"[ScrcpyCapture] Device resolution: {self._device_width}x{self._device_height}")
+                logger.debug(f" Device resolution: {self._device_width}x{self._device_height}")
             except ValueError:
-                print(f"[ScrcpyCapture] Failed to parse resolution: {resolution_str}")
+                logger.debug(f" Failed to parse resolution: {resolution_str}")
         else:
-            print(f"[ScrcpyCapture] Could not get device resolution")
+            logger.debug(f" Could not get device resolution")
 
     def setAdbPath(self, adb_path: str):
         """Set the ADB path for input commands."""
@@ -451,7 +455,7 @@ class ScrcpyCapture(QObject):
         """Set the device screen resolution for coordinate mapping."""
         self._device_width = width
         self._device_height = height
-        print(f"[ScrcpyCapture] Device resolution set to {width}x{height}")
+        logger.debug(f" Device resolution set to {width}x{height}")
 
     def _is_landscape(self) -> bool:
         """Check if the current capture is in landscape mode."""
@@ -498,11 +502,11 @@ class ScrcpyCapture(QObject):
             rel_x, rel_y: Relative position (0.0 to 1.0) within the display
         """
         if not hasattr(self, '_adb_path') or not self._adb_path:
-            print("[ScrcpyCapture] No ADB path set")
+            logger.debug("No ADB path set")
             return
 
         if not hasattr(self, '_device_width') or self._device_width <= 0:
-            print("[ScrcpyCapture] No device resolution set")
+            logger.debug("No device resolution set")
             return
 
         # Convert relative position to device pixels (handles orientation)
@@ -515,7 +519,7 @@ class ScrcpyCapture(QObject):
         cmd.extend(['shell', 'input', 'tap', str(device_x), str(device_y)])
 
         is_landscape = self._is_landscape()
-        print(f"[ScrcpyCapture] ADB tap: rel({rel_x:.3f},{rel_y:.3f}) -> device({device_x},{device_y}) [{'landscape' if is_landscape else 'portrait'}]")
+        logger.debug(f" ADB tap: rel({rel_x:.3f},{rel_y:.3f}) -> device({device_x},{device_y}) [{'landscape' if is_landscape else 'portrait'}]")
 
         # Run ADB command in background thread to avoid blocking
         import subprocess
@@ -528,7 +532,7 @@ class ScrcpyCapture(QObject):
                     creationflags = subprocess.CREATE_NO_WINDOW
                 subprocess.run(cmd, capture_output=True, timeout=2, creationflags=creationflags)
             except Exception as e:
-                print(f"[ScrcpyCapture] ADB tap error: {e}")
+                logger.debug(f" ADB tap error: {e}")
 
         Thread(target=run_tap, daemon=True).start()
 
@@ -559,7 +563,7 @@ class ScrcpyCapture(QObject):
         cmd.extend(['shell', 'input', 'swipe', str(x1), str(y1), str(x2), str(y2), str(duration_ms)])
 
         is_landscape = self._is_landscape()
-        print(f"[ScrcpyCapture] ADB swipe: ({x1},{y1}) -> ({x2},{y2}) duration={duration_ms}ms [{'landscape' if is_landscape else 'portrait'}]")
+        logger.debug(f" ADB swipe: ({x1},{y1}) -> ({x2},{y2}) duration={duration_ms}ms [{'landscape' if is_landscape else 'portrait'}]")
 
         import subprocess
         from threading import Thread
@@ -571,7 +575,7 @@ class ScrcpyCapture(QObject):
                     creationflags = subprocess.CREATE_NO_WINDOW
                 subprocess.run(cmd, capture_output=True, timeout=5, creationflags=creationflags)
             except Exception as e:
-                print(f"[ScrcpyCapture] ADB swipe error: {e}")
+                logger.debug(f" ADB swipe error: {e}")
 
         Thread(target=run_swipe, daemon=True).start()
 
@@ -586,21 +590,21 @@ class ScrcpyCapture(QObject):
             self._touch_start_x = rel_x
             self._touch_start_y = rel_y
             self._touch_moved = False
-            print(f"[ScrcpyCapture] Touch START at rel({rel_x:.3f}, {rel_y:.3f})")
+            logger.debug(f" Touch START at rel({rel_x:.3f}, {rel_y:.3f})")
         else:
             # On release, check if it was a tap or swipe
-            print(f"[ScrcpyCapture] Touch END at rel({rel_x:.3f}, {rel_y:.3f})")
+            logger.debug(f" Touch END at rel({rel_x:.3f}, {rel_y:.3f})")
             if hasattr(self, '_touch_start_x'):
                 dx = abs(rel_x - self._touch_start_x)
                 dy = abs(rel_y - self._touch_start_y)
 
                 if self._touch_moved and (dx > 0.05 or dy > 0.05):
                     # It was a swipe
-                    print(f"[ScrcpyCapture] Detected SWIPE (moved={self._touch_moved}, dx={dx:.3f}, dy={dy:.3f})")
+                    logger.debug(f" Detected SWIPE (moved={self._touch_moved}, dx={dx:.3f}, dy={dy:.3f})")
                     self.sendSwipe(self._touch_start_x, self._touch_start_y, rel_x, rel_y, 200)
                 else:
                     # It was a tap
-                    print(f"[ScrcpyCapture] Detected TAP")
+                    logger.debug(f" Detected TAP")
                     self.sendTap(self._touch_start_x, self._touch_start_y)
 
     @Slot(float, float)
@@ -634,7 +638,7 @@ class ScrcpyCaptureItem(QQuickItem):
         # Accept mouse events
         self.setAcceptedMouseButtons(Qt.LeftButton)
 
-        print("[ScrcpyCaptureItem] Created")
+        logger.debug("Created")
 
     @Property(int, notify=frameRefresh)
     def frameCounter(self) -> int:
@@ -677,7 +681,7 @@ class ScrcpyCaptureItem(QQuickItem):
 
         self._manager = manager
         if manager:
-            print("[ScrcpyCaptureItem] Connecting to manager")
+            logger.debug("Connecting to manager")
             from PySide6.QtCore import Qt
             manager.scrcpyStarted.connect(self._on_scrcpy_started, Qt.QueuedConnection)
             manager.scrcpyStopped.connect(self._on_scrcpy_stopped, Qt.QueuedConnection)
@@ -685,16 +689,16 @@ class ScrcpyCaptureItem(QQuickItem):
 
             # If already running, start capture
             if manager.isRunning and manager.scrcpyWindowHandle:
-                print(f"[ScrcpyCaptureItem] Manager has running scrcpy")
+                logger.debug(f" Manager has running scrcpy")
                 QTimer.singleShot(100, lambda: self._on_scrcpy_started(manager.scrcpyWindowHandle))
 
     @Slot(int)
     def _on_scrcpy_started(self, hwnd: int):
         """Called when scrcpy window is ready."""
-        print(f"[ScrcpyCaptureItem] Scrcpy started, hwnd={hwnd}")
+        logger.debug(f" Scrcpy started, hwnd={hwnd}")
 
         if not self._capture:
-            print("[ScrcpyCaptureItem] No capture instance set!")
+            logger.debug("No capture instance set!")
             return
 
         # Set window handle and start capture
@@ -706,7 +710,7 @@ class ScrcpyCaptureItem(QQuickItem):
     @Slot()
     def _on_scrcpy_stopped(self):
         """Called when scrcpy stops."""
-        print("[ScrcpyCaptureItem] Scrcpy stopped")
+        logger.debug("Scrcpy stopped")
         if self._capture:
             self._capture.stopCapture()
         self.streamStopped.emit()
@@ -714,7 +718,7 @@ class ScrcpyCaptureItem(QQuickItem):
     @Slot(str)
     def _on_scrcpy_error(self, error: str):
         """Called on scrcpy error."""
-        print(f"[ScrcpyCaptureItem] Error: {error}")
+        logger.debug(f" Error: {error}")
         if self._capture:
             self._capture.stopCapture()
         self.errorOccurred.emit(error)
@@ -733,14 +737,14 @@ class ScrcpyCaptureItem(QQuickItem):
     @Slot()
     def detach(self):
         """Pause capture when view is deactivated."""
-        print("[ScrcpyCaptureItem] Detaching (pausing capture)")
+        logger.debug("Detaching (pausing capture)")
         if self._capture:
             self._capture.stopCapture()
 
     @Slot()
     def reattach(self):
         """Resume capture when view is reactivated."""
-        print("[ScrcpyCaptureItem] Reattaching (resuming capture)")
+        logger.debug("Reattaching (resuming capture)")
         if self._manager and self._manager.isRunning and self._capture:
             hwnd = self._manager.scrcpyWindowHandle
             if hwnd:
@@ -791,4 +795,4 @@ class ScrcpyCaptureItem(QQuickItem):
     def componentComplete(self):
         """Called when QML component is fully loaded."""
         super().componentComplete()
-        print("[ScrcpyCaptureItem] Component complete")
+        logger.debug("Component complete")

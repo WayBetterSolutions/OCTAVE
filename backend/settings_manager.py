@@ -6,6 +6,9 @@ import tempfile
 import subprocess
 from typing import List
 
+from backend.logging_config import get_logger
+logger = get_logger(__name__)
+
 # Platform-specific imports for file locking
 if sys.platform == 'win32':
     import msvcrt
@@ -449,7 +452,7 @@ class SettingsManager(QObject):
                     return self._validate_settings(settings)
                 except (BlockingIOError, OSError):
                     # Could not acquire lock, read anyway but log warning
-                    print("Warning: Could not acquire file lock for reading settings")
+                    logger.warning("Could not acquire file lock for reading settings")
                     f.seek(0)
                     settings = json.load(f)
                     return self._validate_settings(settings)
@@ -462,7 +465,7 @@ class SettingsManager(QObject):
             self.save_settings(self._default_settings)
             return self._default_settings.copy()
         except json.JSONDecodeError as e:
-            print(f"Error: Settings file corrupted ({e}), using defaults")
+            logger.error(f"Settings file corrupted ({e}), using defaults")
             return self._default_settings.copy()
 
     def save_settings(self, settings):
@@ -480,7 +483,7 @@ class SettingsManager(QObject):
                     try:
                         self._lock_file(f, exclusive=True)
                     except (BlockingIOError, OSError):
-                        print("Warning: Could not acquire file lock for writing settings")
+                        logger.warning("Could not acquire file lock for writing settings")
                     json.dump(validated_settings, f, indent=4)
 
                 # Set permissions before rename
@@ -500,7 +503,7 @@ class SettingsManager(QObject):
                 raise e
 
         except Exception as e:
-            print(f"Error saving settings: {e}")
+            logger.error(f"Error saving settings: {e}")
             # Fallback to direct write if atomic fails
             with open(self.settings_file, 'w') as f:
                 json.dump(validated_settings, f, indent=4)
@@ -619,61 +622,61 @@ class SettingsManager(QObject):
     # Existing save methods
     @Slot(float)
     def save_ui_scale(self, scale):
-        print(f"Saving UI scale: {scale}")
+        logger.debug(f"Saving UI scale: {scale}")
         self._ui_scale = scale
         self.update_setting("uiScale", scale, self.uiScaleChanged)
     
     @Slot(int)
     def save_background_blur_radius(self, radius):
-        print(f"Saving background blur radius: {radius}")
+        logger.debug(f"Saving background blur radius: {radius}")
         self._background_blur_radius = radius
         self.update_setting("backgroundBlurRadius", radius, self.backgroundBlurRadiusChanged)
     
     @Slot(str)
     def save_device_name(self, name):
-        print(f"Saving device name: {name}")
+        logger.debug(f"Saving device name: {name}")
         self._device_name = name
         self.update_setting("deviceName", name, self.deviceNameChanged)
         
     @Slot(str)
     def save_theme_setting(self, theme):
-        print(f"Saving theme setting: {theme}")
+        logger.debug(f"Saving theme setting: {theme}")
         self._theme_setting = theme
         self.update_setting("themeSetting", theme, self.themeSettingChanged)
 
     @Slot(str)
     def save_font_setting(self, font):
-        print(f"Saving font setting: {font}")
+        logger.debug(f"Saving font setting: {font}")
         self._font_setting = font
         self.update_setting("fontSetting", font, self.fontSettingChanged)
         
     @Slot(float)
     def save_start_volume(self, volume):
-        print(f"Saving volume setting: {volume}")
+        logger.debug(f"Saving volume setting: {volume}")
         self._start_volume = volume
         self.update_setting("startUpVolume", volume, self.startUpVolumeChanged)
         
     @Slot(bool)
     def save_show_clock(self, show):
-        print(f"Saving show clock setting: {show}")
+        logger.debug(f"Saving show clock setting: {show}")
         self._show_clock = show
         self.update_setting("showClock", show, self.showClockChanged)
 
     @Slot(bool)
     def save_clock_format(self, is_24hour):
-        print(f"Saving clock format setting: {is_24hour}")
+        logger.debug(f"Saving clock format setting: {is_24hour}")
         self._clock_format_24hour = is_24hour
         self.update_setting("clockFormat24Hour", is_24hour, self.clockFormatChanged)
 
     @Slot(int)
     def save_clock_size(self, size):
-        print(f"Saving clock size setting: {size}")
+        logger.debug(f"Saving clock size setting: {size}")
         self._clock_size = size
         self.update_setting("clockSize", size, self.clockSizeChanged)
         
     @Slot(str)
     def save_background_grid(self, grid_setting):
-        print(f"Saving background grid setting: {grid_setting}")
+        logger.debug(f"Saving background grid setting: {grid_setting}")
         self._background_grid = grid_setting
         self.update_setting("backgroundGrid", grid_setting, self.backgroundGridChanged)
         
@@ -691,20 +694,20 @@ class SettingsManager(QObject):
     # New OBD save methods
     @Slot(str)
     def save_obd_bluetooth_port(self, port):
-        print(f"Saving OBD Bluetooth port: {port}")
+        logger.debug(f"Saving OBD Bluetooth port: {port}")
         self._obd_bluetooth_port = port
         self.update_setting("obdBluetoothPort", port, self.obdBluetoothPortChanged)
     
     @Slot(bool)
     def save_obd_fast_mode(self, enabled):
-        print(f"Saving OBD fast mode: {enabled}")
+        logger.debug(f"Saving OBD fast mode: {enabled}")
         self._obd_fast_mode = enabled
         self.update_setting("obdFastMode", enabled, self.obdFastModeChanged)
 
     @Slot(int)
     def save_obd_auto_reconnect_attempts(self, attempts):
         """Save OBD auto-reconnect attempts (0 = disabled, 1-10 = number of attempts)"""
-        print(f"Saving OBD auto-reconnect attempts: {attempts}")
+        logger.debug(f"Saving OBD auto-reconnect attempts: {attempts}")
         self._obd_auto_reconnect_attempts = max(0, min(10, attempts))  # Clamp to 0-10
         self.update_setting("obdAutoReconnectAttempts", self._obd_auto_reconnect_attempts, self.obdAutoReconnectAttemptsChanged)
 
@@ -723,7 +726,7 @@ class SettingsManager(QObject):
         if not self._obd_params_dirty:
             return
 
-        print("Flushing OBD parameter changes to disk")
+        logger.debug("Flushing OBD parameter changes to disk")
 
         # Load current settings
         settings = self.load_settings()
@@ -758,15 +761,15 @@ class SettingsManager(QObject):
     def save_media_folder(self, folder_path):
         # Skip if the folder hasn't actually changed (prevents double-scan)
         if folder_path == self._media_folder:
-            print(f"Media folder unchanged, skipping: {folder_path}")
+            logger.debug(f"Media folder unchanged, skipping: {folder_path}")
             return
-        print(f"Saving media folder path: {folder_path}")
+        logger.debug(f"Saving media folder path: {folder_path}")
         self._media_folder = folder_path
         self.update_setting("mediaFolder", folder_path, self.mediaFolderChanged)
         
     @Slot(bool)
     def save_show_background_overlay(self, show):
-        print(f"Saving show background overlay setting: {show}")
+        logger.debug(f"Saving show background overlay setting: {show}")
         self._show_background_overlay = show
         self.update_setting("showBackgroundOverlay", show, self.showBackgroundOverlayChanged)
         
@@ -781,13 +784,13 @@ class SettingsManager(QObject):
     # Add a method to save fuel tank capacity
     @Slot(float)
     def save_fuel_tank_capacity(self, capacity):
-        print(f"Saving fuel tank capacity: {capacity}")
+        logger.debug(f"Saving fuel tank capacity: {capacity}")
         self._fuel_tank_capacity = capacity
         self.update_setting("fuelTankCapacity", capacity, self.fuelTankCapacityChanged)
         
     @Slot(str)
     def save_to_directory_history(self, folder_path):
-        print(f"Adding directory to history: {folder_path}")
+        logger.debug(f"Adding directory to history: {folder_path}")
         # Don't add duplicates
         if folder_path not in self._directory_history:
             # Add to the beginning of the list
@@ -807,7 +810,7 @@ class SettingsManager(QObject):
 
     @Slot(str)
     def remove_from_directory_history(self, folder_path):
-        print(f"Removing directory from history: {folder_path}")
+        logger.debug(f"Removing directory from history: {folder_path}")
         if folder_path in self._directory_history:
             self._directory_history.remove(folder_path)
             
@@ -826,7 +829,7 @@ class SettingsManager(QObject):
     @Slot('QVariantList')
     def save_home_obd_parameters(self, parameters):
         """Save the list of OBD parameters to display on home screen"""
-        print(f"Saving home OBD parameters: {parameters}")
+        logger.debug(f"Saving home OBD parameters: {parameters}")
         self._home_obd_parameters = list(parameters)  # Make a copy
 
         # Update the settings file
@@ -839,13 +842,13 @@ class SettingsManager(QObject):
         
     @Slot(str)
     def save_bottom_bar_orientation(self, orientation):
-        print(f"Saving bottom bar orientation: {orientation}")
+        logger.debug(f"Saving bottom bar orientation: {orientation}")
         self._bottom_bar_orientation = orientation
         self.update_setting("bottomBarOrientation", orientation, self.bottomBarOrientationChanged)
 
     @Slot(bool)
     def save_show_bottom_bar_media_controls(self, show):
-        print(f"Saving show bottom bar media controls: {show}")
+        logger.debug(f"Saving show bottom bar media controls: {show}")
         self._show_bottom_bar_media_controls = show
         self.update_setting("showBottomBarMediaControls", show, self.showBottomBarMediaControlsChanged)
 
@@ -882,7 +885,7 @@ class SettingsManager(QObject):
     @Slot(str, str)
     def save_spotify_credentials(self, client_id, client_secret):
         """Save Spotify API credentials"""
-        print(f"Saving Spotify credentials")
+        logger.debug(f"Saving Spotify credentials")
         self._spotify_client_id = client_id
         self._spotify_client_secret = client_secret
 
@@ -952,7 +955,7 @@ class SettingsManager(QObject):
     @Slot(bool)
     def save_auto_play_on_startup(self, enabled):
         """Save auto-play on startup setting"""
-        print(f"Saving auto-play on startup: {enabled}")
+        logger.debug(f"Saving auto-play on startup: {enabled}")
         self._auto_play_on_startup = enabled
         self.update_setting("autoPlayOnStartup", enabled, self.autoPlayOnStartupChanged)
 
@@ -1084,7 +1087,7 @@ class SettingsManager(QObject):
         if page not in valid_pages:
             return
 
-        print(f"Saving music button default page: {page}")
+        logger.debug(f"Saving music button default page: {page}")
         self._music_button_default_page = page
         self.update_setting("musicButtonDefaultPage", page, self.musicButtonDefaultPageChanged)
 
@@ -1101,7 +1104,7 @@ class SettingsManager(QObject):
     @Slot(bool)
     def save_return_to_library_after_selection(self, return_to_library):
         """Save whether to return to library after song selection"""
-        print(f"Saving return to library after selection: {return_to_library}")
+        logger.debug(f"Saving return to library after selection: {return_to_library}")
         self._return_to_library_after_selection = return_to_library
         self.update_setting("returnToLibraryAfterSelection", return_to_library, self.returnToLibraryAfterSelectionChanged)
 
@@ -1120,7 +1123,7 @@ class SettingsManager(QObject):
     @Slot(bool)
     def save_android_auto_enabled(self, enabled):
         """Save whether Android Auto is enabled"""
-        print(f"Saving Android Auto enabled: {enabled}")
+        logger.debug(f"Saving Android Auto enabled: {enabled}")
         self._android_auto_enabled = enabled
         self.update_setting("androidAutoEnabled", enabled, self.androidAutoEnabledChanged)
 
@@ -1139,7 +1142,7 @@ class SettingsManager(QObject):
     @Slot(bool)
     def save_phone_mirror_enabled(self, enabled):
         """Save whether Phone Mirror is enabled"""
-        print(f"Saving Phone Mirror enabled: {enabled}")
+        logger.debug(f"Saving Phone Mirror enabled: {enabled}")
         self._phone_mirror_enabled = enabled
         self.update_setting("phoneMirrorEnabled", enabled, self.phoneMirrorEnabledChanged)
 
@@ -1156,7 +1159,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def save_scrcpy_path(self, path):
         """Save the custom scrcpy path"""
-        print(f"Saving scrcpy path: {path}")
+        logger.debug(f"Saving scrcpy path: {path}")
         self._scrcpy_path = path
         self.update_setting("scrcpyPath", path, self.scrcpyPathChanged)
 
@@ -1173,7 +1176,7 @@ class SettingsManager(QObject):
     @Slot(bool)
     def save_scrcpy_audio_enabled(self, enabled):
         """Save whether scrcpy audio forwarding is enabled"""
-        print(f"Saving scrcpy audio enabled: {enabled}")
+        logger.debug(f"Saving scrcpy audio enabled: {enabled}")
         self._scrcpy_audio_enabled = enabled
         self.update_setting("scrcpyAudioEnabled", enabled, self.scrcpyAudioEnabledChanged)
 
@@ -1197,7 +1200,7 @@ class SettingsManager(QObject):
     @Slot(str, bool)
     def save_settings_section_visibility(self, section, visible):
         """Save visibility for a specific settings section"""
-        print(f"Saving settings section visibility: {section} = {visible}")
+        logger.debug(f"Saving settings section visibility: {section} = {visible}")
         self._settings_menu_visibility[section] = visible
         # Save to disk
         settings = self.load_settings()
@@ -1216,7 +1219,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def set_album_art_colors(self, colors_json):
         """Set album art theme colors and emit signal"""
-        print(f"[AlbumArtCapture] set_album_art_colors called, length: {len(colors_json) if colors_json else 0}")
+        logger.debug(f"set_album_art_colors called, length: {len(colors_json) if colors_json else 0}")
         self._album_art_colors = colors_json
         self.albumArtColorsChanged.emit(colors_json)
 
@@ -1371,7 +1374,7 @@ class SettingsManager(QObject):
             if result.returncode == 0:
                 return result.stdout.strip()
         except Exception as e:
-            print(f"Error getting git commit hash: {e}")
+            logger.debug(f"Error getting git commit hash: {e}")
         return "unknown"
 
     @Slot(result=str)
@@ -1397,7 +1400,7 @@ class SettingsManager(QObject):
                         return f"{parts[0]} at {parts[1][:5]}"  # "2026-01-18 at 14:30"
                 return date_str
         except Exception as e:
-            print(f"Error getting git commit date: {e}")
+            logger.debug(f"Error getting git commit date: {e}")
         return "unknown"
 
     @Slot(result=str)
@@ -1415,5 +1418,5 @@ class SettingsManager(QObject):
             if result.returncode == 0:
                 return result.stdout.strip()
         except Exception as e:
-            print(f"Error getting git commit message: {e}")
+            logger.debug(f"Error getting git commit message: {e}")
         return ""

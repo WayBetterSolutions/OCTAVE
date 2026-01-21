@@ -14,6 +14,10 @@ from PySide6.QtWidgets import QWidget, QApplication
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtGui import QWindow
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import wintypes
@@ -120,12 +124,12 @@ class ScrcpyHostWidget(QWidget):
         self._host_hwnd: Optional[int] = None
         self._last_size = (0, 0)  # Track size changes
 
-        print("[ScrcpyHost] Widget created")
+        logger.debug("Widget created")
 
     def showEvent(self, event):
         super().showEvent(event)
         self._host_hwnd = int(self.winId())
-        print(f"[ScrcpyHost] Show event, hwnd={self._host_hwnd}, size={self.width()}x{self.height()}")
+        logger.debug(f" Show event, hwnd={self._host_hwnd}, size={self.width()}x{self.height()}")
 
         # Embed pending scrcpy
         if self._scrcpy_hwnd and not self._embedded:
@@ -137,7 +141,7 @@ class ScrcpyHostWidget(QWidget):
 
     def embed_scrcpy(self, hwnd: int):
         """Set the scrcpy window handle to embed."""
-        print(f"[ScrcpyHost] Request to embed scrcpy hwnd={hwnd}")
+        logger.debug(f" Request to embed scrcpy hwnd={hwnd}")
         self._scrcpy_hwnd = hwnd
 
         if self.isVisible() and self._host_hwnd:
@@ -152,7 +156,7 @@ class ScrcpyHostWidget(QWidget):
             return
 
         if not user32.IsWindow(self._scrcpy_hwnd):
-            print("[ScrcpyHost] Scrcpy window no longer exists")
+            logger.debug("Scrcpy window no longer exists")
             self._scrcpy_hwnd = None
             return
 
@@ -160,10 +164,10 @@ class ScrcpyHostWidget(QWidget):
             self._host_hwnd = int(self.winId())
 
         if not self._host_hwnd:
-            print("[ScrcpyHost] No host hwnd available")
+            logger.debug("No host hwnd available")
             return
 
-        print(f"[ScrcpyHost] Embedding scrcpy {self._scrcpy_hwnd} into host {self._host_hwnd}")
+        logger.debug(f" Embedding scrcpy {self._scrcpy_hwnd} into host {self._host_hwnd}")
 
         # Check if already our child
         current_parent = user32.GetParent(self._scrcpy_hwnd)
@@ -207,7 +211,7 @@ class ScrcpyHostWidget(QWidget):
         # Show scrcpy
         user32.ShowWindow(self._scrcpy_hwnd, SW_SHOW)
 
-        print(f"[ScrcpyHost] Scrcpy embedded at size {w}x{h}")
+        logger.debug(f" Scrcpy embedded at size {w}x{h}")
 
     def _update_scrcpy_size(self):
         """Update scrcpy to fill the host widget."""
@@ -305,13 +309,13 @@ class ScrcpyHostItem(QQuickItem):
         self.yChanged.connect(self._update_host_position)
         self.visibleChanged.connect(self._on_visible_changed)
 
-        print("[ScrcpyHostItem] Created")
+        logger.debug("Created")
 
     def _ensure_host_widget(self):
         """Create the host widget if needed."""
         if self._host_widget is None:
             self._host_widget = ScrcpyHostWidget()
-            print("[ScrcpyHostItem] Created host widget")
+            logger.debug("Created host widget")
 
     def _get_main_window(self) -> Optional[QWindow]:
         """Get the QWindow containing this item."""
@@ -345,20 +349,20 @@ class ScrcpyHostItem(QQuickItem):
 
         self._manager = manager
         if manager:
-            print("[ScrcpyHostItem] Connecting to manager")
+            logger.debug("Connecting to manager")
             manager.scrcpyStarted.connect(self._on_scrcpy_started, Qt.QueuedConnection)
             manager.scrcpyStopped.connect(self._on_scrcpy_stopped, Qt.QueuedConnection)
             manager.scrcpyError.connect(self._on_scrcpy_error, Qt.QueuedConnection)
 
             # If already running, embed it
             if manager.isRunning and manager.scrcpyWindowHandle:
-                print(f"[ScrcpyHostItem] Manager has running scrcpy")
+                logger.debug(f" Manager has running scrcpy")
                 QTimer.singleShot(100, lambda: self._on_scrcpy_started(manager.scrcpyWindowHandle))
 
     @Slot(int)
     def _on_scrcpy_started(self, hwnd: int):
         """Called when scrcpy window is ready."""
-        print(f"[ScrcpyHostItem] Scrcpy started, hwnd={hwnd}")
+        logger.debug(f" Scrcpy started, hwnd={hwnd}")
 
         if platform.system() != "Windows":
             return
@@ -389,19 +393,19 @@ class ScrcpyHostItem(QQuickItem):
         self._position_timer.start(16)  # ~60fps
 
         self.streamStarted.emit()
-        print("[ScrcpyHostItem] Stream started")
+        logger.debug("Stream started")
 
     @Slot()
     def _on_scrcpy_stopped(self):
         """Called when scrcpy stops."""
-        print("[ScrcpyHostItem] Scrcpy stopped")
+        logger.debug("Scrcpy stopped")
         self._cleanup()
         self.streamStopped.emit()
 
     @Slot(str)
     def _on_scrcpy_error(self, error: str):
         """Called on scrcpy error."""
-        print(f"[ScrcpyHostItem] Error: {error}")
+        logger.debug(f" Error: {error}")
         self._cleanup()
         self.errorOccurred.emit(error)
 
@@ -456,7 +460,7 @@ class ScrcpyHostItem(QQuickItem):
     @Slot()
     def detach(self):
         """Hide when view is deactivated."""
-        print("[ScrcpyHostItem] Detaching")
+        logger.debug("Detaching")
         self._position_timer.stop()
 
         if self._host_widget:
@@ -466,7 +470,7 @@ class ScrcpyHostItem(QQuickItem):
     @Slot()
     def reattach(self):
         """Show when view is reactivated."""
-        print("[ScrcpyHostItem] Reattaching")
+        logger.debug("Reattaching")
 
         if self._manager and self._manager.isRunning:
             hwnd = self._manager.scrcpyWindowHandle
@@ -484,9 +488,9 @@ class ScrcpyHostItem(QQuickItem):
                 self._position_timer.start(16)
                 self.streamStarted.emit()
         else:
-            print("[ScrcpyHostItem] No running scrcpy to reattach")
+            logger.debug("No running scrcpy to reattach")
 
     def componentComplete(self):
         """Called when QML component is fully loaded."""
         super().componentComplete()
-        print("[ScrcpyHostItem] Component complete")
+        logger.debug("Component complete")

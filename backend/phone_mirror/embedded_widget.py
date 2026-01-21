@@ -11,6 +11,10 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QPointF, Qt
 from PySide6.QtQuick import QQuickItem
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import wintypes
@@ -126,14 +130,14 @@ class EmbeddedScrcpyItem(QQuickItem):
 
         self._manager = manager
         if manager:
-            print("[EmbeddedScrcpy] Connecting to manager")
+            logger.debug("Connecting to manager")
             manager.scrcpyStarted.connect(self._on_scrcpy_started, Qt.QueuedConnection)
             manager.scrcpyStopped.connect(self._on_scrcpy_stopped, Qt.QueuedConnection)
             manager.scrcpyError.connect(self._on_scrcpy_error, Qt.QueuedConnection)
 
             # If manager already has a running scrcpy, embed it
             if manager.isRunning and manager.scrcpyWindowHandle:
-                print(f"[EmbeddedScrcpy] Manager already has scrcpy running, hwnd={manager.scrcpyWindowHandle}")
+                logger.debug(f" Manager already has scrcpy running, hwnd={manager.scrcpyWindowHandle}")
                 QTimer.singleShot(100, lambda: self._embed_or_show(manager.scrcpyWindowHandle))
 
     def _embed_or_show(self, hwnd: int):
@@ -142,13 +146,13 @@ class EmbeddedScrcpyItem(QQuickItem):
             return
 
         if not user32.IsWindow(hwnd):
-            print("[EmbeddedScrcpy] Window no longer exists")
+            logger.debug("Window no longer exists")
             self.errorOccurred.emit("scrcpy window no longer exists")
             return
 
         self._parent_hwnd = self._get_qt_window_handle()
         if not self._parent_hwnd:
-            print("[EmbeddedScrcpy] Could not get parent window handle")
+            logger.debug("Could not get parent window handle")
             self.errorOccurred.emit("Could not get parent window handle")
             return
 
@@ -157,7 +161,7 @@ class EmbeddedScrcpyItem(QQuickItem):
 
         # Always ensure it's parented to us
         if current_parent != self._parent_hwnd:
-            print(f"[EmbeddedScrcpy] Embedding window {hwnd} into {self._parent_hwnd}")
+            logger.debug(f" Embedding window {hwnd} into {self._parent_hwnd}")
 
             # Hide first
             user32.ShowWindow(hwnd, SW_HIDE)
@@ -176,7 +180,7 @@ class EmbeddedScrcpyItem(QQuickItem):
             # Set parent
             user32.SetParent(hwnd, self._parent_hwnd)
         else:
-            print(f"[EmbeddedScrcpy] Window {hwnd} already parented correctly, just showing")
+            logger.debug(f" Window {hwnd} already parented correctly, just showing")
 
         self._scrcpy_hwnd = hwnd
         self._embedded = True
@@ -189,7 +193,7 @@ class EmbeddedScrcpyItem(QQuickItem):
         width = int(self.width())
         height = int(self.height())
 
-        print(f"[EmbeddedScrcpy] Positioning window at ({x}, {y}) size {width}x{height}")
+        logger.debug(f" Positioning window at ({x}, {y}) size {width}x{height}")
 
         # Position and resize explicitly
         if width > 0 and height > 0:
@@ -202,12 +206,12 @@ class EmbeddedScrcpyItem(QQuickItem):
         self._update_timer.start(16)
 
         self.streamStarted.emit()
-        print("[EmbeddedScrcpy] Window embedded/shown successfully")
+        logger.debug("Window embedded/shown successfully")
 
     @Slot(int)
     def _on_scrcpy_started(self, hwnd: int):
         """Called when manager reports scrcpy window is ready."""
-        print(f"[EmbeddedScrcpy] Received scrcpy started signal, hwnd={hwnd}")
+        logger.debug(f" Received scrcpy started signal, hwnd={hwnd}")
 
         if platform.system() != "Windows":
             return
@@ -223,14 +227,14 @@ class EmbeddedScrcpyItem(QQuickItem):
     @Slot()
     def _on_scrcpy_stopped(self):
         """Called when manager reports scrcpy stopped."""
-        print("[EmbeddedScrcpy] scrcpy stopped")
+        logger.debug("scrcpy stopped")
         self._cleanup()
         self.streamStopped.emit()
 
     @Slot(str)
     def _on_scrcpy_error(self, error: str):
         """Called when manager reports an error."""
-        print(f"[EmbeddedScrcpy] Error: {error}")
+        logger.debug(f" Error: {error}")
         self._cleanup()
         self.errorOccurred.emit(error)
 
@@ -268,7 +272,7 @@ class EmbeddedScrcpyItem(QQuickItem):
     @Slot()
     def detach(self):
         """Hide the embedded window temporarily (for when view is deactivated)."""
-        print("[EmbeddedScrcpy] Detaching (hiding)...")
+        logger.debug("Detaching (hiding)...")
 
         self._update_timer.stop()
         self._is_hidden = True
@@ -279,7 +283,7 @@ class EmbeddedScrcpyItem(QQuickItem):
     @Slot()
     def reattach(self):
         """Show the embedded window again (for when view is reactivated)."""
-        print("[EmbeddedScrcpy] Reattaching (showing)...")
+        logger.debug("Reattaching (showing)...")
 
         if self._manager and self._manager.isRunning:
             hwnd = self._manager.scrcpyWindowHandle
@@ -287,9 +291,9 @@ class EmbeddedScrcpyItem(QQuickItem):
                 # Small delay to let QML layout settle
                 QTimer.singleShot(50, lambda: self._embed_or_show(hwnd))
         else:
-            print("[EmbeddedScrcpy] No running scrcpy to reattach")
+            logger.debug("No running scrcpy to reattach")
 
     def componentComplete(self):
         """Called when the QML component is fully loaded."""
         super().componentComplete()
-        print("[EmbeddedScrcpy] Component complete")
+        logger.debug("Component complete")

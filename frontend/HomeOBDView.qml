@@ -137,6 +137,10 @@ Item {
                 border.width: 1
                 radius: 3
                 
+                // Store the signal handler so we can disconnect it later
+                property var signalHandler: null
+                property string connectedSignal: ""
+
                 // Dynamic signal connection based on parameter type
                 Component.onCompleted: {
                     if (obdManager) {
@@ -161,15 +165,31 @@ Item {
                             "OIL_TEMP": "engineOilTempChanged",
                             "IGNITION_TIMING": "ignitionTimingChanged"
                         };
-                        
+
                         // Get the signal name for this parameter
                         const signalName = signalMap[param];
-                        
+
                         // If we have a matching signal, connect to it
                         if (signalName && obdManager[signalName]) {
-                            obdManager[signalName].connect(function(val) { 
-                                display.value = val; 
-                            });
+                            // Create handler that checks if display still exists
+                            display.signalHandler = function(val) {
+                                if (display) {
+                                    display.value = val;
+                                }
+                            };
+                            display.connectedSignal = signalName;
+                            obdManager[signalName].connect(display.signalHandler);
+                        }
+                    }
+                }
+
+                // Disconnect signal when component is destroyed to prevent null access
+                Component.onDestruction: {
+                    if (obdManager && connectedSignal && signalHandler) {
+                        try {
+                            obdManager[connectedSignal].disconnect(signalHandler);
+                        } catch (e) {
+                            // Signal may already be disconnected
                         }
                     }
                 }

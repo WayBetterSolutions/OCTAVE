@@ -11,6 +11,10 @@ from typing import Optional
 from PySide6.QtCore import Qt, Signal, Slot, QTimer
 from PySide6.QtWidgets import QWidget
 
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 if platform.system() == "Windows":
     import ctypes
     from ctypes import wintypes
@@ -91,16 +95,16 @@ class ScrcpyContainerWidget(QWidget):
         self._update_timer = QTimer(self)
         self._update_timer.timeout.connect(self._update_scrcpy_position)
 
-        print("[ScrcpyContainer] Widget created")
+        logger.debug("Widget created")
 
     def showEvent(self, event):
         """Called when widget becomes visible."""
         super().showEvent(event)
-        print(f"[ScrcpyContainer] Show event, size: {self.width()}x{self.height()}")
+        logger.debug(f" Show event, size: {self.width()}x{self.height()}")
 
         # Get our native window handle
         self._container_hwnd = int(self.winId())
-        print(f"[ScrcpyContainer] Container HWND: {self._container_hwnd}")
+        logger.debug(f" Container HWND: {self._container_hwnd}")
 
         # If we have a pending scrcpy window, embed it now
         if self._scrcpy_hwnd and not self._embedded:
@@ -109,7 +113,7 @@ class ScrcpyContainerWidget(QWidget):
     def hideEvent(self, event):
         """Called when widget is hidden."""
         super().hideEvent(event)
-        print("[ScrcpyContainer] Hide event")
+        logger.debug("Hide event")
         self._update_timer.stop()
 
         # Hide scrcpy window but don't detach it
@@ -134,21 +138,21 @@ class ScrcpyContainerWidget(QWidget):
 
         self._manager = manager
         if manager:
-            print("[ScrcpyContainer] Connecting to manager")
+            logger.debug("Connecting to manager")
             manager.scrcpyStarted.connect(self._on_scrcpy_started, Qt.QueuedConnection)
             manager.scrcpyStopped.connect(self._on_scrcpy_stopped, Qt.QueuedConnection)
             manager.scrcpyError.connect(self._on_scrcpy_error, Qt.QueuedConnection)
 
             # If manager already has running scrcpy, embed it
             if manager.isRunning and manager.scrcpyWindowHandle:
-                print(f"[ScrcpyContainer] Manager has running scrcpy, hwnd={manager.scrcpyWindowHandle}")
+                logger.debug(f" Manager has running scrcpy, hwnd={manager.scrcpyWindowHandle}")
                 self._scrcpy_hwnd = manager.scrcpyWindowHandle
                 QTimer.singleShot(100, self._embed_scrcpy)
 
     @Slot(int)
     def _on_scrcpy_started(self, hwnd: int):
         """Called when manager reports scrcpy window is ready."""
-        print(f"[ScrcpyContainer] Scrcpy started signal, hwnd={hwnd}")
+        logger.debug(f" Scrcpy started signal, hwnd={hwnd}")
 
         if platform.system() != "Windows":
             return
@@ -167,11 +171,11 @@ class ScrcpyContainerWidget(QWidget):
             return
 
         if not self._scrcpy_hwnd:
-            print("[ScrcpyContainer] No scrcpy hwnd to embed")
+            logger.debug("No scrcpy hwnd to embed")
             return
 
         if not user32.IsWindow(self._scrcpy_hwnd):
-            print("[ScrcpyContainer] Scrcpy window no longer exists")
+            logger.debug("Scrcpy window no longer exists")
             self._scrcpy_hwnd = None
             self.errorOccurred.emit("scrcpy window no longer exists")
             return
@@ -181,11 +185,11 @@ class ScrcpyContainerWidget(QWidget):
             self._container_hwnd = int(self.winId())
 
         if not self._container_hwnd:
-            print("[ScrcpyContainer] Could not get container window handle")
+            logger.debug("Could not get container window handle")
             self.errorOccurred.emit("Could not get container window handle")
             return
 
-        print(f"[ScrcpyContainer] Embedding scrcpy {self._scrcpy_hwnd} into container {self._container_hwnd}")
+        logger.debug(f" Embedding scrcpy {self._scrcpy_hwnd} into container {self._container_hwnd}")
 
         # Check if already parented to us
         current_parent = user32.GetParent(self._scrcpy_hwnd)
@@ -204,9 +208,9 @@ class ScrcpyContainerWidget(QWidget):
 
             # Set parent to our container
             user32.SetParent(self._scrcpy_hwnd, self._container_hwnd)
-            print("[ScrcpyContainer] Set parent complete")
+            logger.debug("Set parent complete")
         else:
-            print("[ScrcpyContainer] Already parented to container")
+            logger.debug("Already parented to container")
 
         self._embedded = True
 
@@ -214,7 +218,7 @@ class ScrcpyContainerWidget(QWidget):
         width = self.width()
         height = self.height()
 
-        print(f"[ScrcpyContainer] Positioning scrcpy at (0, 0) size {width}x{height}")
+        logger.debug(f" Positioning scrcpy at (0, 0) size {width}x{height}")
 
         if width > 0 and height > 0:
             user32.MoveWindow(self._scrcpy_hwnd, 0, 0, width, height, True)
@@ -226,7 +230,7 @@ class ScrcpyContainerWidget(QWidget):
         self._update_timer.start(16)  # ~60fps updates
 
         self.streamStarted.emit()
-        print("[ScrcpyContainer] Scrcpy embedded successfully")
+        logger.debug("Scrcpy embedded successfully")
 
     def _update_scrcpy_position(self):
         """Update scrcpy position to fill container."""
@@ -237,7 +241,7 @@ class ScrcpyContainerWidget(QWidget):
             return
 
         if not user32.IsWindow(self._scrcpy_hwnd):
-            print("[ScrcpyContainer] Scrcpy window disappeared")
+            logger.debug("Scrcpy window disappeared")
             self._cleanup()
             self.streamStopped.emit()
             return
@@ -252,14 +256,14 @@ class ScrcpyContainerWidget(QWidget):
     @Slot()
     def _on_scrcpy_stopped(self):
         """Called when manager reports scrcpy stopped."""
-        print("[ScrcpyContainer] Scrcpy stopped")
+        logger.debug("Scrcpy stopped")
         self._cleanup()
         self.streamStopped.emit()
 
     @Slot(str)
     def _on_scrcpy_error(self, error: str):
         """Called when manager reports an error."""
-        print(f"[ScrcpyContainer] Error: {error}")
+        logger.debug(f" Error: {error}")
         self._cleanup()
         self.errorOccurred.emit(error)
 
@@ -271,7 +275,7 @@ class ScrcpyContainerWidget(QWidget):
 
     def detach(self):
         """Hide the scrcpy window (for when view is deactivated)."""
-        print("[ScrcpyContainer] Detaching...")
+        logger.debug("Detaching...")
         self._update_timer.stop()
 
         if platform.system() == "Windows" and self._scrcpy_hwnd:
@@ -280,7 +284,7 @@ class ScrcpyContainerWidget(QWidget):
 
     def reattach(self):
         """Show the scrcpy window again (for when view is reactivated)."""
-        print("[ScrcpyContainer] Reattaching...")
+        logger.debug("Reattaching...")
 
         if self._manager and self._manager.isRunning:
             hwnd = self._manager.scrcpyWindowHandle
@@ -288,7 +292,7 @@ class ScrcpyContainerWidget(QWidget):
                 self._scrcpy_hwnd = hwnd
                 QTimer.singleShot(50, self._embed_scrcpy)
         else:
-            print("[ScrcpyContainer] No running scrcpy to reattach")
+            logger.debug("No running scrcpy to reattach")
 
     @property
     def isStreaming(self) -> bool:
