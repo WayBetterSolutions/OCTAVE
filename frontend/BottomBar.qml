@@ -1135,6 +1135,7 @@ Rectangle {
                                                 { name: "Clock", section: "clockSettings" },
                                                 { name: "Android Auto", section: "androidAutoSettings" },
                                                 { name: "Phone Mirror", section: "phoneMirrorSettings" },
+                                                { name: "Volume Knob", section: "volumeKnobSettings" },
                                                 { name: "About", section: "about" }
                                             ]
 

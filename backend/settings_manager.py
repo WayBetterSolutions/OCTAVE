@@ -85,6 +85,15 @@ class SettingsManager(QObject):
     # Generic settings changed signal - emitted when save_setting is called
     genericSettingChanged = Signal(str)  # Emits the key that changed
 
+    # ESP32 Volume Knob signals
+    esp32VolumeEnabledChanged = Signal(bool)
+    esp32VolumePortChanged = Signal(str)
+    esp32VolumeStepSizeChanged = Signal(float)
+    esp32AutoReconnectChanged = Signal(bool)
+    esp32LedSleepEnabledChanged = Signal(bool)
+    esp32LedColorModeChanged = Signal(str)  # "theme" or "static"
+    esp32LedStaticColorChanged = Signal(str)  # hex color like "#FF0000"
+
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
@@ -230,7 +239,7 @@ class SettingsManager(QObject):
             "phoneMirrorEnabled": False,  # If True, show Phone Mirror button in bottom bar
             "scrcpyPath": "",  # Custom path to scrcpy executable
             "scrcpyAudioEnabled": False,  # If True, forward audio from phone
-            # Settings menu section visibility (all visible by default)
+            # Settings menu section visibility (all visible by default, except advanced features)
             "settingsMenuVisibility": {
                 "deviceSettings": True,
                 "mediaSettings": True,
@@ -239,8 +248,17 @@ class SettingsManager(QObject):
                 "clockSettings": True,
                 "androidAutoSettings": True,
                 "phoneMirrorSettings": True,
+                "volumeKnobSettings": False,  # Hidden by default - enable via double-click menu
                 "about": True
-            }
+            },
+            # ESP32 Volume Knob settings
+            "esp32VolumeEnabled": True,
+            "esp32VolumePort": "COM7",
+            "esp32VolumeStepSize": 1,  # 1% per encoder tick for fine control
+            "esp32AutoReconnect": True,
+            "esp32LedSleepEnabled": True,  # LEDs turn off when OCTAVE closes
+            "esp32LedColorMode": "theme",  # "theme" (follows album art) or "static"
+            "esp32LedStaticColor": "#00FFFF"  # Static color when not using theme
         }
             
     
@@ -316,6 +334,15 @@ class SettingsManager(QObject):
         for section in self._default_settings["settingsMenuVisibility"]:
             if section not in self._settings_menu_visibility:
                 self._settings_menu_visibility[section] = True
+
+        # ESP32 Volume Knob settings
+        self._esp32_volume_enabled = self._settings.get("esp32VolumeEnabled", self._default_settings["esp32VolumeEnabled"])
+        self._esp32_volume_port = self._settings.get("esp32VolumePort", self._default_settings["esp32VolumePort"])
+        self._esp32_volume_step_size = self._settings.get("esp32VolumeStepSize", self._default_settings["esp32VolumeStepSize"])
+        self._esp32_auto_reconnect = self._settings.get("esp32AutoReconnect", self._default_settings["esp32AutoReconnect"])
+        self._esp32_led_sleep_enabled = self._settings.get("esp32LedSleepEnabled", self._default_settings["esp32LedSleepEnabled"])
+        self._esp32_led_color_mode = self._settings.get("esp32LedColorMode", self._default_settings["esp32LedColorMode"])
+        self._esp32_led_static_color = self._settings.get("esp32LedStaticColor", self._default_settings["esp32LedStaticColor"])
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -428,6 +455,13 @@ class SettingsManager(QObject):
             "scrcpyPath": str,
             "scrcpyAudioEnabled": bool,
             "settingsMenuVisibility": dict,
+            "esp32VolumeEnabled": bool,
+            "esp32VolumePort": str,
+            "esp32VolumeStepSize": (int, float),
+            "esp32AutoReconnect": bool,
+            "esp32LedSleepEnabled": bool,
+            "esp32LedColorMode": str,
+            "esp32LedStaticColor": str,
         }
 
         for key, expected_type in type_checks.items():
@@ -1035,7 +1069,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def set_last_settings_section(self, section):
         """Set last visited settings section"""
-        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "phoneMirrorSettings", "about"]
+        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "phoneMirrorSettings", "volumeKnobSettings", "about"]
         if section not in valid_sections:
             return
 
@@ -1179,6 +1213,134 @@ class SettingsManager(QObject):
         logger.debug(f"Saving scrcpy audio enabled: {enabled}")
         self._scrcpy_audio_enabled = enabled
         self.update_setting("scrcpyAudioEnabled", enabled, self.scrcpyAudioEnabledChanged)
+
+    # ==================== ESP32 Volume Knob Settings ====================
+
+    @Property(bool, notify=esp32VolumeEnabledChanged)
+    def esp32VolumeEnabled(self):
+        """Get whether ESP32 volume controller is enabled"""
+        return self._esp32_volume_enabled
+
+    @Slot(result=bool)
+    def get_esp32_volume_enabled(self):
+        """Get whether ESP32 volume controller is enabled"""
+        return self._esp32_volume_enabled
+
+    @Slot(bool)
+    def save_esp32_volume_enabled(self, enabled):
+        """Save whether ESP32 volume controller is enabled"""
+        logger.debug(f"Saving ESP32 volume enabled: {enabled}")
+        self._esp32_volume_enabled = enabled
+        self.update_setting("esp32VolumeEnabled", enabled, self.esp32VolumeEnabledChanged)
+
+    @Property(str, notify=esp32VolumePortChanged)
+    def esp32VolumePort(self):
+        """Get the ESP32 serial port"""
+        return self._esp32_volume_port
+
+    @Slot(result=str)
+    def get_esp32_volume_port(self):
+        """Get the ESP32 serial port"""
+        return self._esp32_volume_port
+
+    @Slot(str)
+    def save_esp32_volume_port(self, port):
+        """Save the ESP32 serial port"""
+        logger.debug(f"Saving ESP32 volume port: {port}")
+        self._esp32_volume_port = port
+        self.update_setting("esp32VolumePort", port, self.esp32VolumePortChanged)
+
+    @Property(float, notify=esp32VolumeStepSizeChanged)
+    def esp32VolumeStepSize(self):
+        """Get the volume step size per encoder tick (0.25-10)"""
+        return self._esp32_volume_step_size
+
+    @Slot(result=float)
+    def get_esp32_volume_step_size(self):
+        """Get the volume step size per encoder tick"""
+        return self._esp32_volume_step_size
+
+    @Slot(float)
+    def save_esp32_volume_step_size(self, step_size):
+        """Save the volume step size per encoder tick (0.25-10)"""
+        logger.debug(f"Saving ESP32 volume step size: {step_size}")
+        # Clamp to 0.25-10 and round to nearest 0.25
+        clamped = max(0.25, min(10.0, step_size))
+        self._esp32_volume_step_size = round(clamped * 4) / 4  # Round to nearest 0.25
+        self.update_setting("esp32VolumeStepSize", self._esp32_volume_step_size, self.esp32VolumeStepSizeChanged)
+
+    @Property(bool, notify=esp32AutoReconnectChanged)
+    def esp32AutoReconnect(self):
+        """Get whether ESP32 auto-reconnect is enabled"""
+        return self._esp32_auto_reconnect
+
+    @Slot(result=bool)
+    def get_esp32_auto_reconnect(self):
+        """Get whether ESP32 auto-reconnect is enabled"""
+        return self._esp32_auto_reconnect
+
+    @Slot(bool)
+    def save_esp32_auto_reconnect(self, enabled):
+        """Save whether ESP32 auto-reconnect is enabled"""
+        logger.debug(f"Saving ESP32 auto-reconnect: {enabled}")
+        self._esp32_auto_reconnect = enabled
+        self.update_setting("esp32AutoReconnect", enabled, self.esp32AutoReconnectChanged)
+
+    # ESP32 LED Sleep Enable
+    @Property(bool, notify=esp32LedSleepEnabledChanged)
+    def esp32LedSleepEnabled(self):
+        """Get whether ESP32 LEDs sleep when OCTAVE closes"""
+        return self._esp32_led_sleep_enabled
+
+    @Slot(result=bool)
+    def get_esp32_led_sleep_enabled(self):
+        """Get whether ESP32 LEDs sleep when OCTAVE closes"""
+        return self._esp32_led_sleep_enabled
+
+    @Slot(bool)
+    def save_esp32_led_sleep_enabled(self, enabled):
+        """Save whether ESP32 LEDs sleep when OCTAVE closes"""
+        logger.debug(f"Saving ESP32 LED sleep enabled: {enabled}")
+        self._esp32_led_sleep_enabled = enabled
+        self.update_setting("esp32LedSleepEnabled", enabled, self.esp32LedSleepEnabledChanged)
+
+    # ESP32 LED Color Mode
+    @Property(str, notify=esp32LedColorModeChanged)
+    def esp32LedColorMode(self):
+        """Get ESP32 LED color mode ('theme' or 'static')"""
+        return self._esp32_led_color_mode
+
+    @Slot(result=str)
+    def get_esp32_led_color_mode(self):
+        """Get ESP32 LED color mode"""
+        return self._esp32_led_color_mode
+
+    @Slot(str)
+    def save_esp32_led_color_mode(self, mode):
+        """Save ESP32 LED color mode ('theme' or 'static')"""
+        if mode not in ["theme", "static"]:
+            return
+        logger.debug(f"Saving ESP32 LED color mode: {mode}")
+        self._esp32_led_color_mode = mode
+        self.update_setting("esp32LedColorMode", mode, self.esp32LedColorModeChanged)
+
+    # ESP32 LED Static Color
+    @Property(str, notify=esp32LedStaticColorChanged)
+    def esp32LedStaticColor(self):
+        """Get ESP32 LED static color (hex)"""
+        return self._esp32_led_static_color
+
+    @Slot(result=str)
+    def get_esp32_led_static_color(self):
+        """Get ESP32 LED static color"""
+        return self._esp32_led_static_color
+
+    @Slot(str)
+    def save_esp32_led_static_color(self, color):
+        """Save ESP32 LED static color (hex like '#FF0000')"""
+        logger.debug(f"Saving ESP32 LED static color: {color}")
+        self._esp32_led_static_color = color
+        self.update_setting("esp32LedStaticColor", color, self.esp32LedStaticColorChanged)
 
     # ==================== Settings Menu Visibility ====================
 
@@ -1348,6 +1510,27 @@ class SettingsManager(QObject):
 
         self._settings_menu_visibility = self._default_settings["settingsMenuVisibility"].copy()
         self.settingsMenuVisibilityChanged.emit()
+
+        self._esp32_volume_enabled = self._default_settings["esp32VolumeEnabled"]
+        self.esp32VolumeEnabledChanged.emit(self._esp32_volume_enabled)
+
+        self._esp32_volume_port = self._default_settings["esp32VolumePort"]
+        self.esp32VolumePortChanged.emit(self._esp32_volume_port)
+
+        self._esp32_volume_step_size = self._default_settings["esp32VolumeStepSize"]
+        self.esp32VolumeStepSizeChanged.emit(self._esp32_volume_step_size)
+
+        self._esp32_auto_reconnect = self._default_settings["esp32AutoReconnect"]
+        self.esp32AutoReconnectChanged.emit(self._esp32_auto_reconnect)
+
+        self._esp32_led_sleep_enabled = self._default_settings["esp32LedSleepEnabled"]
+        self.esp32LedSleepEnabledChanged.emit(self._esp32_led_sleep_enabled)
+
+        self._esp32_led_color_mode = self._default_settings["esp32LedColorMode"]
+        self.esp32LedColorModeChanged.emit(self._esp32_led_color_mode)
+
+        self._esp32_led_static_color = self._default_settings["esp32LedStaticColor"]
+        self.esp32LedStaticColorChanged.emit(self._esp32_led_static_color)
 
     # ==================== Git Commit Info ====================
 
