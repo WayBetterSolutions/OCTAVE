@@ -36,6 +36,7 @@ from backend.spotify_manager import SpotifyManager
 from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
 from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyCapture, ScrcpyCaptureItem
 from backend.esp32_volume_manager import ESP32VolumeManager
+from backend.audio_analyzer import AudioAnalyzer
 
 app = QApplication(sys.argv)
 engine = QQmlApplicationEngine()
@@ -59,6 +60,10 @@ engine.rootContext().setContextProperty("clock", clock)
 media_manager = MediaManager()
 media_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("mediaManager", media_manager)
+
+# Audio Analyzer for waveform visualization
+audio_analyzer = AudioAnalyzer()
+engine.rootContext().setContextProperty("audioAnalyzer", audio_analyzer)
 
 # SVG Manager
 svg_manager = SVGManager()

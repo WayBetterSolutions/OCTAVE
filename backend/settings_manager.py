@@ -94,6 +94,9 @@ class SettingsManager(QObject):
     esp32LedColorModeChanged = Signal(str)  # "theme" or "static"
     esp32LedStaticColorChanged = Signal(str)  # hex color like "#FF0000"
 
+    # Waveform visualizer signal
+    showWaveformVisualizerChanged = Signal(bool)
+
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
@@ -258,7 +261,9 @@ class SettingsManager(QObject):
             "esp32AutoReconnect": True,
             "esp32LedSleepEnabled": True,  # LEDs turn off when OCTAVE closes
             "esp32LedColorMode": "theme",  # "theme" (follows album art) or "static"
-            "esp32LedStaticColor": "#00FFFF"  # Static color when not using theme
+            "esp32LedStaticColor": "#00FFFF",  # Static color when not using theme
+            # Waveform visualizer settings
+            "showWaveformVisualizer": True  # Show audio waveform visualization in MediaRoom
         }
             
     
@@ -343,6 +348,9 @@ class SettingsManager(QObject):
         self._esp32_led_sleep_enabled = self._settings.get("esp32LedSleepEnabled", self._default_settings["esp32LedSleepEnabled"])
         self._esp32_led_color_mode = self._settings.get("esp32LedColorMode", self._default_settings["esp32LedColorMode"])
         self._esp32_led_static_color = self._settings.get("esp32LedStaticColor", self._default_settings["esp32LedStaticColor"])
+
+        # Waveform visualizer settings
+        self._show_waveform_visualizer = self._settings.get("showWaveformVisualizer", self._default_settings["showWaveformVisualizer"])
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -462,6 +470,7 @@ class SettingsManager(QObject):
             "esp32LedSleepEnabled": bool,
             "esp32LedColorMode": str,
             "esp32LedStaticColor": str,
+            "showWaveformVisualizer": bool,
         }
 
         for key, expected_type in type_checks.items():
@@ -1342,6 +1351,25 @@ class SettingsManager(QObject):
         self._esp32_led_static_color = color
         self.update_setting("esp32LedStaticColor", color, self.esp32LedStaticColorChanged)
 
+    # ==================== Waveform Visualizer Settings ====================
+
+    @Property(bool, notify=showWaveformVisualizerChanged)
+    def showWaveformVisualizer(self):
+        """Get whether waveform visualizer is enabled"""
+        return self._show_waveform_visualizer
+
+    @Slot(result=bool)
+    def get_show_waveform_visualizer(self):
+        """Get whether waveform visualizer is enabled"""
+        return self._show_waveform_visualizer
+
+    @Slot(bool)
+    def save_show_waveform_visualizer(self, enabled):
+        """Save whether waveform visualizer is enabled"""
+        logger.debug(f"Saving show waveform visualizer: {enabled}")
+        self._show_waveform_visualizer = enabled
+        self.update_setting("showWaveformVisualizer", enabled, self.showWaveformVisualizerChanged)
+
     # ==================== Settings Menu Visibility ====================
 
     @Property(str, notify=settingsMenuVisibilityChanged)
@@ -1531,6 +1559,9 @@ class SettingsManager(QObject):
 
         self._esp32_led_static_color = self._default_settings["esp32LedStaticColor"]
         self.esp32LedStaticColorChanged.emit(self._esp32_led_static_color)
+
+        self._show_waveform_visualizer = self._default_settings["showWaveformVisualizer"]
+        self.showWaveformVisualizerChanged.emit(self._show_waveform_visualizer)
 
     # ==================== Git Commit Info ====================
 

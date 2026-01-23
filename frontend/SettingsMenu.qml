@@ -1299,6 +1299,44 @@ Item {
 
                             SettingsDivider {}
 
+                            // Waveform Visualizer
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Waveform Visualizer"
+                                }
+
+                                SettingsToggle {
+                                    id: waveformVisualizerToggle
+                                    Layout.fillWidth: true
+                                    text: checked ? "Visualizer Enabled" : "Visualizer Disabled"
+                                    checked: settingsManager ? settingsManager.showWaveformVisualizer : true
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
+
+                                    onToggled: function(checked) {
+                                        if (settingsManager) {
+                                            settingsManager.save_show_waveform_visualizer(checked)
+                                        }
+                                    }
+
+                                    Connections {
+                                        target: settingsManager
+                                        function onShowWaveformVisualizerChanged() {
+                                            waveformVisualizerToggle.checked = settingsManager.showWaveformVisualizer
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "Show animated audio waveform visualization in the Now Playing view. Colors match the current theme."
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             // Media Room Background Blur Effect
                             ColumnLayout {
                                 Layout.fillWidth: true

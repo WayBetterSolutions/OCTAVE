@@ -771,6 +771,164 @@ Item {
             }
         }
 
+        // Waveform Visualizer
+        Item {
+            id: waveformContainer
+            width: parent.width * 0.75
+            height: 40
+            anchors {
+                bottom: durationBar.top
+                horizontalCenter: parent.horizontalCenter
+                bottomMargin: 10
+            }
+            visible: settingsManager && settingsManager.showWaveformVisualizer && !mediaRoom.useSpotify
+            opacity: visible ? 1.0 : 0.0
+
+            // Track playback state reactively (method calls aren't reactive in bindings)
+            property bool isPlaying: false
+            property string lastAnalyzedFile: ""
+
+            Behavior on opacity {
+                NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
+            }
+
+            // Waveform bars
+            Row {
+                id: waveformBars
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                height: parent.height
+                spacing: 2
+
+                property var levels: []
+                property int levelsVersion: 0  // Force reactivity when array changes
+                property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 60
+
+                Repeater {
+                    model: waveformBars.numBars
+
+                    Item {
+                        width: Math.max(2, (waveformContainer.width - (waveformBars.numBars - 1) * waveformBars.spacing) / waveformBars.numBars)
+                        height: waveformBars.height
+
+                        Rectangle {
+                            id: waveformBar
+                            width: parent.width
+                            height: {
+                                // Reference levelsVersion to force re-evaluation when levels change
+                                var version = waveformBars.levelsVersion
+                                var level = (waveformBars.levels && waveformBars.levels[index]) || 0
+                                // Map 0-8 to height (min 2px, max full height)
+                                return Math.max(2, (level / 8) * waveformContainer.height)
+                            }
+                            anchors.bottom: parent.bottom
+                            color: App.Style.accent
+                            opacity: 0.8
+
+                            Behavior on height {
+                                NumberAnimation { duration: 50; easing.type: Easing.OutQuad }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Connect to audio analyzer
+            Connections {
+                target: audioAnalyzer
+                enabled: waveformContainer.visible
+
+                function onFftDataChanged(levels) {
+                    waveformBars.levels = levels
+                    waveformBars.levelsVersion++  // Trigger binding updates
+                }
+            }
+
+            // Update position periodically - runs when visible (to handle decay animation too)
+            Timer {
+                id: waveformUpdateTimer
+                interval: 50  // 20 FPS
+                running: waveformContainer.visible
+                repeat: true
+
+                onTriggered: {
+                    if (audioAnalyzer && mediaManager) {
+                        if (waveformContainer.isPlaying) {
+                            // Check if we need to analyze the current file
+                            var currentFile = mediaManager.get_current_file()
+                            if (currentFile && currentFile !== waveformContainer.lastAnalyzedFile) {
+                                var fullPath = mediaManager.get_full_file_path(currentFile)
+                                if (fullPath) {
+                                    audioAnalyzer.analyze_file(fullPath)
+                                    waveformContainer.lastAnalyzedFile = currentFile
+                                }
+                            }
+
+                            // Update position if analyzed
+                            if (audioAnalyzer.is_analyzed()) {
+                                var positionSeconds = mediaManager.get_position() / 1000.0
+                                audioAnalyzer.update_position(positionSeconds)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Handle media manager signals
+            Connections {
+                target: mediaManager
+                enabled: settingsManager && settingsManager.showWaveformVisualizer
+
+                function onCurrentMediaChanged(filename) {
+                    if (audioAnalyzer && filename && !mediaRoom.useSpotify) {
+                        var fullPath = mediaManager.get_full_file_path(filename)
+                        if (fullPath) {
+                            audioAnalyzer.analyze_file(fullPath)
+                            waveformContainer.lastAnalyzedFile = filename
+                        }
+                    }
+                }
+
+                function onPlayStateChanged(playing) {
+                    waveformContainer.isPlaying = playing
+                    if (audioAnalyzer) {
+                        audioAnalyzer.set_active(playing)
+                    }
+                }
+            }
+
+            // Initialize waveform when needed
+            function initializeWaveform() {
+                if (audioAnalyzer && mediaManager && !mediaRoom.useSpotify) {
+                    var currentFile = mediaManager.get_current_file()
+                    if (currentFile) {
+                        var fullPath = mediaManager.get_full_file_path(currentFile)
+                        if (fullPath) {
+                            audioAnalyzer.analyze_file(fullPath)
+                            waveformContainer.lastAnalyzedFile = currentFile
+                        }
+                    }
+                    // Set active state based on current playback
+                    waveformContainer.isPlaying = mediaManager.is_playing()
+                    audioAnalyzer.set_active(waveformContainer.isPlaying)
+                }
+            }
+
+            // Re-initialize when becoming visible
+            onVisibleChanged: {
+                if (visible) {
+                    initializeWaveform()
+                }
+            }
+
+            // Also initialize on component load
+            Component.onCompleted: {
+                if (waveformContainer.visible) {
+                    initializeWaveform()
+                }
+            }
+        }
+
         Rectangle { //duration bar
             id: durationBar
             width: parent.width * 0.75

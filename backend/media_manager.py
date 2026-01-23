@@ -1493,6 +1493,12 @@ class MediaManager(QObject):
         """Return just the folder name of the current media directory"""
         return os.path.basename(self.media_dir)
 
+    @Slot(str, result=str)
+    def get_full_file_path(self, filename):
+        """Get the full file path for a given filename, handling All Music playlist"""
+        path = self._get_file_path(filename)
+        return path if path and os.path.exists(path) else ""
+
     def _calculate_all_stats(self):
         """Calculate all statistics at once and cache the results"""
         if self._stats_cache["is_valid"]:
