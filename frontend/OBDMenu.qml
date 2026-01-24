@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Shapes 1.15
 import Qt5Compat.GraphicalEffects
 import "." as App
 
@@ -20,6 +21,9 @@ Item {
     property color textColor: App.Style.obdValueColor      // For values - calculated for OBD box background
     property color labelColor: App.Style.obdLabelColor     // For parameter labels - calculated for OBD box background
     
+    // Card style setting - true for circular gauges, false for square cards
+    property bool useCircularCards: settingsManager ? settingsManager.get_setting_with_default("obdCardStyleCircular", false) : false
+
     // OBD parameters definition - comprehensive list of all supported parameters
     property var allParameters: [
         // Original parameters
@@ -271,12 +275,12 @@ Item {
             Repeater {
                 model: allParameters
                 
-                Rectangle {
-                    id: card
+                Item {
+                    id: cardContainer
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     visible: settingsManager ? settingsManager.get_obd_parameter_enabled(modelData.id, true) : true
-                    
+
                     // Update layout when visibility changes
                     onVisibleChanged: {
                         if (updateTimer.running) {
@@ -285,73 +289,207 @@ Item {
                             updateTimer.start();
                         }
                     }
-                    
+
                     // Only take up space when visible
                     Layout.preferredWidth: visible ? implicitWidth : 0
                     Layout.preferredHeight: visible ? implicitHeight : 0
-                    
-                    color: cardMouseArea.containsMouse && modelData.id === "RPM" ?
-                           Qt.lighter(Qt.darker(backgroundColor, 0.9), 1.1) : Qt.darker(backgroundColor, 0.9)
-                    radius: 6
 
-                    Behavior on color { ColorAnimation { duration: 150 } }
-
-                    // Click handler for RPM card settings
-                    MouseArea {
-                        id: cardMouseArea
+                    // Square card style (default)
+                    Rectangle {
+                        id: squareCard
                         anchors.fill: parent
-                        hoverEnabled: modelData.id === "RPM"
-                        cursorShape: modelData.id === "RPM" ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: {
-                            if (modelData.id === "RPM") {
-                                rpmSettingsPopup.open()
+                        visible: !obdPage.useCircularCards
+
+                        color: squareCardMouseArea.containsMouse && modelData.id === "RPM" ?
+                               Qt.lighter(Qt.darker(backgroundColor, 0.9), 1.1) : Qt.darker(backgroundColor, 0.9)
+                        radius: 6
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        MouseArea {
+                            id: squareCardMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: modelData.id === "RPM"
+                            cursorShape: modelData.id === "RPM" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: {
+                                if (modelData.id === "RPM") {
+                                    rpmSettingsPopup.open()
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 4
+
+                            Text {
+                                text: modelData.title
+                                color: labelColor
+                                font.pixelSize: App.Spacing.overallText
+                                font.family: obdPage.globalFont
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            Text {
+                                text: ((paramValues[modelData.id] || 0.0).toFixed(1) + " " + modelData.unit)
+                                color: textColor
+                                font.pixelSize: App.Spacing.overallText
+                                font.bold: true
+                                font.family: obdPage.globalFont
+                                Layout.alignment: Qt.AlignHCenter
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: App.Spacing.overallSliderHeight * .5
+                                color: Qt.darker(backgroundColor, 1.1)
+                                radius: 3
+                                Layout.topMargin: 4
+
+                                Rectangle {
+                                    id: progressBar
+                                    height: parent.height
+                                    radius: 3
+                                    color: App.Style.obdBarColor
+                                    width: {
+                                        const value = paramValues[modelData.id] || 0;
+                                        return Math.max(6, parent.width * Math.min(1,
+                                            (value - modelData.min) / (modelData.max - modelData.min)));
+                                    }
+
+                                    Behavior on width {
+                                        NumberAnimation {
+                                            duration: 100
+                                            easing.type: Easing.OutCubic
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        spacing: 4
-                        
-                        Text {
-                            text: modelData.title
-                            color: labelColor
-                            font.pixelSize: App.Spacing.overallText
-                            font.family: obdPage.globalFont
-                            Layout.alignment: Qt.AlignHCenter
+                    // Circular gauge style
+                    Rectangle {
+                        id: circularCard
+                        visible: obdPage.useCircularCards
+
+                        // Make it larger - use 95% of the smaller dimension for better fill
+                        property real cardSize: Math.min(parent.width, parent.height) * 0.95
+                        width: cardSize
+                        height: cardSize
+                        anchors.centerIn: parent
+
+                        color: circularCardMouseArea.containsMouse && modelData.id === "RPM" ?
+                               Qt.lighter(Qt.darker(backgroundColor, 0.9), 1.1) : Qt.darker(backgroundColor, 0.9)
+                        radius: width / 2  // Fully circular
+
+                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                        MouseArea {
+                            id: circularCardMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: modelData.id === "RPM"
+                            cursorShape: modelData.id === "RPM" ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            onClicked: {
+                                if (modelData.id === "RPM") {
+                                    rpmSettingsPopup.open()
+                                }
+                            }
                         }
 
-                        Text {
-                            text: ((paramValues[modelData.id] || 0.0).toFixed(1) + " " + modelData.unit)
-                            color: textColor
-                            font.pixelSize: App.Spacing.overallText
-                            font.bold: true
-                            font.family: obdPage.globalFont
-                            Layout.alignment: Qt.AlignHCenter
+                        // Circular gauge arc - using GPU-accelerated Shape
+                        property real gaugeValue: {
+                            const value = paramValues[modelData.id] || 0;
+                            return Math.min(1, Math.max(0, (value - modelData.min) / (modelData.max - modelData.min)));
                         }
-                        
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: App.Spacing.overallSliderHeight * .5
-                            color: Qt.darker(backgroundColor, 1.1)
-                            radius: 3
-                            Layout.topMargin: 4
-                            
-                            Rectangle {
-                                id: progressBar
-                                height: parent.height
-                                radius: 3
-                                color: App.Style.obdBarColor
-                                width: {
-                                    const value = paramValues[modelData.id] || 0;
-                                    return Math.max(6, parent.width * Math.min(1, 
-                                        (value - modelData.min) / (modelData.max - modelData.min)));
+
+                        // Animated gauge value for smooth transitions
+                        property real animatedGaugeValue: gaugeValue
+                        Behavior on animatedGaugeValue {
+                            NumberAnimation { duration: 100; easing.type: Easing.OutCubic }
+                        }
+
+                        // Gauge dimensions
+                        property real arcRadius: (width / 2) - 8
+                        property real arcWidth: Math.max(10, arcRadius * 0.14)
+                        property real startAngle: 135  // degrees, bottom-left
+                        property real sweepAngle: 270  // degrees, total arc span
+
+                        // Background arc - GPU-accelerated Shape (no layer overhead)
+                        Shape {
+                            anchors.fill: parent
+
+                            ShapePath {
+                                fillColor: "transparent"
+                                strokeColor: Qt.darker(obdPage.backgroundColor, 1.1)
+                                strokeWidth: circularCard.arcWidth
+                                capStyle: ShapePath.RoundCap
+
+                                PathAngleArc {
+                                    centerX: circularCard.width / 2
+                                    centerY: circularCard.height / 2
+                                    radiusX: circularCard.arcRadius
+                                    radiusY: circularCard.arcRadius
+                                    startAngle: circularCard.startAngle
+                                    sweepAngle: circularCard.sweepAngle
                                 }
-                                
-                                Behavior on width {
-                                    NumberAnimation { duration: 200 }
+                            }
+                        }
+
+                        // Value arc (on top) - GPU-accelerated Shape
+                        Shape {
+                            anchors.fill: parent
+                            visible: circularCard.animatedGaugeValue > 0.001
+
+                            ShapePath {
+                                fillColor: "transparent"
+                                strokeColor: App.Style.obdBarColor
+                                strokeWidth: circularCard.arcWidth
+                                capStyle: ShapePath.RoundCap
+
+                                PathAngleArc {
+                                    centerX: circularCard.width / 2
+                                    centerY: circularCard.height / 2
+                                    radiusX: circularCard.arcRadius
+                                    radiusY: circularCard.arcRadius
+                                    startAngle: circularCard.startAngle
+                                    sweepAngle: circularCard.sweepAngle * circularCard.animatedGaugeValue
                                 }
+                            }
+                        }
+
+                        // Center content
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 2
+
+                            Text {
+                                text: modelData.title
+                                color: labelColor
+                                font.pixelSize: App.Spacing.overallText * 0.9
+                                font.family: obdPage.globalFont
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                horizontalAlignment: Text.AlignHCenter
+                                elide: Text.ElideRight
+                                width: circularCard.width * 0.75
+                            }
+
+                            Text {
+                                text: (paramValues[modelData.id] || 0.0).toFixed(1)
+                                color: textColor
+                                font.pixelSize: App.Spacing.overallText * 1.4
+                                font.bold: true
+                                font.family: obdPage.globalFont
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
+
+                            Text {
+                                text: modelData.unit
+                                color: labelColor
+                                font.pixelSize: App.Spacing.overallText * 0.75
+                                font.family: obdPage.globalFont
+                                anchors.horizontalCenter: parent.horizontalCenter
                             }
                         }
                     }
@@ -374,6 +512,12 @@ Item {
         function onObdParametersChanged() {
             // Use timer to debounce multiple rapid changes
             updateTimer.restart();
+        }
+        function onGenericSettingChanged(key) {
+            // Update card style when setting changes
+            if (key === "obdCardStyleCircular") {
+                obdPage.useCircularCards = settingsManager.get_setting_with_default("obdCardStyleCircular", false)
+            }
         }
     }
     

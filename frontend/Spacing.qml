@@ -173,6 +173,7 @@ QtObject {
     property int overallSliderWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * overallSliderWidthPercent)
     property int overallSliderHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * overallSliderHeightPercent)
     property int overallSliderRadius: scaledSize(Math.min(applicationWidth, applicationHeight) * overallSliderRadiusPercent)
+    property int overallRadius: scaledSize(Math.min(applicationWidth, applicationHeight) * 0.01)  // General purpose corner radius
     
     // ===== Calculated Dimensions - Bottom Bar =====
     property int bottomBarHeight: scaledSize(applicationHeight * bottomBarHeightPercent)

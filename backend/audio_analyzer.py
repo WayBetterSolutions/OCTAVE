@@ -47,9 +47,9 @@ class AudioAnalyzer(QObject):
         self._current_levels = [0] * self._num_bars
         self._target_levels = [0] * self._num_bars
 
-        # Animation timer
+        # Animation timer - 80ms (12.5 FPS) is smooth enough for visualization
         self._animation_timer = QTimer(self)
-        self._animation_timer.setInterval(50)  # 20 FPS animation
+        self._animation_timer.setInterval(80)
         self._animation_timer.timeout.connect(self._animate_levels)
 
         # Track if we're actively playing
@@ -261,6 +261,10 @@ class AudioAnalyzer(QObject):
 
         if changed:
             self.fftDataChanged.emit(self._current_levels.copy())
+        elif not self._is_active:
+            # Stop timer when not active and decay complete (all levels at 0)
+            self._animation_timer.stop()
+            logger.debug("Animation timer stopped - decay complete")
 
         # Log occasionally to confirm animation is running
         if hasattr(self, '_animate_log_counter'):

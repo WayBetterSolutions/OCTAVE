@@ -42,11 +42,15 @@ class OBDConnectionWorker(QObject):
                 self.connectionProgress.emit(20, "Initializing OBD adapter...")
 
             # Create the connection (this is the blocking call)
-            # Note: python-obd will auto-detect protocol if not specified
+            # SPEED OPTIMIZATIONS:
+            # - delay_cmds=0: No delay between polling cycles (default is 0.25s!)
+            # - protocol: Use cached protocol to skip auto-detection (saves 1-3 sec)
             connection = obd.Async(
                 portstr=self._port,
                 fast=self._fast_mode,
-                timeout=self._timeout
+                timeout=self._timeout,
+                delay_cmds=0,  # MAXIMUM SPEED - change to 0.02 if issues arise
+                protocol=self._cached_protocol if self._cached_protocol else None
             )
 
             self.connectionProgress.emit(80, "Checking connection status...")
@@ -354,7 +358,7 @@ class OBDManager(QObject):
         # Startup timer - defer connection to not block init
         self._startup_timer = QTimer()
         self._startup_timer.setSingleShot(True)
-        self._startup_timer.setInterval(500)  # Reduced from 1.5s - just enough for UI to settle
+        self._startup_timer.setInterval(50)  # Minimal delay - just defer from constructor
         self._startup_timer.timeout.connect(self._initial_connect)
         self._startup_timer.start()
 
@@ -922,6 +926,7 @@ class OBDManager(QObject):
 
         commands_to_watch = self._get_all_commands()
         watcher_count = 0
+        watchdog_attached = False  # Only attach watchdog to ONE param for efficiency
 
         for param, (command, callback) in commands_to_watch.items():
             should_watch = True
@@ -937,10 +942,20 @@ class OBDManager(QObject):
 
             if should_watch:
                 try:
-                    logger.info(f"[OBD] Watching: {param}")
-                    # Wrap callback to update watchdog timestamp on any data received
-                    wrapped_callback = self._wrap_callback_with_watchdog(callback)
-                    self._connection.watch(command, callback=wrapped_callback)
+                    # Only wrap ONE callback with watchdog (reduces overhead significantly)
+                    # Prefer RPM (typically always enabled), fallback to first available param
+                    if not watchdog_attached:
+                        if param == "RPM" or watcher_count == 0:
+                            final_callback = self._wrap_callback_with_watchdog(callback)
+                            watchdog_attached = True
+                            logger.info(f"[OBD] Watching: {param} (with watchdog)")
+                        else:
+                            final_callback = callback
+                            logger.debug(f"[OBD] Watching: {param}")
+                    else:
+                        final_callback = callback
+                        logger.debug(f"[OBD] Watching: {param}")
+                    self._connection.watch(command, callback=final_callback)
                     watcher_count += 1
                 except Exception as e:
                     logger.warning(f"[OBD] Could not watch {param}: {e}")

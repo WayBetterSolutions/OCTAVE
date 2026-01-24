@@ -844,32 +844,18 @@ Item {
                 }
             }
 
-            // Update position periodically - runs when visible (to handle decay animation too)
+            // Update position periodically - only runs when playing
             Timer {
                 id: waveformUpdateTimer
-                interval: 50  // 20 FPS
-                running: waveformContainer.visible
+                interval: 80  // 12.5 FPS - smooth enough for visualization
+                running: waveformContainer.visible && waveformContainer.isPlaying
                 repeat: true
 
                 onTriggered: {
-                    if (audioAnalyzer && mediaManager) {
-                        if (waveformContainer.isPlaying) {
-                            // Check if we need to analyze the current file
-                            var currentFile = mediaManager.get_current_file()
-                            if (currentFile && currentFile !== waveformContainer.lastAnalyzedFile) {
-                                var fullPath = mediaManager.get_full_file_path(currentFile)
-                                if (fullPath) {
-                                    audioAnalyzer.analyze_file(fullPath)
-                                    waveformContainer.lastAnalyzedFile = currentFile
-                                }
-                            }
-
-                            // Update position if analyzed
-                            if (audioAnalyzer.is_analyzed()) {
-                                var positionSeconds = mediaManager.get_position() / 1000.0
-                                audioAnalyzer.update_position(positionSeconds)
-                            }
-                        }
+                    // Update position if analyzed (file analysis handled by onCurrentMediaChanged)
+                    if (audioAnalyzer && audioAnalyzer.is_analyzed() && mediaManager) {
+                        var positionSeconds = mediaManager.get_position() / 1000.0
+                        audioAnalyzer.update_position(positionSeconds)
                     }
                 }
             }

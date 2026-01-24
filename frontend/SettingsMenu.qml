@@ -2571,6 +2571,45 @@ Item {
 
                             SettingsDivider {}
 
+                            // OBD Card Style
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "OBD Card Style"
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: App.Spacing.overallSpacing
+
+                                    Text {
+                                        text: "Use circular gauges"
+                                        color: App.Style.primaryTextColor
+                                        font.pixelSize: App.Spacing.overallText
+                                        font.family: settingsMenu.globalFont
+                                        Layout.fillWidth: true
+                                    }
+
+                                    SettingsSwitch {
+                                        id: obdCardStyleSwitch
+                                        checked: settingsManager ? settingsManager.get_setting_with_default("obdCardStyleCircular", false) : false
+                                        onCheckedChanged: {
+                                            if (settingsManager) {
+                                                settingsManager.save_setting("obdCardStyleCircular", checked)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                SettingDescription {
+                                    text: "Toggle between square cards and circular gauges on the OBD page (does not affect home page)"
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             // Parameter selection
                             ColumnLayout {
                                 id: parameterSelectionLayout

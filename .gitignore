@@ -41,3 +41,7 @@ clear_dtc.py
 *.swp
 *.swo
 *.bak
+
+# Performance profiling (dev tools)
+profile_performance.py
+profile_data_*.csv

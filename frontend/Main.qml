@@ -30,37 +30,8 @@ ApplicationWindow {
     property string lastSettingsSection: settingsManager ? settingsManager.lastSettingsSection : "deviceSettings"
     property string fontSetting: settingsManager ? settingsManager.fontSetting : "System Default"
 
-    // Album Art Colors - track last applied to detect changes
+    // Album Art Colors - used by signal handlers to track changes
     property string lastAppliedAlbumArtColors: ""
-
-    // Timer to poll for album art color changes (workaround for PySide6 signal issues)
-    Timer {
-        id: albumArtColorTimer
-        interval: 250  // Check every 250ms for faster response
-        repeat: true
-        running: true
-        property int tickCount: 0
-        onTriggered: {
-            tickCount++
-            if (!settingsManager) return
-
-            var isAlbumArtTheme = App.Style.currentTheme === "Album Art Capture"
-            var newColors = settingsManager.albumArtColors
-
-            // Debug log every 20 ticks (5 seconds)
-            if (tickCount % 20 === 1) {
-                console.log("[AlbumArtCapture] Timer: theme=" + App.Style.currentTheme +
-                           ", colorsLen=" + (newColors ? newColors.length : 0) +
-                           ", lastLen=" + lastAppliedAlbumArtColors.length)
-            }
-
-            if (isAlbumArtTheme && newColors && newColors.length > 0 && newColors !== lastAppliedAlbumArtColors) {
-                console.log("[AlbumArtCapture] Applying new colors, length:", newColors.length)
-                lastAppliedAlbumArtColors = newColors
-                App.Style.updateAlbumArtTheme(newColors)
-            }
-        }
-    }
 
     // Font loading properties
     property var loadedFonts: ({})
