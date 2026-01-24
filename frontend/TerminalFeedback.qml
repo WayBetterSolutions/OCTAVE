@@ -193,7 +193,7 @@ Rectangle {
             lineColor = infoColor
         } else if (text.indexOf("[WARN]") === 0 || text.indexOf("[WARNING]") === 0) {
             lineColor = warningColor
-        } else if (text.indexOf("[FOUND]") === 0) {
+        } else if (text.indexOf("[FOUND]") === 0 || text.indexOf("[OK]") === 0) {
             lineColor = successColor
         } else if (text.indexOf("[PATH]") === 0) {
             lineColor = "#aaaaaa"  // Gray for paths

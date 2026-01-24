@@ -170,6 +170,7 @@ class OBDManager(QObject):
     supportedCommandsChanged = Signal(list)  # Signal for vehicle-supported commands
     scanProgressChanged = Signal(int, str)  # progress (0-100), message
     scanCompleteChanged = Signal(list)  # list of supported command names
+    scanOutputChanged = Signal(str)  # Terminal-style output for vehicle scanning
 
     # Diagnostic signals
     dtcCodesChanged = Signal(list)  # List of DTC tuples [(code, description), ...]
@@ -1585,37 +1586,54 @@ class OBDManager(QObject):
         scan_thread = threading.Thread(target=self._do_vehicle_scan, daemon=True)
         scan_thread.start()
 
+    def _emit_scan_output(self, message: str):
+        """Emit scan output on main thread"""
+        QTimer.singleShot(0, lambda m=message: self.scanOutputChanged.emit(m))
+
     def _do_vehicle_scan(self):
         """Perform the actual vehicle scan (runs in background thread) using a sync connection"""
         sync_conn = None
         use_diagnostic_conn = self._diagnostic_mode and self._diagnostic_sync_conn
         try:
+            self._emit_scan_output("[SCAN] Starting vehicle PID scan...")
+
             if use_diagnostic_conn:
                 # Use the persistent diagnostic connection
                 sync_conn = self._diagnostic_sync_conn
+                self._emit_scan_output("[INFO] Using diagnostic connection")
             else:
                 # Stop async polling while we use the port
                 self._connection.stop()
+                self._emit_scan_output("[INFO] Pausing data stream for scan...")
                 # Create a fresh sync connection to get supported commands
                 sync_conn = self._create_sync_connection()
 
             if not sync_conn:
                 logger.info("[OBD] Failed to get sync connection for vehicle scan")
+                self._emit_scan_output("[ERROR] Failed to establish sync connection")
                 QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, "Connection failed"))
                 QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
                 return
+
+            self._emit_scan_output("[INFO] Querying vehicle ECU for supported PIDs...")
 
             # Get supported commands from the sync connection
             supported = sync_conn.supported_commands
 
             if not supported:
+                self._emit_scan_output("[WARN] No supported commands returned from vehicle")
                 QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, "No supported commands found"))
                 QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
                 return
 
+            self._emit_scan_output(f"[INFO] Vehicle reports {len(supported)} total supported PIDs")
+            self._emit_scan_output("[SCAN] Checking available parameters...")
+            self._emit_scan_output("")
+
             # Get the commands we can actually use (intersection with our supported commands)
             our_commands = self._get_all_commands()
             supported_names = []
+            unsupported_names = []
 
             total = len(our_commands)
             for i, (param_name, (command, _)) in enumerate(our_commands.items()):
@@ -1625,9 +1643,20 @@ class OBDManager(QObject):
                 # Check if this command is in the vehicle's supported set
                 if command in supported:
                     supported_names.append(param_name)
+                    self._emit_scan_output(f"[OK] {param_name}")
                     logger.info(f"[OBD] Vehicle supports: {param_name}")
+                else:
+                    unsupported_names.append(param_name)
 
             self._supported_commands = supported_names
+
+            # Summary output
+            self._emit_scan_output("")
+            self._emit_scan_output("=" * 40)
+            self._emit_scan_output(f"[DONE] Scan complete!")
+            self._emit_scan_output(f"[INFO] Supported: {len(supported_names)} parameters")
+            self._emit_scan_output(f"[INFO] Unsupported: {len(unsupported_names)} parameters")
+            self._emit_scan_output("=" * 40)
 
             # Emit completion signals on main thread
             QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, f"Found {len(supported_names)} supported parameters"))
@@ -1638,6 +1667,7 @@ class OBDManager(QObject):
 
         except Exception as e:
             logger.info(f"[OBD] Scan error: {e}")
+            self._emit_scan_output(f"[ERROR] Scan failed: {e}")
             QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, f"Scan error: {e}"))
 
         finally:
@@ -1649,6 +1679,7 @@ class OBDManager(QObject):
                 # Resume async polling
                 if self._connection:
                     self._connection.start()
+                    self._emit_scan_output("[INFO] Data stream resumed")
 
     @Slot(list)
     def enable_scanned_parameters(self, param_names):

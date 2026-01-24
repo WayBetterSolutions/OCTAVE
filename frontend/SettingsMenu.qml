@@ -2610,6 +2610,106 @@ Item {
 
                             SettingsDivider {}
 
+                            // Vehicle Scanner section
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                SettingLabel {
+                                    text: "Vehicle Scanner"
+                                }
+
+                                SettingDescription {
+                                    text: "Scan your connected vehicle to see which OBD parameters it supports. This helps identify which data your car can provide."
+                                }
+
+                                // Scan button
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: App.Spacing.overallSpacing
+
+                                    Button {
+                                        id: vehicleScanButton
+                                        property bool isScanning: false
+                                        text: isScanning ? "Scanning..." : "Scan Vehicle"
+                                        enabled: obdManager && obdManager.is_connected() && !isScanning
+                                        implicitHeight: App.Spacing.overallSpacing * 2.5
+                                        implicitWidth: vehicleScanButtonText.implicitWidth + App.Spacing.overallSpacing * 2
+
+                                        scale: vehicleScanMouseArea.pressed ? 0.95 : 1.0
+                                        opacity: enabled ? (vehicleScanMouseArea.pressed ? 0.8 : 1.0) : 0.5
+
+                                        Behavior on scale {
+                                            NumberAnimation { duration: 100; easing.type: Easing.OutBack }
+                                        }
+
+                                        background: Rectangle {
+                                            color: vehicleScanButton.enabled ? "#4CAF50" : Qt.rgba(0.3, 0.3, 0.3, 0.5)
+                                            radius: 4
+                                        }
+
+                                        contentItem: Text {
+                                            id: vehicleScanButtonText
+                                            text: vehicleScanButton.text
+                                            color: App.Style.primaryTextColor
+                                            font.pixelSize: App.Spacing.overallText
+                                            font.family: settingsMenu.globalFont
+                                            horizontalAlignment: Text.AlignHCenter
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+
+                                        MouseArea {
+                                            id: vehicleScanMouseArea
+                                            anchors.fill: parent
+                                            enabled: parent.enabled
+                                            onClicked: {
+                                                if (obdManager) {
+                                                    vehicleScanTerminal.clear()
+                                                    vehicleScanButton.isScanning = true
+                                                    obdManager.scan_vehicle()
+                                                }
+                                            }
+                                        }
+
+                                        // Listen for scan completion
+                                        Connections {
+                                            target: obdManager
+                                            function onScanCompleteChanged(supportedList) {
+                                                vehicleScanButton.isScanning = false
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: obdManager && obdManager.is_connected() ? "OBD Connected" : "Connect OBD first"
+                                        color: obdManager && obdManager.is_connected() ? "#4CAF50" : "#ff6b6b"
+                                        font.pixelSize: App.Spacing.smallText
+                                        font.family: settingsMenu.globalFont
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+
+                                // Terminal output for scan progress
+                                TerminalFeedback {
+                                    id: vehicleScanTerminal
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 300
+                                    Layout.topMargin: App.Spacing.rowSpacing
+                                    title: "Vehicle Scan Output"
+                                    maxLines: 100
+
+                                    // Connect to obdManager scan output signal
+                                    Connections {
+                                        target: obdManager
+                                        function onScanOutputChanged(message) {
+                                            vehicleScanTerminal.appendLine(message)
+                                        }
+                                    }
+                                }
+                            }
+
+                            SettingsDivider {}
+
                             // Parameter selection
                             ColumnLayout {
                                 id: parameterSelectionLayout
@@ -2666,56 +2766,10 @@ Item {
                                 property int scanProgress: 0
                                 property var supportedCommands: []
 
-                                // Controls row (Scan Vehicle, Select All and Deselect All buttons)
+                                // Controls row (Select All and Deselect All buttons)
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.bottomMargin: 10
-
-                                    // Scan Vehicle button
-                                    Button {
-                                        id: scanVehicleButton
-                                        text: parameterSelectionLayout.isScanning ? "Scanning..." : "Scan Vehicle"
-                                        enabled: obdManager && obdManager.is_connected() && !parameterSelectionLayout.isScanning
-                                        implicitHeight: App.Spacing.overallSpacing * 2
-                                        implicitWidth: scanVehicleButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-
-                                        scale: scanVehicleMouseArea.pressed ? 0.95 : 1.0
-                                        opacity: enabled ? (scanVehicleMouseArea.pressed ? 0.8 : 1.0) : 0.5
-
-                                        Behavior on scale {
-                                            NumberAnimation { duration: 100; easing.type: Easing.OutBack }
-                                        }
-
-                                        Behavior on opacity {
-                                            NumberAnimation { duration: 100 }
-                                        }
-
-                                        background: Rectangle {
-                                            color: scanVehicleButton.enabled ? "#4CAF50" : Qt.rgba(0.3, 0.3, 0.3, 0.5)
-                                            radius: 4
-                                        }
-
-                                        contentItem: Text {
-                                            id: scanVehicleButtonText
-                                            text: scanVehicleButton.text
-                                            color: App.Style.primaryTextColor
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.family: settingsMenu.globalFont
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        MouseArea {
-                                            id: scanVehicleMouseArea
-                                            anchors.fill: parent
-                                            enabled: parent.enabled
-                                            onClicked: {
-                                                if (obdManager) {
-                                                    obdManager.scan_vehicle();
-                                                }
-                                            }
-                                        }
-                                    }
 
                                     // Select All button
                                     Button {
