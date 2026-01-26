@@ -294,6 +294,16 @@ Item {
                     Layout.preferredWidth: visible ? implicitWidth : 0
                     Layout.preferredHeight: visible ? implicitHeight : 0
 
+                    // Animated display value - fast rolling effect
+                    property real targetValue: paramValues[modelData.id] || 0
+                    property real displayValue: targetValue
+                    Behavior on displayValue {
+                        NumberAnimation {
+                            duration: 50
+                            easing.type: Easing.Linear
+                        }
+                    }
+
                     // Square card style (default)
                     Rectangle {
                         id: squareCard
@@ -332,7 +342,7 @@ Item {
                             }
 
                             Text {
-                                text: ((paramValues[modelData.id] || 0.0).toFixed(1) + " " + modelData.unit)
+                                text: cardContainer.displayValue.toFixed(1) + " " + modelData.unit
                                 color: textColor
                                 font.pixelSize: App.Spacing.overallText
                                 font.bold: true
@@ -476,7 +486,7 @@ Item {
                             }
 
                             Text {
-                                text: (paramValues[modelData.id] || 0.0).toFixed(1)
+                                text: cardContainer.displayValue.toFixed(1)
                                 color: textColor
                                 font.pixelSize: App.Spacing.overallText * 1.4
                                 font.bold: true

@@ -126,10 +126,19 @@ Item {
             delegate: Rectangle {
                 id: display
                 property string param: modelData
-                property var info: homeOBDView.parameterInfo[param] || 
+                property var info: homeOBDView.parameterInfo[param] ||
                                 {title: param, unit: "", minValue: 0, maxValue: 100}
                 property real value: 0
-                
+
+                // Animated display value - fast rolling effect
+                property real displayValue: value
+                Behavior on displayValue {
+                    NumberAnimation {
+                        duration: 50
+                        easing.type: Easing.Linear
+                    }
+                }
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: App.Style.backgroundColor
@@ -383,7 +392,7 @@ Item {
                     }
 
                     Text {
-                        text: value.toFixed(1) + " " + info.unit
+                        text: displayValue.toFixed(1) + " " + info.unit
                         font.pixelSize: App.Spacing.mainMenuOBDDataSize
                         font.bold: true
                         font.family: homeOBDView.globalFont
