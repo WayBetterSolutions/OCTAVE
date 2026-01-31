@@ -1801,6 +1801,7 @@ class OBDManager(QObject):
             if self._diagnostic_sync_conn:
                 try:
                     self._diagnostic_sync_conn.close()
+                    logger.info("[OBD] Diagnostic sync connection closed")
                 except Exception as e:
                     logger.error(f"[OBD] Error closing diagnostic sync connection: {e}")
                 self._diagnostic_sync_conn = None
@@ -1819,6 +1820,7 @@ class OBDManager(QObject):
                 if self._connection:
                     try:
                         self._connection.close()
+                        logger.info("[OBD] Old async connection closed")
                     except Exception as e:
                         logger.error(f"[OBD] Error closing old async connection: {e}")
                     self._connection = None
@@ -1828,13 +1830,19 @@ class OBDManager(QObject):
                 self.connectionStatusChanged.emit("Reconnecting")
                 self.connectionStatusDetailChanged.emit("Reconnecting after diagnostic mode...")
 
-                # Brief pause for port to be released
-                time.sleep(0.2)
+                # Reset _is_connecting flag to ensure reconnection isn't blocked
+                # This is needed in case a previous connection attempt left it stuck
+                with self._lock:
+                    if self._is_connecting:
+                        logger.info("[OBD] Resetting stuck _is_connecting flag")
+                    self._is_connecting = False
 
-                # Trigger a fresh connection
+                # Use QTimer.singleShot to avoid blocking the Qt event loop
+                # This gives the serial port time to be released without freezing the UI
+                # Increased delay to 500ms for more reliable port release on Windows
                 self._connection_attempts = 0
-                self._start_connection()
-                logger.info("[OBD] Fresh async connection initiated")
+                QTimer.singleShot(500, self._delayed_reconnect_after_diagnostic)
+                logger.info("[OBD] Scheduled reconnection in 500ms")
             else:
                 logger.info("[OBD] No connection to resume")
 
@@ -1843,12 +1851,32 @@ class OBDManager(QObject):
             with self._diagnostic_mode_lock:
                 self._diagnostic_mode = False
                 self._diagnostic_mode_transitioning = False
-            # Try to reconnect on error
-            try:
-                self._connection_attempts = 0
-                self._start_connection()
-            except:
-                pass
+            # Try to reconnect on error using delayed approach
+            with self._lock:
+                self._is_connecting = False
+            self._connection_attempts = 0
+            QTimer.singleShot(500, self._delayed_reconnect_after_diagnostic)
+
+    def _delayed_reconnect_after_diagnostic(self):
+        """Called after a delay to reconnect following diagnostic mode exit.
+        This runs on the main thread via QTimer, avoiding event loop blocking."""
+        logger.info("[OBD] Executing delayed reconnect after diagnostic mode...")
+        try:
+            # Double-check we're not in diagnostic mode (user might have re-entered)
+            if self._diagnostic_mode:
+                logger.info("[OBD] Back in diagnostic mode, skipping reconnect")
+                return
+
+            # Ensure connection flags are in correct state
+            with self._lock:
+                self._is_connecting = False
+
+            self._start_connection()
+            logger.info("[OBD] Fresh async connection initiated")
+        except Exception as e:
+            logger.error(f"[OBD] Error in delayed reconnect: {e}")
+            # Schedule another attempt
+            QTimer.singleShot(1000, self._delayed_reconnect_after_diagnostic)
 
     @Slot(result=bool)
     def is_diagnostic_mode(self):
