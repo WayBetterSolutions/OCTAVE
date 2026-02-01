@@ -305,6 +305,7 @@ class OBDManager(QObject):
         self._diagnostic_sync_conn = None  # Persistent sync connection for diagnostic mode
         self._diagnostic_mode_lock = threading.Lock()  # Prevent race conditions on rapid menu switching
         self._diagnostic_mode_transitioning = False  # True while entering/exiting diagnostic mode
+        self._reconnecting_after_diagnostic = False  # True when reconnecting after exiting diagnostic mode
 
         # Connection management
         self._connection_attempts = 0
@@ -598,6 +599,7 @@ class OBDManager(QObject):
             self._connection = connection
             self._connected = True
             self._connection_attempts = 0
+            self._reconnecting_after_diagnostic = False  # Clear post-diagnostic flag
 
             # Cache the successful protocol for faster reconnects
             try:
@@ -631,7 +633,14 @@ class OBDManager(QObject):
             self.connectionProgressChanged.emit(50)
 
             # Keep trying - vehicle might not be on yet
-            self._schedule_auto_reconnect()
+            # If reconnecting after diagnostic mode, force retry even if auto-reconnect disabled
+            if self._reconnecting_after_diagnostic and self._connection_attempts < 3:
+                logger.info(f"[OBD] Post-diagnostic retry {self._connection_attempts + 1}/3")
+                self.connectionStatusDetailChanged.emit(f"Reconnecting after diagnostic mode... ({self._connection_attempts + 1}/3)")
+                QTimer.singleShot(2000, self._start_connection)
+            else:
+                self._reconnecting_after_diagnostic = False
+                self._schedule_auto_reconnect()
 
         else:
             self._connected = False
@@ -644,7 +653,15 @@ class OBDManager(QObject):
             self.connectionStatusChanged.emit("Connection Failed")
             self.connectionStatusDetailChanged.emit("Could not connect to OBD adapter")
             self.connectionProgressChanged.emit(0)
-            self._schedule_auto_reconnect()
+
+            # If reconnecting after diagnostic mode, force retry even if auto-reconnect disabled
+            if self._reconnecting_after_diagnostic and self._connection_attempts < 3:
+                logger.info(f"[OBD] Post-diagnostic retry {self._connection_attempts + 1}/3")
+                self.connectionStatusDetailChanged.emit(f"Reconnecting after diagnostic mode... ({self._connection_attempts + 1}/3)")
+                QTimer.singleShot(2000, self._start_connection)
+            else:
+                self._reconnecting_after_diagnostic = False
+                self._schedule_auto_reconnect()
 
         with self._lock:
             self._is_connecting = False
@@ -1839,10 +1856,10 @@ class OBDManager(QObject):
 
                 # Use QTimer.singleShot to avoid blocking the Qt event loop
                 # This gives the serial port time to be released without freezing the UI
-                # Increased delay to 500ms for more reliable port release on Windows
+                # Delay of 1000ms allows adapter to fully reset after diagnostic mode
                 self._connection_attempts = 0
-                QTimer.singleShot(500, self._delayed_reconnect_after_diagnostic)
-                logger.info("[OBD] Scheduled reconnection in 500ms")
+                QTimer.singleShot(1000, self._delayed_reconnect_after_diagnostic)
+                logger.info("[OBD] Scheduled reconnection in 1000ms")
             else:
                 logger.info("[OBD] No connection to resume")
 
@@ -1855,7 +1872,7 @@ class OBDManager(QObject):
             with self._lock:
                 self._is_connecting = False
             self._connection_attempts = 0
-            QTimer.singleShot(500, self._delayed_reconnect_after_diagnostic)
+            QTimer.singleShot(1000, self._delayed_reconnect_after_diagnostic)
 
     def _delayed_reconnect_after_diagnostic(self):
         """Called after a delay to reconnect following diagnostic mode exit.
@@ -1865,11 +1882,21 @@ class OBDManager(QObject):
             # Double-check we're not in diagnostic mode (user might have re-entered)
             if self._diagnostic_mode:
                 logger.info("[OBD] Back in diagnostic mode, skipping reconnect")
+                self._reconnecting_after_diagnostic = False
                 return
 
             # Ensure connection flags are in correct state
             with self._lock:
                 self._is_connecting = False
+
+            # Clear cached protocol to force fresh negotiation after diagnostic mode
+            # The adapter may be in an inconsistent state after sync connection
+            self._last_successful_protocol = None
+            logger.info("[OBD] Cleared cached protocol for fresh negotiation")
+
+            # Mark that we're reconnecting after diagnostic mode - allows retries
+            # even if auto-reconnect is disabled in settings
+            self._reconnecting_after_diagnostic = True
 
             self._start_connection()
             logger.info("[OBD] Fresh async connection initiated")
