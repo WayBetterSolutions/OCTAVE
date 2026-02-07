@@ -37,6 +37,7 @@ from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
 from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyCapture, ScrcpyCaptureItem
 from backend.esp32_volume_manager import ESP32VolumeManager
 from backend.audio_analyzer import AudioAnalyzer
+from backend.berryimu_manager import BerryIMUManager
 
 app = QApplication(sys.argv)
 engine = QQmlApplicationEngine()
@@ -115,6 +116,10 @@ settings_manager.scrcpyAudioEnabledChanged.connect(
 esp32_volume_manager = ESP32VolumeManager()
 esp32_volume_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("esp32VolumeManager", esp32_volume_manager)
+
+# BerryIMU v3 Manager - live accelerometer/gyro/mag/baro for CarMenu
+berryimu_manager = BerryIMUManager()
+engine.rootContext().setContextProperty("berryIMU", berryimu_manager)
 
 # Connect ESP32 volume signals to volume control
 # Accumulator for fractional volume changes (e.g., 0.25 per tick)
@@ -288,6 +293,7 @@ def cleanup_on_quit():
     android_auto_manager.cleanup()  # Full cleanup: stops DHU, ADB, and head unit server
     phone_mirror_manager.cleanup()  # Stop phone mirror if running
     esp32_volume_manager.cleanup()  # Disconnect ESP32 volume controller
+    berryimu_manager.cleanup()  # Stop BerryIMU sensor reading
 
 app.aboutToQuit.connect(cleanup_on_quit)
 

@@ -713,30 +713,38 @@ Rectangle {
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             
-                            // Add scale and opacity animations
-                            scale: mouseAreaHome.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaHome.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack  
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-                            
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaHome.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaHome.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
-                            
+
                             contentItem: Item {
+                                scale: mouseAreaHome.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaHome.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: homeButtonImage
                                     anchors.centerIn: parent
@@ -777,30 +785,38 @@ Rectangle {
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             
-                            // Add scale and opacity animations
-                            scale: mouseAreaOBD.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaOBD.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack  
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-                            
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaOBD.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaOBD.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
-                            
+
                             contentItem: Item {
+                                scale: mouseAreaOBD.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaOBD.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: obdButtonImage
                                     anchors.centerIn: parent
@@ -876,30 +892,38 @@ Rectangle {
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             
-                            // Add scale and opacity animations
-                            scale: mouseAreaMedia.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaMedia.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack  
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-                            
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaMedia.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaMedia.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
-                            
+
                             contentItem: Item {
+                                scale: mouseAreaMedia.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaMedia.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: mediaButtonImage
                                     anchors.centerIn: parent
@@ -971,30 +995,38 @@ Rectangle {
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
 
-                            // Add scale and opacity animations
-                            scale: mouseAreaSettings.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaSettings.pressed ? 0.7 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaSettings.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSettings.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
 
                             contentItem: Item {
+                                scale: mouseAreaSettings.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSettings.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: settingsButtonImage
                                     anchors.centerIn: parent
@@ -1021,15 +1053,17 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
-                                        stackView: bottomBar.stackView,
-                                        mainWindow: stackView.parent.Window.window,
-                                        initialSection: lastSettingsSection
-                                    })
-                                    stackView.push(page)
-                                }
-                                onDoubleClicked: {
-                                    settingsVisibilityPopup.open()
+                                    var currentItem = stackView.currentItem
+                                    if (currentItem && currentItem.objectName === "settingsMenu") {
+                                        settingsVisibilityPopup.open()
+                                    } else {
+                                        var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window,
+                                            initialSection: lastSettingsSection
+                                        })
+                                        stackView.push(page)
+                                    }
                                 }
                             }
                         }
@@ -1248,29 +1282,38 @@ Rectangle {
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             visible: settingsManager ? settingsManager.androidAutoEnabled : false
 
-                            scale: mouseAreaAndroidAuto.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaAndroidAuto.pressed ? 0.7 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaAndroidAuto.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaAndroidAuto.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
 
                             contentItem: Item {
+                                scale: mouseAreaAndroidAuto.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaAndroidAuto.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: androidAutoButtonImage
                                     anchors.centerIn: parent
@@ -1319,29 +1362,38 @@ Rectangle {
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             visible: settingsManager ? settingsManager.phoneMirrorEnabled : false
 
-                            scale: mouseAreaPhoneMirror.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaPhoneMirror.pressed ? 0.7 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaPhoneMirror.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaPhoneMirror.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
 
                             contentItem: Item {
+                                scale: mouseAreaPhoneMirror.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaPhoneMirror.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: phoneMirrorButtonImage
                                     anchors.centerIn: parent
@@ -2144,29 +2196,38 @@ Rectangle {
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             Layout.alignment: Qt.AlignHCenter
                             
-                            scale: mouseAreaHomeVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaHomeVertical.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack  
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-                            
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaHomeVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaHomeVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
-                            
+
                             contentItem: Item {
+                                scale: mouseAreaHomeVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaHomeVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: homeButtonImageVertical
                                     anchors.centerIn: parent
@@ -2206,29 +2267,38 @@ Rectangle {
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             Layout.alignment: Qt.AlignHCenter
                             
-                            scale: mouseAreaOBDVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaOBDVertical.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack  
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-                            
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaOBDVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaOBDVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
-                            
+
                             contentItem: Item {
+                                scale: mouseAreaOBDVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaOBDVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: obdButtonImageVertical
                                     anchors.centerIn: parent
@@ -2305,29 +2375,38 @@ Rectangle {
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             Layout.alignment: Qt.AlignHCenter
                             
-                            scale: mouseAreaMediaVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaMediaVertical.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack  
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-                            
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaMediaVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaMediaVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
-                            
+
                             contentItem: Item {
+                                scale: mouseAreaMediaVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaMediaVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: mediaButtonImageVertical
                                     anchors.centerIn: parent
@@ -2400,29 +2479,38 @@ Rectangle {
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
                             Layout.alignment: Qt.AlignHCenter
 
-                            scale: mouseAreaSettingsVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaSettingsVertical.pressed ? 0.7 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaSettingsVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSettingsVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
 
                             contentItem: Item {
+                                scale: mouseAreaSettingsVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSettingsVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: settingsButtonImageVertical
                                     anchors.centerIn: parent
@@ -2449,12 +2537,17 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
-                                        stackView: bottomBar.stackView,
-                                        mainWindow: stackView.parent.Window.window,
-                                        initialSection: lastSettingsSection
-                                    })
-                                    stackView.push(page)
+                                    var currentItem = stackView.currentItem
+                                    if (currentItem && currentItem.objectName === "settingsMenu") {
+                                        settingsVisibilityPopup.open()
+                                    } else {
+                                        var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window,
+                                            initialSection: lastSettingsSection
+                                        })
+                                        stackView.push(page)
+                                    }
                                 }
                             }
                         }
@@ -2467,29 +2560,38 @@ Rectangle {
                             visible: settingsManager ? settingsManager.androidAutoEnabled : false
                             Layout.alignment: Qt.AlignHCenter
 
-                            scale: mouseAreaAndroidAutoVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaAndroidAutoVertical.pressed ? 0.7 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaAndroidAutoVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaAndroidAutoVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
 
                             contentItem: Item {
+                                scale: mouseAreaAndroidAutoVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaAndroidAutoVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: androidAutoButtonImageVertical
                                     anchors.centerIn: parent
@@ -2539,29 +2641,38 @@ Rectangle {
                             visible: settingsManager ? settingsManager.phoneMirrorEnabled : false
                             Layout.alignment: Qt.AlignHCenter
 
-                            scale: mouseAreaPhoneMirrorVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaPhoneMirrorVertical.pressed ? 0.7 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
                             background: Rectangle {
                                 color: "transparent"
                                 radius: 8
                                 border.color: App.Style.accent
                                 border.width: 1
+                                scale: mouseAreaPhoneMirrorVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaPhoneMirrorVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                             }
 
                             contentItem: Item {
+                                scale: mouseAreaPhoneMirrorVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaPhoneMirrorVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
                                 Image {
                                     id: phoneMirrorButtonImageVertical
                                     anchors.centerIn: parent
