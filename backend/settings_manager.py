@@ -51,6 +51,8 @@ class SettingsManager(QObject):
     screenHeightChanged = Signal(int)
     backgroundBlurRadiusChanged = Signal(int)
     uiScaleChanged = Signal(float)
+    colorTransitionMsChanged = Signal(int)
+    songLengthTransitionChanged = Signal(bool)
     obdBluetoothPortChanged = Signal(str)
     obdFastModeChanged = Signal(bool)
     obdParametersChanged = Signal()
@@ -119,6 +121,8 @@ class SettingsManager(QObject):
             "screenHeight": 720,
             "backgroundBlurRadius": 40,
             "uiScale": 0.6,
+            "colorTransitionMs": 1000,
+            "songLengthTransition": False,
             "obdBluetoothPort": "/dev/rfcomm0",
             "obdFastMode": True,
             "obdAutoReconnectAttempts": 0,  # 0 = disabled, 1-10 = number of attempts
@@ -292,6 +296,8 @@ class SettingsManager(QObject):
         self._screen_height = self._settings.get("screenHeight", self._default_settings["screenHeight"])
         self._background_blur_radius = self._settings.get("backgroundBlurRadius", self._default_settings["backgroundBlurRadius"])
         self._ui_scale = self._settings.get("uiScale", self._default_settings["uiScale"])
+        self._color_transition_ms = self._settings.get("colorTransitionMs", self._default_settings["colorTransitionMs"])
+        self._song_length_transition = self._settings.get("songLengthTransition", self._default_settings["songLengthTransition"])
         self._obd_bluetooth_port = self._settings.get("obdBluetoothPort", self._default_settings["obdBluetoothPort"])
         self._obd_fast_mode = self._settings.get("obdFastMode", self._default_settings["obdFastMode"])
         self._obd_auto_reconnect_attempts = self._settings.get("obdAutoReconnectAttempts", self._default_settings["obdAutoReconnectAttempts"])
@@ -435,6 +441,8 @@ class SettingsManager(QObject):
             "screenHeight": int,
             "backgroundBlurRadius": int,
             "uiScale": (int, float),
+            "colorTransitionMs": int,
+            "songLengthTransition": bool,
             "obdBluetoothPort": str,
             "obdFastMode": bool,
             "obdAutoReconnectAttempts": int,
@@ -562,7 +570,15 @@ class SettingsManager(QObject):
     @Property(float, notify=uiScaleChanged)
     def uiScale(self):
         return self._ui_scale
-    
+
+    @Property(int, notify=colorTransitionMsChanged)
+    def colorTransitionMs(self):
+        return self._color_transition_ms
+
+    @Property(bool, notify=songLengthTransitionChanged)
+    def songLengthTransition(self):
+        return self._song_length_transition
+
     @Property(str, notify=bottomBarOrientationChanged)
     def bottomBarOrientation(self):
         return self._bottom_bar_orientation
@@ -668,7 +684,19 @@ class SettingsManager(QObject):
         logger.debug(f"Saving UI scale: {scale}")
         self._ui_scale = scale
         self.update_setting("uiScale", scale, self.uiScaleChanged)
-    
+
+    @Slot(int)
+    def save_color_transition_ms(self, ms):
+        logger.debug(f"Saving color transition ms: {ms}")
+        self._color_transition_ms = ms
+        self.update_setting("colorTransitionMs", ms, self.colorTransitionMsChanged)
+
+    @Slot(bool)
+    def save_song_length_transition(self, enabled):
+        logger.debug(f"Saving song length transition: {enabled}")
+        self._song_length_transition = enabled
+        self.update_setting("songLengthTransition", enabled, self.songLengthTransitionChanged)
+
     @Slot(int)
     def save_background_blur_radius(self, radius):
         logger.debug(f"Saving background blur radius: {radius}")
@@ -1478,7 +1506,13 @@ class SettingsManager(QObject):
         
         self._ui_scale = self._default_settings["uiScale"]
         self.uiScaleChanged.emit(self._ui_scale)
-        
+
+        self._color_transition_ms = self._default_settings["colorTransitionMs"]
+        self.colorTransitionMsChanged.emit(self._color_transition_ms)
+
+        self._song_length_transition = self._default_settings["songLengthTransition"]
+        self.songLengthTransitionChanged.emit(self._song_length_transition)
+
         self._obd_bluetooth_port = self._default_settings["obdBluetoothPort"]
         self.obdBluetoothPortChanged.emit(self._obd_bluetooth_port)
         

@@ -25,9 +25,48 @@ Item {
 
 
             Rectangle { // Left Navigation Panel
+                id: sidebarPanel
                 Layout.preferredWidth: App.Spacing.settingsNavWidth
                 Layout.fillHeight: true
                 color: App.Style.sidebarColor
+
+                // Sidebar lighting gradient (subtle overhead light simulation)
+                Rectangle {
+                    anchors.fill: parent
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(255, 255, 255, 0.04) }
+                        GradientStop { position: 0.6; color: "transparent" }
+                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.06) }
+                    }
+                }
+
+                // Lit edge highlight along the top
+                Rectangle {
+                    anchors {
+                        top: parent.top
+                        left: parent.left
+                        right: parent.right
+                    }
+                    height: 1
+                    color: Qt.rgba(255, 255, 255, 0.08)
+                }
+
+                // Soft shadow on the right edge (replaces hard separator)
+                Rectangle {
+                    anchors {
+                        top: parent.top
+                        bottom: parent.bottom
+                        left: parent.right
+                    }
+                    width: 10
+                    z: 1
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.15) }
+                        GradientStop { position: 0.4; color: Qt.rgba(0, 0, 0, 0.06) }
+                        GradientStop { position: 1.0; color: "transparent" }
+                    }
+                }
 
                 ColumnLayout {
                     anchors {
@@ -75,7 +114,36 @@ Item {
                                 }
                             }
 
-                            // Background - rounded pill selection
+                            // Elevation shadow - outer (soft, wide spread)
+                            Rectangle {
+                                x: navBackground.x - 2
+                                y: navBackground.y + 4
+                                width: navBackground.width + 4
+                                height: navBackground.height + 2
+                                radius: navBackground.radius + 3
+                                color: Qt.rgba(0, 0, 0, 0.06)
+                                opacity: currentSection === section ? 1.0
+                                    : (navMouseArea.containsMouse ? 0.6 : 0)
+
+                                Behavior on opacity { NumberAnimation { duration: 200 } }
+                            }
+
+                            // Elevation shadow - inner (sharper, tighter)
+                            Rectangle {
+                                x: navBackground.x - 1
+                                y: navBackground.y + 2
+                                width: navBackground.width + 2
+                                height: navBackground.height + 1
+                                radius: navBackground.radius + 1
+                                color: Qt.rgba(0, 0, 0, 0.12)
+                                opacity: currentSection === section
+                                    ? (navMouseArea.pressed ? 0.4 : 1.0)
+                                    : (navMouseArea.containsMouse ? 0.5 : 0)
+
+                                Behavior on opacity { NumberAnimation { duration: 200 } }
+                            }
+
+                            // Background - rounded selection
                             Rectangle {
                                 id: navBackground
                                 anchors {
@@ -90,18 +158,51 @@ Item {
                                 }
                                 radius: 8
                                 color: currentSection === section
-                                    ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                                    ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
                                     : "transparent"
-                                border.width: currentSection === section ? 1 : 0
-                                border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                                scale: navMouseArea.pressed ? 0.97 : 1.0
+
+                                // Top lit edge on selected/hovered item
+                                Rectangle {
+                                    anchors {
+                                        top: parent.top
+                                        left: parent.left
+                                        right: parent.right
+                                        leftMargin: 2
+                                        rightMargin: 2
+                                    }
+                                    height: 1
+                                    radius: 0.5
+                                    color: Qt.rgba(255, 255, 255, 0.1)
+                                    opacity: currentSection === section ? 1.0
+                                        : (navMouseArea.containsMouse ? 0.5 : 0)
+
+                                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                                }
 
                                 Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
+                            }
+
+                            // Left accent bar for selected item
+                            Rectangle {
+                                id: accentBar
+                                anchors {
+                                    left: parent.left
+                                    leftMargin: 4
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                width: 3
+                                height: currentSection === section ? parent.height * 0.5 : 0
+                                radius: 1.5
+                                color: App.Style.accent
+
+                                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
                             }
 
                             // Hover effect - rounded
                             Rectangle {
                                 id: navHoverRectangle
-                                visible: false
                                 anchors {
                                     left: parent.left
                                     right: parent.right
@@ -114,26 +215,31 @@ Item {
                                 }
                                 radius: 8
                                 color: Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
+                                opacity: 0
+
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
                             }
 
                             // Text
                             Text {
                                 anchors {
                                     left: parent.left
-                                    leftMargin: 20
+                                    leftMargin: 24
                                     right: parent.right
                                     rightMargin: 12
                                     verticalCenter: parent.verticalCenter
                                 }
                                 text: name
                                 color: currentSection === section ? App.Style.primaryTextColor : App.Style.secondaryTextColor
-                                font.pixelSize: App.Spacing.overallText*2
+                                font.pixelSize: App.Spacing.overallText * 2
+                                font.bold: currentSection === section
                                 font.family: App.Style.fontFamily
                                 elide: Text.ElideRight
                             }
 
                             // Entire area clickable
                             MouseArea {
+                                id: navMouseArea
                                 anchors.fill: parent
                                 onClicked: {
                                     currentSection = section
@@ -147,11 +253,11 @@ Item {
 
                                 onEntered: {
                                     if (currentSection !== section) {
-                                        navHoverRectangle.visible = true
+                                        navHoverRectangle.opacity = 1
                                     }
                                 }
                                 onExited: {
-                                    navHoverRectangle.visible = false
+                                    navHoverRectangle.opacity = 0
                                 }
                             }
                         }
@@ -159,14 +265,8 @@ Item {
                 }
             }
 
-            // Vertical separator between sidebar and content
-            Rectangle {
-                Layout.fillHeight: true
-                Layout.preferredWidth: 1
-                color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.08)
-            }
-
             Rectangle { // Right Content Area
+                id: contentArea
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 color: App.Style.contentColor

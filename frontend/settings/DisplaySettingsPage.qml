@@ -294,6 +294,81 @@ ScrollView {
 
         SettingsDivider {}
 
+        ColumnLayout { // Color Transition Speed
+            Layout.fillWidth: true
+            spacing: App.Spacing.rowSpacing
+
+            SettingLabel {
+                text: "Theme Transition Speed"
+            }
+
+            SettingsSlider {
+                id: colorTransitionSlider
+                from: 0
+                to: 2000
+                stepSize: 50
+                value: settingsManager ? settingsManager.colorTransitionMs : 1000
+
+                Connections {
+                    target: settingsManager
+                    function onColorTransitionMsChanged() {
+                        colorTransitionSlider.value = settingsManager.colorTransitionMs
+                    }
+                }
+
+                Timer {
+                    id: colorTransitionUpdateTimer
+                    interval: 100
+                    running: false
+                    repeat: false
+                    onTriggered: {
+                        if (settingsManager) {
+                            settingsManager.save_color_transition_ms(Math.round(colorTransitionSlider.value))
+                            App.Style.colorTransitionMs = Math.round(colorTransitionSlider.value)
+                        }
+                    }
+                }
+
+                onMoved: colorTransitionUpdateTimer.restart()
+            }
+
+            ValueDisplay {
+                text: Math.round(colorTransitionSlider.value) + "ms"
+            }
+
+            SettingDescription {
+                text: "How long colors fade when switching themes or album art changes. 0 = instant."
+            }
+
+            SettingsToggle {
+                id: songLengthTransitionToggle
+                Layout.fillWidth: true
+                text: "Match song length"
+                checked: settingsManager ? settingsManager.songLengthTransition : false
+                activeColor: App.Style.accent
+                inactiveColor: App.Style.hoverColor
+
+                onToggled: function(checked) {
+                    if (settingsManager) {
+                        settingsManager.save_song_length_transition(checked)
+                    }
+                }
+
+                Connections {
+                    target: settingsManager
+                    function onSongLengthTransitionChanged() {
+                        songLengthTransitionToggle.checked = settingsManager.songLengthTransition
+                    }
+                }
+            }
+
+            SettingDescription {
+                text: "Colors transition over the full length of the current song."
+            }
+        }
+
+        SettingsDivider {}
+
         ColumnLayout { // Font Selection
             Layout.fillWidth: true
             spacing: App.Spacing.rowSpacing

@@ -1315,77 +1315,131 @@ QtObject {
         return allNames
     }
 
-    // Color properties that reference the theme
-    property color volumeSliderColor: activeTheme.sliders.volume
+    // Transition duration for smooth color shifts (e.g. album art theme changes)
+    property int colorTransitionMs: 1000
+
     property color bottomBarGradientStart: activeTheme.base
+    Behavior on bottomBarGradientStart { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarGradientEnd: activeTheme.baseAlt
-    property color clockTextColor: activeTheme.accent
-    property color bottomBarPreviousButton: activeTheme.bottombar.previous
-    property color bottomBarPlayButton: activeTheme.bottombar.play
-    property color bottomBarPauseButton: activeTheme.bottombar.pause
-    property color bottomBarNextButton: activeTheme.bottombar.next
-    property color bottomBarVolumeButton: activeTheme.bottombar.volume
-    property color bottomBarShuffleButton: activeTheme.bottombar.shuffle
+    Behavior on bottomBarGradientEnd { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarToggleShade: activeTheme.bottombar.toggleShade
-    property color bottomBarActiveToggleButton: activeTheme.accent
-    
-    // New nav button colors
-    property color bottomBarHomeButton: activeTheme.bottombar.homeButton
-    property color bottomBarOBDButton: activeTheme.bottombar.obdButton
-    property color bottomBarMediaButton: activeTheme.bottombar.mediaButton
-    property color bottomBarSettingsButton: activeTheme.bottombar.settingsButton
-    property color bottomBarAndroidAutoButton: activeTheme.bottombar.androidAutoButton
-    property color bottomBarPhoneMirrorButton: activeTheme.bottombar.phoneMirrorButton
-
-    // MediaRoom
-    property color metadataColor: activeTheme.accent
-    property color mediaRoomSlider: activeTheme.sliders.media
-    property color mediaRoomSeekColor: activeTheme.sliders.volume
-    property color mediaRoomPreviousButton: activeTheme.mediaroom.previous
-    property color mediaRoomPlayButton: activeTheme.mediaroom.play
-    property color mediaRoomPauseButton: activeTheme.mediaroom.pause
-    property color mediaRoomNextButton: activeTheme.mediaroom.next
-    property color mediaRoomLeftButton: activeTheme.mediaroom.left
-    property color mediaRoomRightButton: activeTheme.mediaroom.right
-    property color mediaRoomToggleButton: activeTheme.mediaroom.shuffle
-    property color mediaRoomToggleShade: activeTheme.mediaroom.toggleShade
-
-    // MediaPlayer
-    property color accent: activeTheme.accent
-    property color primaryTextColor: activeTheme.text.primary
-    property color secondaryTextColor: activeTheme.text.secondary
+    Behavior on bottomBarToggleShade { ColorAnimation { duration: colorTransitionMs } }
     property color hoverColor: activeTheme.states.hover
+    Behavior on hoverColor { ColorAnimation { duration: colorTransitionMs } }
     property color hoverPausedColor: activeTheme.states.paused
+    Behavior on hoverPausedColor { ColorAnimation { duration: colorTransitionMs } }
     property color hoverPlayingColor: activeTheme.states.paused
+    Behavior on hoverPlayingColor { ColorAnimation { duration: colorTransitionMs } }
     property color pausedHighlightColor: activeTheme.states.paused
+    Behavior on pausedHighlightColor { ColorAnimation { duration: colorTransitionMs } }
     property color playingHighlightColor: activeTheme.states.playing
+    Behavior on playingHighlightColor { ColorAnimation { duration: colorTransitionMs } }
     property color rowBackgroundColor: activeTheme.base
+    Behavior on rowBackgroundColor { ColorAnimation { duration: colorTransitionMs } }
     property color backgroundColor: activeTheme.base
+    Behavior on backgroundColor { ColorAnimation { duration: colorTransitionMs } }
     property color headerBackgroundColor: activeTheme.baseAlt
-    property color headerTextColor: activeTheme.text.primary
-
-    // MainMenu
+    Behavior on headerBackgroundColor { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomToggleShade: activeTheme.mediaroom.toggleShade
+    Behavior on mediaRoomToggleShade { ColorAnimation { duration: colorTransitionMs } }
     property color mediaContentArea: activeTheme.mainmenu.mediaContainer
-
-    // OBD Page
+    Behavior on mediaContentArea { ColorAnimation { duration: colorTransitionMs } }
     property color obdBoxBackground: activeTheme.obd.boxBackground
-    property color obdBarColor: activeTheme.obd.barColor
-    property color obdLabelColor: activeTheme.obd.labelColor ? activeTheme.obd.labelColor : secondaryTextColor
-    property color obdValueColor: activeTheme.obd.valueColor ? activeTheme.obd.valueColor : primaryTextColor
-
-    // Settings
+    Behavior on obdBoxBackground { ColorAnimation { duration: colorTransitionMs } }
     property color sidebarColor: activeTheme.base
+    Behavior on sidebarColor { ColorAnimation { duration: colorTransitionMs } }
     property color contentColor: activeTheme.baseAlt
+    Behavior on contentColor { ColorAnimation { duration: colorTransitionMs } }
+
+    property color primaryTextColor: activeTheme.text.primary
+    Behavior on primaryTextColor { ColorAnimation { duration: colorTransitionMs } }
+    property color secondaryTextColor: activeTheme.text.secondary
+    Behavior on secondaryTextColor { ColorAnimation { duration: colorTransitionMs } }
+    property color headerTextColor: activeTheme.text.primary
+    Behavior on headerTextColor { ColorAnimation { duration: colorTransitionMs } }
+    property color clockTextColor: activeTheme.accent
+    Behavior on clockTextColor { ColorAnimation { duration: colorTransitionMs } }
+    property color metadataColor: activeTheme.accent
+    Behavior on metadataColor { ColorAnimation { duration: colorTransitionMs } }
+    property color obdLabelColor: activeTheme.obd.labelColor ? activeTheme.obd.labelColor : secondaryTextColor
+    Behavior on obdLabelColor { ColorAnimation { duration: colorTransitionMs } }
+    property color obdValueColor: activeTheme.obd.valueColor ? activeTheme.obd.valueColor : primaryTextColor
+    Behavior on obdValueColor { ColorAnimation { duration: colorTransitionMs } }
+
+    property color accent: activeTheme.accent
+    Behavior on accent { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarActiveToggleButton: activeTheme.accent
+    Behavior on bottomBarActiveToggleButton { ColorAnimation { duration: colorTransitionMs } }
+
+    // Bottom bar button icon colors
+    property color bottomBarPreviousButton: activeTheme.bottombar.previous
+    Behavior on bottomBarPreviousButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarPlayButton: activeTheme.bottombar.play
+    Behavior on bottomBarPlayButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarPauseButton: activeTheme.bottombar.pause
+    Behavior on bottomBarPauseButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarNextButton: activeTheme.bottombar.next
+    Behavior on bottomBarNextButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarVolumeButton: activeTheme.bottombar.volume
+    Behavior on bottomBarVolumeButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarShuffleButton: activeTheme.bottombar.shuffle
+    Behavior on bottomBarShuffleButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarHomeButton: activeTheme.bottombar.homeButton
+    Behavior on bottomBarHomeButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarOBDButton: activeTheme.bottombar.obdButton
+    Behavior on bottomBarOBDButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarMediaButton: activeTheme.bottombar.mediaButton
+    Behavior on bottomBarMediaButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarSettingsButton: activeTheme.bottombar.settingsButton
+    Behavior on bottomBarSettingsButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarAndroidAutoButton: activeTheme.bottombar.androidAutoButton
+    Behavior on bottomBarAndroidAutoButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarPhoneMirrorButton: activeTheme.bottombar.phoneMirrorButton
+    Behavior on bottomBarPhoneMirrorButton { ColorAnimation { duration: colorTransitionMs } }
+
+    // MediaRoom button icon colors
+    property color mediaRoomPreviousButton: activeTheme.mediaroom.previous
+    Behavior on mediaRoomPreviousButton { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomPlayButton: activeTheme.mediaroom.play
+    Behavior on mediaRoomPlayButton { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomPauseButton: activeTheme.mediaroom.pause
+    Behavior on mediaRoomPauseButton { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomNextButton: activeTheme.mediaroom.next
+    Behavior on mediaRoomNextButton { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomLeftButton: activeTheme.mediaroom.left
+    Behavior on mediaRoomLeftButton { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomRightButton: activeTheme.mediaroom.right
+    Behavior on mediaRoomRightButton { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomToggleButton: activeTheme.mediaroom.shuffle
+    Behavior on mediaRoomToggleButton { ColorAnimation { duration: colorTransitionMs } }
+
+    // Slider colors
+    property color volumeSliderColor: activeTheme.sliders.volume
+    Behavior on volumeSliderColor { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomSlider: activeTheme.sliders.media
+    Behavior on mediaRoomSlider { ColorAnimation { duration: colorTransitionMs } }
+    property color mediaRoomSeekColor: activeTheme.sliders.volume
+    Behavior on mediaRoomSeekColor { ColorAnimation { duration: colorTransitionMs } }
     property color settingsSliderColor: activeTheme.sliders.settings
+    Behavior on settingsSliderColor { ColorAnimation { duration: colorTransitionMs } }
+    property color obdBarColor: activeTheme.obd.barColor
+    Behavior on obdBarColor { ColorAnimation { duration: colorTransitionMs } }
 
     // Status colors (with safe fallbacks for themes that don't define them)
     property color statusConnected: activeTheme.status ? activeTheme.status.connected : "#44AA44"
+    Behavior on statusConnected { ColorAnimation { duration: colorTransitionMs } }
     property color statusDisconnected: activeTheme.status ? activeTheme.status.disconnected : "#AA4444"
+    Behavior on statusDisconnected { ColorAnimation { duration: colorTransitionMs } }
     property color statusError: activeTheme.status ? activeTheme.status.error : "#F44336"
+    Behavior on statusError { ColorAnimation { duration: colorTransitionMs } }
     property color statusWarning: activeTheme.status ? activeTheme.status.warning : "#FF9800"
+    Behavior on statusWarning { ColorAnimation { duration: colorTransitionMs } }
     property color statusInfo: activeTheme.status ? activeTheme.status.info : "#2196F3"
+    Behavior on statusInfo { ColorAnimation { duration: colorTransitionMs } }
     property color statusSuccess: activeTheme.status ? activeTheme.status.success : "#4CAF50"
+    Behavior on statusSuccess { ColorAnimation { duration: colorTransitionMs } }
     property color statusDanger: activeTheme.status ? activeTheme.status.danger : "#e74c3c"
+    Behavior on statusDanger { ColorAnimation { duration: colorTransitionMs } }
 
     // Function to update theme
     function setTheme(theme) {

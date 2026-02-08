@@ -117,6 +117,9 @@ ApplicationWindow {
             // Add this line to set the UI scale from settings
             App.Spacing.globalScale = settingsManager.uiScale
 
+            // Load color transition speed
+            App.Style.colorTransitionMs = settingsManager.colorTransitionMs
+
             if (mediaManager) {
                 mediaManager.connect_settings_manager(settingsManager)
             }
@@ -240,6 +243,13 @@ ApplicationWindow {
             }
         }
         
+        function onSongLengthTransitionChanged() {
+            if (settingsManager && !settingsManager.songLengthTransition) {
+                // Reverted to manual mode - restore the saved static value
+                App.Style.colorTransitionMs = settingsManager.colorTransitionMs
+            }
+        }
+
         function onBottomBarOrientationChanged() {
             if (settingsManager) {
                 isVerticalLayout = settingsManager.bottomBarOrientation === "side"
@@ -274,6 +284,12 @@ ApplicationWindow {
             console.log("[AlbumArtCapture] themeJson:", themeJson ? themeJson.substring(0, 100) : "null")
             App.Style.updateAlbumArtTheme(themeJson)
         }
+
+        function onDurationChanged(durationMs) {
+            if (settingsManager && settingsManager.songLengthTransition && durationMs > 0) {
+                App.Style.colorTransitionMs = durationMs
+            }
+        }
     }
 
     // Spotify manager connections for Album Art Capture
@@ -285,6 +301,12 @@ ApplicationWindow {
             console.log("[AlbumArtCapture Spotify] themeJson:", themeJson ? themeJson.substring(0, 100) : "null")
             lastAppliedAlbumArtColors = themeJson
             App.Style.updateAlbumArtTheme(themeJson)
+        }
+
+        function onDurationChanged(durationMs) {
+            if (settingsManager && settingsManager.songLengthTransition && durationMs > 0) {
+                App.Style.colorTransitionMs = durationMs
+            }
         }
     }
 
