@@ -115,7 +115,7 @@ QtObject {
     property real settingsContentMarginPercent: .05
     property real settingsDeviceNameWidthPercent: .2
     property real settingsDeviceNameHeightPercent: .05
-    property real settingsNavWidthPercent: 0.25
+    property real settingsNavWidthPercent: 0.30
     property real settingsButtonHeightPercent: 0.2
     property real settingsPreviewWidthPercent: 0.4
     property real formElementHeightPercent: 0.1

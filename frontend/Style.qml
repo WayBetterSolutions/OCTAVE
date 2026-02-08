@@ -1377,7 +1377,16 @@ QtObject {
     property color sidebarColor: activeTheme.base
     property color contentColor: activeTheme.baseAlt
     property color settingsSliderColor: activeTheme.sliders.settings
-    
+
+    // Status colors (with safe fallbacks for themes that don't define them)
+    property color statusConnected: activeTheme.status ? activeTheme.status.connected : "#44AA44"
+    property color statusDisconnected: activeTheme.status ? activeTheme.status.disconnected : "#AA4444"
+    property color statusError: activeTheme.status ? activeTheme.status.error : "#F44336"
+    property color statusWarning: activeTheme.status ? activeTheme.status.warning : "#FF9800"
+    property color statusInfo: activeTheme.status ? activeTheme.status.info : "#2196F3"
+    property color statusSuccess: activeTheme.status ? activeTheme.status.success : "#4CAF50"
+    property color statusDanger: activeTheme.status ? activeTheme.status.danger : "#e74c3c"
+
     // Function to update theme
     function setTheme(theme) {
         if (themes[theme] || customThemes[theme]) {

@@ -510,14 +510,14 @@ Item {
         RowLayout {
             anchors.fill: parent
             spacing: App.Spacing.overallSpacing * 2
-            
-            // Left-side label
+
+            // Label
             Text {
                 text: control.text
                 color: App.Style.primaryTextColor
-                font.pixelSize: App.Spacing.overallText * 1.1  // Increased text size
+                font.pixelSize: App.Spacing.overallText * 1.1
                 font.family: settingsMenu.globalFont
-                Layout.fillWidth: true
+                Layout.preferredWidth: control.width * 0.55
 
                 MouseArea {
                     anchors.fill: parent
@@ -527,11 +527,11 @@ Item {
                     }
                 }
             }
-            
-            // Modern toggle with subtle animations
+
+            // Toggle switch
             Item {
-                width: 80  // Increased from 64
-                height: 40  // Increased from 32
+                width: 96
+                height: 48
                 
                 // Main track - flatter design
                 Rectangle {
@@ -566,32 +566,13 @@ Item {
                         Behavior on opacity { NumberAnimation { duration: 300 } }
                     }
                     
-                    // Status text inside track
-                    Text {
-                        anchors {
-                            left: control.checked ? undefined : parent.left
-                            right: control.checked ? parent.right : undefined
-                            margins: 10  // Increased from 8
-                            verticalCenter: parent.verticalCenter
-                        }
-                        text: control.checked ? "ON" : "OFF"
-                        font.pixelSize: App.Spacing.overallText * 0.8  // Increased text size
-                        font.bold: true
-                        font.family: settingsMenu.globalFont
-                        color: control.checked ? control.activeColor : Qt.rgba(control.inactiveColor.r,
-                                                                            control.inactiveColor.g,
-                                                                            control.inactiveColor.b, 0.7)
-                        visible: width < (parent.width - handle.width - 10)
-
-                        Behavior on color { ColorAnimation { duration: 200 } }
-                    }
                 }
                 
                 // Handle with shadow and subtle effects
                 Rectangle {
                     id: handle
-                    width: 40  // Increased from 32
-                    height: 40  // Increased from 32
+                    width: 48
+                    height: 48
                     radius: width / 2
                     x: control.checked ? parent.width - width : 0
                     y: 0
@@ -666,6 +647,7 @@ Item {
                     }
                 }
             }
+
         }
     }
 
@@ -803,7 +785,66 @@ Item {
         font.family: settingsMenu.globalFont
         Layout.topMargin: 2
     }
-    
+
+    component SettingsButton: Rectangle {
+        id: control
+
+        property string text: ""
+        property string tooltipText: ""
+        property color buttonColor: App.Style.accent
+        property bool bold: true
+        signal clicked()
+
+        Layout.preferredWidth: buttonLabel.implicitWidth + App.Spacing.overallSpacing * 1.5
+        Layout.minimumWidth: 70
+        color: buttonArea.pressed ? Qt.darker(control.buttonColor, 1.4) :
+               buttonArea.containsMouse ? Qt.darker(control.buttonColor, 1.2) : control.buttonColor
+        radius: 6
+        border.width: 1
+        border.color: Qt.darker(control.buttonColor, 1.3)
+        clip: true
+
+        Text {
+            id: buttonLabel
+            anchors.centerIn: parent
+            text: control.text
+            color: "white"
+            font.pixelSize: App.Spacing.overallText
+            font.bold: control.bold
+            font.family: settingsMenu.globalFont
+        }
+
+        MouseArea {
+            id: buttonArea
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: control.clicked()
+        }
+
+        ToolTip.visible: buttonArea.containsMouse && control.tooltipText !== ""
+        ToolTip.text: control.tooltipText
+        ToolTip.delay: 300
+    }
+
+    component SettingsSectionHeader: ColumnLayout {
+        Layout.fillWidth: true
+        spacing: App.Spacing.rowSpacing
+
+        property string title: ""
+        property string description: ""
+
+        SettingLabel {
+            text: parent.title
+            font.pixelSize: App.Spacing.overallText * 1.5
+            font.bold: true
+        }
+
+        SettingDescription {
+            text: parent.description
+            visible: parent.description !== ""
+        }
+    }
+
     // MAIN LAYOUT
     Rectangle {
         anchors.fill: parent
@@ -981,6 +1022,8 @@ Item {
 
                         ColumnLayout {
                             width: parent.width
+                            spacing: App.Spacing.sectionSpacing
+
 
                             // Device Name Setting
                             ColumnLayout {
@@ -1008,7 +1051,11 @@ Item {
                             
                             // Future device settings can be added here
                             
-                            Item { Layout.fillHeight: true } // Spacer
+                            // Bottom spacer
+                            Item {
+                                Layout.fillHeight: true
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
+                            }
                         }
                     }
                     
@@ -1019,6 +1066,8 @@ Item {
 
                         ColumnLayout {
                             width: parent.width
+                            spacing: App.Spacing.sectionSpacing
+
 
                             // Music Library Folder
                             ColumnLayout {
@@ -1026,7 +1075,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "Music Library Folder"
+                                    text: "Library Folder"
                                 }
 
                                 RowLayout {
@@ -1053,85 +1102,25 @@ Item {
                                         }
                                     }
 
-                                    // Browse button
-                                    Rectangle {
-                                        id: browseButton
-                                        Layout.preferredWidth: browseButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 70
+                                    SettingsButton {
+                                        text: "Browse"
                                         Layout.preferredHeight: mediaFolderField.height
-                                        color: browseMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
-                                               browseMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker(App.Style.accent, 1.3)
-                                        clip: true
-
-                                        Text {
-                                            id: browseButtonText
-                                            anchors.centerIn: parent
-                                            text: "Browse"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.bold: true
-                                            font.family: settingsMenu.globalFont
-                                        }
-
-                                        MouseArea {
-                                            id: browseMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                folderDialog.open()
-                                            }
-                                        }
-
-                                        ToolTip.visible: browseMouseArea.containsMouse
-                                        ToolTip.text: "Browse for music folder"
-                                        ToolTip.delay: 300
+                                        onClicked: folderDialog.open()
                                     }
 
-                                    // Scan library button
-                                    Rectangle {
-                                        id: scanLibraryButton
-                                        Layout.preferredWidth: scanButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 60
+                                    SettingsButton {
+                                        text: "Scan"
                                         Layout.preferredHeight: mediaFolderField.height
-                                        color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
-                                               scanMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker(App.Style.accent, 1.3)
-                                        clip: true
-
-                                        Text {
-                                            id: scanButtonText
-                                            anchors.centerIn: parent
-                                            text: "Scan"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.bold: true
-                                            font.family: settingsMenu.globalFont
-                                        }
-
-                                        MouseArea {
-                                            id: scanMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                if (mediaManager) {
-                                                    mediaManager.scan_library()
-                                                }
+                                        onClicked: {
+                                            if (mediaManager) {
+                                                mediaManager.scan_library()
                                             }
                                         }
-
-                                        ToolTip.visible: scanMouseArea.containsMouse
-                                        ToolTip.text: "Rescan library for playlists"
-                                        ToolTip.delay: 300
                                     }
                                 }
 
                                 SettingDescription {
-                                    text: "Each subfolder becomes a playlist. MP3s in the root go to 'Unsorted'."
+                                    text: "Subfolders become playlists. Root MP3s go to 'Unsorted'."
                                 }
 
                                 // Terminal feedback for scan progress
@@ -1160,7 +1149,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "Startup Volume"
+                                    text: "Startup volume"
                                 }
                                 
                                 SettingsSlider {
@@ -1201,14 +1190,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Auto-Play"
-                                }
-
                                 SettingsToggle {
                                     id: autoPlayToggle
                                     Layout.fillWidth: true
-                                    text: "Resume on startup"
+                                    text: "Autoplay on startup"
                                     checked: settingsManager ? settingsManager.autoPlayOnStartup : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1236,14 +1221,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Music Button"
-                                }
-
                                 SettingsToggle {
                                     id: musicButtonDefaultPageToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Opens Library" : "Opens Now Playing"
+                                    text: "Default to library view"
                                     checked: settingsManager ? settingsManager.musicButtonDefaultPage === "mediaPlayer" : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1270,14 +1251,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Song Selection"
-                                }
-
                                 SettingsToggle {
                                     id: returnToLibraryToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Return to Library" : "Stay in Now Playing"
+                                    text: "Return to library after playing"
                                     checked: settingsManager ? settingsManager.returnToLibraryAfterSelection : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1304,14 +1281,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Waveform Visualizer"
-                                }
-
                                 SettingsToggle {
                                     id: waveformVisualizerToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Visualizer Enabled" : "Visualizer Disabled"
+                                    text: "Waveform visualizer"
                                     checked: settingsManager ? settingsManager.showWaveformVisualizer : true
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1331,7 +1304,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Show animated audio waveform visualization in the Now Playing view. Colors match the current theme."
+                                    text: "Animated waveform in Now Playing, themed to match."
                                 }
                             }
 
@@ -1343,7 +1316,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "Media Room Background Blur Effect"
+                                    text: "Album Art Blur"
                                 }
                                 
                                 SettingsSlider {
@@ -1383,7 +1356,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "Media Room Background"
+                                    text: "Album Art Layout"
                                 }
                                 
                                 SettingsSegmentedControl {
@@ -1407,14 +1380,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
                                 
-                                SettingLabel {
-                                    text: "Show Background Overlay"
-                                }
-                                
                                 SettingsToggle {
                                     id: backgroundOverlayToggle
                                     Layout.fillWidth: true
-                                    text: "Enable dark overlay on album art"
+                                    text: "Dark overlay on album art"
                                     checked: settingsManager ? settingsManager.showBackgroundOverlay : true
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -1447,7 +1416,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Control Spotify playback from this app. Get credentials from developer.spotify.com"
+                                    text: "Get credentials from developer.spotify.com"
                                 }
 
                                 // Credentials row with Client ID and Secret
@@ -1532,121 +1501,36 @@ Item {
                                     Layout.fillWidth: true
                                     spacing: App.Spacing.overallSpacing
 
-                                    // Connect button
-                                    Rectangle {
-                                        id: spotifyConnectButton
-                                        Layout.preferredWidth: spotifyConnectText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 80
+                                    SettingsButton {
+                                        text: "Connect"
                                         Layout.preferredHeight: spotifyClientIdField.height
                                         visible: spotifyManager && !spotifyManager.is_connected()
-                                        color: spotifyConnectMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
-                                               spotifyConnectMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker(App.Style.accent, 1.3)
-
-                                        Text {
-                                            id: spotifyConnectText
-                                            anchors.centerIn: parent
-                                            text: "Connect"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.bold: true
-                                            font.family: settingsMenu.globalFont
+                                        tooltipText: "Connect to Spotify"
+                                        onClicked: {
+                                            if (spotifyManager) spotifyManager.authenticate()
                                         }
-
-                                        MouseArea {
-                                            id: spotifyConnectMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                if (spotifyManager) {
-                                                    spotifyManager.authenticate()
-                                                }
-                                            }
-                                        }
-
-                                        ToolTip.visible: spotifyConnectMouseArea.containsMouse
-                                        ToolTip.text: "Connect to Spotify"
-                                        ToolTip.delay: 300
                                     }
 
-                                    // Disconnect button
-                                    Rectangle {
-                                        id: spotifyDisconnectButton
-                                        Layout.preferredWidth: spotifyDisconnectText.implicitWidth + App.Spacing.overallSpacing * 1.5
+                                    SettingsButton {
+                                        text: "Disconnect"
+                                        Layout.preferredHeight: spotifyClientIdField.height
                                         Layout.minimumWidth: 90
-                                        Layout.preferredHeight: spotifyClientIdField.height
                                         visible: spotifyManager && spotifyManager.is_connected()
-                                        color: spotifyDisconnectMouseArea.pressed ? Qt.darker("#e74c3c", 1.4) :
-                                               spotifyDisconnectMouseArea.containsMouse ? Qt.darker("#e74c3c", 1.2) : "#e74c3c"
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker("#e74c3c", 1.3)
-
-                                        Text {
-                                            id: spotifyDisconnectText
-                                            anchors.centerIn: parent
-                                            text: "Disconnect"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.bold: true
-                                            font.family: settingsMenu.globalFont
+                                        buttonColor: App.Style.statusDanger
+                                        tooltipText: "Disconnect from Spotify"
+                                        onClicked: {
+                                            if (spotifyManager) spotifyManager.disconnect()
                                         }
-
-                                        MouseArea {
-                                            id: spotifyDisconnectMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                if (spotifyManager) {
-                                                    spotifyManager.disconnect()
-                                                }
-                                            }
-                                        }
-
-                                        ToolTip.visible: spotifyDisconnectMouseArea.containsMouse
-                                        ToolTip.text: "Disconnect from Spotify"
-                                        ToolTip.delay: 300
                                     }
 
-                                    // Refresh devices button
-                                    Rectangle {
-                                        id: spotifyRefreshButton
-                                        Layout.preferredWidth: spotifyRefreshText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 70
+                                    SettingsButton {
+                                        text: "Refresh"
                                         Layout.preferredHeight: spotifyClientIdField.height
                                         visible: spotifyManager && spotifyManager.is_connected()
-                                        color: spotifyRefreshMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
-                                               spotifyRefreshMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker(App.Style.accent, 1.3)
-
-                                        Text {
-                                            id: spotifyRefreshText
-                                            anchors.centerIn: parent
-                                            text: "Refresh"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.bold: true
-                                            font.family: settingsMenu.globalFont
+                                        tooltipText: "Refresh available devices"
+                                        onClicked: {
+                                            if (spotifyManager) spotifyManager.refresh_devices()
                                         }
-
-                                        MouseArea {
-                                            id: spotifyRefreshMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                if (spotifyManager) {
-                                                    spotifyManager.refresh_devices()
-                                                }
-                                            }
-                                        }
-
-                                        ToolTip.visible: spotifyRefreshMouseArea.containsMouse
-                                        ToolTip.text: "Refresh available devices"
-                                        ToolTip.delay: 300
                                     }
 
                                     Item { Layout.fillWidth: true }
@@ -1789,7 +1673,11 @@ Item {
                                 }
                             }
 
-                            Item { Layout.fillHeight: true } // Spacer
+                            // Bottom spacer
+                            Item {
+                                Layout.fillHeight: true
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
+                            }
                         }
                     }
 
@@ -1800,6 +1688,9 @@ Item {
 
                         ColumnLayout {
                             width: parent.width
+                            spacing: App.Spacing.sectionSpacing
+
+
 
                             ColumnLayout { // UI Scaling slider
                                 Layout.fillWidth: true
@@ -1837,7 +1728,7 @@ Item {
                                 }
                                 
                                 SettingDescription {
-                                    text: "Adjusts the size of all UI elements. Changes apply immediately."
+                                    text: "Scales all UI elements. Applied immediately."
                                 }
                             }
 
@@ -1848,7 +1739,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "Bottom Bar Orientation"
+                                    text: "Nav Bar Position"
                                 }
                                 
                                 SettingsSegmentedControl {
@@ -1879,24 +1770,20 @@ Item {
                                 }
                                 
                                 SettingDescription {
-                                    text: "Choose whether the navigation bar appears at the bottom or side of the screen"
+                                    text: "Bottom or side placement"
                                 }
                             }
 
                             SettingsDivider {}
 
-                            ColumnLayout { // Bottom Bar Media Controls
+                            ColumnLayout { // Nav Bar Media Controls
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
-
-                                SettingLabel {
-                                    text: "Bottom Bar Media Controls"
-                                }
 
                                 SettingsToggle {
                                     id: bottomBarMediaControlsToggle
                                     Layout.fillWidth: true
-                                    text: "Show media controls on the bottom bar"
+                                    text: "Nav bar media controls"
                                     checked: settingsManager ? settingsManager.showBottomBarMediaControls : true
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -2016,83 +1903,31 @@ Item {
                                         }
                                     }
 
-                                    Rectangle {
-                                        id: fullscreenButton
-                                        Layout.preferredWidth: fullscreenButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 80
+                                    SettingsButton {
+                                        text: mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
                                         Layout.preferredHeight: screenHeight.height
-                                        color: fullscreenMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
-                                               fullscreenMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker(App.Style.accent, 1.3)
-                                        clip: true
-
-                                        Text {
-                                            id: fullscreenButtonText
-                                            anchors.centerIn: parent
-                                            text: mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.family: settingsMenu.globalFont
-                                            font.bold: true
-                                        }
-
-                                        MouseArea {
-                                            id: fullscreenMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                if (mainWindow.visibility === Window.FullScreen) {
-                                                    mainWindow.visibility = Window.Windowed
-                                                    if (settingsManager) settingsManager.save_window_state("windowed")
-                                                } else {
-                                                    mainWindow.visibility = Window.FullScreen
-                                                    if (settingsManager) settingsManager.save_window_state("fullscreen")
-                                                }
+                                        Layout.minimumWidth: 80
+                                        tooltipText: mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
+                                        onClicked: {
+                                            if (mainWindow.visibility === Window.FullScreen) {
+                                                mainWindow.visibility = Window.Windowed
+                                                if (settingsManager) settingsManager.save_window_state("windowed")
+                                            } else {
+                                                mainWindow.visibility = Window.FullScreen
+                                                if (settingsManager) settingsManager.save_window_state("fullscreen")
                                             }
                                         }
-
-                                        ToolTip.visible: fullscreenMouseArea.containsMouse
-                                        ToolTip.text: mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
-                                        ToolTip.delay: 300
                                     }
 
-                                    Rectangle {
-                                        id: borderlessButton
-                                        Layout.preferredWidth: borderlessButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-                                        Layout.minimumWidth: 80
+                                    SettingsButton {
+                                        text: "Maximize"
                                         Layout.preferredHeight: screenHeight.height
-                                        color: borderlessMouseArea.pressed ? Qt.darker(App.Style.accent, 1.4) :
-                                               borderlessMouseArea.containsMouse ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                                        radius: 6
-                                        border.width: 1
-                                        border.color: Qt.darker(App.Style.accent, 1.3)
-                                        clip: true
-
-                                        Text {
-                                            id: borderlessButtonText
-                                            anchors.centerIn: parent
-                                            text: "Maximize"
-                                            color: "white"
-                                            font.pixelSize: App.Spacing.overallText
-                                            font.family: settingsMenu.globalFont
-                                            font.bold: true
+                                        Layout.minimumWidth: 80
+                                        tooltipText: "Maximize window to fill screen"
+                                        onClicked: {
+                                            mainWindow.visibility = Window.Maximized
+                                            if (settingsManager) settingsManager.save_window_state("maximized")
                                         }
-
-                                        MouseArea {
-                                            id: borderlessMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                mainWindow.visibility = Window.Maximized
-                                                if (settingsManager) settingsManager.save_window_state("maximized")
-                                            }
-                                        }
-
-                                        ToolTip.visible: borderlessMouseArea.containsMouse
-                                        ToolTip.text: "Maximize window to fill screen"
-                                        ToolTip.delay: 300
                                     }
 
                                     Item { Layout.fillWidth: true } // Spacer
@@ -2144,7 +1979,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Add .ttf or .otf font files to the fonts folder to see them here"
+                                    text: "Drop .ttf/.otf files in the fonts folder"
                                 }
 
                                 // Update font options when fonts change
@@ -2187,13 +2022,15 @@ Item {
                             width: parent.width
                             spacing: App.Spacing.sectionSpacing
 
+
+
                             // OBD Connection
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "OBD Connection Status"
+                                    text: "Connection Status"
                                 }
                                 
                                 Rectangle {
@@ -2204,18 +2041,18 @@ Item {
                                     // Use more diverse status colors
                                     property var statusColors: {
                                         "Connected": App.Style.accent,
-                                        "Connecting": "#FF9800",  // Orange
-                                        "Device Not Found": "#F44336",  // Red
-                                        "Error": "#F44336",  // Red
-                                        "Disconnected": "#E91E63",  // Pink
-                                        "Device Lost": "#9C27B0",  // Purple
-                                        "No Vehicle": "#2196F3"  // Blue
+                                        "Connecting": App.Style.statusWarning,
+                                        "Device Not Found": App.Style.statusError,
+                                        "Error": App.Style.statusError,
+                                        "Disconnected": App.Style.statusDisconnected,
+                                        "Device Lost": App.Style.statusWarning,
+                                        "No Vehicle": App.Style.statusInfo
                                     }
-                                    
-                                    // Default to red if status not in our map
-                                    color: obdManager ? 
-                                        (statusColors[obdManager.get_connection_status()] || "#F44336") : 
-                                        "#F44336"
+
+                                    // Default to error color if status not in our map
+                                    color: obdManager ?
+                                        (statusColors[obdManager.get_connection_status()] || App.Style.statusError) :
+                                        App.Style.statusError
                                     radius: 4
                                     
                                     // Properties for animations
@@ -2423,10 +2260,10 @@ Item {
                                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
                                     
                                     background: Rectangle {
-                                        color: "#F44336"
+                                        color: App.Style.statusError
                                         radius: 4
                                     }
-                                    
+
                                     contentItem: Text {
                                         text: "OBD device not found. Check connections."
                                         color: "white"
@@ -2453,7 +2290,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Click the status bar above to attempt reconnection"
+                                    text: "Tap status bar to reconnect"
                                 }
                             }
                             
@@ -2465,7 +2302,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "Bluetooth OBD Device"
+                                    text: "Bluetooth Device"
                                 }
                                 
                                 RowLayout {
@@ -2493,7 +2330,7 @@ Item {
                                 }
                                 
                                 SettingDescription {
-                                    text: "Enter the Bluetooth device port for your OBD adapter"
+                                    text: "Serial port for your Bluetooth OBD adapter"
                                 }
                             }
                             
@@ -2505,7 +2342,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                             
                                 SettingsToggle {
-                                    text: "Fast Mode"
+                                    text: "Fast mode"
                                     Layout.fillWidth: true
                                     checked: settingsManager ? settingsManager.obdFastMode : true
                                     
@@ -2517,7 +2354,7 @@ Item {
                                 }
                                 
                                 SettingDescription {
-                                    text: "Fast mode optimizes for quicker updates but may not work with all vehicles"
+                                    text: "Faster polling, may not work with all vehicles"
                                 }
                             }
 
@@ -2529,7 +2366,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "Auto-Reconnect Attempts"
+                                    text: "Reconnect Retries"
                                 }
 
                                 RowLayout {
@@ -2565,7 +2402,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Number of times to retry connecting to OBD device (0 = disabled)"
+                                    text: "Retry attempts after disconnect (0 = off)"
                                 }
                             }
 
@@ -2576,35 +2413,23 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "OBD Card Style"
-                                }
-
-                                RowLayout {
+                                SettingsToggle {
+                                    id: obdCardStyleToggle
                                     Layout.fillWidth: true
-                                    spacing: App.Spacing.overallSpacing
+                                    text: "Circular gauges"
+                                    checked: settingsManager ? settingsManager.get_setting_with_default("obdCardStyleCircular", false) : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
 
-                                    Text {
-                                        text: "Use circular gauges"
-                                        color: App.Style.primaryTextColor
-                                        font.pixelSize: App.Spacing.overallText
-                                        font.family: settingsMenu.globalFont
-                                        Layout.fillWidth: true
-                                    }
-
-                                    SettingsSwitch {
-                                        id: obdCardStyleSwitch
-                                        checked: settingsManager ? settingsManager.get_setting_with_default("obdCardStyleCircular", false) : false
-                                        onCheckedChanged: {
-                                            if (settingsManager) {
-                                                settingsManager.save_setting("obdCardStyleCircular", checked)
-                                            }
+                                    onToggled: function(checked) {
+                                        if (settingsManager) {
+                                            settingsManager.save_setting("obdCardStyleCircular", checked)
                                         }
                                     }
                                 }
 
                                 SettingDescription {
-                                    text: "Toggle between square cards and circular gauges on the OBD page (does not affect home page)"
+                                    text: "Square cards or circular gauges (OBD page only)"
                                 }
                             }
 
@@ -2616,11 +2441,11 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "Vehicle Scanner"
+                                    text: "Vehicle Scan"
                                 }
 
                                 SettingDescription {
-                                    text: "Scan your connected vehicle to see which OBD parameters it supports. This helps identify which data your car can provide."
+                                    text: "Detect which parameters your vehicle supports"
                                 }
 
                                 // Scan button
@@ -2644,7 +2469,7 @@ Item {
                                         }
 
                                         background: Rectangle {
-                                            color: vehicleScanButton.enabled ? "#4CAF50" : Qt.rgba(0.3, 0.3, 0.3, 0.5)
+                                            color: vehicleScanButton.enabled ? App.Style.statusSuccess : Qt.rgba(0.3, 0.3, 0.3, 0.5)
                                             radius: 4
                                         }
 
@@ -2682,7 +2507,7 @@ Item {
 
                                     Text {
                                         text: obdManager && obdManager.is_connected() ? "OBD Connected" : "Connect OBD first"
-                                        color: obdManager && obdManager.is_connected() ? "#4CAF50" : "#ff6b6b"
+                                        color: obdManager && obdManager.is_connected() ? App.Style.statusSuccess : App.Style.statusError
                                         font.pixelSize: App.Spacing.smallText
                                         font.family: settingsMenu.globalFont
                                         verticalAlignment: Text.AlignVCenter
@@ -2717,7 +2542,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingLabel {
-                                    text: "OBD Parameters"
+                                    text: "Parameters"
                                 }
                                 
                                 // Full parameter list for all operations
@@ -2919,7 +2744,7 @@ Item {
                                         Rectangle {
                                             width: parent.width * (parameterSelectionLayout.scanProgress / 100)
                                             height: parent.height
-                                            color: "#4CAF50"
+                                            color: App.Style.statusSuccess
                                             radius: 3
 
                                             Behavior on width {
@@ -3281,6 +3106,9 @@ Item {
 
                         ColumnLayout {
                             width: parent.width
+                            spacing: App.Spacing.sectionSpacing
+
+
 
                             // Show Clock Toggle - Using the new toggle
                             ColumnLayout {
@@ -3288,7 +3116,7 @@ Item {
                                 spacing: App.Spacing.rowSpacing
                                 
                                 SettingsToggle {
-                                    text: "Show Clock"
+                                    text: "Show clock"
                                     Layout.fillWidth: true
                                     checked: settingsManager ? settingsManager.showClock : true
                                     
@@ -3364,7 +3192,11 @@ Item {
                                 }
                             }
                             
-                            Item { Layout.fillHeight: true } // Spacer
+                            // Bottom spacer
+                            Item {
+                                Layout.fillHeight: true
+                                Layout.minimumHeight: App.Spacing.bottomBarHeight
+                            }
                         }
                     }
 
@@ -3377,37 +3209,17 @@ Item {
                             width: parent.width
                             spacing: App.Spacing.sectionSpacing
 
-                            // Section Header
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Android Auto Integration"
-                                    font.pixelSize: App.Spacing.overallText * 1.5
-                                    font.bold: true
-                                }
-
-                                SettingDescription {
-                                    text: "Configure Android Auto connection and display settings. Connect your phone via USB and enable Developer Mode in Android Auto to use this feature."
-                                }
-                            }
-
-                            SettingsDivider {}
 
                             // Enable/Disable Android Auto
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Enable Android Auto"
-                                }
-
                                 SettingsToggle {
                                     id: androidAutoEnabledToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Android Auto button visible in bottom bar" : "Android Auto button hidden"
+                                    text: "Show in nav bar"
                                     checked: settingsManager ? settingsManager.androidAutoEnabled : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -3428,7 +3240,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "When enabled, an Android Auto button will appear in the bottom bar. Requires a phone with Android Auto and Developer Mode enabled."
+                                    text: "Requires Android Auto app and Developer Mode on your phone."
                                 }
                             }
 
@@ -3452,37 +3264,17 @@ Item {
                             width: parent.width
                             spacing: App.Spacing.sectionSpacing
 
-                            // Section Header
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Phone Mirror"
-                                    font.pixelSize: App.Spacing.overallText * 1.5
-                                    font.bold: true
-                                }
-
-                                SettingDescription {
-                                    text: "Mirror your Android phone screen using scrcpy. Connect your phone via USB with USB debugging enabled."
-                                }
-                            }
-
-                            SettingsDivider {}
 
                             // Enable/Disable Phone Mirror
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "Enable Phone Mirror"
-                                }
-
                                 SettingsToggle {
                                     id: phoneMirrorEnabledToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Phone Mirror button visible in bottom bar" : "Phone Mirror button hidden"
+                                    text: "Show in nav bar"
                                     checked: settingsManager ? settingsManager.phoneMirrorEnabled : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -3503,7 +3295,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "When enabled, a Phone Mirror button will appear in the bottom bar. Requires scrcpy installed and a phone connected via USB with USB debugging enabled."
+                                    text: "Requires scrcpy and USB debugging enabled."
                                 }
                             }
 
@@ -3519,7 +3311,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "Leave empty to auto-detect scrcpy on your system PATH."
+                                    text: "Leave empty to auto-detect from PATH"
                                 }
 
                                 RowLayout {
@@ -3542,29 +3334,11 @@ Item {
                                         }
                                     }
 
-                                    Button {
+                                    SettingsButton {
                                         text: "Browse"
-                                        font.pixelSize: App.Spacing.overallText
-                                        font.family: settingsMenu.globalFont
-
-                                        background: Rectangle {
-                                            color: parent.pressed ? App.Style.accent : App.Style.hoverColor
-                                            radius: 4
-                                            implicitWidth: 80
-                                            implicitHeight: 40
-                                        }
-
-                                        contentItem: Text {
-                                            text: parent.text
-                                            font: parent.font
-                                            color: App.Style.primaryTextColor
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
-                                        }
-
-                                        onClicked: {
-                                            scrcpyFileDialog.open()
-                                        }
+                                        Layout.preferredHeight: scrcpyPathField.height
+                                        tooltipText: "Browse for scrcpy executable"
+                                        onClicked: scrcpyFileDialog.open()
                                     }
                                 }
 
@@ -3591,7 +3365,7 @@ Item {
                                 SettingsToggle {
                                     id: scrcpyAudioEnabledToggle
                                     Layout.fillWidth: true
-                                    text: checked ? "Audio from phone plays through OCTAVE" : "Audio forwarding disabled"
+                                    text: "Forward phone audio"
                                     checked: settingsManager ? settingsManager.scrcpyAudioEnabled : false
                                     activeColor: App.Style.accent
                                     inactiveColor: App.Style.hoverColor
@@ -3611,7 +3385,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "When enabled, audio from your phone will be forwarded to your computer's speakers. Requires scrcpy 2.0+ and Android 11+."
+                                    text: "Requires scrcpy 2.0+ and Android 11+"
                                 }
                             }
 
@@ -3631,8 +3405,8 @@ Item {
                                         ? "scrcpy found: " + phoneMirrorManager.scrcpyPath
                                         : "scrcpy not found. Set the path above or download from github.com/Genymobile/scrcpy"
                                     color: phoneMirrorManager && phoneMirrorManager.isScrcpyInstalled
-                                        ? "#44AA44"
-                                        : "#FF6666"
+                                        ? App.Style.statusConnected
+                                        : App.Style.statusError
                                 }
                             }
 
@@ -3673,23 +3447,7 @@ Item {
 
                             Component.onCompleted: refreshPorts()
 
-                            // Section Header
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: App.Spacing.rowSpacing
 
-                                SettingLabel {
-                                    text: "ESP32 Volume Knob"
-                                    font.pixelSize: App.Spacing.overallText * 1.5
-                                    font.bold: true
-                                }
-
-                                SettingDescription {
-                                    text: "Wireless rotary encoder volume control via ESP-NOW. Plug the ESP32-S3 receiver dongle into USB."
-                                }
-                            }
-
-                            SettingsDivider {}
 
                             // Connection Status Row
                             RowLayout {
@@ -3701,12 +3459,12 @@ Item {
                                     width: 14
                                     height: 14
                                     radius: 7
-                                    color: (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected()) ? "#44AA44" : "#AA4444"
+                                    color: (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected()) ? App.Style.statusConnected : App.Style.statusDisconnected
 
                                     Connections {
                                         target: typeof esp32VolumeManager !== "undefined" ? esp32VolumeManager : null
                                         function onConnectionStatusChanged(status) {
-                                            esp32StatusDot.color = esp32VolumeManager.is_connected() ? "#44AA44" : "#AA4444"
+                                            esp32StatusDot.color = esp32VolumeManager.is_connected() ? App.Style.statusConnected : App.Style.statusDisconnected
                                         }
                                     }
                                 }
@@ -3927,7 +3685,7 @@ Item {
                                 }
 
                                 SettingDescription {
-                                    text: "How much the volume changes per encoder tick (0.25% - 10%)"
+                                    text: "Volume change per encoder tick"
                                 }
 
                                 // Slider
@@ -4039,40 +3797,31 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "LED Display Settings"
+                                    text: "LED Indicator"
                                     font.pixelSize: App.Spacing.overallText * 1.2
                                     font.bold: true
                                 }
 
                                 SettingDescription {
-                                    text: "Configure the RGB LED volume indicator on the ESP32-S3 receiver."
+                                    text: "RGB LED indicator on the ESP32-S3 receiver"
                                 }
                             }
 
                             // LED Keep Alive Toggle
-                            RowLayout {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: App.Spacing.overallSpacing
+                                spacing: App.Spacing.rowSpacing
 
-                                ColumnLayout {
+                                SettingsToggle {
+                                    id: ledSleepToggle
                                     Layout.fillWidth: true
-                                    spacing: 4
-
-                                    SettingLabel {
-                                        text: "Keep LEDs On"
-                                    }
-
-                                    SettingDescription {
-                                        text: "LEDs stay on while OCTAVE is running (off = LEDs sleep after 5s of inactivity)"
-                                    }
-                                }
-
-                                Switch {
-                                    id: ledSleepSwitch
+                                    text: "Keep LEDs on"
                                     // Inverted: sleep enabled = keep alive OFF, sleep disabled = keep alive ON
                                     checked: settingsManager ? !settingsManager.esp32LedSleepEnabled : false
+                                    activeColor: App.Style.accent
+                                    inactiveColor: App.Style.hoverColor
 
-                                    onToggled: {
+                                    onToggled: function(checked) {
                                         if (settingsManager) {
                                             // Inverted: switch ON = sleep disabled, switch OFF = sleep enabled
                                             settingsManager.save_esp32_led_sleep_enabled(!checked)
@@ -4083,30 +3832,13 @@ Item {
                                         target: settingsManager
                                         function onEsp32LedSleepEnabledChanged(enabled) {
                                             // Inverted display
-                                            ledSleepSwitch.checked = !enabled
+                                            ledSleepToggle.checked = !enabled
                                         }
                                     }
+                                }
 
-                                    indicator: Rectangle {
-                                        implicitWidth: 48
-                                        implicitHeight: 26
-                                        x: ledSleepSwitch.leftPadding
-                                        y: parent.height / 2 - height / 2
-                                        radius: 13
-                                        color: ledSleepSwitch.checked ? App.Style.accent : App.Style.hoverColor
-                                        border.color: ledSleepSwitch.checked ? App.Style.accent : App.Style.secondaryTextColor
-
-                                        Rectangle {
-                                            x: ledSleepSwitch.checked ? parent.width - width - 3 : 3
-                                            y: 3
-                                            width: 20
-                                            height: 20
-                                            radius: 10
-                                            color: "white"
-
-                                            Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
-                                        }
-                                    }
+                                SettingDescription {
+                                    text: "Stay on while OCTAVE runs (off = sleep after 5s idle)"
                                 }
                             }
 
@@ -4118,11 +3850,11 @@ Item {
                                 spacing: App.Spacing.rowSpacing
 
                                 SettingLabel {
-                                    text: "LED Color Mode"
+                                    text: "Color Mode"
                                 }
 
                                 SettingDescription {
-                                    text: "Choose between album art accent colors or a fixed color"
+                                    text: "Album art accent colors or a fixed color"
                                 }
 
                                 // Color mode chips
@@ -4235,7 +3967,7 @@ Item {
                                 visible: settingsManager && settingsManager.esp32LedColorMode === "static"
 
                                 SettingLabel {
-                                    text: "Static LED Color"
+                                    text: "Static Color"
                                 }
 
                                 // Color preset chips
