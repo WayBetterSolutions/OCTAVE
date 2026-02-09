@@ -36,7 +36,33 @@ Rectangle {
         anchors.rightMargin: App.EnvironmentTheme.active.cardRadius
         height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
-        visible: App.EnvironmentTheme.active.accentBorder
+        visible: App.EnvironmentTheme.active.accentBorder && !App.EnvironmentTheme.active.cardGlassEffect
+    }
+
+    // Frosted glass gradient overlay (deep sea)
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        visible: App.EnvironmentTheme.active.cardGlassEffect
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.05) }
+            GradientStop { position: 0.4; color: "transparent" }
+            GradientStop { position: 1.0; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.03) }
+        }
+    }
+
+    // Soft top-edge glow (deep sea — inset accent shimmer)
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.topMargin: 1
+        anchors.leftMargin: App.EnvironmentTheme.active.cardRadius * 0.5
+        anchors.rightMargin: App.EnvironmentTheme.active.cardRadius * 0.5
+        height: 1
+        radius: 0.5
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse * 0.3)
+        visible: App.EnvironmentTheme.active.cardGlassEffect
     }
 
     // Corner brackets — Top Left

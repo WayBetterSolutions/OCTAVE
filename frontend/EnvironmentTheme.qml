@@ -90,7 +90,13 @@ QtObject {
             scanlineOverlay: false,
             pulsingElements: false,
             contentHudLines: false,
-            dividerDiamondRotate: false
+            dividerDiamondRotate: false,
+
+            // Deep Sea effects
+            sidebarBubbles: false,
+            contentSonar: false,
+            dividerSonarPing: false,
+            cardGlassEffect: false
         },
 
         "Spacecraft": {
@@ -173,7 +179,102 @@ QtObject {
             scanlineOverlay: true,
             pulsingElements: true,
             contentHudLines: true,
-            dividerDiamondRotate: true
+            dividerDiamondRotate: true,
+
+            // Deep Sea effects
+            sidebarBubbles: false,
+            contentSonar: false,
+            dividerSonarPing: false,
+            cardGlassEffect: false
+        },
+
+        "Deep Sea": {
+            // Card
+            cardRadius: 16,
+            cornerBrackets: false,
+            accentBorder: true,
+            accentBorderOpacity: 0.12,
+
+            // Divider
+            dividerAnimated: false,
+            dividerGradient: false,
+            dividerHeight: 1,
+
+            // Button
+            buttonRadius: 12,
+            buttonGlowBorder: false,
+            buttonSolidFill: true,
+
+            // Slider
+            sliderTickMarks: false,
+            sliderHandleGlow: true,
+            sliderHandleRadius: -1,
+
+            // Switch
+            switchRadius: 13,
+            switchKnobRadius: 10,
+
+            // Toggle
+            toggleTrackRadius: -1,
+            toggleHandleRadius: -1,
+            toggleRectShadow: false,
+
+            // Labels & Text
+            labelUppercase: false,
+            labelLetterSpacing: 0.5,
+
+            // Value Display
+            valueDisplayBrackets: false,
+            valueAccentColor: true,
+
+            // Sidebar / Nav
+            sidebarGrid: false,
+            navItemRadius: 12,
+            navAccentBarWidth: 4,
+            navAccentBarFullHeight: false,
+
+            // Chips
+            chipRadius: -1,
+            chipAccentBorder: false,
+
+            // Section Header
+            sectionHeaderLines: false,
+
+            // TextField
+            textFieldRadius: 10,
+            textFieldCornerMarks: false,
+
+            // Dropdown
+            dropdownRadius: 10,
+
+            // Checkbox
+            checkboxRadius: 6,
+
+            // Segmented Control
+            segmentGlowBar: false,
+
+            // Radio
+            radioSquare: false,
+
+            // Terminal
+            terminalRadius: 10,
+            terminalAccentBorder: true,
+            terminalCornerBrackets: false,
+            terminalScanlines: false,
+            terminalHeaderAccent: true,
+            terminalAccentScroll: true,
+
+            // Enhanced effects
+            scanlineOverlay: false,
+            pulsingElements: true,
+            contentHudLines: false,
+            dividerDiamondRotate: false,
+
+            // Deep Sea effects
+            sidebarBubbles: true,
+            contentSonar: true,
+            dividerSonarPing: true,
+            cardGlassEffect: true
         }
     })
 

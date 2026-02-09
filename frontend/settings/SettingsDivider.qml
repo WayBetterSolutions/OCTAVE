@@ -12,7 +12,65 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.1)
-        visible: !App.EnvironmentTheme.active.dividerGradient
+        visible: !App.EnvironmentTheme.active.dividerGradient && !App.EnvironmentTheme.active.dividerSonarPing
+    }
+
+    // Deep sea soft accent divider line
+    Rectangle {
+        anchors.fill: parent
+        visible: App.EnvironmentTheme.active.dividerSonarPing
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0.0; color: "transparent" }
+            GradientStop { position: 0.15; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2) }
+            GradientStop { position: 0.5; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) }
+            GradientStop { position: 0.85; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2) }
+            GradientStop { position: 1.0; color: "transparent" }
+        }
+    }
+
+    // Sonar ping — expanding ring from center (deep sea only)
+    Rectangle {
+        id: sonarPing
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: 0; height: 0
+        opacity: 0
+        radius: height / 2
+        color: "transparent"
+        border.width: 1
+        border.color: App.Style.accent
+        visible: App.EnvironmentTheme.active.dividerSonarPing
+
+        SequentialAnimation {
+            running: App.EnvironmentTheme.active.dividerSonarPing
+            loops: Animation.Infinite
+            ParallelAnimation {
+                NumberAnimation {
+                    target: sonarPing; property: "width"
+                    from: 0; to: 60
+                    duration: 3000; easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: sonarPing; property: "height"
+                    from: 0; to: 60
+                    duration: 3000; easing.type: Easing.OutCubic
+                }
+                SequentialAnimation {
+                    NumberAnimation {
+                        target: sonarPing; property: "opacity"
+                        from: 0; to: 0.5
+                        duration: 200; easing.type: Easing.OutQuad
+                    }
+                    NumberAnimation {
+                        target: sonarPing; property: "opacity"
+                        from: 0.5; to: 0
+                        duration: 2800; easing.type: Easing.InQuad
+                    }
+                }
+            }
+            PauseAnimation { duration: 5000 }
+        }
     }
 
     // Spacecraft gradient divider (transparent -> accent -> transparent)

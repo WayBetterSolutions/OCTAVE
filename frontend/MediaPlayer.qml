@@ -745,37 +745,29 @@ Item {
                                                         
                             // Glass background - adapts to app theme colors
                             color: {
-                                // Extract theme primary colors
-                                var baseColor = App.Style.backgroundColor;
-                                
-                                // Adjust opacity based on whether this is the current song
-                                var alpha = delegate.isCurrentSong ? 0.4 : 0.25;
-                                
-                                // Create a glass effect by using semi-transparent theme color
-                                return Qt.rgba(
-                                    baseColor.r * 0.9, 
-                                    baseColor.g * 0.9, 
-                                    baseColor.b * 0.9, 
-                                    alpha
-                                );
+                                if (delegate.isCurrentSong) {
+                                    var accent = App.Style.accent;
+                                    return Qt.rgba(accent.r, accent.g, accent.b, 0.35);
+                                }
+                                return "transparent"
                             }
-                            
+
                             // Inner border for glass effect
-                            border.width: 1
+                            border.width: delegate.isCurrentSong ? 2 : 0
                             border.color: {
                                 var baseColor = App.Style.accent;
                                 return Qt.rgba(
-                                    baseColor.r, 
-                                    baseColor.g, 
-                                    baseColor.b, 
-                                    delegate.isCurrentSong ? 0.7 : 0.1
+                                    baseColor.r,
+                                    baseColor.g,
+                                    baseColor.b,
+                                    0.8
                                 );
                             }
                             
                             // Create art-based accent layer as a strip on the left side
                             Rectangle {
                                 id: accentStrip
-                                width: delegate.isCurrentSong ? parent.width : 4
+                                width: parent.width
                                 height: parent.height
                                 anchors.left: parent.left
                                 anchors.verticalCenter: parent.verticalCenter
@@ -784,29 +776,18 @@ Item {
                                 // Clip to only show left part
                                 clip: true
                                 
-                                // Gradient based on album art
                                 gradient: Gradient {
-                                    orientation: delegate.isCurrentSong ? 
-                                        Gradient.Horizontal : Gradient.Vertical
-                                        
+                                    orientation: Gradient.Horizontal
+
                                     GradientStop {
                                         position: 0.0
                                         color: {
-                                            // Create an accent color from app accent color
+                                            if (!delegate.isCurrentSong) return "transparent"
                                             var accentBase = App.Style.accent;
-                                            
-                                            // Adjust transparency based on if it's the current song
-                                            var alpha = delegate.isCurrentSong ? 0.25 : 0.35;
-                                            
-                                            return Qt.rgba(
-                                                accentBase.r, 
-                                                accentBase.g, 
-                                                accentBase.b, 
-                                                alpha
-                                            );
+                                            return Qt.rgba(accentBase.r, accentBase.g, accentBase.b, 0.2);
                                         }
                                     }
-                                    
+
                                     GradientStop {
                                         position: 1.0
                                         color: "transparent"
@@ -818,8 +799,7 @@ Item {
                                     anchors.fill: parent
                                     source: delegate.albumArtSource
                                     fillMode: Image.PreserveAspectCrop
-                                    opacity: 0.3
-                                    visible: delegate.isCurrentSong
+                                    opacity: delegate.isCurrentSong ? 0.15 : 0.08
                                     
                                     // Create a small random offset for visual interest
                                     transform: Translate {
@@ -870,9 +850,7 @@ Item {
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: delegate.isCurrentSong ? 
-                                    App.Spacing.overallMargin * 3 : 
-                                    App.Spacing.overallMargin * 2
+                                anchors.leftMargin: App.Spacing.overallMargin * 2
                                 anchors.rightMargin: App.Spacing.overallMargin * 2
                                 spacing: 0
 
@@ -940,7 +918,7 @@ Item {
                                                     var _ = mediaPlayer.playlistRefreshCounter
                                                     return mediaPlayer.isSpotifyPlaylist ? modelData : modelData.replace('.mp3', '')
                                                 }
-                                                color: App.Style.primaryTextColor
+                                                color: delegate.isCurrentSong ? App.Style.accent : App.Style.primaryTextColor
                                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
                                                 font.family: mediaPlayer.globalFont
                                                 font.bold: true
@@ -1072,7 +1050,7 @@ Item {
                             }
                             
                             // Add subtle scaling effect on active song (no animation to prevent bounce on page load)
-                            scale: delegate.isCurrentSong ? 1.02 : 1.0
+                            scale: 1.0
                             
                             // Shadow for depth (using Rectangle instead of effects)
                             Rectangle {
@@ -1081,7 +1059,7 @@ Item {
                                 anchors.margins: -2
                                 radius: parent.radius + 2
                                 color: "black"
-                                opacity: delegate.isCurrentSong ? 0.15 : 0.08
+                                opacity: 0.08
                             }
                         }
                     }
