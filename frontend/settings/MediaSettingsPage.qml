@@ -5,11 +5,15 @@ import QtQuick.Dialogs
 import Qt5Compat.GraphicalEffects
 import ".." as App
 
-ScrollView {
+Flickable {
     id: mediaSettingsRoot
-    contentWidth: parent.width
-    ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+    contentWidth: width
+    contentHeight: mediaSettingsContent.implicitHeight
     clip: true
+    boundsBehavior: Flickable.DragAndOvershootBounds
+    flickDeceleration: 1200
+    maximumFlickVelocity: 4000
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
     required property string currentSection
 
@@ -70,6 +74,7 @@ ScrollView {
     }
 
     ColumnLayout {
+        id: mediaSettingsContent
         width: parent.width
         spacing: App.Spacing.sectionSpacing
 

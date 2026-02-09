@@ -3,12 +3,17 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import ".." as App
 
-ScrollView {
-    contentWidth: parent.width
-    ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+Flickable {
+    contentWidth: width
+    contentHeight: settingsContent.implicitHeight
     clip: true
+    boundsBehavior: Flickable.DragAndOvershootBounds
+    flickDeceleration: 1200
+    maximumFlickVelocity: 4000
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
     ColumnLayout {
+        id: settingsContent
         width: parent.width
         spacing: 0
 
