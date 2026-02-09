@@ -49,6 +49,19 @@ RowLayout {
                 color: segmentRect.isHovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
                 visible: modelData !== control.currentValue
             }
+
+            // Accent glow bar at bottom of selected segment (spacecraft)
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 2
+                color: App.Style.accent
+                opacity: modelData === control.currentValue ? 1.0 : 0
+                visible: App.EnvironmentTheme.active.segmentGlowBar
+
+                Behavior on opacity { NumberAnimation { duration: 200 } }
+            }
         }
     }
 }

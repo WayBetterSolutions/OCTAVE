@@ -54,15 +54,23 @@ Button {
     background: Rectangle {
         color: control.pressed ? Qt.darker(App.Style.hoverColor, 1.2) :
                control.hovered ? Qt.darker(App.Style.hoverColor, 1.1) : App.Style.hoverColor
-        radius: 4
+        radius: App.EnvironmentTheme.active.dropdownRadius
+
+        // Accent border (spacecraft)
+        border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
+        border.color: App.EnvironmentTheme.active.accentBorder
+            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b,
+                      control.hovered ? 0.7 : 0.4)
+            : "transparent"
 
         Rectangle {
             anchors.fill: parent
-            radius: 4
+            radius: parent.radius
             color: control.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
         }
 
         Behavior on color { ColorAnimation { duration: 100 } }
+        Behavior on border.color { ColorAnimation { duration: 150 } }
     }
 
     property var dropdownPopup: Popup {
@@ -75,7 +83,7 @@ Button {
             color: App.Style.backgroundColor
             border.color: App.Style.accent
             border.width: 1
-            radius: 6
+            radius: App.EnvironmentTheme.active.dropdownRadius
         }
 
         contentItem: ListView {

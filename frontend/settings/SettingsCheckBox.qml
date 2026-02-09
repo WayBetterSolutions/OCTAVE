@@ -16,29 +16,45 @@ Item {
         anchors.fill: parent
         spacing: App.Spacing.overallSpacing * 1.5
 
-        Rectangle {
-            id: checkboxRect
+        Item {
             width: 30
             height: 30
-            radius: 4
-            color: control.checked ? App.Style.accent : "transparent"
-            border.color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
-            border.width: 2
 
-            Text {
-                visible: control.checked
-                text: "✓"
-                font.pixelSize: 22
-                color: "white"
+            // Glow behind checkbox (spacecraft, when checked)
+            Rectangle {
                 anchors.centerIn: parent
-                font.family: App.Style.fontFamily
+                width: parent.width + 6
+                height: parent.height + 6
+                radius: App.EnvironmentTheme.active.checkboxRadius + 2
+                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                visible: App.EnvironmentTheme.active.accentBorder && control.checked
             }
 
             Rectangle {
+                id: checkboxRect
                 anchors.fill: parent
-                color: "white"
-                radius: 4
-                opacity: checkboxArea.containsMouse ? 0.1 : 0
+                radius: App.EnvironmentTheme.active.checkboxRadius
+                color: control.checked ? App.Style.accent : "transparent"
+                border.color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
+                border.width: 2
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                Text {
+                    visible: control.checked
+                    text: "✓"
+                    font.pixelSize: 22
+                    color: "white"
+                    anchors.centerIn: parent
+                    font.family: App.Style.fontFamily
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "white"
+                    radius: App.EnvironmentTheme.active.checkboxRadius
+                    opacity: checkboxArea.containsMouse ? 0.1 : 0
+                }
             }
         }
 

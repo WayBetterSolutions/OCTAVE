@@ -7,5 +7,7 @@ Label {
     color: App.Style.primaryTextColor
     font.pixelSize: App.Spacing.overallText
     font.family: App.Style.fontFamily
+    font.capitalization: App.EnvironmentTheme.active.labelUppercase ? Font.AllUppercase : Font.MixedCase
+    font.letterSpacing: App.EnvironmentTheme.active.labelLetterSpacing
     Layout.fillWidth: true
 }

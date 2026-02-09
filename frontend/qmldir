@@ -1,2 +1,3 @@
 singleton Style 1.0 Style.qml
 singleton Spacing 1.0 Spacing.qml
+singleton EnvironmentTheme 1.0 EnvironmentTheme.qml

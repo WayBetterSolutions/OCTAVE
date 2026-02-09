@@ -10,7 +10,7 @@ RadioButton {
         implicitHeight: 20
         x: control.leftPadding
         y: control.height / 2 - height / 2
-        radius: 10
+        radius: App.EnvironmentTheme.active.radioSquare ? 3 : 10
         border.color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
         border.width: 2
 
@@ -19,7 +19,7 @@ RadioButton {
             height: 10
             x: 5
             y: 5
-            radius: 5
+            radius: App.EnvironmentTheme.active.radioSquare ? 2 : 5
             color: control.checked ? App.Style.accent : "transparent"
 
             Behavior on color { ColorAnimation { duration: 150 } }

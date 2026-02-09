@@ -29,14 +29,121 @@ Rectangle {
     property var lines: []
 
     color: terminalBackground
-    border.color: terminalBorder
-    border.width: 1
-    radius: 4
+    border.width: App.EnvironmentTheme.active.terminalAccentBorder ? 1 : 1
+    border.color: App.EnvironmentTheme.active.terminalAccentBorder
+        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
+        : terminalBorder
+    radius: App.EnvironmentTheme.active.terminalRadius
     clip: true
 
     // Default size (can be overridden)
     implicitHeight: 150
     implicitWidth: 300
+
+    // Pulsing bracket opacity (spacecraft)
+    property real bracketPulse: 0.4
+    SequentialAnimation on bracketPulse {
+        running: App.EnvironmentTheme.active.terminalCornerBrackets
+        loops: Animation.Infinite
+        NumberAnimation { to: 0.7; duration: 2500; easing.type: Easing.InOutSine }
+        NumberAnimation { to: 0.3; duration: 2500; easing.type: Easing.InOutSine }
+    }
+
+    // Corner brackets — Top Left
+    Rectangle {
+        anchors.top: parent.top; anchors.left: parent.left
+        anchors.topMargin: -1; anchors.leftMargin: -1
+        width: 12; height: 1
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+    Rectangle {
+        anchors.top: parent.top; anchors.left: parent.left
+        anchors.topMargin: -1; anchors.leftMargin: -1
+        width: 1; height: 12
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+
+    // Corner brackets — Top Right
+    Rectangle {
+        anchors.top: parent.top; anchors.right: parent.right
+        anchors.topMargin: -1; anchors.rightMargin: -1
+        width: 12; height: 1
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+    Rectangle {
+        anchors.top: parent.top; anchors.right: parent.right
+        anchors.topMargin: -1; anchors.rightMargin: -1
+        width: 1; height: 12
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+
+    // Corner brackets — Bottom Left
+    Rectangle {
+        anchors.bottom: parent.bottom; anchors.left: parent.left
+        anchors.bottomMargin: -1; anchors.leftMargin: -1
+        width: 12; height: 1
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+    Rectangle {
+        anchors.bottom: parent.bottom; anchors.left: parent.left
+        anchors.bottomMargin: -1; anchors.leftMargin: -1
+        width: 1; height: 12
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+
+    // Corner brackets — Bottom Right
+    Rectangle {
+        anchors.bottom: parent.bottom; anchors.right: parent.right
+        anchors.bottomMargin: -1; anchors.rightMargin: -1
+        width: 12; height: 1
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+    Rectangle {
+        anchors.bottom: parent.bottom; anchors.right: parent.right
+        anchors.bottomMargin: -1; anchors.rightMargin: -1
+        width: 1; height: 12
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+        visible: App.EnvironmentTheme.active.terminalCornerBrackets
+    }
+
+    // Scanline overlay (spacecraft) — static CRT-style horizontal lines
+    Canvas {
+        anchors.fill: parent
+        visible: App.EnvironmentTheme.active.terminalScanlines
+        opacity: 0.04
+        z: 2
+        onPaint: {
+            var ctx = getContext("2d")
+            ctx.clearRect(0, 0, width, height)
+            ctx.strokeStyle = "white"
+            ctx.lineWidth = 1
+            for (var y = 0; y < height; y += 3) {
+                ctx.beginPath()
+                ctx.moveTo(0, y + 0.5)
+                ctx.lineTo(width, y + 0.5)
+                ctx.stroke()
+            }
+        }
+    }
+
+    // Top-edge accent highlight (spacecraft)
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: App.EnvironmentTheme.active.terminalRadius
+        anchors.rightMargin: App.EnvironmentTheme.active.terminalRadius
+        height: 1
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
+        visible: App.EnvironmentTheme.active.terminalAccentBorder
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -49,7 +156,20 @@ Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: showHeader ? 36 : 0  // Larger for touch
             visible: showHeader
-            color: "#2d2d2d"
+            color: App.EnvironmentTheme.active.terminalHeaderAccent
+                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                : "#2d2d2d"
+
+            // Bottom accent line under header (spacecraft)
+            Rectangle {
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 1
+                color: App.EnvironmentTheme.active.terminalHeaderAccent
+                    ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                    : Qt.rgba(1, 1, 1, 0.05)
+            }
 
             RowLayout {
                 anchors.fill: parent
@@ -57,29 +177,65 @@ Rectangle {
                 anchors.rightMargin: 12
 
                 Text {
-                    text: terminalFeedback.title
-                    color: "#888888"
+                    text: App.EnvironmentTheme.active.terminalHeaderAccent
+                        ? "// " + terminalFeedback.title.toUpperCase()
+                        : terminalFeedback.title
+                    color: App.EnvironmentTheme.active.terminalHeaderAccent
+                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.7)
+                        : "#888888"
                     font.pixelSize: terminalFeedback.fontSize
                     font.family: App.Style.fontFamily
                     font.bold: true
+                    font.letterSpacing: App.EnvironmentTheme.active.terminalHeaderAccent ? 1.5 : 0
                 }
 
                 Item { Layout.fillWidth: true }
 
+                // Status indicator dot (spacecraft)
+                Rectangle {
+                    width: 6; height: 6
+                    radius: App.EnvironmentTheme.active.terminalRadius === 2 ? 1 : 3
+                    color: terminalFeedback.lines.length > 0 ? App.Style.accent : "#555555"
+                    visible: App.EnvironmentTheme.active.terminalHeaderAccent
+
+                    // Pulsing when active
+                    SequentialAnimation on opacity {
+                        running: App.EnvironmentTheme.active.terminalHeaderAccent && terminalFeedback.lines.length > 0
+                        loops: Animation.Infinite
+                        NumberAnimation { to: 0.4; duration: 1000; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                    }
+                }
+
                 // Clear button - larger touch target
                 Rectangle {
-                    width: 32
-                    height: 32
-                    radius: 16
-                    color: clearMouseArea.pressed ? "#555555" :
-                           clearMouseArea.containsMouse ? "#444444" : "#333333"
+                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? 50 : 32
+                    height: 24
+                    radius: App.EnvironmentTheme.active.terminalRadius
+                    color: clearMouseArea.pressed
+                        ? (App.EnvironmentTheme.active.terminalHeaderAccent
+                            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                            : "#555555")
+                        : clearMouseArea.containsMouse
+                            ? (App.EnvironmentTheme.active.terminalHeaderAccent
+                                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                                : "#444444")
+                            : (App.EnvironmentTheme.active.terminalHeaderAccent
+                                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.1)
+                                : "#333333")
+
+                    border.width: App.EnvironmentTheme.active.terminalAccentBorder ? 1 : 0
+                    border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Clear"
-                        color: "#aaaaaa"
+                        text: App.EnvironmentTheme.active.terminalHeaderAccent ? "CLR" : "Clear"
+                        color: App.EnvironmentTheme.active.terminalHeaderAccent
+                            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.8)
+                            : "#aaaaaa"
                         font.pixelSize: 10
                         font.bold: true
+                        font.letterSpacing: App.EnvironmentTheme.active.terminalHeaderAccent ? 1 : 0
                     }
 
                     MouseArea {
@@ -159,9 +315,10 @@ Rectangle {
                 id: scrollIndicator
                 anchors.right: parent.right
                 anchors.rightMargin: 2
-                width: 4
-                radius: 2
-                color: "#666666"
+                width: App.EnvironmentTheme.active.terminalAccentScroll ? 2 : 4
+                radius: App.EnvironmentTheme.active.terminalAccentScroll ? 1 : 2
+                color: App.EnvironmentTheme.active.terminalAccentScroll
+                    ? App.Style.accent : "#666666"
                 opacity: flickable.moving ? 0.8 : (flickable.contentHeight > flickable.height ? 0.3 : 0)
                 visible: flickable.contentHeight > flickable.height
 

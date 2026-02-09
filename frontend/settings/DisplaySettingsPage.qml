@@ -299,6 +299,43 @@ Flickable {
 
         SettingsDivider {}
 
+        ColumnLayout { // Environment Selection
+            Layout.fillWidth: true
+            spacing: App.Spacing.rowSpacing
+
+            SettingLabel {
+                text: "Environment"
+            }
+
+            SettingsChips {
+                id: environmentChips
+                Layout.fillWidth: true
+                currentValue: settingsManager ? settingsManager.environmentTheme : "Standard"
+                options: App.EnvironmentTheme.getAllEnvironmentNames()
+
+                onSelected: function(value) {
+                    App.EnvironmentTheme.setEnvironment(value)
+                    if (settingsManager) {
+                        settingsManager.save_environment_theme(value)
+                    }
+                }
+
+                Connections {
+                    target: settingsManager
+                    function onEnvironmentThemeChanged() {
+                        environmentChips.currentValue = settingsManager.environmentTheme
+                        App.EnvironmentTheme.setEnvironment(settingsManager.environmentTheme)
+                    }
+                }
+            }
+
+            SettingDescription {
+                text: "Switch between visual styles for the settings page."
+            }
+        }
+
+        SettingsDivider {}
+
         ColumnLayout { // Color Transition Speed
             Layout.fillWidth: true
             spacing: App.Spacing.rowSpacing

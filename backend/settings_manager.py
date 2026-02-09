@@ -99,6 +99,9 @@ class SettingsManager(QObject):
     # Waveform visualizer signal
     showWaveformVisualizerChanged = Signal(bool)
 
+    # Environment theme signal
+    environmentThemeChanged = Signal(str)
+
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
@@ -267,7 +270,8 @@ class SettingsManager(QObject):
             "esp32LedColorMode": "theme",  # "theme" (follows album art) or "static"
             "esp32LedStaticColor": "#00FFFF",  # Static color when not using theme
             # Waveform visualizer settings
-            "showWaveformVisualizer": True  # Show audio waveform visualization in MediaRoom
+            "showWaveformVisualizer": True,  # Show audio waveform visualization in MediaRoom
+            "environmentTheme": "Standard"  # Environment theme: "Standard", "Spacecraft", etc.
         }
             
     
@@ -357,6 +361,9 @@ class SettingsManager(QObject):
 
         # Waveform visualizer settings
         self._show_waveform_visualizer = self._settings.get("showWaveformVisualizer", self._default_settings["showWaveformVisualizer"])
+
+        # Environment theme
+        self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -479,6 +486,7 @@ class SettingsManager(QObject):
             "esp32LedColorMode": str,
             "esp32LedStaticColor": str,
             "showWaveformVisualizer": bool,
+            "environmentTheme": str,
         }
 
         for key, expected_type in type_checks.items():
@@ -1397,6 +1405,18 @@ class SettingsManager(QObject):
         logger.debug(f"Saving show waveform visualizer: {enabled}")
         self._show_waveform_visualizer = enabled
         self.update_setting("showWaveformVisualizer", enabled, self.showWaveformVisualizerChanged)
+
+    # ==================== Environment Theme ====================
+
+    @Property(str, notify=environmentThemeChanged)
+    def environmentTheme(self):
+        return self._environment_theme
+
+    @Slot(str)
+    def save_environment_theme(self, theme):
+        logger.debug(f"Saving environment theme: {theme}")
+        self._environment_theme = theme
+        self.update_setting("environmentTheme", theme, self.environmentThemeChanged)
 
     # ==================== Settings Menu Visibility ====================
 

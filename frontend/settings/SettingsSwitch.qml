@@ -5,24 +5,45 @@ import ".." as App
 Switch {
     id: control
 
-    indicator: Rectangle {
+    indicator: Item {
         implicitWidth: 48
         implicitHeight: 26
         x: control.leftPadding
         y: control.height / 2 - height / 2
-        radius: 13
-        color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
-        border.color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
 
+        // Glow behind track (spacecraft, when checked)
         Rectangle {
-            x: control.checked ? parent.width - width - 3 : 3
-            width: 20
-            height: 20
-            radius: 10
-            anchors.verticalCenter: parent.verticalCenter
-            color: "white"
+            anchors.centerIn: parent
+            width: parent.width + 6
+            height: parent.height + 6
+            radius: App.EnvironmentTheme.active.switchRadius + 3
+            color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+            visible: App.EnvironmentTheme.active.accentBorder && control.checked
+        }
 
-            Behavior on x { NumberAnimation { duration: 150 } }
+        // Track
+        Rectangle {
+            anchors.fill: parent
+            radius: App.EnvironmentTheme.active.switchRadius
+            color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
+            border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
+            border.color: control.checked
+                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.8)
+                : Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.5)
+
+            Behavior on color { ColorAnimation { duration: 150 } }
+
+            // Knob
+            Rectangle {
+                x: control.checked ? parent.width - width - 3 : 3
+                width: 20
+                height: 20
+                radius: App.EnvironmentTheme.active.switchKnobRadius
+                anchors.verticalCenter: parent.verticalCenter
+                color: "white"
+
+                Behavior on x { NumberAnimation { duration: 150 } }
+            }
         }
     }
 

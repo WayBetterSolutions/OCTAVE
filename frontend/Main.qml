@@ -117,6 +117,11 @@ ApplicationWindow {
             // Add this line to set the UI scale from settings
             App.Spacing.globalScale = settingsManager.uiScale
 
+            // Load environment theme
+            if (settingsManager.environmentTheme) {
+                App.EnvironmentTheme.setEnvironment(settingsManager.environmentTheme)
+            }
+
             // Load color transition speed
             App.Style.colorTransitionMs = settingsManager.colorTransitionMs
 
@@ -233,6 +238,12 @@ ApplicationWindow {
             if (settingsManager) {
                 App.Style.setTheme(settingsManager.themeSetting)
                 theme = settingsManager.themeSetting
+            }
+        }
+
+        function onEnvironmentThemeChanged() {
+            if (settingsManager) {
+                App.EnvironmentTheme.setEnvironment(settingsManager.environmentTheme)
             }
         }
 

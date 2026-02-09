@@ -39,12 +39,30 @@ Item {
             width: 96
             height: 48
 
+            // Glow behind toggle (spacecraft, when checked)
+            Rectangle {
+                anchors.centerIn: track
+                width: track.width + 6
+                height: track.height + 6
+                radius: (App.EnvironmentTheme.active.toggleTrackRadius === -1
+                    ? track.height / 2 : App.EnvironmentTheme.active.toggleTrackRadius) + 3
+                color: Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.2)
+                visible: App.EnvironmentTheme.active.toggleRectShadow && control.checked
+            }
+
             Rectangle {
                 id: track
                 anchors.fill: parent
-                radius: height / 2
+                radius: App.EnvironmentTheme.active.toggleTrackRadius === -1
+                    ? height / 2 : App.EnvironmentTheme.active.toggleTrackRadius
                 color: control.checked ? Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.3) :
                                     Qt.rgba(control.inactiveColor.r, control.inactiveColor.g, control.inactiveColor.b, 0.3)
+
+                // Accent border (spacecraft)
+                border.width: App.EnvironmentTheme.active.toggleRectShadow ? 1 : 0
+                border.color: control.checked
+                    ? Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.6)
+                    : Qt.rgba(control.inactiveColor.r, control.inactiveColor.g, control.inactiveColor.b, 0.3)
 
                 Rectangle {
                     anchors.fill: parent
@@ -70,11 +88,23 @@ Item {
                 }
             }
 
+            // Rectangle shadow behind handle (spacecraft) — replaces DropShadow
+            Rectangle {
+                visible: App.EnvironmentTheme.active.toggleRectShadow
+                x: handle.x + 2
+                y: handle.y + 3
+                width: handle.width
+                height: handle.height
+                radius: handle.radius
+                color: Qt.rgba(0, 0, 0, 0.2)
+            }
+
             Rectangle {
                 id: handle
                 width: 48
                 height: 48
-                radius: width / 2
+                radius: App.EnvironmentTheme.active.toggleHandleRadius === -1
+                    ? width / 2 : App.EnvironmentTheme.active.toggleHandleRadius
                 x: control.checked ? parent.width - width : 0
                 y: 0
                 color: "white"
@@ -83,7 +113,8 @@ Item {
                     anchors.centerIn: parent
                     width: parent.width * 0.4
                     height: width
-                    radius: width / 2
+                    radius: App.EnvironmentTheme.active.toggleHandleRadius === -1
+                        ? width / 2 : App.EnvironmentTheme.active.toggleHandleRadius
                     color: control.activeColor
                     opacity: control.checked ? 1 : 0
                     scale: control.checked ? 1 : 0.5
@@ -92,7 +123,8 @@ Item {
                     Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
                 }
 
-                layer.enabled: true
+                // Standard DropShadow (hidden in spacecraft mode)
+                layer.enabled: !App.EnvironmentTheme.active.toggleRectShadow
                 layer.effect: DropShadow {
                     verticalOffset: 2
                     radius: 6.0
