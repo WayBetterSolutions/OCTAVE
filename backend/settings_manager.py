@@ -102,6 +102,12 @@ class SettingsManager(QObject):
     # Environment theme signal
     environmentThemeChanged = Signal(str)
 
+    # Gesture sensor signals
+    gestureSensorEnabledChanged = Signal(bool)
+    gestureMappingChanged = Signal()
+    gestureVolumeStepChanged = Signal(int)
+    gestureCooldownChanged = Signal(int)
+
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
         super().__init__()
@@ -259,6 +265,7 @@ class SettingsManager(QObject):
                 "androidAutoSettings": True,
                 "phoneMirrorSettings": True,
                 "volumeKnobSettings": False,  # Hidden by default - enable via double-click menu
+                "gestureSensorSettings": True,
                 "about": True
             },
             # ESP32 Volume Knob settings
@@ -271,7 +278,22 @@ class SettingsManager(QObject):
             "esp32LedStaticColor": "#00FFFF",  # Static color when not using theme
             # Waveform visualizer settings
             "showWaveformVisualizer": True,  # Show audio waveform visualization in MediaRoom
-            "environmentTheme": "Standard"  # Environment theme: "Standard", "Spacecraft", etc.
+            "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
+            # Gesture sensor settings
+            "gestureSensorEnabled": True,
+            "gestureMapping": {
+                "RIGHT": "next_track",
+                "LEFT": "previous_track",
+                "UP": "volume_up",
+                "DOWN": "volume_down",
+                "FORWARD": "play_pause",
+                "BACKWARD": "mute_toggle",
+                "CLOCKWISE": "volume_up",
+                "COUNTER-CLOCKWISE": "volume_down",
+                "WAVE": "play_pause"
+            },
+            "gestureVolumeStep": 5,
+            "gestureCooldown": 300
         }
             
     
@@ -364,6 +386,12 @@ class SettingsManager(QObject):
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
+
+        # Gesture sensor settings
+        self._gesture_sensor_enabled = self._settings.get("gestureSensorEnabled", self._default_settings["gestureSensorEnabled"])
+        self._gesture_mapping = self._settings.get("gestureMapping", self._default_settings["gestureMapping"])
+        self._gesture_volume_step = self._settings.get("gestureVolumeStep", self._default_settings["gestureVolumeStep"])
+        self._gesture_cooldown = self._settings.get("gestureCooldown", self._default_settings["gestureCooldown"])
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -487,6 +515,10 @@ class SettingsManager(QObject):
             "esp32LedStaticColor": str,
             "showWaveformVisualizer": bool,
             "environmentTheme": str,
+            "gestureSensorEnabled": bool,
+            "gestureMapping": dict,
+            "gestureVolumeStep": int,
+            "gestureCooldown": int,
         }
 
         for key, expected_type in type_checks.items():
@@ -1114,7 +1146,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def set_last_settings_section(self, section):
         """Set last visited settings section"""
-        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "phoneMirrorSettings", "volumeKnobSettings", "about"]
+        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "phoneMirrorSettings", "volumeKnobSettings", "gestureSensorSettings", "about"]
         if section not in valid_sections:
             return
 
@@ -1418,6 +1450,73 @@ class SettingsManager(QObject):
         self._environment_theme = theme
         self.update_setting("environmentTheme", theme, self.environmentThemeChanged)
 
+    # ==================== Gesture Sensor Settings ====================
+
+    @Property(bool, notify=gestureSensorEnabledChanged)
+    def gestureSensorEnabled(self):
+        return self._gesture_sensor_enabled
+
+    @Slot(result=bool)
+    def get_gesture_sensor_enabled(self):
+        return self._gesture_sensor_enabled
+
+    @Slot(bool)
+    def save_gesture_sensor_enabled(self, enabled):
+        logger.debug(f"Saving gesture sensor enabled: {enabled}")
+        self._gesture_sensor_enabled = enabled
+        self.update_setting("gestureSensorEnabled", enabled, self.gestureSensorEnabledChanged)
+
+    @Slot(result=str)
+    def get_gesture_mapping(self):
+        return json.dumps(self._gesture_mapping)
+
+    def get_gesture_mapping_dict(self):
+        return self._gesture_mapping.copy()
+
+    @Slot(str, str)
+    def save_gesture_action(self, gesture, action):
+        logger.debug(f"Saving gesture action: {gesture} -> {action}")
+        self._gesture_mapping[gesture] = action
+        settings = self.load_settings()
+        settings["gestureMapping"] = self._gesture_mapping
+        self.save_settings(settings)
+        self.gestureMappingChanged.emit()
+
+    def save_gesture_mapping(self, mapping):
+        self._gesture_mapping = mapping.copy()
+        settings = self.load_settings()
+        settings["gestureMapping"] = self._gesture_mapping
+        self.save_settings(settings)
+        self.gestureMappingChanged.emit()
+
+    @Slot()
+    def reset_gesture_mapping(self):
+        self._gesture_mapping = self._default_settings["gestureMapping"].copy()
+        settings = self.load_settings()
+        settings["gestureMapping"] = self._gesture_mapping
+        self.save_settings(settings)
+        self.gestureMappingChanged.emit()
+
+    @Property(int, notify=gestureVolumeStepChanged)
+    def gestureVolumeStep(self):
+        return self._gesture_volume_step
+
+    @Slot(int)
+    def save_gesture_volume_step(self, step):
+        logger.debug(f"Saving gesture volume step: {step}")
+        self._gesture_volume_step = max(1, min(25, step))
+        self.update_setting("gestureVolumeStep", self._gesture_volume_step, self.gestureVolumeStepChanged)
+
+    @Property(int, notify=gestureCooldownChanged)
+    def gestureCooldown(self):
+        return self._gesture_cooldown
+
+    @Slot(int)
+    def save_gesture_cooldown(self, ms):
+        logger.debug(f"Saving gesture cooldown: {ms}ms")
+        self._gesture_cooldown = max(100, min(2000, ms))
+        self.update_setting("gestureCooldown", self._gesture_cooldown, self.gestureCooldownChanged)
+
     # ==================== Settings Menu Visibility ====================
 
     @Property(str, notify=settingsMenuVisibilityChanged)
@@ -1616,6 +1715,18 @@ class SettingsManager(QObject):
 
         self._show_waveform_visualizer = self._default_settings["showWaveformVisualizer"]
         self.showWaveformVisualizerChanged.emit(self._show_waveform_visualizer)
+
+        self._gesture_sensor_enabled = self._default_settings["gestureSensorEnabled"]
+        self.gestureSensorEnabledChanged.emit(self._gesture_sensor_enabled)
+
+        self._gesture_mapping = self._default_settings["gestureMapping"].copy()
+        self.gestureMappingChanged.emit()
+
+        self._gesture_volume_step = self._default_settings["gestureVolumeStep"]
+        self.gestureVolumeStepChanged.emit(self._gesture_volume_step)
+
+        self._gesture_cooldown = self._default_settings["gestureCooldown"]
+        self.gestureCooldownChanged.emit(self._gesture_cooldown)
 
     # ==================== Git Commit Info ====================
 

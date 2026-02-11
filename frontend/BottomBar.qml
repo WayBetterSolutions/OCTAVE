@@ -1068,213 +1068,6 @@ Rectangle {
                             }
                         }
 
-                        // Settings Visibility Popup - opened on double-click of settings button
-                        Popup {
-                            id: settingsVisibilityPopup
-                            parent: Overlay.overlay
-                            x: Math.round((parent.width - width) / 2)
-                            y: Math.round((parent.height - height) / 2)
-                            width: parent.width * 0.5
-                            height: parent.height * 0.85
-                            modal: true
-                            focus: true
-                            padding: 0
-                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-
-                            background: Rectangle {
-                                color: App.Style.contentColor
-                                radius: App.Spacing.overallMargin
-                                border.color: App.Style.accent
-                                border.width: 2
-
-                                layer.enabled: true
-                                layer.effect: DropShadow {
-                                    horizontalOffset: 0
-                                    verticalOffset: 6
-                                    radius: 30
-                                    samples: 31
-                                    color: "#90000000"
-                                }
-                            }
-
-                            contentItem: Item {
-                                // Header at top
-                                Text {
-                                    id: popupHeader
-                                    text: "Toggle View"
-                                    font.pixelSize: App.Spacing.overallText * 2.5
-                                    font.bold: true
-                                    font.family: bottomBar.globalFont
-                                    color: App.Style.primaryTextColor
-                                    anchors.top: parent.top
-                                    anchors.topMargin: App.Spacing.overallMargin
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-
-                                // Close button at bottom
-                                Rectangle {
-                                    id: closeBtn
-                                    width: App.Spacing.overallText * 10
-                                    height: App.Spacing.overallText * 3
-                                    radius: App.Spacing.overallMargin * 0.5
-                                    color: closeButtonMouse.pressed ? Qt.darker(App.Style.accent, 1.2) :
-                                           closeButtonMouse.containsMouse ? Qt.lighter(App.Style.accent, 1.1) : App.Style.accent
-                                    anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: App.Spacing.overallMargin
-                                    anchors.horizontalCenter: parent.horizontalCenter
-
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "Close"
-                                        font.pixelSize: App.Spacing.overallText * 1.4
-                                        font.bold: true
-                                        font.family: bottomBar.globalFont
-                                        color: "white"
-                                    }
-
-                                    MouseArea {
-                                        id: closeButtonMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        onClicked: settingsVisibilityPopup.close()
-                                    }
-                                }
-
-                                // Toggle list in middle
-                                ScrollView {
-                                    id: toggleScrollView
-                                    anchors.top: popupHeader.bottom
-                                    anchors.topMargin: App.Spacing.overallSpacing
-                                    anchors.bottom: closeBtn.top
-                                    anchors.bottomMargin: App.Spacing.overallSpacing
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.leftMargin: App.Spacing.overallMargin
-                                    anchors.rightMargin: App.Spacing.overallMargin
-                                    clip: true
-                                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-
-                                    Column {
-                                        width: toggleScrollView.width
-                                        spacing: App.Spacing.overallSpacing * 0.5
-
-                                        Repeater {
-                                            model: [
-                                                { name: "Device", section: "deviceSettings" },
-                                                { name: "Media", section: "mediaSettings" },
-                                                { name: "Display", section: "displaySettings" },
-                                                { name: "OBD", section: "obdSettings" },
-                                                { name: "Clock", section: "clockSettings" },
-                                                { name: "Android Auto", section: "androidAutoSettings" },
-                                                { name: "Phone Mirror", section: "phoneMirrorSettings" },
-                                                { name: "Volume Knob", section: "volumeKnobSettings" },
-                                                { name: "About", section: "about" }
-                                            ]
-
-                                            delegate: Rectangle {
-                                                id: toggleRow
-                                                width: toggleScrollView.width
-                                                height: App.Spacing.overallText * 4
-                                                radius: App.Spacing.overallMargin * 0.5
-                                                color: toggleMouseArea.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
-
-                                                property bool isChecked: settingsManager ? settingsManager.is_settings_section_visible(modelData.section) : true
-
-                                                Connections {
-                                                    target: settingsManager
-                                                    function onSettingsMenuVisibilityChanged() {
-                                                        toggleRow.isChecked = settingsManager.is_settings_section_visible(modelData.section)
-                                                    }
-                                                }
-
-                                                MouseArea {
-                                                    id: toggleMouseArea
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    onClicked: {
-                                                        var newState = !toggleRow.isChecked
-                                                        toggleRow.isChecked = newState
-                                                        if (settingsManager) {
-                                                            settingsManager.save_settings_section_visibility(modelData.section, newState)
-                                                        }
-                                                    }
-                                                }
-
-                                                RowLayout {
-                                                    anchors.fill: parent
-                                                    anchors.leftMargin: App.Spacing.overallMargin
-                                                    anchors.rightMargin: App.Spacing.overallMargin
-                                                    spacing: App.Spacing.overallSpacing
-
-                                                    Text {
-                                                        text: modelData.name
-                                                        font.pixelSize: App.Spacing.overallText * 1.6
-                                                        font.family: bottomBar.globalFont
-                                                        color: App.Style.primaryTextColor
-                                                        Layout.fillWidth: true
-                                                        elide: Text.ElideRight
-                                                    }
-
-                                                    Rectangle {
-                                                        id: toggleTrack
-                                                        Layout.preferredWidth: App.Spacing.overallText * 5
-                                                        Layout.preferredHeight: App.Spacing.overallText * 2.5
-                                                        radius: height / 2
-                                                        color: toggleRow.isChecked ?
-                                                            Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.6) :
-                                                            Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.4)
-
-                                                        Behavior on color { ColorAnimation { duration: 200 } }
-
-                                                        Rectangle {
-                                                            id: toggleHandle
-                                                            width: parent.height - 8
-                                                            height: parent.height - 8
-                                                            radius: height / 2
-                                                            x: toggleRow.isChecked ? parent.width - width - 4 : 4
-                                                            y: 4
-                                                            color: "white"
-
-                                                            Rectangle {
-                                                                anchors.centerIn: parent
-                                                                width: parent.width * 0.45
-                                                                height: width
-                                                                radius: width / 2
-                                                                color: App.Style.accent
-                                                                opacity: toggleRow.isChecked ? 1 : 0
-                                                                scale: toggleRow.isChecked ? 1 : 0.5
-
-                                                                Behavior on opacity { NumberAnimation { duration: 200 } }
-                                                                Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
-                                                            }
-
-                                                            layer.enabled: true
-                                                            layer.effect: DropShadow {
-                                                                verticalOffset: 2
-                                                                radius: 6
-                                                                samples: 13
-                                                                color: "#40000000"
-                                                            }
-
-                                                            Behavior on x {
-                                                                NumberAnimation {
-                                                                    duration: 250
-                                                                    easing.type: Easing.OutBack
-                                                                    easing.overshoot: 0.8
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
                         // Android Auto Button
                         Control {
                             id: androidAutoButton
@@ -2878,6 +2671,219 @@ Rectangle {
                         mediaButtonImageVertical.source = `./assets/media_button.svg?t=${timestamp}`
                         settingsButtonImageVertical.source = `./assets/settings_button.svg?t=${timestamp}`
                         androidAutoButtonImageVertical.source = `./assets/android_auto_button.svg?t=${timestamp}`
+                    }
+                }
+            }
+        }
+    }
+
+    // Settings Visibility Popup - opened on second click of settings button
+    // Defined at bottomBar level so both horizontal and vertical layouts can access it
+    Popup {
+        id: settingsVisibilityPopup
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        width: parent.width * 0.5
+        height: parent.height * 0.85
+        modal: true
+        focus: true
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: App.Style.contentColor
+            radius: App.Spacing.overallMargin
+            border.color: App.Style.accent
+            border.width: 2
+
+            layer.enabled: true
+            layer.effect: DropShadow {
+                horizontalOffset: 0
+                verticalOffset: 6
+                radius: 30
+                samples: 31
+                color: "#90000000"
+            }
+        }
+
+        contentItem: Item {
+            // Header at top
+            Text {
+                id: popupHeader
+                text: "Toggle View"
+                font.pixelSize: App.Spacing.overallText * 2.5
+                font.bold: true
+                font.family: bottomBar.globalFont
+                color: App.Style.primaryTextColor
+                anchors.top: parent.top
+                anchors.topMargin: App.Spacing.overallMargin
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            // Close button at bottom
+            Rectangle {
+                id: closeBtn
+                width: App.Spacing.overallText * 10
+                height: App.Spacing.overallText * 3
+                radius: App.Spacing.overallMargin * 0.5
+                color: closeButtonMouse.pressed ? Qt.darker(App.Style.accent, 1.2) :
+                       closeButtonMouse.containsMouse ? Qt.lighter(App.Style.accent, 1.1) : App.Style.accent
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: App.Spacing.overallMargin
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Close"
+                    font.pixelSize: App.Spacing.overallText * 1.4
+                    font.bold: true
+                    font.family: bottomBar.globalFont
+                    color: "white"
+                }
+
+                MouseArea {
+                    id: closeButtonMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: settingsVisibilityPopup.close()
+                }
+            }
+
+            // Toggle list in middle
+            Flickable {
+                id: toggleScrollView
+                anchors.top: popupHeader.bottom
+                anchors.topMargin: App.Spacing.overallSpacing
+                anchors.bottom: closeBtn.top
+                anchors.bottomMargin: App.Spacing.overallSpacing
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: App.Spacing.overallMargin
+                anchors.rightMargin: App.Spacing.overallMargin
+                clip: true
+                contentHeight: toggleColumn.height
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1200
+                maximumFlickVelocity: 4000
+
+                Column {
+                    id: toggleColumn
+                    width: toggleScrollView.width
+                    spacing: App.Spacing.overallSpacing * 0.5
+
+                    Repeater {
+                        model: [
+                            { name: "Device", section: "deviceSettings" },
+                            { name: "Media", section: "mediaSettings" },
+                            { name: "Display", section: "displaySettings" },
+                            { name: "OBD", section: "obdSettings" },
+                            { name: "Clock", section: "clockSettings" },
+                            { name: "Android Auto", section: "androidAutoSettings" },
+                            { name: "Phone Mirror", section: "phoneMirrorSettings" },
+                            { name: "Volume Knob", section: "volumeKnobSettings" },
+                            { name: "Gesture Sensor", section: "gestureSensorSettings" },
+                            { name: "About", section: "about" }
+                        ]
+
+                        delegate: Rectangle {
+                            id: toggleRow
+                            width: toggleScrollView.width
+                            height: App.Spacing.overallText * 4
+                            radius: App.Spacing.overallMargin * 0.5
+                            color: toggleMouseArea.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
+
+                            property bool isChecked: settingsManager ? settingsManager.is_settings_section_visible(modelData.section) : true
+
+                            Connections {
+                                target: settingsManager
+                                function onSettingsMenuVisibilityChanged() {
+                                    toggleRow.isChecked = settingsManager.is_settings_section_visible(modelData.section)
+                                }
+                            }
+
+                            MouseArea {
+                                id: toggleMouseArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    var newState = !toggleRow.isChecked
+                                    toggleRow.isChecked = newState
+                                    if (settingsManager) {
+                                        settingsManager.save_settings_section_visibility(modelData.section, newState)
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: App.Spacing.overallMargin
+                                anchors.rightMargin: App.Spacing.overallMargin
+                                spacing: App.Spacing.overallSpacing
+
+                                Text {
+                                    text: modelData.name
+                                    font.pixelSize: App.Spacing.overallText * 1.6
+                                    font.family: bottomBar.globalFont
+                                    color: App.Style.primaryTextColor
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Rectangle {
+                                    id: toggleTrack
+                                    Layout.preferredWidth: App.Spacing.overallText * 5
+                                    Layout.preferredHeight: App.Spacing.overallText * 2.5
+                                    radius: height / 2
+                                    color: toggleRow.isChecked ?
+                                        Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.6) :
+                                        Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.4)
+
+                                    Behavior on color { ColorAnimation { duration: 200 } }
+
+                                    Rectangle {
+                                        id: toggleHandle
+                                        width: parent.height - 8
+                                        height: parent.height - 8
+                                        radius: height / 2
+                                        x: toggleRow.isChecked ? parent.width - width - 4 : 4
+                                        y: 4
+                                        color: "white"
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: parent.width * 0.45
+                                            height: width
+                                            radius: width / 2
+                                            color: App.Style.accent
+                                            opacity: toggleRow.isChecked ? 1 : 0
+                                            scale: toggleRow.isChecked ? 1 : 0.5
+
+                                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                        }
+
+                                        layer.enabled: true
+                                        layer.effect: DropShadow {
+                                            verticalOffset: 2
+                                            radius: 6
+                                            samples: 13
+                                            color: "#40000000"
+                                        }
+
+                                        Behavior on x {
+                                            NumberAnimation {
+                                                duration: 250
+                                                easing.type: Easing.OutBack
+                                                easing.overshoot: 0.8
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

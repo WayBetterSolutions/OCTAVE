@@ -38,6 +38,7 @@ from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyC
 from backend.esp32_volume_manager import ESP32VolumeManager
 from backend.audio_analyzer import AudioAnalyzer
 from backend.berryimu_manager import BerryIMUManager
+from backend.gesture_manager import GestureManager
 
 app = QApplication(sys.argv)
 engine = QQmlApplicationEngine()
@@ -120,6 +121,46 @@ engine.rootContext().setContextProperty("esp32VolumeManager", esp32_volume_manag
 # BerryIMU v3 Manager - live accelerometer/gyro/mag/baro for CarMenu
 berryimu_manager = BerryIMUManager()
 engine.rootContext().setContextProperty("berryIMU", berryimu_manager)
+
+# Gesture Sensor Manager - PAJ7620U2 gesture recognition
+gesture_manager = GestureManager()
+gesture_manager.connect_settings_manager(settings_manager)
+engine.rootContext().setContextProperty("gestureSensor", gesture_manager)
+
+# Connect gesture actions to media controls
+def handle_gesture_action(action):
+    if action == "next_track":
+        media_manager.next_track()
+    elif action == "previous_track":
+        media_manager.previous_track()
+    elif action == "play_pause":
+        media_manager.toggle_play()
+    elif action == "mute_toggle":
+        media_manager.toggle_mute()
+    elif action == "volume_up":
+        step = settings_manager.gestureVolumeStep
+        current = settings_manager.currentVolume
+        new_volume = min(100, current + step)
+        settings_manager.setCurrentVolume(new_volume)
+        log_volume = (new_volume / 100.0) ** 2.0
+        media_manager.setVolume(log_volume)
+        if spotify_manager.is_connected():
+            spotify_manager.set_volume(new_volume)
+        phone_mirror_manager.setVolume(log_volume)
+        esp32_volume_manager.send_volume_update(new_volume)
+    elif action == "volume_down":
+        step = settings_manager.gestureVolumeStep
+        current = settings_manager.currentVolume
+        new_volume = max(0, current - step)
+        settings_manager.setCurrentVolume(new_volume)
+        log_volume = (new_volume / 100.0) ** 2.0
+        media_manager.setVolume(log_volume)
+        if spotify_manager.is_connected():
+            spotify_manager.set_volume(new_volume)
+        phone_mirror_manager.setVolume(log_volume)
+        esp32_volume_manager.send_volume_update(new_volume)
+
+gesture_manager.actionTriggered.connect(handle_gesture_action)
 
 # Connect ESP32 volume signals to volume control
 # Accumulator for fractional volume changes (e.g., 0.25 per tick)
@@ -294,6 +335,7 @@ def cleanup_on_quit():
     phone_mirror_manager.cleanup()  # Stop phone mirror if running
     esp32_volume_manager.cleanup()  # Disconnect ESP32 volume controller
     berryimu_manager.cleanup()  # Stop BerryIMU sensor reading
+    gesture_manager.cleanup()  # Stop gesture sensor reading
 
 app.aboutToQuit.connect(cleanup_on_quit)
 

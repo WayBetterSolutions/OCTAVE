@@ -14,6 +14,31 @@ Item {
 
     property string currentSection: initialSection
 
+    // Section order for fallback when current section is hidden
+    readonly property var sectionOrder: [
+        "deviceSettings", "mediaSettings", "displaySettings", "obdSettings",
+        "clockSettings", "androidAutoSettings", "phoneMirrorSettings",
+        "volumeKnobSettings", "gestureSensorSettings", "about"
+    ]
+
+    // When a section's visibility changes, check if we need to switch away
+    Connections {
+        target: settingsManager
+        function onSettingsMenuVisibilityChanged() {
+            if (settingsManager && !settingsManager.is_settings_section_visible(currentSection)) {
+                for (var i = 0; i < sectionOrder.length; i++) {
+                    if (settingsManager.is_settings_section_visible(sectionOrder[i])) {
+                        currentSection = sectionOrder[i]
+                        if (settingsManager) {
+                            settingsManager.set_last_settings_section(sectionOrder[i])
+                        }
+                        return
+                    }
+                }
+            }
+        }
+    }
+
     // MAIN LAYOUT
     Rectangle {
         anchors.fill: parent
@@ -211,6 +236,7 @@ Item {
                             ListElement { name: "Android Auto"; section: "androidAutoSettings" }
                             ListElement { name: "Phone Mirror"; section: "phoneMirrorSettings" }
                             ListElement { name: "Volume Knob"; section: "volumeKnobSettings" }
+                            ListElement { name: "Gesture Sensor"; section: "gestureSensorSettings" }
                             ListElement { name: "About"; section: "about" }
                         }
 
@@ -904,7 +930,8 @@ Item {
                             case "androidAutoSettings": return 5;
                             case "phoneMirrorSettings": return 6;
                             case "volumeKnobSettings": return 7;
-                            case "about": return 8;
+                            case "gestureSensorSettings": return 8;
+                            case "about": return 9;
                             default: return 0;
                         }
                     }
@@ -932,6 +959,8 @@ Item {
                     PhoneMirrorSettingsPage {}
 
                     VolumeKnobSettingsPage {}
+
+                    GestureSensorSettingsPage {}
 
                     AboutPage {}
                 }
