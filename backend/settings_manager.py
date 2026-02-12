@@ -261,7 +261,6 @@ class SettingsManager(QObject):
                 "mediaSettings": True,
                 "displaySettings": True,
                 "obdSettings": True,
-                "clockSettings": True,
                 "androidAutoSettings": True,
                 "phoneMirrorSettings": True,
                 "volumeKnobSettings": False,  # Hidden by default - enable via double-click menu
@@ -305,10 +304,7 @@ class SettingsManager(QObject):
         
         # Initialize directory history
         self._directory_history = self._settings.get("directoryHistory", [])
-            
-        # Load settings at startup
-        self._settings = self.load_settings()
-        
+
         # Initialize existing settings
         self._device_name = self._settings.get("deviceName", self._default_settings["deviceName"])
         self._theme_setting = self._settings.get("themeSetting", self._default_settings["themeSetting"])
@@ -397,8 +393,10 @@ class SettingsManager(QObject):
         # Initialize from startUpVolume, converted to 0-100 scale
         self._current_volume = int(round((self._start_volume ** 0.5) * 100))
 
-        # Last settings section visited
+        # Last settings section visited (migrate removed clockSettings → displaySettings)
         self._last_settings_section = self._settings.get("lastSettingsSection", self._default_settings["lastSettingsSection"])
+        if self._last_settings_section == "clockSettings":
+            self._last_settings_section = "displaySettings"
 
         # Handle OBD parameters with a default if not present
         if "obdParameters" in self._settings:
@@ -410,10 +408,6 @@ class SettingsManager(QObject):
                     self._obd_parameters[param] = value
         else:
             self._obd_parameters = self._default_settings["obdParameters"]
-
-        settings = self.load_settings()
-        settings["obdParameters"] = self._obd_parameters
-        self.save_settings(settings)
 
         # Debounce timer for OBD parameter changes - batches rapid toggles
         self._obd_params_dirty = False
@@ -462,74 +456,35 @@ class SettingsManager(QObject):
 
         validated = self._default_settings.copy()
 
-        # Type validation for each setting
-        type_checks = {
-            "deviceName": str,
-            "themeSetting": str,
-            "fontSetting": str,
-            "startUpVolume": (int, float),
-            "showClock": bool,
-            "clockFormat24Hour": bool,
-            "clockSize": int,
-            "backgroundGrid": str,
-            "screenWidth": int,
-            "screenHeight": int,
-            "backgroundBlurRadius": int,
-            "uiScale": (int, float),
-            "colorTransitionMs": int,
-            "songLengthTransition": bool,
-            "obdBluetoothPort": str,
-            "obdFastMode": bool,
-            "obdAutoReconnectAttempts": int,
-            "showBackgroundOverlay": bool,
-            "bottomBarOrientation": str,
-            "showBottomBarMediaControls": bool,
-            "fuelTankCapacity": (int, float),
-            "obdParameters": dict,
-            "homeOBDParameters": list,
-            "lastSettingsSection": str,
-            "spotifyClientId": str,
-            "spotifyClientSecret": str,
-            "mediaSource": str,
-            "mediaFolder": str,
-            "customThemes": dict,
-            "directoryHistory": list,
-            "autoPlayOnStartup": bool,
-            "lastPlayedSong": str,
-            "lastPlayedPosition": int,
-            "lastPlayedPlaylist": str,
-            "windowState": str,
-            "musicButtonDefaultPage": str,
-            "returnToLibraryAfterSelection": bool,
-            "androidAutoEnabled": bool,
-            "phoneMirrorEnabled": bool,
-            "scrcpyPath": str,
-            "scrcpyAudioEnabled": bool,
-            "settingsMenuVisibility": dict,
-            "esp32VolumeEnabled": bool,
-            "esp32VolumePort": str,
-            "esp32VolumeStepSize": (int, float),
-            "esp32AutoReconnect": bool,
-            "esp32LedSleepEnabled": bool,
-            "esp32LedColorMode": str,
-            "esp32LedStaticColor": str,
-            "showWaveformVisualizer": bool,
-            "environmentTheme": str,
-            "gestureSensorEnabled": bool,
-            "gestureMapping": dict,
-            "gestureVolumeStep": int,
-            "gestureCooldown": int,
-        }
+        for key, default_val in self._default_settings.items():
+            if key not in settings:
+                continue
 
-        for key, expected_type in type_checks.items():
-            if key in settings:
-                if isinstance(settings[key], expected_type):
-                    validated[key] = settings[key]
-                # else: keep default value
+            val = settings[key]
+            default_type = type(default_val)
 
-        # Copy any extra keys not in type_checks (for forward compatibility)
+            # bool must be checked before int (bool is subclass of int)
+            if default_type is bool:
+                if isinstance(val, bool):
+                    validated[key] = val
+            elif default_type is int:
+                if isinstance(val, bool):
+                    pass  # reject bool for int fields
+                elif isinstance(val, int):
+                    validated[key] = val
+                elif isinstance(val, float):
+                    validated[key] = int(val)
+            elif default_type is float:
+                if isinstance(val, bool):
+                    pass  # reject bool for float fields
+                elif isinstance(val, (int, float)):
+                    validated[key] = float(val)
+            elif isinstance(val, default_type):
+                validated[key] = val
+
+        # Copy any extra keys not in defaults (for forward compatibility)
         for key in settings:
-            if key not in type_checks and key not in validated:
+            if key not in self._default_settings:
                 validated[key] = settings[key]
 
         return validated
@@ -1146,7 +1101,7 @@ class SettingsManager(QObject):
     @Slot(str)
     def set_last_settings_section(self, section):
         """Set last visited settings section"""
-        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "clockSettings", "androidAutoSettings", "phoneMirrorSettings", "volumeKnobSettings", "gestureSensorSettings", "about"]
+        valid_sections = ["deviceSettings", "mediaSettings", "displaySettings", "obdSettings", "androidAutoSettings", "phoneMirrorSettings", "volumeKnobSettings", "gestureSensorSettings", "about"]
         if section not in valid_sections:
             return
 

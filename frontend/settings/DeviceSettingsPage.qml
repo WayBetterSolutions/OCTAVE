@@ -12,7 +12,7 @@ Flickable {
     maximumFlickVelocity: 4000
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-    required property var mainWindow
+    property var mainWindow: null
 
     ColumnLayout {
         id: settingsContent
@@ -34,7 +34,7 @@ Flickable {
                     text: settingsManager ? settingsManager.deviceName : ""
 
                     onEditingFinished: {
-                        if (text.trim() !== "" && settingsManager) {
+                        if (text.trim() !== "" && settingsManager && mainWindow) {
                             mainWindow.updateDeviceName(text)
                         }
                     }

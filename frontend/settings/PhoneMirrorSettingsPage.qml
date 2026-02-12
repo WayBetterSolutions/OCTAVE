@@ -40,6 +40,11 @@ Flickable {
         spacing: App.Spacing.sectionSpacing
 
         SettingsCard {
+            SettingsSectionHeader {
+                title: "Phone Mirror"
+                description: "Mirror your phone screen via scrcpy"
+            }
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
