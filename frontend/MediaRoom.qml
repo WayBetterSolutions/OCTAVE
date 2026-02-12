@@ -930,58 +930,6 @@ Item {
                 anchors.fill: parent
                 spacing: 20
 
-                Control { // Shuffle Button
-                    id: shuffleButton  // Added ID to match the reference in ColorOverlay
-                    implicitWidth: App.Spacing.mediaRoomShuffleButtonWidth
-                    implicitHeight: App.Spacing.mediaRoomShuffleButtonHeight
-                    background: Rectangle {
-                        color: isShuffleEnabled ? App.Style.mediaRoomToggleShade : "transparent"
-                        radius: width / 2
-                    }
-                    contentItem: Item {
-                        Image {
-                            id: shuffleButtonImage
-                            anchors.centerIn: parent
-                            width: parent.width
-                            height: parent.height
-                            source: "./assets/shuffle_button.svg"
-                            sourceSize: Qt.size(width * 2, height * 2)
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                            antialiasing: true
-                            mipmap: true
-                            visible: false  // Changed to false since we're using ColorOverlay
-                        }
-                        ColorOverlay {
-                            anchors.fill: shuffleButtonImage
-                            source: shuffleButtonImage
-                            color: isShuffleEnabled ? 
-                                App.Style.bottomBarActiveToggleButton : 
-                                App.Style.bottomBarVolumeButton
-                            layer.enabled: true
-                            layer.effect: DropShadow {
-                                transparentBorder: true
-                                horizontalOffset: 4       
-                                verticalOffset: 4         
-                                radius: 8.0               
-                                samples: 17               
-                                color: "#B0000000"        
-                            }
-                        }
-                    }
-                    MouseArea {
-                        id: shuffleMouseArea
-                        anchors.fill: parent
-                        onClicked: {
-                            if (useSpotify) {
-                                spotifyManager.toggle_shuffle()
-                            } else {
-                                mediaManager.toggle_shuffle()
-                            }
-                        }
-                    }
-                }
-
                 Text {
                     id: positionText
                     text: formatTime(mediaRoom.position)
@@ -1182,6 +1130,53 @@ Item {
                     ToolTip.visible: spotifyConnectMouseArea.containsMouse
                     ToolTip.text: "Connect to Spotify (opens browser)"
                     ToolTip.delay: 500
+                }
+            }
+        }
+
+        // Shuffle Button — bottom left corner, centered between edge and duration bar
+        Control {
+            id: shuffleButton
+            width: durationBar.height * 1.96875
+            height: durationBar.height * 1.96875
+            anchors.verticalCenter: durationBar.verticalCenter
+            anchors.verticalCenterOffset: -15
+            x: (durationBar.x - width) / 2
+            background: Rectangle {
+                color: isShuffleEnabled ? App.Style.mediaRoomToggleShade : "transparent"
+                radius: 4
+            }
+            contentItem: Item {
+                Image {
+                    id: shuffleButtonImage
+                    anchors.centerIn: parent
+                    width: parent.width * 0.7
+                    height: parent.height * 0.7
+                    source: "./assets/shuffle_button.svg"
+                    sourceSize: Qt.size(width * 2, height * 2)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    antialiasing: true
+                    mipmap: true
+                    visible: false
+                }
+                ColorOverlay {
+                    anchors.fill: shuffleButtonImage
+                    source: shuffleButtonImage
+                    color: isShuffleEnabled ?
+                        App.Style.bottomBarActiveToggleButton :
+                        App.Style.bottomBarVolumeButton
+                }
+            }
+            MouseArea {
+                id: shuffleMouseArea
+                anchors.fill: parent
+                onClicked: {
+                    if (useSpotify) {
+                        spotifyManager.toggle_shuffle()
+                    } else {
+                        mediaManager.toggle_shuffle()
+                    }
                 }
             }
         }
