@@ -112,7 +112,7 @@ QtObject {
     
     // ===== Settings Hub Properties =====
     property real settingsHubGridSpacingPercent: 0.02
-    property real settingsHubCardHeightPercent: 0.25
+    property real settingsHubCardHeightPercent: 0.22
     property real settingsBreadcrumbHeightPercent: 0.07
 
     property int settingsHubGridSpacing: scaledSize(Math.min(applicationWidth, applicationHeight) * settingsHubGridSpacingPercent)

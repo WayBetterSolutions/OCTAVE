@@ -9,6 +9,7 @@ Rectangle {
     property string section: ""
     property var widgetItems: []
     property string categoryIcon: ""
+    property int cardSpan: 1
 
     signal categorySelected(string section)
 
@@ -22,10 +23,6 @@ Rectangle {
         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b,
                   App.EnvironmentTheme.active.accentBorderOpacity) : "transparent"
 
-    // Hover / press transforms
-    scale: cardMouseArea.pressed ? 0.98 : (cardMouseArea.containsMouse ? 1.02 : 1.0)
-    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
-
     // Pulsing opacity for corner brackets (spacecraft)
     property real bracketPulse: 0.5
     SequentialAnimation on bracketPulse {
@@ -35,14 +32,18 @@ Rectangle {
         NumberAnimation { to: 0.3; duration: 2000; easing.type: Easing.InOutSine }
     }
 
-    // Gradient background — accent-tinted left to transparent right
+    // Solid accent-tinted card background
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
-        gradient: Gradient {
-            orientation: Gradient.Horizontal
-            GradientStop { position: 0.0; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08) }
-            GradientStop { position: 1.0; color: "transparent" }
+        color: {
+            var base = App.Style.contentColor
+            return Qt.rgba(
+                base.r * 0.92 + App.Style.accent.r * 0.08,
+                base.g * 0.92 + App.Style.accent.g * 0.08,
+                base.b * 0.92 + App.Style.accent.b * 0.08,
+                0.95
+            )
         }
     }
 
@@ -134,20 +135,7 @@ Rectangle {
             GradientStop { position: 0.7; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2) }
             GradientStop { position: 1.0; color: "transparent" }
         }
-        opacity: cardMouseArea.containsMouse ? 1.0 : 0.6
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-    }
-
-    // Hover elevation shadow
-    Rectangle {
-        anchors.fill: parent
-        anchors.margins: -2
-        z: -1
-        radius: parent.radius + 2
-        color: Qt.rgba(0, 0, 0, 0.15)
-        visible: cardMouseArea.containsMouse
-        opacity: cardMouseArea.containsMouse ? 1.0 : 0
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        opacity: 0.6
     }
 
     // Card content
@@ -186,17 +174,31 @@ Rectangle {
             }
         }
 
-        // Widget info rows
-        Column {
+        // Widget info rows — flows into 2 columns for wide (span-2) cards
+        GridLayout {
             Layout.fillWidth: true
-            spacing: 2
+            columns: hubCard.cardSpan >= 2 ? 2 : 1
+            columnSpacing: App.Spacing.overallSpacing * 0.8
+            rowSpacing: 2
             visible: hubCard.widgetItems.length > 0
 
             Repeater {
                 model: hubCard.widgetItems.length
 
                 Row {
+                    Layout.fillWidth: true
                     spacing: App.Spacing.overallSpacing * 0.3
+
+                    // Status dot — only visible when statusColor is set
+                    Rectangle {
+                        width: 7
+                        height: 7
+                        radius: 3.5
+                        color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
+                               ? hubCard.widgetItems[index].statusColor : "transparent"
+                        visible: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
 
                     Text {
                         text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].label + ":" : ""

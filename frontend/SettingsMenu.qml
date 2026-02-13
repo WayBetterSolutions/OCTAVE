@@ -18,12 +18,13 @@ Item {
     property string viewState: ""
 
     // Central page model — single source of truth for all pages
+    // Order optimized for dashboard grid packing: span-2 cards first in each row, span-1 fills column 3
     readonly property var pageModel: [
+        { name: "Display",        section: "displaySettings",        source: "settings/DisplaySettingsPage.qml",        status: "", icon: "\u263C" },
         { name: "Device",         section: "deviceSettings",         source: "settings/DeviceSettingsPage.qml",         status: "", icon: "\u2699" },
         { name: "Media",          section: "mediaSettings",          source: "settings/MediaSettingsPage.qml",          status: "", icon: "\u266B" },
-        { name: "Display",        section: "displaySettings",        source: "settings/DisplaySettingsPage.qml",        status: "", icon: "\u263C" },
-        { name: "OBD",            section: "obdSettings",            source: "settings/OBDSettingsPage.qml",            status: "", icon: "\u26A1" },
         { name: "Android Auto",   section: "androidAutoSettings",    source: "settings/AndroidAutoSettingsPage.qml",    status: "", icon: "\u25B6" },
+        { name: "OBD",            section: "obdSettings",            source: "settings/OBDSettingsPage.qml",            status: "", icon: "\u26A1" },
         { name: "Phone Mirror",   section: "phoneMirrorSettings",    source: "settings/PhoneMirrorSettingsPage.qml",    status: "", icon: "\u260E" },
         { name: "Volume Knob",    section: "volumeKnobSettings",     source: "settings/VolumeKnobSettingsPage.qml",     status: "", icon: "\u23F6" },
         { name: "Gesture Sensor", section: "gestureSensorSettings",  source: "settings/GestureSensorSettingsPage.qml",  status: "", icon: "\u270B" },
@@ -91,6 +92,38 @@ Item {
         return settingsManager ? settingsManager.is_settings_section_visible(section) : true
     }
 
+    // Dashboard column span — important categories get 2 columns in 3-col mode
+    function getSpanForSection(section) {
+        switch (section) {
+            case "displaySettings":
+            case "mediaSettings":
+            case "obdSettings":
+                return 2
+            default:
+                return 1
+        }
+    }
+
+    // Count how many grid rows the hub model occupies (simulates GridLayout packing)
+    function getRowCount(cols) {
+        var col = 0
+        var rows = 1
+        for (var i = 0; i < hubModel.length; i++) {
+            var span = hubModel[i].span
+            if (cols <= 2) span = 1  // 2-col mode ignores spans
+            if (col + span > cols) {
+                rows++
+                col = 0
+            }
+            col += span
+            if (col >= cols) {
+                if (i < hubModel.length - 1) rows++
+                col = 0
+            }
+        }
+        return Math.max(rows, 1)
+    }
+
     // Build the hub model from pageModel, respecting visibility
     function buildHubModel() {
         var model = []
@@ -101,7 +134,8 @@ Item {
                     name: page.name,
                     section: page.section,
                     icon: page.icon,
-                    widgetItems: getWidgetForSection(page.section)
+                    widgetItems: getWidgetForSection(page.section),
+                    span: getSpanForSection(page.section)
                 })
             }
         }
@@ -109,53 +143,74 @@ Item {
     }
 
     // Get widget info lines for a hub card
+    // Items with live connection state include statusColor for dot indicator
     function getWidgetForSection(section) {
         if (!settingsManager) return []
         switch (section) {
             case "deviceSettings":
                 return [
-                    { label: "Name", value: settingsManager.deviceName || "OCTAVE" }
+                    { label: "Name", value: settingsManager.deviceName || "OCTAVE", statusColor: "" }
                 ]
-            case "mediaSettings":
+            case "mediaSettings": {
+                var isSpotify = settingsManager.mediaSource === "spotify"
+                var spotifyColor = ""
+                if (isSpotify && typeof spotifyManager !== "undefined" && spotifyManager) {
+                    spotifyColor = spotifyManager.is_connected()
+                        ? App.Style.statusConnected.toString()
+                        : App.Style.statusDisconnected.toString()
+                }
                 return [
-                    { label: "Source", value: settingsManager.mediaSource === "spotify" ? "Spotify" : "Local" },
-                    { label: "Autoplay", value: settingsManager.autoPlayOnStartup ? "On" : "Off" },
-                    { label: "Visualizer", value: settingsManager.showWaveformVisualizer ? "On" : "Off" }
+                    { label: "Source", value: isSpotify ? "Spotify" : "Local", statusColor: spotifyColor },
+                    { label: "Autoplay", value: settingsManager.autoPlayOnStartup ? "On" : "Off", statusColor: "" },
+                    { label: "Visualizer", value: settingsManager.showWaveformVisualizer ? "On" : "Off", statusColor: "" }
                 ]
+            }
             case "displaySettings":
                 return [
-                    { label: "Theme", value: settingsManager.themeSetting },
-                    { label: "Environment", value: settingsManager.environmentTheme },
-                    { label: "Scale", value: Math.round(settingsManager.uiScale * 100) + "%" }
+                    { label: "Theme", value: settingsManager.themeSetting, statusColor: "" },
+                    { label: "Environment", value: settingsManager.environmentTheme, statusColor: "" },
+                    { label: "Scale", value: Math.round(settingsManager.uiScale * 100) + "%", statusColor: "" }
                 ]
-            case "obdSettings":
+            case "obdSettings": {
+                var obdStatus = obdManager ? obdManager.get_connection_status() : "N/A"
+                var obdColor = App.Style.statusDisconnected.toString()
+                if (obdStatus.indexOf("Connected") !== -1)
+                    obdColor = App.Style.statusConnected.toString()
+                else if (obdStatus.indexOf("Connecting") !== -1)
+                    obdColor = App.Style.statusWarning.toString()
                 return [
-                    { label: "Status", value: obdManager ? obdManager.get_connection_status() : "N/A" },
-                    { label: "Port", value: settingsManager.obdBluetoothPort || "Not set" },
-                    { label: "Fast", value: settingsManager.obdFastMode ? "On" : "Off" }
+                    { label: "Status", value: obdStatus, statusColor: obdColor },
+                    { label: "Port", value: settingsManager.obdBluetoothPort || "Not set", statusColor: "" },
+                    { label: "Fast", value: settingsManager.obdFastMode ? "On" : "Off", statusColor: "" }
                 ]
+            }
             case "androidAutoSettings":
                 return [
-                    { label: "Nav Bar", value: settingsManager.androidAutoEnabled ? "Shown" : "Hidden" }
+                    { label: "Nav Bar", value: settingsManager.androidAutoEnabled ? "Shown" : "Hidden", statusColor: "" }
                 ]
             case "phoneMirrorSettings":
                 return [
-                    { label: "Nav Bar", value: settingsManager.phoneMirrorEnabled ? "Shown" : "Hidden" },
-                    { label: "Audio", value: settingsManager.scrcpyAudioEnabled ? "On" : "Off" }
+                    { label: "Nav Bar", value: settingsManager.phoneMirrorEnabled ? "Shown" : "Hidden", statusColor: "" },
+                    { label: "Audio", value: settingsManager.scrcpyAudioEnabled ? "On" : "Off", statusColor: "" }
                 ]
-            case "volumeKnobSettings":
+            case "volumeKnobSettings": {
                 var espConnected = (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected())
                 return [
-                    { label: "Status", value: espConnected ? "Connected" : "Disconnected" },
-                    { label: "Port", value: settingsManager.esp32VolumePort || "Not set" },
-                    { label: "LED", value: settingsManager.esp32LedColorMode || "Off" }
+                    { label: "Status", value: espConnected ? "Connected" : "Disconnected",
+                      statusColor: espConnected ? App.Style.statusConnected.toString() : App.Style.statusDisconnected.toString() },
+                    { label: "Port", value: settingsManager.esp32VolumePort || "Not set", statusColor: "" },
+                    { label: "LED", value: settingsManager.esp32LedColorMode || "Off", statusColor: "" }
                 ]
-            case "gestureSensorSettings":
+            }
+            case "gestureSensorSettings": {
+                var gestureEnabled = settingsManager.gestureSensorEnabled
                 return [
-                    { label: "Status", value: settingsManager.gestureSensorEnabled ? "Enabled" : "Disabled" },
-                    { label: "Vol Step", value: settingsManager.gestureVolumeStep + "%" },
-                    { label: "Cooldown", value: settingsManager.gestureCooldown + "ms" }
+                    { label: "Status", value: gestureEnabled ? "Enabled" : "Disabled",
+                      statusColor: gestureEnabled ? App.Style.statusConnected.toString() : App.Style.statusDisconnected.toString() },
+                    { label: "Vol Step", value: settingsManager.gestureVolumeStep + "%", statusColor: "" },
+                    { label: "Cooldown", value: settingsManager.gestureCooldown + "ms", statusColor: "" }
                 ]
+            }
             default:
                 return []
         }
@@ -224,38 +279,35 @@ Item {
             visible: false
             opacity: 0
 
-            Flickable {
+            GridLayout {
+                id: hubGrid
                 anchors.fill: parent
                 anchors.margins: App.Spacing.settingsContentMargin
-                contentHeight: hubGrid.implicitHeight + App.Spacing.bottomBarHeight
-                clip: true
-                boundsBehavior: Flickable.DragAndOvershootBounds
-                flickDeceleration: 1200
-                maximumFlickVelocity: 4000
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                anchors.bottomMargin: App.Spacing.settingsContentMargin
+                columns: width > 800 ? 3 : 2
+                columnSpacing: App.Spacing.settingsHubGridSpacing
+                rowSpacing: App.Spacing.settingsHubGridSpacing
 
-                GridLayout {
-                    id: hubGrid
-                    width: parent.width
-                    columns: parent.width > 800 ? 3 : 2
-                    columnSpacing: App.Spacing.settingsHubGridSpacing
-                    rowSpacing: App.Spacing.settingsHubGridSpacing
+                // Compute card height to fill available space
+                property int rowCount: getRowCount(columns)
+                property real cardHeight: (height - (rowCount - 1) * rowSpacing) / rowCount
 
-                    Repeater {
-                        model: hubModel.length
+                Repeater {
+                    model: hubModel.length
 
-                        SettingsHubCard {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: App.Spacing.settingsHubCardHeight
-                            categoryName: hubModel[index] ? hubModel[index].name : ""
-                            section: hubModel[index] ? hubModel[index].section : ""
-                            widgetItems: hubModel[index] ? hubModel[index].widgetItems : []
-                            categoryIcon: hubModel[index] ? hubModel[index].icon : ""
-                            radius: App.EnvironmentTheme.active.hubCardRadius
+                    SettingsHubCard {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: hubGrid.cardHeight
+                        Layout.columnSpan: hubGrid.columns === 3 ? (hubModel[index] ? hubModel[index].span : 1) : 1
+                        categoryName: hubModel[index] ? hubModel[index].name : ""
+                        section: hubModel[index] ? hubModel[index].section : ""
+                        widgetItems: hubModel[index] ? hubModel[index].widgetItems : []
+                        categoryIcon: hubModel[index] ? hubModel[index].icon : ""
+                        cardSpan: hubGrid.columns === 3 ? (hubModel[index] ? hubModel[index].span : 1) : 1
+                        radius: App.EnvironmentTheme.active.hubCardRadius
 
-                            onCategorySelected: function(sec) {
-                                settingsMenu.navigateToCategory(sec)
-                            }
+                        onCategorySelected: function(sec) {
+                            settingsMenu.navigateToCategory(sec)
                         }
                     }
                 }
