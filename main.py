@@ -30,7 +30,6 @@ from PySide6.QtWidgets import QApplication
 from backend.clock import Clock
 from backend.settings_manager import SettingsManager
 from backend.media_manager import MediaManager
-from backend.svg_manager import SVGManager
 from backend.obd_manager import OBDManager
 from backend.spotify_manager import SpotifyManager
 from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
@@ -66,10 +65,6 @@ engine.rootContext().setContextProperty("mediaManager", media_manager)
 # Audio Analyzer for waveform visualization
 audio_analyzer = AudioAnalyzer()
 engine.rootContext().setContextProperty("audioAnalyzer", audio_analyzer)
-
-# SVG Manager
-svg_manager = SVGManager()
-engine.rootContext().setContextProperty("svgManager", svg_manager)
 
 # OBD Manager
 obd_manager = OBDManager(settings_manager)

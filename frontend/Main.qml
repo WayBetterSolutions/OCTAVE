@@ -354,6 +354,35 @@ ApplicationWindow {
             replaceExit: null
         }
 
+        // Drop shadow for the bottom bar
+        Rectangle {
+            id: bottomBarShadow
+            z: 2
+            visible: !isVerticalLayout
+            anchors.bottom: bottomBar.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 12
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 1.0; color: "#30000000" }
+            }
+        }
+        Rectangle {
+            id: sideBarShadow
+            z: 2
+            visible: isVerticalLayout
+            anchors.left: bottomBar.right
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            width: 12
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: "#30000000" }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+        }
+
         // Bottom bar - positioning is handled internally in BottomBar.qml
         BottomBar {
             id: bottomBar

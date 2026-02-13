@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
+import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Item {
@@ -32,6 +33,13 @@ Item {
             height: App.Spacing.settingsButtonHeight * .3
             sourceSize.width: App.Spacing.settingsButtonHeight * .3
             sourceSize.height: App.Spacing.settingsButtonHeight * .3
+            visible: false
+        }
+
+        ColorOverlay {
+            anchors.fill: homeIcon
+            source: homeIcon
+            color: App.Style.bottomBarHomeButton
         }
     }
 

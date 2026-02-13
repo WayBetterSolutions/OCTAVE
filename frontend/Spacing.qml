@@ -110,6 +110,15 @@ QtObject {
     property real mediaPlayerStatsTextSizePercent: 0.03
     property real mediaPlayerContentMarginPercent: 0.01
     
+    // ===== Settings Hub Properties =====
+    property real settingsHubGridSpacingPercent: 0.02
+    property real settingsHubCardHeightPercent: 0.25
+    property real settingsBreadcrumbHeightPercent: 0.07
+
+    property int settingsHubGridSpacing: scaledSize(Math.min(applicationWidth, applicationHeight) * settingsHubGridSpacingPercent)
+    property int settingsHubCardHeight: scaledSize(applicationHeight * settingsHubCardHeightPercent)
+    property int settingsBreadcrumbHeight: scaledSize(applicationHeight * settingsBreadcrumbHeightPercent)
+
     // ===== Settings Properties =====
     property real settingsNavMarginPercent: .01
     property real settingsContentMarginPercent: .05

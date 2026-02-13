@@ -1285,9 +1285,6 @@ QtObject {
                 currentTheme = ""
                 currentTheme = savedTheme
 
-                // Update SVG colors with varied colors from the theme
-                svgManager.update_svg_colors_from_theme(themeJson)
-
                 // Emit signal for any listeners
                 albumArtThemeUpdated()
 
@@ -1445,15 +1442,6 @@ QtObject {
     function setTheme(theme) {
         if (themes[theme] || customThemes[theme]) {
             currentTheme = theme
-            // Determine the correct theme object to get button colors
-            let themeObj
-            if (theme === "Album Art Capture" && albumArtTheme) {
-                themeObj = albumArtTheme
-            } else {
-                themeObj = themes[theme] || customThemes[theme]
-            }
-            // Update SVG colors with varied colors from the theme
-            svgManager.update_svg_colors_from_theme(JSON.stringify(themeObj))
         }
     }
     

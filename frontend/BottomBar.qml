@@ -108,14 +108,6 @@ Rectangle {
         z: -1 // Put behind other controls
     }
 
-    layer.enabled: true
-    layer.effect: DropShadow {
-        color: "#40000000"
-        radius: 8
-        samples: 16
-        verticalOffset: -4
-    }
-
     required property StackView stackView
     required property Window mainWindow
 
@@ -1055,7 +1047,11 @@ Rectangle {
                                 onClicked: {
                                     var currentItem = stackView.currentItem
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
-                                        settingsVisibilityPopup.open()
+                                        if (currentItem.viewState === "detail") {
+                                            currentItem.navigateToHub()
+                                        } else {
+                                            settingsVisibilityPopup.open()
+                                        }
                                     } else {
                                         var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
                                             stackView: bottomBar.stackView,
@@ -1374,28 +1370,6 @@ Rectangle {
                     }
                 }
 
-                Connections {
-                    target: svgManager
-                    function onSvgUpdated() {
-                        var timestamp = new Date().getTime()
-                        previousButtonImage.source = ""
-                        playButtonImage.source = ""
-                        nextButtonImage.source = ""
-                        muteButtonImage.source = ""
-                        shuffleButtonImage.source = ""
-
-                        previousButtonImage.source = `./assets/previous_button.svg?t=${timestamp}`
-                        var isPlaying = useSpotify ?
-                            (spotifyManager && spotifyManager.is_playing()) :
-                            (mediaManager && mediaManager.is_playing())
-                        playButtonImage.source = isPlaying ?
-                            `./assets/pause_button.svg?t=${timestamp}` :
-                            `./assets/play_button.svg?t=${timestamp}`
-                        nextButtonImage.source = `./assets/next_button.svg?t=${timestamp}`
-                        muteButtonImage.source = getUpdatedMuteSource() + `?t=${timestamp}`
-                        shuffleButtonImage.source = `./assets/shuffle_button.svg?t=${timestamp}`
-                    }
-                }
                 // Helper functions
                 function getUpdatedMuteSource() {
                     if (mediaManager.is_muted() || muteButton.isMuted || volumeSlider.value === 0) {
@@ -2332,7 +2306,11 @@ Rectangle {
                                 onClicked: {
                                     var currentItem = stackView.currentItem
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
-                                        settingsVisibilityPopup.open()
+                                        if (currentItem.viewState === "detail") {
+                                            currentItem.navigateToHub()
+                                        } else {
+                                            settingsVisibilityPopup.open()
+                                        }
                                     } else {
                                         var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
                                             stackView: bottomBar.stackView,
@@ -2654,25 +2632,6 @@ Rectangle {
                     }
                 }
 
-                // SVG update connection for vertical layout
-                Connections {
-                    target: svgManager
-                    function onSvgUpdated() {
-                        var timestamp = new Date().getTime()
-                        previousButtonImageVertical.source = `./assets/previous_button.svg?t=${timestamp}`
-                        playButtonImageVertical.source = mediaManager && mediaManager.is_playing() ? 
-                            `./assets/pause_button.svg?t=${timestamp}` : 
-                            `./assets/play_button.svg?t=${timestamp}`
-                        nextButtonImageVertical.source = `./assets/next_button.svg?t=${timestamp}`
-                        muteButtonImageVertical.source = getUpdatedMuteSourceVertical() + `?t=${timestamp}`
-                        shuffleButtonImageVertical.source = `./assets/shuffle_button.svg?t=${timestamp}`
-                        homeButtonImageVertical.source = `./assets/home_button.svg?t=${timestamp}`
-                        obdButtonImageVertical.source = `./assets/obd_button.svg?t=${timestamp}`
-                        mediaButtonImageVertical.source = `./assets/media_button.svg?t=${timestamp}`
-                        settingsButtonImageVertical.source = `./assets/settings_button.svg?t=${timestamp}`
-                        androidAutoButtonImageVertical.source = `./assets/android_auto_button.svg?t=${timestamp}`
-                    }
-                }
             }
         }
     }
@@ -2780,7 +2739,6 @@ Rectangle {
                             { name: "Media", section: "mediaSettings" },
                             { name: "Display", section: "displaySettings" },
                             { name: "OBD", section: "obdSettings" },
-                            { name: "Clock", section: "clockSettings" },
                             { name: "Android Auto", section: "androidAutoSettings" },
                             { name: "Phone Mirror", section: "phoneMirrorSettings" },
                             { name: "Volume Knob", section: "volumeKnobSettings" },

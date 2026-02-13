@@ -11,19 +11,23 @@ Item {
     required property var mainWindow
     required property string initialSection
 
-    property string currentSection: initialSection
+    property string currentSection: ""
+
+    // State: "hub" = card grid landing, "detail" = full-width settings page
+    // Default "" so neither state matches initially — avoids hub flash when entering detail directly
+    property string viewState: ""
 
     // Central page model — single source of truth for all pages
     readonly property var pageModel: [
-        { name: "Device",         section: "deviceSettings",         source: "settings/DeviceSettingsPage.qml" },
-        { name: "Media",          section: "mediaSettings",          source: "settings/MediaSettingsPage.qml" },
-        { name: "Display",        section: "displaySettings",        source: "settings/DisplaySettingsPage.qml" },
-        { name: "OBD",            section: "obdSettings",            source: "settings/OBDSettingsPage.qml" },
-        { name: "Android Auto",   section: "androidAutoSettings",    source: "settings/AndroidAutoSettingsPage.qml" },
-        { name: "Phone Mirror",   section: "phoneMirrorSettings",    source: "settings/PhoneMirrorSettingsPage.qml" },
-        { name: "Volume Knob",    section: "volumeKnobSettings",     source: "settings/VolumeKnobSettingsPage.qml" },
-        { name: "Gesture Sensor", section: "gestureSensorSettings",  source: "settings/GestureSensorSettingsPage.qml" },
-        { name: "About",          section: "about",                  source: "settings/AboutPage.qml" }
+        { name: "Device",         section: "deviceSettings",         source: "settings/DeviceSettingsPage.qml",         status: "", icon: "\u2699" },
+        { name: "Media",          section: "mediaSettings",          source: "settings/MediaSettingsPage.qml",          status: "", icon: "\u266B" },
+        { name: "Display",        section: "displaySettings",        source: "settings/DisplaySettingsPage.qml",        status: "", icon: "\u263C" },
+        { name: "OBD",            section: "obdSettings",            source: "settings/OBDSettingsPage.qml",            status: "", icon: "\u26A1" },
+        { name: "Android Auto",   section: "androidAutoSettings",    source: "settings/AndroidAutoSettingsPage.qml",    status: "", icon: "\u25B6" },
+        { name: "Phone Mirror",   section: "phoneMirrorSettings",    source: "settings/PhoneMirrorSettingsPage.qml",    status: "", icon: "\u260E" },
+        { name: "Volume Knob",    section: "volumeKnobSettings",     source: "settings/VolumeKnobSettingsPage.qml",     status: "", icon: "\u23F6" },
+        { name: "Gesture Sensor", section: "gestureSensorSettings",  source: "settings/GestureSensorSettingsPage.qml",  status: "", icon: "\u270B" },
+        { name: "About",          section: "about",                  source: "settings/AboutPage.qml",                  status: "", icon: "\u2139" }
     ]
 
     // Derived section order for fallback when current section is hidden
@@ -34,13 +38,26 @@ Item {
         return order
     }
 
+    // Visible pages model for the hub grid
+    property var hubModel: []
+
     // Scroll memory — stores contentY per section (ephemeral, not persisted)
     property var scrollPositions: ({})
 
-    // Sidebar model: flat list of visible pages
-    property var sidebarModel: []
+    Component.onCompleted: {
+        buildHubModel()
 
-    Component.onCompleted: buildSidebarModel()
+        // Entry behavior: resume last category if valid
+        if (initialSection && initialSection !== "") {
+            var page = pageForSection(initialSection)
+            if (page && isVisible(initialSection)) {
+                currentSection = initialSection
+                viewState = "detail"
+                return
+            }
+        }
+        viewState = "hub"
+    }
 
     // Look up the QML source for a given section
     function sourceForSection(section) {
@@ -60,46 +77,139 @@ Item {
         return null
     }
 
-    // Build the sidebar model from pageModel, respecting visibility
-    function buildSidebarModel() {
+    // Look up page name by section
+    function nameForSection(section) {
+        for (var i = 0; i < pageModel.length; i++) {
+            if (pageModel[i].section === section)
+                return pageModel[i].name
+        }
+        return "Settings"
+    }
+
+    // Check if a section is visible
+    function isVisible(section) {
+        return settingsManager ? settingsManager.is_settings_section_visible(section) : true
+    }
+
+    // Build the hub model from pageModel, respecting visibility
+    function buildHubModel() {
         var model = []
         for (var i = 0; i < pageModel.length; i++) {
             var page = pageModel[i]
-            var visible = settingsManager ? settingsManager.is_settings_section_visible(page.section) : true
-            if (visible)
-                model.push({ name: page.name, section: page.section })
+            if (isVisible(page.section)) {
+                model.push({
+                    name: page.name,
+                    section: page.section,
+                    icon: page.icon,
+                    widgetItems: getWidgetForSection(page.section)
+                })
+            }
         }
-        sidebarModel = model
+        hubModel = model
     }
 
-    // When a section's visibility changes, rebuild sidebar and check if we need to switch away
+    // Get widget info lines for a hub card
+    function getWidgetForSection(section) {
+        if (!settingsManager) return []
+        switch (section) {
+            case "deviceSettings":
+                return [
+                    { label: "Name", value: settingsManager.deviceName || "OCTAVE" }
+                ]
+            case "mediaSettings":
+                return [
+                    { label: "Source", value: settingsManager.mediaSource === "spotify" ? "Spotify" : "Local" },
+                    { label: "Autoplay", value: settingsManager.autoPlayOnStartup ? "On" : "Off" },
+                    { label: "Visualizer", value: settingsManager.showWaveformVisualizer ? "On" : "Off" }
+                ]
+            case "displaySettings":
+                return [
+                    { label: "Theme", value: settingsManager.themeSetting },
+                    { label: "Environment", value: settingsManager.environmentTheme },
+                    { label: "Scale", value: Math.round(settingsManager.uiScale * 100) + "%" }
+                ]
+            case "obdSettings":
+                return [
+                    { label: "Status", value: obdManager ? obdManager.get_connection_status() : "N/A" },
+                    { label: "Port", value: settingsManager.obdBluetoothPort || "Not set" },
+                    { label: "Fast", value: settingsManager.obdFastMode ? "On" : "Off" }
+                ]
+            case "androidAutoSettings":
+                return [
+                    { label: "Nav Bar", value: settingsManager.androidAutoEnabled ? "Shown" : "Hidden" }
+                ]
+            case "phoneMirrorSettings":
+                return [
+                    { label: "Nav Bar", value: settingsManager.phoneMirrorEnabled ? "Shown" : "Hidden" },
+                    { label: "Audio", value: settingsManager.scrcpyAudioEnabled ? "On" : "Off" }
+                ]
+            case "volumeKnobSettings":
+                var espConnected = (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected())
+                return [
+                    { label: "Status", value: espConnected ? "Connected" : "Disconnected" },
+                    { label: "Port", value: settingsManager.esp32VolumePort || "Not set" },
+                    { label: "LED", value: settingsManager.esp32LedColorMode || "Off" }
+                ]
+            case "gestureSensorSettings":
+                return [
+                    { label: "Status", value: settingsManager.gestureSensorEnabled ? "Enabled" : "Disabled" },
+                    { label: "Vol Step", value: settingsManager.gestureVolumeStep + "%" },
+                    { label: "Cooldown", value: settingsManager.gestureCooldown + "ms" }
+                ]
+            default:
+                return []
+        }
+    }
+
+    // Navigate to a category detail view
+    function navigateToCategory(section) {
+        currentSection = section
+        viewState = "detail"
+        if (settingsManager) {
+            settingsManager.set_last_settings_section(section)
+        }
+    }
+
+    // Return to hub
+    function navigateToHub() {
+        // Save scroll position before leaving detail
+        if (contentLoader.item && typeof contentLoader.item.contentY !== "undefined") {
+            var copy = ({})
+            for (var key in scrollPositions) copy[key] = scrollPositions[key]
+            copy[currentSection] = contentLoader.item.contentY
+            scrollPositions = copy
+        }
+        viewState = "hub"
+    }
+
+    // When visibility changes, rebuild hub and check if we need to navigate away
     Connections {
         target: settingsManager
         function onSettingsMenuVisibilityChanged() {
-            buildSidebarModel()
-            if (settingsManager && !settingsManager.is_settings_section_visible(currentSection)) {
-                for (var i = 0; i < sectionOrder.length; i++) {
-                    if (settingsManager.is_settings_section_visible(sectionOrder[i])) {
-                        currentSection = sectionOrder[i]
-                        if (settingsManager) {
-                            settingsManager.set_last_settings_section(sectionOrder[i])
-                        }
-                        return
-                    }
-                }
+            buildHubModel()
+            if (viewState === "detail" && !isVisible(currentSection)) {
+                navigateToHub()
             }
         }
     }
 
-    // Save scroll position before section change
-    onCurrentSectionChanged: {
-        // Save previous page's scroll position
-        if (contentLoader.item && typeof contentLoader.item.contentY !== "undefined") {
-            var copy = ({})
-            for (var key in scrollPositions) copy[key] = scrollPositions[key]
-            // We don't know the "previous" section here easily, so we save on Loader swap instead
-            scrollPositions = copy
-        }
+    // Live hub refresh — rebuild when device status changes (only while hub is showing)
+    Connections {
+        target: typeof obdManager !== "undefined" && obdManager ? obdManager : null
+        enabled: viewState === "hub"
+        function onConnectionStatusChanged() { buildHubModel() }
+    }
+
+    Connections {
+        target: typeof esp32VolumeManager !== "undefined" && esp32VolumeManager ? esp32VolumeManager : null
+        enabled: viewState === "hub"
+        function onConnectionStatusChanged() { buildHubModel() }
+    }
+
+    Connections {
+        target: typeof gestureManager !== "undefined" && gestureManager ? gestureManager : null
+        enabled: viewState === "hub"
+        function onConnectionStatusChanged() { buildHubModel() }
     }
 
     // MAIN LAYOUT
@@ -107,277 +217,63 @@ Item {
         anchors.fill: parent
         color: App.Style.backgroundColor
 
-        RowLayout {
+        // ─── Hub State ───────────────────────────────────────────────
+        Item {
+            id: hubView
             anchors.fill: parent
-            spacing: 0
+            visible: false
+            opacity: 0
 
-            Rectangle { // Left Navigation Panel
-                id: sidebarPanel
-                Layout.preferredWidth: App.Spacing.settingsNavWidth
-                Layout.fillHeight: true
-                color: App.Style.sidebarColor
+            Flickable {
+                anchors.fill: parent
+                anchors.margins: App.Spacing.settingsContentMargin
+                contentHeight: hubGrid.implicitHeight + App.Spacing.bottomBarHeight
+                clip: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1200
+                maximumFlickVelocity: 4000
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                // Sidebar lighting gradient (subtle overhead light simulation)
-                Rectangle {
-                    anchors.fill: parent
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(255, 255, 255, 0.04) }
-                        GradientStop { position: 0.6; color: "transparent" }
-                        GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.06) }
-                    }
-                }
+                GridLayout {
+                    id: hubGrid
+                    width: parent.width
+                    columns: parent.width > 800 ? 3 : 2
+                    columnSpacing: App.Spacing.settingsHubGridSpacing
+                    rowSpacing: App.Spacing.settingsHubGridSpacing
 
-                SidebarDotGrid {}
-                SidebarBubbles {}
+                    Repeater {
+                        model: hubModel.length
 
-                // Lit edge highlight along the top
-                Rectangle {
-                    anchors {
-                        top: parent.top
-                        left: parent.left
-                        right: parent.right
-                    }
-                    height: 1
-                    color: Qt.rgba(255, 255, 255, 0.08)
-                }
+                        SettingsHubCard {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: App.Spacing.settingsHubCardHeight
+                            categoryName: hubModel[index] ? hubModel[index].name : ""
+                            section: hubModel[index] ? hubModel[index].section : ""
+                            widgetItems: hubModel[index] ? hubModel[index].widgetItems : []
+                            categoryIcon: hubModel[index] ? hubModel[index].icon : ""
+                            radius: App.EnvironmentTheme.active.hubCardRadius
 
-                // Soft shadow on the right edge (replaces hard separator)
-                Rectangle {
-                    anchors {
-                        top: parent.top
-                        bottom: parent.bottom
-                        left: parent.right
-                    }
-                    width: 10
-                    z: 1
-                    gradient: Gradient {
-                        orientation: Gradient.Horizontal
-                        GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.15) }
-                        GradientStop { position: 0.4; color: Qt.rgba(0, 0, 0, 0.06) }
-                        GradientStop { position: 1.0; color: "transparent" }
-                    }
-                }
-
-                ColumnLayout {
-                    anchors {
-                        fill: parent
-                        margins: App.Spacing.settingsNavMargin
-                    }
-                    spacing: 0
-
-                    ListView {
-                        id: navListView
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        interactive: true
-                        clip: true
-
-                        model: sidebarModel.length
-
-                        delegate: Item {
-                            id: delegateRoot
-                            property var entry: sidebarModel[index] || {}
-                            property string itemSection: entry.section || ""
-                            property string itemName: entry.name || ""
-
-                            width: navListView.width
-                            height: App.Spacing.settingsButtonHeight
-
-                                // Elevation shadow - outer (soft, wide spread)
-                                Rectangle {
-                                    x: navBackground.x - 2
-                                    y: navBackground.y + 4
-                                    width: navBackground.width + 4
-                                    height: navBackground.height + 2
-                                    radius: navBackground.radius + 3
-                                    color: Qt.rgba(0, 0, 0, 0.06)
-                                    opacity: currentSection === parent.itemSection ? 1.0
-                                        : (navMouseArea.containsMouse ? 0.6 : 0)
-
-                                    Behavior on opacity { NumberAnimation { duration: 200 } }
-                                }
-
-                                // Elevation shadow - inner (sharper, tighter)
-                                Rectangle {
-                                    x: navBackground.x - 1
-                                    y: navBackground.y + 2
-                                    width: navBackground.width + 2
-                                    height: navBackground.height + 1
-                                    radius: navBackground.radius + 1
-                                    color: Qt.rgba(0, 0, 0, 0.12)
-                                    opacity: currentSection === parent.itemSection
-                                        ? (navMouseArea.pressed ? 0.4 : 1.0)
-                                        : (navMouseArea.containsMouse ? 0.5 : 0)
-
-                                    Behavior on opacity { NumberAnimation { duration: 200 } }
-                                }
-
-                                // Background - rounded selection
-                                Rectangle {
-                                    id: navBackground
-                                    anchors {
-                                        left: parent.left
-                                        right: parent.right
-                                        top: parent.top
-                                        bottom: parent.bottom
-                                        leftMargin: 8
-                                        rightMargin: 8
-                                        topMargin: 3
-                                        bottomMargin: 3
-                                    }
-                                    radius: App.EnvironmentTheme.active.navItemRadius
-                                    color: currentSection === parent.itemSection
-                                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
-                                        : "transparent"
-                                    scale: navMouseArea.pressed ? 0.97 : 1.0
-
-                                    // Accent border (spacecraft)
-                                    border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
-                                    border.color: currentSection === delegateRoot.itemSection
-                                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                                        : (navMouseArea.containsMouse
-                                            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
-                                            : "transparent")
-
-                                    // Top lit edge on selected/hovered item
-                                    Rectangle {
-                                        anchors {
-                                            top: parent.top
-                                            left: parent.left
-                                            right: parent.right
-                                            leftMargin: 2
-                                            rightMargin: 2
-                                        }
-                                        height: 1
-                                        radius: 0.5
-                                        color: Qt.rgba(255, 255, 255, 0.1)
-                                        opacity: currentSection === delegateRoot.entry.section ? 1.0
-                                            : (navMouseArea.containsMouse ? 0.5 : 0)
-
-                                        Behavior on opacity { NumberAnimation { duration: 200 } }
-                                    }
-
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-                                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
-                                }
-
-                                // Pulsing glow behind accent bar (spacecraft)
-                                Rectangle {
-                                    anchors.centerIn: accentBar
-                                    width: accentBar.width + 6
-                                    height: accentBar.height + 6
-                                    radius: accentBar.radius + 3
-                                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, accentBarPulse)
-                                    visible: App.EnvironmentTheme.active.pulsingElements && currentSection === parent.itemSection
-
-                                    property real accentBarPulse: 0.15
-                                    SequentialAnimation on accentBarPulse {
-                                        running: App.EnvironmentTheme.active.pulsingElements && currentSection === delegateRoot.entry.section
-                                        loops: Animation.Infinite
-                                        NumberAnimation { to: 0.35; duration: 1500; easing.type: Easing.InOutSine }
-                                        NumberAnimation { to: 0.15; duration: 1500; easing.type: Easing.InOutSine }
-                                    }
-                                }
-
-                                // Left accent bar for selected item
-                                Rectangle {
-                                    id: accentBar
-                                    anchors {
-                                        left: parent.left
-                                        leftMargin: 4
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    width: App.EnvironmentTheme.active.navAccentBarWidth
-                                    height: currentSection === parent.itemSection
-                                        ? (App.EnvironmentTheme.active.navAccentBarFullHeight
-                                            ? parent.height * 0.8 : parent.height * 0.5)
-                                        : 0
-                                    radius: App.EnvironmentTheme.active.navAccentBarWidth / 2
-                                    color: App.Style.accent
-
-                                    Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
-                                }
-
-                                // Hover effect - rounded
-                                Rectangle {
-                                    id: navHoverRectangle
-                                    anchors {
-                                        left: parent.left
-                                        right: parent.right
-                                        top: parent.top
-                                        bottom: parent.bottom
-                                        leftMargin: 8
-                                        rightMargin: 8
-                                        topMargin: 3
-                                        bottomMargin: 3
-                                    }
-                                    radius: App.EnvironmentTheme.active.navItemRadius
-                                    color: Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
-                                    opacity: 0
-
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                                }
-
-                                // Text
-                                Text {
-                                    anchors {
-                                        left: parent.left
-                                        leftMargin: 24
-                                        right: parent.right
-                                        rightMargin: 12
-                                        verticalCenter: parent.verticalCenter
-                                    }
-                                    text: parent.itemName
-                                    color: currentSection === parent.itemSection ? App.Style.primaryTextColor : App.Style.secondaryTextColor
-                                    font.pixelSize: App.Spacing.overallText * 1.6
-                                    font.bold: currentSection === parent.itemSection
-                                    font.family: App.Style.fontFamily
-                                    elide: Text.ElideRight
-                                }
-
-                                // Entire area clickable
-                                MouseArea {
-                                    id: navMouseArea
-                                    anchors.fill: parent
-                                    onClicked: {
-                                        // Save scroll position of current page before switching
-                                        if (contentLoader.item && typeof contentLoader.item.contentY !== "undefined") {
-                                            var copy = ({})
-                                            for (var key in scrollPositions) copy[key] = scrollPositions[key]
-                                            copy[currentSection] = contentLoader.item.contentY
-                                            scrollPositions = copy
-                                        }
-
-                                        currentSection = parent.itemSection
-                                        mainWindow.lastSettingsSection = parent.itemSection
-                                        // Persist to settings
-                                        if (settingsManager) {
-                                            settingsManager.set_last_settings_section(parent.itemSection)
-                                        }
-                                    }
-                                    hoverEnabled: true
-
-                                    onEntered: {
-                                        if (currentSection !== delegateRoot.itemSection) {
-                                            navHoverRectangle.opacity = 1
-                                        }
-                                    }
-                                    onExited: {
-                                        navHoverRectangle.opacity = 0
-                                    }
-                                }
+                            onCategorySelected: function(sec) {
+                                settingsMenu.navigateToCategory(sec)
+                            }
                         }
                     }
                 }
             }
+        }
 
-            Rectangle { // Right Content Area
-                id: contentArea
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+        // ─── Detail State ────────────────────────────────────────────
+        Item {
+            id: detailView
+            anchors.fill: parent
+            visible: false
+            opacity: 0
+
+            Rectangle {
+                anchors.fill: parent
                 color: App.Style.contentColor
 
-                // Top HUD line (spacecraft)
+                // HUD lines (spacecraft)
                 Rectangle {
                     anchors.top: parent.top
                     anchors.left: parent.left
@@ -390,7 +286,6 @@ Item {
                     visible: App.EnvironmentTheme.active.contentHudLines
                 }
 
-                // Bottom HUD line (spacecraft)
                 Rectangle {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
@@ -400,91 +295,89 @@ Item {
                     height: 1
                     z: 1
                     color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-
-                // Top-left corner bracket (spacecraft)
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.leftMargin: App.Spacing.settingsContentMargin - 5
-                    width: 10; height: 1; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.leftMargin: App.Spacing.settingsContentMargin - 5
-                    width: 1; height: 10; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-
-                // Top-right corner bracket (spacecraft)
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.rightMargin: App.Spacing.settingsContentMargin - 5
-                    width: 10; height: 1; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-                Rectangle {
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.rightMargin: App.Spacing.settingsContentMargin - 5
-                    width: 1; height: 10; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-
-                // Bottom-left corner bracket (spacecraft)
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.leftMargin: App.Spacing.settingsContentMargin - 5
-                    width: 10; height: 1; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.leftMargin: App.Spacing.settingsContentMargin - 5
-                    width: 1; height: 10; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-
-                // Bottom-right corner bracket (spacecraft)
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.right: parent.right
-                    anchors.rightMargin: App.Spacing.settingsContentMargin - 5
-                    width: 10; height: 1; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                    visible: App.EnvironmentTheme.active.contentHudLines
-                }
-                Rectangle {
-                    anchors.bottom: parent.bottom
-                    anchors.right: parent.right
-                    anchors.rightMargin: App.Spacing.settingsContentMargin - 5
-                    width: 1; height: 10; z: 1
-                    color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
                     visible: App.EnvironmentTheme.active.contentHudLines
                 }
 
                 ContentSonar {}
                 ContentSolarSystem {}
 
+                // ─── Heading bar ───
+                Item {
+                    id: headingBar
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: App.Spacing.overallSpacing * 2.4
+                    z: 2
+
+                    Row {
+                        id: headingRow
+                        anchors.left: parent.left
+                        anchors.leftMargin: App.Spacing.settingsContentMargin
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: App.Spacing.overallSpacing * 0.5
+
+                        // Back arrow
+                        Text {
+                            text: "\u2190"
+                            color: floatingLabelArea.containsMouse ? App.Style.accent : App.Style.secondaryTextColor
+                            font.pixelSize: App.Spacing.overallText * 1.1
+                            font.family: App.Style.fontFamily
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+
+                        // Category name
+                        Text {
+                            id: categoryLabelText
+                            text: nameForSection(currentSection)
+                            color: floatingLabelArea.containsMouse ? App.Style.accent : App.Style.primaryTextColor
+                            font.pixelSize: App.Spacing.overallText * 1.1
+                            font.bold: true
+                            font.family: App.Style.fontFamily
+                            font.letterSpacing: App.EnvironmentTheme.active.labelLetterSpacing
+                            font.capitalization: App.EnvironmentTheme.active.labelUppercase ? Font.AllUppercase : Font.MixedCase
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                    }
+
+                    MouseArea {
+                        id: floatingLabelArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: settingsMenu.navigateToHub()
+                    }
+
+                    // Bottom separator line
+                    Rectangle {
+                        anchors.bottom: parent.bottom
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        height: 1
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: App.Style.accent }
+                            GradientStop { position: 0.6; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2) }
+                            GradientStop { position: 1.0; color: "transparent" }
+                        }
+                    }
+                }
+
+                // ─── Content below heading ───
                 Loader {
                     id: contentLoader
                     anchors {
-                        fill: parent
-                        margins: App.Spacing.settingsContentMargin
+                        top: headingBar.bottom
+                        left: parent.left
+                        right: parent.right
+                        bottom: parent.bottom
+                        leftMargin: App.Spacing.settingsContentMargin
+                        rightMargin: App.Spacing.settingsContentMargin
+                        bottomMargin: App.Spacing.settingsContentMargin
                     }
-                    source: sourceForSection(currentSection)
+                    source: viewState === "detail" ? sourceForSection(currentSection) : ""
 
                     // Track previous section for scroll save
                     property string previousSection: ""
@@ -517,5 +410,43 @@ Item {
                 }
             }
         }
+
+        // ─── State management ────────────────────────────────────────
+        states: [
+            State {
+                name: "hub"
+                when: viewState === "hub"
+                PropertyChanges { target: hubView; visible: true; opacity: 1.0 }
+                PropertyChanges { target: detailView; visible: false; opacity: 0 }
+            },
+            State {
+                name: "detail"
+                when: viewState === "detail"
+                PropertyChanges { target: hubView; visible: false; opacity: 0 }
+                PropertyChanges { target: detailView; visible: true; opacity: 1.0 }
+            }
+        ]
+
+        transitions: [
+            Transition {
+                from: "hub"; to: "detail"
+                SequentialAnimation {
+                    NumberAnimation { target: hubView; property: "opacity"; to: 0; duration: 150; easing.type: Easing.OutQuad }
+                    PropertyAction { target: hubView; property: "visible"; value: false }
+                    PropertyAction { target: detailView; property: "visible"; value: true }
+                    NumberAnimation { target: detailView; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.InQuad }
+                }
+            },
+            Transition {
+                from: "detail"; to: "hub"
+                SequentialAnimation {
+                    ScriptAction { script: settingsMenu.buildHubModel() }
+                    NumberAnimation { target: detailView; property: "opacity"; to: 0; duration: 150; easing.type: Easing.OutQuad }
+                    PropertyAction { target: detailView; property: "visible"; value: false }
+                    PropertyAction { target: hubView; property: "visible"; value: true }
+                    NumberAnimation { target: hubView; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.InQuad }
+                }
+            }
+        ]
     }
 }

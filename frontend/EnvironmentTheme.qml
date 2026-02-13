@@ -11,6 +11,9 @@ QtObject {
     // Define environment presets
     readonly property var environments: ({
         "Standard": {
+            // Hub Card
+            hubCardRadius: 12,
+
             // Card
             cardRadius: 12,
             cornerBrackets: false,
@@ -100,6 +103,9 @@ QtObject {
         },
 
         "Spacecraft": {
+            // Hub Card
+            hubCardRadius: 2,
+
             // Card
             cardRadius: 2,
             cornerBrackets: true,
@@ -189,6 +195,9 @@ QtObject {
         },
 
         "Deep Sea": {
+            // Hub Card
+            hubCardRadius: 16,
+
             // Card
             cardRadius: 16,
             cornerBrackets: false,

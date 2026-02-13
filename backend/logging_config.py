@@ -159,7 +159,6 @@ def get_logger(name: str) -> logging.Logger:
         'backend.media_manager': 'octave.media',
         'backend.spotify_manager': 'octave.spotify',
         'backend.settings_manager': 'octave.settings',
-        'backend.svg_manager': 'octave.svg',
         'backend.clock': 'octave.clock',
         'backend.android_auto.manager': 'octave.android_auto',
         'backend.android_auto.dhu_capture': 'octave.android_auto.capture',

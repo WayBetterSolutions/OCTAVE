@@ -9,6 +9,64 @@ from typing import List
 from backend.logging_config import get_logger
 logger = get_logger(__name__)
 
+# Settings registry — maps setting IDs to metadata for dynamic Quick Panel rendering
+SETTINGS_REGISTRY = {
+    "startup_volume": {
+        "key": "startUpVolume", "label": "Startup Volume", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_start_volume",
+        "params": {"from": 0, "to": 1, "stepSize": 0.01, "logarithmic": True}
+    },
+    "auto_play_on_startup": {
+        "key": "autoPlayOnStartup", "label": "Autoplay on Startup", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_auto_play_on_startup"
+    },
+    "show_waveform_visualizer": {
+        "key": "showWaveformVisualizer", "label": "Waveform Visualizer", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_show_waveform_visualizer"
+    },
+    "ui_scale": {
+        "key": "uiScale", "label": "UI Scaling", "category": "displaySettings",
+        "controlType": "slider", "saveSlot": "save_ui_scale",
+        "params": {"from": 0.2, "to": 1.2, "stepSize": 0.05}
+    },
+    "theme_setting": {
+        "key": "themeSetting", "label": "Theme", "category": "displaySettings",
+        "controlType": "chips", "saveSlot": "save_theme_setting",
+        "params": {"optionsSource": "themeList"}
+    },
+    "environment_theme": {
+        "key": "environmentTheme", "label": "Environment", "category": "displaySettings",
+        "controlType": "chips", "saveSlot": "save_environment_theme",
+        "params": {"options": ["Standard", "Spacecraft", "Deep Sea"]}
+    },
+    "show_clock": {
+        "key": "showClock", "label": "Show Clock", "category": "displaySettings",
+        "controlType": "toggle", "saveSlot": "save_show_clock"
+    },
+    "bottom_bar_media_controls": {
+        "key": "showBottomBarMediaControls", "label": "Nav Bar Media Controls", "category": "displaySettings",
+        "controlType": "toggle", "saveSlot": "save_show_bottom_bar_media_controls"
+    },
+    "background_blur_radius": {
+        "key": "backgroundBlurRadius", "label": "Album Art Blur", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_background_blur_radius",
+        "params": {"from": 0, "to": 100, "stepSize": 1}
+    },
+    "color_transition_ms": {
+        "key": "colorTransitionMs", "label": "Theme Transition Speed", "category": "displaySettings",
+        "controlType": "slider", "saveSlot": "save_color_transition_ms",
+        "params": {"from": 0, "to": 5000, "stepSize": 100}
+    },
+    "obd_fast_mode": {
+        "key": "obdFastMode", "label": "OBD Fast Mode", "category": "obdSettings",
+        "controlType": "toggle", "saveSlot": "save_obd_fast_mode"
+    },
+    "gesture_sensor_enabled": {
+        "key": "gestureSensorEnabled", "label": "Gesture Sensor", "category": "gestureSensorSettings",
+        "controlType": "toggle", "saveSlot": "save_gesture_sensor_enabled"
+    },
+}
+
 # Platform-specific imports for file locking
 if sys.platform == 'win32':
     import msvcrt
@@ -107,6 +165,9 @@ class SettingsManager(QObject):
     gestureMappingChanged = Signal()
     gestureVolumeStepChanged = Signal(int)
     gestureCooldownChanged = Signal(int)
+
+    # Pinned settings signals
+    pinnedSettingsChanged = Signal()
 
     def __init__(self):
         self._album_art_colors = ""  # Store album art theme colors JSON
@@ -292,7 +353,8 @@ class SettingsManager(QObject):
                 "WAVE": "play_pause"
             },
             "gestureVolumeStep": 5,
-            "gestureCooldown": 300
+            "gestureCooldown": 300,
+            "pinnedSettings": []
         }
             
     
@@ -388,6 +450,9 @@ class SettingsManager(QObject):
         self._gesture_mapping = self._settings.get("gestureMapping", self._default_settings["gestureMapping"])
         self._gesture_volume_step = self._settings.get("gestureVolumeStep", self._default_settings["gestureVolumeStep"])
         self._gesture_cooldown = self._settings.get("gestureCooldown", self._default_settings["gestureCooldown"])
+
+        # Pinned settings
+        self._pinned_settings = self._settings.get("pinnedSettings", [])
 
         # Current volume (0-100) - unified volume for both local and Spotify
         # Initialize from startUpVolume, converted to 0-100 scale
@@ -1472,6 +1537,73 @@ class SettingsManager(QObject):
         self._gesture_cooldown = max(100, min(2000, ms))
         self.update_setting("gestureCooldown", self._gesture_cooldown, self.gestureCooldownChanged)
 
+    # ==================== Pinned Quick Settings ====================
+
+    @Property('QVariantList', notify=pinnedSettingsChanged)
+    def pinnedSettings(self):
+        return self._pinned_settings
+
+    @Slot(str)
+    def toggle_pin_setting(self, setting_id):
+        """Toggle a setting's pinned state"""
+        if setting_id in self._pinned_settings:
+            self._pinned_settings.remove(setting_id)
+        else:
+            if setting_id in SETTINGS_REGISTRY:
+                self._pinned_settings.append(setting_id)
+        settings = self.load_settings()
+        settings["pinnedSettings"] = self._pinned_settings
+        self.save_settings(settings)
+        self.pinnedSettingsChanged.emit()
+
+    @Slot(str, result=bool)
+    def is_setting_pinned(self, setting_id):
+        """Check if a setting is pinned"""
+        return setting_id in self._pinned_settings
+
+    @Slot(result=str)
+    def get_settings_registry(self):
+        """Return the full settings registry as JSON"""
+        return json.dumps(SETTINGS_REGISTRY)
+
+    @Slot(result=str)
+    def get_pinned_settings_metadata(self):
+        """Return list of pinned setting objects with current values as JSON"""
+        result = []
+        for sid in self._pinned_settings:
+            if sid not in SETTINGS_REGISTRY:
+                continue
+            entry = SETTINGS_REGISTRY[sid].copy()
+            entry["id"] = sid
+            # Resolve current value from the corresponding property
+            key = entry["key"]
+            if hasattr(self, '_' + self._key_to_attr(key)):
+                entry["currentValue"] = getattr(self, '_' + self._key_to_attr(key))
+            else:
+                # Fallback: load from settings file
+                entry["currentValue"] = self._settings.get(key)
+            result.append(entry)
+        return json.dumps(result)
+
+    def _key_to_attr(self, key):
+        """Convert camelCase settings key to snake_case attribute name"""
+        # Map known keys to their internal attribute names
+        attr_map = {
+            "startUpVolume": "start_volume",
+            "autoPlayOnStartup": "auto_play_on_startup",
+            "showWaveformVisualizer": "show_waveform_visualizer",
+            "uiScale": "ui_scale",
+            "themeSetting": "theme_setting",
+            "environmentTheme": "environment_theme",
+            "showClock": "show_clock",
+            "showBottomBarMediaControls": "show_bottom_bar_media_controls",
+            "backgroundBlurRadius": "background_blur_radius",
+            "colorTransitionMs": "color_transition_ms",
+            "obdFastMode": "obd_fast_mode",
+            "gestureSensorEnabled": "gesture_sensor_enabled",
+        }
+        return attr_map.get(key, key)
+
     # ==================== Settings Menu Visibility ====================
 
     @Property(str, notify=settingsMenuVisibilityChanged)
@@ -1682,6 +1814,9 @@ class SettingsManager(QObject):
 
         self._gesture_cooldown = self._default_settings["gestureCooldown"]
         self.gestureCooldownChanged.emit(self._gesture_cooldown)
+
+        self._pinned_settings = []
+        self.pinnedSettingsChanged.emit()
 
     # ==================== Git Commit Info ====================
 
