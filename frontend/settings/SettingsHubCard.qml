@@ -32,31 +32,36 @@ Rectangle {
         NumberAnimation { to: 0.3; duration: 2000; easing.type: Easing.InOutSine }
     }
 
-    // Solid accent-tinted card background
+    // Glassy translucent card background
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
         color: {
             var base = App.Style.contentColor
-            return Qt.rgba(
-                base.r * 0.92 + App.Style.accent.r * 0.08,
-                base.g * 0.92 + App.Style.accent.g * 0.08,
-                base.b * 0.92 + App.Style.accent.b * 0.08,
-                0.95
-            )
+            return Qt.rgba(base.r, base.g, base.b, 0.55)
         }
     }
 
-    // Frosted glass gradient overlay (deep sea)
+    // Frosted highlight gradient — lighter at top edge, fading down
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
-        visible: App.EnvironmentTheme.active.cardGlassEffect
         gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.05) }
-            GradientStop { position: 0.4; color: "transparent" }
-            GradientStop { position: 1.0; color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.03) }
+            GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.06) }
+            GradientStop { position: 0.15; color: Qt.rgba(1, 1, 1, 0.02) }
+            GradientStop { position: 1.0; color: "transparent" }
         }
+    }
+
+    // Top edge highlight line
+    Rectangle {
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: parent.radius
+        anchors.rightMargin: parent.radius
+        height: 1
+        color: Qt.rgba(1, 1, 1, 0.08)
     }
 
     // Corner brackets — Top Left (spacecraft)
@@ -138,6 +143,15 @@ Rectangle {
         opacity: 0.6
     }
 
+    // Hover glow overlay
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 1.0)
+        opacity: cardMouseArea.containsMouse ? 0.06 : 0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+    }
+
     // Card content
     ColumnLayout {
         anchors {
@@ -178,43 +192,80 @@ Rectangle {
         GridLayout {
             Layout.fillWidth: true
             columns: hubCard.cardSpan >= 2 ? 2 : 1
-            columnSpacing: App.Spacing.overallSpacing * 0.8
-            rowSpacing: 2
+            columnSpacing: App.Spacing.overallSpacing * 0.4
+            rowSpacing: App.Spacing.overallSpacing * 0.25
             visible: hubCard.widgetItems.length > 0
 
             Repeater {
                 model: hubCard.widgetItems.length
 
-                Row {
+                Rectangle {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing * 0.3
+                    implicitHeight: dataRow.height + App.Spacing.overallSpacing * 0.5
+                    radius: App.EnvironmentTheme.active.cardRadius * 0.5
+                    color: Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.7)
 
-                    // Status dot — only visible when statusColor is set
-                    Rectangle {
-                        width: 7
-                        height: 7
-                        radius: 3.5
-                        color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
-                               ? hubCard.widgetItems[index].statusColor : "transparent"
-                        visible: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
+                    Row {
+                        id: dataRow
                         anchors.verticalCenter: parent.verticalCenter
-                    }
+                        anchors.left: parent.left
+                        anchors.leftMargin: App.Spacing.overallSpacing * 0.5
+                        anchors.right: parent.right
+                        anchors.rightMargin: App.Spacing.overallSpacing * 0.5
+                        spacing: App.Spacing.overallSpacing * 0.3
 
-                    Text {
-                        text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].label + ":" : ""
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.overallText * 0.85
-                        font.family: App.Style.fontFamily
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
+                        // Status dot with pulse — only visible when statusColor is set
+                        Item {
+                            width: 7
+                            height: 7
+                            visible: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
+                            anchors.verticalCenter: parent.verticalCenter
 
-                    Text {
-                        text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].value : ""
-                        color: App.Style.accent
-                        font.pixelSize: App.Spacing.overallText * 0.85
-                        font.bold: true
-                        font.family: App.Style.fontFamily
-                        anchors.verticalCenter: parent.verticalCenter
+                            // Glow ring
+                            Rectangle {
+                                width: 11
+                                height: 11
+                                radius: 5.5
+                                anchors.centerIn: parent
+                                color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
+                                       ? hubCard.widgetItems[index].statusColor : "transparent"
+                                property real pulseOpacity: 0.3
+                                opacity: pulseOpacity
+                                SequentialAnimation on pulseOpacity {
+                                    running: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
+                                    loops: Animation.Infinite
+                                    NumberAnimation { to: 0.5; duration: 1500; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 0.1; duration: 1500; easing.type: Easing.InOutSine }
+                                }
+                            }
+
+                            // Solid dot
+                            Rectangle {
+                                width: 7
+                                height: 7
+                                radius: 3.5
+                                anchors.centerIn: parent
+                                color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
+                                       ? hubCard.widgetItems[index].statusColor : "transparent"
+                            }
+                        }
+
+                        Text {
+                            text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].label + ":" : ""
+                            color: App.Style.secondaryTextColor
+                            font.pixelSize: App.Spacing.overallText * 0.85
+                            font.family: App.Style.fontFamily
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        Text {
+                            text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].value : ""
+                            color: App.Style.accent
+                            font.pixelSize: App.Spacing.overallText * 0.85
+                            font.bold: true
+                            font.family: App.Style.fontFamily
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
                 }
             }

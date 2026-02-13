@@ -149,7 +149,8 @@ Item {
         switch (section) {
             case "deviceSettings":
                 return [
-                    { label: "Name", value: settingsManager.deviceName || "OCTAVE", statusColor: "" }
+                    { label: "Name", value: settingsManager.deviceName || "OCTAVE", statusColor: "" },
+                    { label: "Resolution", value: settingsManager.screenWidth + " x " + settingsManager.screenHeight, statusColor: "" }
                 ]
             case "mediaSettings": {
                 var isSpotify = settingsManager.mediaSource === "spotify"
@@ -159,18 +160,29 @@ Item {
                         ? App.Style.statusConnected.toString()
                         : App.Style.statusDisconnected.toString()
                 }
-                return [
+                var mediaItems = [
                     { label: "Source", value: isSpotify ? "Spotify" : "Local", statusColor: spotifyColor },
                     { label: "Autoplay", value: settingsManager.autoPlayOnStartup ? "On" : "Off", statusColor: "" },
                     { label: "Visualizer", value: settingsManager.showWaveformVisualizer ? "On" : "Off", statusColor: "" }
                 ]
+                if (!isSpotify && typeof mediaManager !== "undefined" && mediaManager) {
+                    var albums = mediaManager.get_album_count()
+                    var artists = mediaManager.get_artist_count()
+                    if (albums > 0) mediaItems.push({ label: "Albums", value: albums.toString(), statusColor: "" })
+                    if (artists > 0) mediaItems.push({ label: "Artists", value: artists.toString(), statusColor: "" })
+                }
+                return mediaItems
             }
-            case "displaySettings":
+            case "displaySettings": {
+                var fontVal = settingsManager.fontSetting || "System Default"
+                if (fontVal.length > 14) fontVal = fontVal.substring(0, 14) + "\u2026"
                 return [
                     { label: "Theme", value: settingsManager.themeSetting, statusColor: "" },
                     { label: "Environment", value: settingsManager.environmentTheme, statusColor: "" },
-                    { label: "Scale", value: Math.round(settingsManager.uiScale * 100) + "%", statusColor: "" }
+                    { label: "Scale", value: Math.round(settingsManager.uiScale * 100) + "%", statusColor: "" },
+                    { label: "Font", value: fontVal, statusColor: "" }
                 ]
+            }
             case "obdSettings": {
                 var obdStatus = obdManager ? obdManager.get_connection_status() : "N/A"
                 var obdColor = App.Style.statusDisconnected.toString()
@@ -178,11 +190,16 @@ Item {
                     obdColor = App.Style.statusConnected.toString()
                 else if (obdStatus.indexOf("Connecting") !== -1)
                     obdColor = App.Style.statusWarning.toString()
-                return [
+                var obdItems = [
                     { label: "Status", value: obdStatus, statusColor: obdColor },
                     { label: "Port", value: settingsManager.obdBluetoothPort || "Not set", statusColor: "" },
                     { label: "Fast", value: settingsManager.obdFastMode ? "On" : "Off", statusColor: "" }
                 ]
+                if (obdManager && obdManager.is_connected()) {
+                    var v = obdManager.voltage()
+                    if (v > 0) obdItems.push({ label: "Voltage", value: v.toFixed(1) + "V", statusColor: "" })
+                }
+                return obdItems
             }
             case "androidAutoSettings":
                 return [
@@ -234,6 +251,7 @@ Item {
             copy[currentSection] = contentLoader.item.contentY
             scrollPositions = copy
         }
+        buildHubModel()
         viewState = "hub"
     }
 
@@ -267,6 +285,23 @@ Item {
         function onConnectionStatusChanged() { buildHubModel() }
     }
 
+    // Live hub refresh — settings changes
+    Connections {
+        target: settingsManager
+        enabled: viewState === "hub"
+        function onThemeSettingChanged() { buildHubModel() }
+        function onFontSettingChanged() { buildHubModel() }
+        function onMediaSourceChanged() { buildHubModel() }
+    }
+
+    // Live hub refresh — media library counts
+    Connections {
+        target: typeof mediaManager !== "undefined" && mediaManager ? mediaManager : null
+        enabled: viewState === "hub"
+        function onAlbumCountChanged() { buildHubModel() }
+        function onArtistCountChanged() { buildHubModel() }
+    }
+
     // MAIN LAYOUT
     Rectangle {
         anchors.fill: parent
@@ -278,6 +313,10 @@ Item {
             anchors.fill: parent
             visible: false
             opacity: 0
+
+            // Environment backgrounds (behind grid)
+            ContentSonar {}
+            ContentSolarSystem {}
 
             GridLayout {
                 id: hubGrid
@@ -479,26 +518,6 @@ Item {
             }
         ]
 
-        transitions: [
-            Transition {
-                from: "hub"; to: "detail"
-                SequentialAnimation {
-                    NumberAnimation { target: hubView; property: "opacity"; to: 0; duration: 150; easing.type: Easing.OutQuad }
-                    PropertyAction { target: hubView; property: "visible"; value: false }
-                    PropertyAction { target: detailView; property: "visible"; value: true }
-                    NumberAnimation { target: detailView; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.InQuad }
-                }
-            },
-            Transition {
-                from: "detail"; to: "hub"
-                SequentialAnimation {
-                    ScriptAction { script: settingsMenu.buildHubModel() }
-                    NumberAnimation { target: detailView; property: "opacity"; to: 0; duration: 150; easing.type: Easing.OutQuad }
-                    PropertyAction { target: detailView; property: "visible"; value: false }
-                    PropertyAction { target: hubView; property: "visible"; value: true }
-                    NumberAnimation { target: hubView; property: "opacity"; from: 0; to: 1; duration: 200; easing.type: Easing.InQuad }
-                }
-            }
-        ]
+        transitions: []
     }
 }
