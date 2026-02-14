@@ -129,6 +129,16 @@ Flickable {
                             }
                         }
                     }
+
+                    SettingsButton {
+                        text: "Strip"
+                        Layout.preferredHeight: mediaFolderField.height
+                        onClicked: {
+                            if (mediaManager) {
+                                mediaManager.strip_filenames()
+                            }
+                        }
+                    }
                 }
 
                 SettingDescription {

@@ -4,6 +4,7 @@ from PySide6.QtCore import QUrl
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, TALB
 import os
+import json
 import random
 import re
 import hashlib
@@ -12,6 +13,7 @@ from PIL import Image
 import numpy as np
 
 from backend.logging_config import get_logger
+from backend.settings_manager import get_app_data_dir
 logger = get_logger(__name__)
 
 
@@ -157,6 +159,11 @@ class MediaManager(QObject):
         self._clear_temp_files()
 
         self._settings_manager = None
+
+        # Display name mapping (filename -> cleaned display name)
+        self._display_names = {}
+        self._display_names_path = os.path.join(get_app_data_dir(), 'display_names.json')
+        self._load_display_names()
 
         # Connect our own signal for Album Art Capture theme updates
         self.currentMediaChanged.connect(self._on_media_changed_for_theme)
@@ -1181,6 +1188,8 @@ class MediaManager(QObject):
         self._access_count = {}
         self._all_music_file_paths = {}
         self._is_all_music_active = False
+        self._display_names = {}
+        self._save_display_names()
         self.invalidate_stats_cache()
         self.scanProgress.emit(f"[CLEAR] Caches cleared")
 
@@ -1400,6 +1409,141 @@ class MediaManager(QObject):
                 if potential_original in self._all_music_file_paths:
                     return potential_original
         return filename
+
+    def _load_display_names(self):
+        """Load persisted display names from JSON"""
+        try:
+            if os.path.exists(self._display_names_path):
+                with open(self._display_names_path, 'r', encoding='utf-8') as f:
+                    self._display_names = json.load(f)
+                logger.info(f"Loaded {len(self._display_names)} display names")
+        except Exception as e:
+            logger.error(f"Error loading display names: {e}")
+            self._display_names = {}
+
+    def _save_display_names(self):
+        """Persist display names to JSON"""
+        try:
+            with open(self._display_names_path, 'w', encoding='utf-8') as f:
+                json.dump(self._display_names, f, ensure_ascii=False, indent=2)
+            logger.info(f"Saved {len(self._display_names)} display names")
+        except Exception as e:
+            logger.error(f"Error saving display names: {e}")
+
+    @Slot()
+    def strip_filenames(self):
+        """Clean up display names for all MP3s in the library"""
+        if not self._library_root or not os.path.exists(self._library_root):
+            self.scanProgress.emit("[ERROR] Library path not set or doesn't exist")
+            return
+
+        self.scanProgress.emit("[STRIP] Starting filename cleanup...")
+
+        # Junk patterns to remove
+        junk_patterns = [
+            r'\(Official\s+Audio\)',
+            r'\(Official\s+Video\)',
+            r'\(Official\s+Music\s+Video\)',
+            r'\(Official\s+Lyric\s+Video\)',
+            r'\(Lyrics?\)',
+            r'\(Audio\)',
+            r'\(Visuali[sz]er\)',
+            r'\(Music\s+Video\)',
+            r'\(Live\)',
+            r'\[Official\]',
+            r'\[Official\s+Audio\]',
+            r'\[Official\s+Video\]',
+            r'\[HD\]',
+            r'\[HQ\]',
+            r'\[4K\]',
+            r'\[Lyrics?\]',
+            r'\(feat\.\s*[^)]*\)',
+            r'\(ft\.\s*[^)]*\)',
+            r'\[feat\.\s*[^\]]*\]',
+            r'\[ft\.\s*[^\]]*\]',
+        ]
+        junk_re = re.compile('|'.join(junk_patterns), re.IGNORECASE)
+        track_num_re = re.compile(r'^\d{1,3}\s*[-._)\s]\s*')
+
+        changed = 0
+        all_files = []
+
+        # Gather all MP3 filenames from all playlists
+        for playlist_name, playlist_data in self._playlists.items():
+            if playlist_data.get("is_combined"):
+                continue  # Skip "All Music" since it duplicates files
+            for filename in playlist_data["files"]:
+                if filename not in all_files:
+                    all_files.append(filename)
+
+        if not all_files:
+            self.scanProgress.emit("[STRIP] No MP3 files found in library")
+            return
+
+        for filename in all_files:
+            # Start from the filename without extension
+            name = filename
+            if name.lower().endswith('.mp3'):
+                name = name[:-4]
+
+            original_name = name
+
+            # Get artist from ID3 tag to remove from filename
+            try:
+                self._cache_metadata(filename)
+                artist = self._metadata_cache.get(filename, {}).get("artist", "")
+                if artist and artist != "Unknown Artist":
+                    # Split multi-artist tags (e.g. "Kid Cudi/Father John Misty")
+                    # and remove each artist individually
+                    artist_names = re.split(r'[/;]', artist)
+                    for a in artist_names:
+                        a = a.strip()
+                        if a:
+                            name = re.sub(re.escape(a), '', name, flags=re.IGNORECASE)
+            except Exception:
+                pass
+
+            # Replace underscores with spaces
+            name = name.replace('_', ' ')
+
+            # Remove track numbers at the start
+            name = track_num_re.sub('', name)
+
+            # Remove junk patterns
+            name = junk_re.sub('', name)
+
+            # Clean up leftover separator sequences (, - , , etc.)
+            name = re.sub(r'[,\s]+-[,\s]+', ' - ', name)  # ", - " or " , , - " → " - "
+            name = re.sub(r',\s*,', ',', name)              # ",," → ","
+            name = re.sub(r'\s{2,}', ' ', name)
+            name = re.sub(r'-{2,}', '-', name)
+            name = re.sub(r'\.{2,}', '.', name)
+
+            # Strip leading/trailing whitespace, dashes, dots, commas
+            name = name.strip(' -.,')
+
+            # Remove empty parentheses/brackets left behind
+            name = re.sub(r'\(\s*\)', '', name)
+            name = re.sub(r'\[\s*\]', '', name)
+            name = name.strip()
+
+            if name and name != original_name:
+                self._display_names[filename] = name
+                self.scanProgress.emit(f'[STRIP] "{original_name}" → "{name}"')
+                changed += 1
+
+        # Save to disk
+        self._save_display_names()
+
+        self.scanProgress.emit(f"[DONE] Stripped {changed} of {len(all_files)} filenames")
+
+        # Notify QML to refresh
+        self.mediaListChanged.emit(self._current_playlist)
+
+    @Slot(str, result=str)
+    def get_display_name(self, filename):
+        """Get the cleaned display name for a file, falling back to filename without extension"""
+        return self._display_names.get(filename, filename.replace('.mp3', ''))
 
     @Slot(QObject)
     def connect_settings_manager(self, settings_manager):

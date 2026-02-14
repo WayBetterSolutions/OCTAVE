@@ -16,7 +16,6 @@ Item {
     // Core properties
     property var mediaFiles: []
     property string lastPlayedSong: ""
-    property real listViewPosition: 0
     property bool isPaused: false
     
     // Playlist properties
@@ -75,12 +74,11 @@ Item {
     function sortMediaFiles() {
         if (mediaManager) {
             // Call backend to perform the sorting
-            let ascending = currentSortColumn === "title" ? sortByTitleAscending : 
-                            currentSortColumn === "album" ? sortByAlbumAscending : 
+            let ascending = currentSortColumn === "title" ? sortByTitleAscending :
+                            currentSortColumn === "album" ? sortByAlbumAscending :
                             sortByArtistAscending
-            
+
             mediaFiles = mediaManager.sort_media_files(currentSortColumn, ascending)
-            updateTimer.restart()
         }
     }
 
@@ -149,18 +147,12 @@ Item {
         albumArtRefreshTimer.restart()
     }
 
-    // Update timer for model changes
+    // Timer to trigger album art refresh after model changes settle
     Timer {
         id: updateTimer
         interval: 50
         repeat: false
         onTriggered: {
-            listViewPosition = mediaListView.contentY
-            mediaListView.model = []
-            // Use correct model based on current mode
-            mediaListView.model = isSpotifyPlaylist ? spotifyTrackNames : mediaFiles
-            mediaListView.contentY = listViewPosition
-
             // Trigger album art refresh after delegates have had time to cache
             albumArtRefreshTimer.restart()
         }
@@ -702,8 +694,6 @@ Item {
                         id: delegate
                         width: ListView.view.width
                         height: App.Spacing.mediaPlayerRowHeight * 1.4
-                        visible: y >= mediaListView.contentY - height &&
-                                y <= mediaListView.contentY + mediaListView.height
 
                         // Active song properties - check against Spotify current track when in Spotify mode
                         // Bind directly to cached properties for stable updates without model refresh
@@ -856,7 +846,7 @@ Item {
 
                                 // Title section (with album art)
                                 RowLayout {
-                                    Layout.preferredWidth: parent.width * 0.45
+                                    Layout.preferredWidth: parent.width * 0.4
                                     Layout.fillHeight: true
                                     spacing: App.Spacing.overallMargin * 2
 
@@ -916,7 +906,7 @@ Item {
                                                 // Reference playlistRefreshCounter to force rebinding when mode changes
                                                 text: {
                                                     var _ = mediaPlayer.playlistRefreshCounter
-                                                    return mediaPlayer.isSpotifyPlaylist ? modelData : modelData.replace('.mp3', '')
+                                                    return mediaPlayer.isSpotifyPlaylist ? modelData : (mediaManager ? mediaManager.get_display_name(modelData) : modelData.replace('.mp3', ''))
                                                 }
                                                 color: delegate.isCurrentSong ? App.Style.accent : App.Style.primaryTextColor
                                                 font.pixelSize: App.Spacing.mediaPlayerTextSize * 1.2
@@ -1096,20 +1086,18 @@ Item {
 
         // Media list updated
         function onMediaListChanged(files) {
-            console.log("Media list updated: " + files.length + " files");
             mediaFiles = files;
 
             if (currentSortColumn !== "none") {
                 sortMediaFiles();
-            } else {
-                updateTimer.restart();
             }
+            // Album art refresh after new files load
+            updateTimer.restart();
         }
 
         // Current media changed
         function onCurrentMediaChanged(filename) {
             lastPlayedSong = filename
-            updateTimer.restart()
         }
 
         // Play state changed
@@ -1121,7 +1109,6 @@ Item {
                     lastPlayedSong = currentFile
                 }
             }
-            updateTimer.restart()
         }
 
         // Statistics updates

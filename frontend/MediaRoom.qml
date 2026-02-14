@@ -54,7 +54,7 @@ Item {
         if (useSpotify && spotifyTrackName) {
             return spotifyTrackName
         }
-        return currentSongText.text ? currentSongText.text.replace('.mp3', '') : ""
+        return currentSongText.text ? (mediaManager ? mediaManager.get_display_name(currentSongText.text) : currentSongText.text.replace('.mp3', '')) : ""
     }
 
     property string currentArtist: {
