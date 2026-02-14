@@ -113,8 +113,13 @@ ApplicationWindow {
             
             // Initialize spacing
             App.Spacing.updateDimensions(width, height)
-            
-            // Add this line to set the UI scale from settings
+
+            // Set auto-scale from screen detection
+            if (typeof screenAutoScale !== "undefined") {
+                App.Spacing.autoScaleFactor = screenAutoScale
+            }
+
+            // Set the UI scale from settings (now a user preference multiplier)
             App.Spacing.globalScale = settingsManager.uiScale
 
             // Load environment theme

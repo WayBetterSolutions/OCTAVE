@@ -264,12 +264,12 @@ Item {
             id: parametersGrid
             anchors {
                 fill: parent
-                margins: 10
-                bottomMargin: 70 // Space for bottom controls
+                margins: App.Spacing.dp(10)
+                bottomMargin: App.Spacing.dp(70) // Space for bottom controls
             }
             columns: 3
-            rowSpacing: 10
-            columnSpacing: 10
+            rowSpacing: App.Spacing.dp(10)
+            columnSpacing: App.Spacing.dp(10)
             
             // Use Repeater to create parameter cards
             Repeater {
@@ -312,7 +312,7 @@ Item {
 
                         color: squareCardMouseArea.containsMouse && modelData.id === "RPM" ?
                                Qt.lighter(Qt.darker(backgroundColor, 0.9), 1.1) : Qt.darker(backgroundColor, 0.9)
-                        radius: 6
+                        radius: App.Spacing.dpMin(6, 2)
 
                         Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -330,8 +330,8 @@ Item {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 4
+                            anchors.margins: App.Spacing.dp(8)
+                            spacing: App.Spacing.dp(4)
 
                             Text {
                                 text: modelData.title
@@ -355,7 +355,7 @@ Item {
                                 height: App.Spacing.overallSliderHeight * .5
                                 color: Qt.darker(backgroundColor, 1.1)
                                 radius: 3
-                                Layout.topMargin: 4
+                                Layout.topMargin: App.Spacing.dp(4)
 
                                 Rectangle {
                                     id: progressBar
@@ -472,7 +472,7 @@ Item {
                         // Center content
                         Column {
                             anchors.centerIn: parent
-                            spacing: 2
+                            spacing: App.Spacing.dp(2)
 
                             Text {
                                 text: modelData.title
@@ -760,7 +760,7 @@ Item {
                     // === SHIFT LIGHT ENABLE/DISABLE ===
                     Rectangle {
                         width: parent.width
-                        height: 60
+                        height: App.Spacing.dp(60)
                         radius: App.Spacing.overallMargin * 0.5
                         color: shiftLightRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -802,8 +802,8 @@ Item {
 
                             // Toggle switch - matches SettingsMenu styling exactly
                             Item {
-                                Layout.preferredWidth: 80
-                                Layout.preferredHeight: 40
+                                Layout.preferredWidth: App.Spacing.dp(80)
+                                Layout.preferredHeight: App.Spacing.dp(40)
 
                                 // Main track
                                 Rectangle {
@@ -844,7 +844,7 @@ Item {
                                         anchors {
                                             left: rpmSettingsPopup.shiftLightEnabled ? undefined : parent.left
                                             right: rpmSettingsPopup.shiftLightEnabled ? parent.right : undefined
-                                            margins: 10
+                                            margins: App.Spacing.dp(10)
                                             verticalCenter: parent.verticalCenter
                                         }
                                         text: rpmSettingsPopup.shiftLightEnabled ? "ON" : "OFF"
@@ -853,7 +853,7 @@ Item {
                                         font.family: obdPage.globalFont
                                         color: rpmSettingsPopup.shiftLightEnabled ? App.Style.accent :
                                             Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                        visible: width < (parent.width - shiftLightHandle.width - 10)
+                                        visible: width < (parent.width - shiftLightHandle.width - App.Spacing.dp(10))
 
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
@@ -862,8 +862,8 @@ Item {
                                 // Handle
                                 Rectangle {
                                     id: shiftLightHandle
-                                    width: 40
-                                    height: 40
+                                    width: App.Spacing.dp(40)
+                                    height: App.Spacing.dp(40)
                                     radius: width / 2
                                     x: rpmSettingsPopup.shiftLightEnabled ? parent.width - width : 0
                                     y: 0
@@ -940,7 +940,7 @@ Item {
                     // === SHOW ON HOME CARD TOGGLE ===
                     Rectangle {
                         width: parent.width
-                        height: 60
+                        height: App.Spacing.dp(60)
                         radius: App.Spacing.overallMargin * 0.5
                         color: showOnHomeCardRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -982,8 +982,8 @@ Item {
 
                             // Toggle switch
                             Item {
-                                Layout.preferredWidth: 80
-                                Layout.preferredHeight: 40
+                                Layout.preferredWidth: App.Spacing.dp(80)
+                                Layout.preferredHeight: App.Spacing.dp(40)
 
                                 Rectangle {
                                     id: showOnHomeCardTrack
@@ -1019,7 +1019,7 @@ Item {
                                         anchors {
                                             left: rpmSettingsPopup.showOnHomeCard ? undefined : parent.left
                                             right: rpmSettingsPopup.showOnHomeCard ? parent.right : undefined
-                                            margins: 10
+                                            margins: App.Spacing.dp(10)
                                             verticalCenter: parent.verticalCenter
                                         }
                                         text: rpmSettingsPopup.showOnHomeCard ? "ON" : "OFF"
@@ -1028,7 +1028,7 @@ Item {
                                         font.family: obdPage.globalFont
                                         color: rpmSettingsPopup.showOnHomeCard ? App.Style.accent :
                                             Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                        visible: width < (parent.width - showOnHomeCardHandle.width - 10)
+                                        visible: width < (parent.width - showOnHomeCardHandle.width - App.Spacing.dp(10))
 
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
@@ -1036,8 +1036,8 @@ Item {
 
                                 Rectangle {
                                     id: showOnHomeCardHandle
-                                    width: 40
-                                    height: 40
+                                    width: App.Spacing.dp(40)
+                                    height: App.Spacing.dp(40)
                                     radius: width / 2
                                     x: rpmSettingsPopup.showOnHomeCard ? parent.width - width : 0
                                     y: 0
@@ -1573,7 +1573,7 @@ Item {
                         // Flash toggle for selected flag
                         Rectangle {
                             width: parent.width
-                            height: 60
+                            height: App.Spacing.dp(60)
                             radius: App.Spacing.overallMargin * 0.5
                             color: flagFlashRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -1612,8 +1612,8 @@ Item {
                                 // Toggle switch - matches SettingsMenu styling exactly
                                 Item {
                                     id: flagFlashToggleItem
-                                    Layout.preferredWidth: 80
-                                    Layout.preferredHeight: 40
+                                    Layout.preferredWidth: App.Spacing.dp(80)
+                                    Layout.preferredHeight: App.Spacing.dp(40)
 
                                     property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.flash
 
@@ -1654,7 +1654,7 @@ Item {
                                             anchors {
                                                 left: flagFlashToggleItem.isChecked ? undefined : parent.left
                                                 right: flagFlashToggleItem.isChecked ? parent.right : undefined
-                                                margins: 10
+                                                margins: App.Spacing.dp(10)
                                                 verticalCenter: parent.verticalCenter
                                             }
                                             text: flagFlashToggleItem.isChecked ? "ON" : "OFF"
@@ -1663,7 +1663,7 @@ Item {
                                             font.family: obdPage.globalFont
                                             color: flagFlashToggleItem.isChecked ? App.Style.accent :
                                                 Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                            visible: width < (parent.width - flagFlashHandle.width - 10)
+                                            visible: width < (parent.width - flagFlashHandle.width - App.Spacing.dp(10))
 
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
@@ -1672,8 +1672,8 @@ Item {
                                     // Handle
                                     Rectangle {
                                         id: flagFlashHandle
-                                        width: 40
-                                        height: 40
+                                        width: App.Spacing.dp(40)
+                                        height: App.Spacing.dp(40)
                                         radius: width / 2
                                         x: flagFlashToggleItem.isChecked ? parent.width - width : 0
                                         y: 0
@@ -1836,7 +1836,7 @@ Item {
                         // Full screen overlay toggle for this flag
                         Rectangle {
                             width: parent.width
-                            height: 60
+                            height: App.Spacing.dp(60)
                             radius: App.Spacing.overallMargin * 0.5
                             color: fullScreenRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -1875,8 +1875,8 @@ Item {
                                 // Toggle switch - matches SettingsMenu styling exactly
                                 Item {
                                     id: fullScreenToggleItem
-                                    Layout.preferredWidth: 80
-                                    Layout.preferredHeight: 40
+                                    Layout.preferredWidth: App.Spacing.dp(80)
+                                    Layout.preferredHeight: App.Spacing.dp(40)
 
                                     property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlash
 
@@ -1917,7 +1917,7 @@ Item {
                                             anchors {
                                                 left: fullScreenToggleItem.isChecked ? undefined : parent.left
                                                 right: fullScreenToggleItem.isChecked ? parent.right : undefined
-                                                margins: 10
+                                                margins: App.Spacing.dp(10)
                                                 verticalCenter: parent.verticalCenter
                                             }
                                             text: fullScreenToggleItem.isChecked ? "ON" : "OFF"
@@ -1926,7 +1926,7 @@ Item {
                                             font.family: obdPage.globalFont
                                             color: fullScreenToggleItem.isChecked ? App.Style.accent :
                                                 Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                            visible: width < (parent.width - fullScreenHandle.width - 10)
+                                            visible: width < (parent.width - fullScreenHandle.width - App.Spacing.dp(10))
 
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
@@ -1935,8 +1935,8 @@ Item {
                                     // Handle
                                     Rectangle {
                                         id: fullScreenHandle
-                                        width: 40
-                                        height: 40
+                                        width: App.Spacing.dp(40)
+                                        height: App.Spacing.dp(40)
                                         radius: width / 2
                                         x: fullScreenToggleItem.isChecked ? parent.width - width : 0
                                         y: 0

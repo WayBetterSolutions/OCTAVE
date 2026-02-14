@@ -343,7 +343,7 @@ Item {
                         widgetItems: hubModel[index] ? hubModel[index].widgetItems : []
                         categoryIcon: hubModel[index] ? hubModel[index].icon : ""
                         cardSpan: hubGrid.columns === 3 ? (hubModel[index] ? hubModel[index].span : 1) : 1
-                        radius: App.EnvironmentTheme.active.hubCardRadius
+                        radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
 
                         onCategorySelected: function(sec) {
                             settingsMenu.navigateToCategory(sec)

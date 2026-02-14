@@ -40,7 +40,22 @@ from backend.berryimu_manager import BerryIMUManager
 from backend.gesture_manager import GestureManager
 
 app = QApplication(sys.argv)
+
+# Auto-detect screen size and calculate scale factor
+screen = app.primaryScreen()
+if screen:
+    available = screen.availableSize()
+    auto_scale = available.height() / 720.0
+    auto_scale = max(0.4, min(3.0, auto_scale))  # Clamp to [0.4, 3.0]
+    logger.info(f"Screen auto-detection: {available.width()}x{available.height()}, autoScale={auto_scale:.2f}")
+else:
+    auto_scale = 1.0
+    logger.warning("No primary screen detected, using autoScale=1.0")
+
 engine = QQmlApplicationEngine()
+
+# Expose auto-scale to QML
+engine.rootContext().setContextProperty("screenAutoScale", auto_scale)
 
 # Register custom QML types
 qmlRegisterType(EmbeddedDhuItem, "OCTAVE.AndroidAuto", 1, 0, "EmbeddedDhuItem")

@@ -34,7 +34,7 @@ Flickable {
                 Rectangle {
                     id: connectionStatusRect
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 40
+                    Layout.preferredHeight: App.Spacing.dp(40)
 
                     // Use more diverse status colors
                     property var statusColors: {
@@ -124,19 +124,19 @@ Flickable {
                     // Text and spinner layout
                     Column {
                         anchors.centerIn: parent
-                        spacing: 2
+                        spacing: App.Spacing.dp(2)
 
                         // Main status row
                         Row {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: 10
+                            spacing: App.Spacing.dp(10)
 
                             // Simple spinner using Rectangle animation
                             Rectangle {
                                 id: spinner
-                                width: 20
-                                height: 20
-                                radius: 10
+                                width: App.Spacing.dp(20)
+                                height: App.Spacing.dp(20)
+                                radius: App.Spacing.dpMin(10, 2)
                                 color: "transparent"
                                 border.width: 2
                                 border.color: "white"
@@ -145,8 +145,8 @@ Flickable {
                                 // Spinner dot that rotates around
                                 Rectangle {
                                     id: spinnerDot
-                                    width: 6
-                                    height: 6
+                                    width: App.Spacing.dp(6)
+                                    height: App.Spacing.dp(6)
                                     radius: 3
                                     color: "white"
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -249,9 +249,9 @@ Flickable {
                 Popup {
                     id: deviceNotFoundNotification
                     x: (parent.width - width) / 2
-                    y: parent.height - height - 20
-                    width: 300
-                    height: 60
+                    y: parent.height - height - App.Spacing.dp(20)
+                    width: App.Spacing.dp(300)
+                    height: App.Spacing.dp(60)
                     modal: false
                     focus: true
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -393,7 +393,7 @@ Flickable {
                         font.pixelSize: App.Spacing.overallText
                         font.family: App.Style.fontFamily
                         font.bold: true
-                        Layout.preferredWidth: 30
+                        Layout.preferredWidth: App.Spacing.dp(30)
                         horizontalAlignment: Text.AlignRight
                     }
                 }
@@ -514,7 +514,7 @@ Flickable {
                 App.TerminalFeedback {
                     id: vehicleScanTerminal
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 300
+                    Layout.preferredHeight: App.Spacing.dp(300)
                     Layout.topMargin: App.Spacing.rowSpacing
                     title: "Vehicle Scan Output"
                     maxLines: 100
@@ -592,7 +592,7 @@ Flickable {
                     // Controls row (Select All and Deselect All buttons)
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.bottomMargin: 10
+                        Layout.bottomMargin: App.Spacing.dp(10)
 
                         // Select All button
                         Button {
@@ -731,7 +731,7 @@ Flickable {
                     RowLayout {
                         Layout.fillWidth: true
                         visible: parameterSelectionLayout.isScanning || parameterSelectionLayout.scanStatus !== ""
-                        spacing: 10
+                        spacing: App.Spacing.dp(10)
 
                         Rectangle {
                             Layout.fillWidth: true
@@ -805,7 +805,7 @@ Flickable {
                     Flow {
                         id: parameterChipsFlow
                         Layout.fillWidth: true
-                        spacing: 12
+                        spacing: App.Spacing.dp(12)
                         Layout.preferredHeight: childrenRect.height
 
                         // Parameter chips model - all supported parameters
@@ -925,9 +925,9 @@ Flickable {
 
                             delegate: Rectangle {
                                 id: paramChip
-                                width: Math.min(parameterChipsFlow.width * 0.3, 400)
+                                width: Math.min(parameterChipsFlow.width * 0.3, App.Spacing.dp(400))
                                 height: App.Spacing.settingsButtonHeight*.8
-                                radius: 12
+                                radius: App.Spacing.dpMin(12, 2)
 
                                 // Check if this is an original parameter (enabled by default)
                                 property bool isOriginal: parameterChipsFlow.isOriginalParameter(modelData.command)
@@ -989,9 +989,9 @@ Flickable {
                                 RowLayout {
                                     anchors {
                                         fill: parent
-                                        margins: 12
+                                        margins: App.Spacing.dp(12)
                                     }
-                                    spacing: 8
+                                    spacing: App.Spacing.dp(8)
 
                                     // Parameter name - always make the text visible regardless of enabled state
                                     Text {
@@ -1046,7 +1046,7 @@ Flickable {
                                 MouseArea {
                                     id: chipMouseArea
                                     anchors.fill: parent
-                                    anchors.rightMargin: 64 // Leave space for home button
+                                    anchors.rightMargin: App.Spacing.dp(64) // Leave space for home button
                                     onClicked: {
                                         if (settingsManager) {
                                             // Toggle the enabled state

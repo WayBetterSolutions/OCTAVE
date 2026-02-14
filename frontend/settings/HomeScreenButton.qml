@@ -5,8 +5,8 @@ import ".." as App
 
 Item {
     id: control
-    width: 64
-    height: 44
+    width: App.Spacing.dp(64)
+    height: App.Spacing.dp(44)
     Layout.alignment: Qt.AlignCenter
 
     property bool isActive: false

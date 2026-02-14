@@ -196,8 +196,8 @@ Item {
             
             RowLayout {
                 anchors.fill: parent
-                spacing: 10
-                
+                spacing: App.Spacing.dp(10)
+
                 // Volume icon control
                 Control {
                     id: volumeIconControl
@@ -294,9 +294,9 @@ Item {
                     // Enhanced touch area
                     MouseArea {
                         anchors.fill: parent
-                        anchors.topMargin: -10
-                        anchors.bottomMargin: -10
-                        
+                        anchors.topMargin: -App.Spacing.dp(10)
+                        anchors.bottomMargin: -App.Spacing.dp(10)
+
                         onPressed: function(mouse) {
                             var newPos = Math.max(0, Math.min(1, (mouseX - volumeSlider.leftPadding) / volumeSlider.availableWidth))
                             volumeSlider.value = volumeSlider.from + newPos * (volumeSlider.to - volumeSlider.from)
@@ -348,10 +348,10 @@ Item {
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     font.family: mediaRoom.globalFont
-                    Layout.minimumWidth: 40
+                    Layout.minimumWidth: App.Spacing.dp(40)
                 }
             }
-            
+
             // Volume control state properties
             QtObject {
                 id: volumeControl
@@ -427,7 +427,7 @@ Item {
                     Layout.fillHeight: true
                     Layout.preferredWidth: parent.width * 0.5  // 50% for left side
                     Layout.maximumWidth: parent.width * 0.5
-                    Layout.leftMargin: 20
+                    Layout.leftMargin: App.Spacing.dp(20)
                     spacing: App.Spacing.mediaRoomSpacing * 2
 
                     // Spacer to push controls toward center
@@ -598,7 +598,7 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignHCenter
-                        spacing: 4
+                        spacing: App.Spacing.dp(4)
 
                         // Song title with scrolling
                         Item {
@@ -673,7 +673,7 @@ Item {
                                 Row {
                                     id: metadataRow
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 10
+                                    spacing: App.Spacing.dp(10)
 
                                     Text {
                                         text: currentArtist
@@ -775,11 +775,11 @@ Item {
         Item {
             id: waveformContainer
             width: parent.width * 0.75
-            height: 40
+            height: App.Spacing.dp(40)
             anchors {
                 bottom: durationBar.top
                 horizontalCenter: parent.horizontalCenter
-                bottomMargin: 10
+                bottomMargin: App.Spacing.dp(10)
             }
             visible: settingsManager && settingsManager.showWaveformVisualizer && !mediaRoom.useSpotify
             opacity: visible ? 1.0 : 0.0
@@ -798,7 +798,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 height: parent.height
-                spacing: 2
+                spacing: App.Spacing.dp(2)
 
                 property var levels: []
                 property int levelsVersion: 0  // Force reactivity when array changes
@@ -922,13 +922,13 @@ Item {
             anchors {
                 bottom: parent.bottom
                 horizontalCenter: parent.horizontalCenter
-                margins: 20
+                margins: App.Spacing.dp(20)
             }
             color: transparentColor
-            
+
             RowLayout {
                 anchors.fill: parent
-                spacing: 20
+                spacing: App.Spacing.dp(20)
 
                 Text {
                     id: positionText
@@ -936,7 +936,7 @@ Item {
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     font.family: mediaRoom.globalFont
-                    Layout.minimumWidth: 40  // Added minimum width for consistent layout
+                    Layout.minimumWidth: App.Spacing.dp(40)  // Added minimum width for consistent layout
                 }
 
                 Slider {
@@ -992,9 +992,9 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         // Add extra padding to make it easier to touch
-                        anchors.topMargin: -10
-                        anchors.bottomMargin: -10
-                        
+                        anchors.topMargin: -App.Spacing.dp(10)
+                        anchors.bottomMargin: -App.Spacing.dp(10)
+
                         onPressed: function(mouse) {
                             // Calculate value based on mouse position
                             var newPos = Math.max(0, Math.min(1, (mouseX - progressSlider.leftPadding) / progressSlider.availableWidth))
@@ -1043,7 +1043,7 @@ Item {
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     font.family: mediaRoom.globalFont
-                    Layout.minimumWidth: 40  // Added minimum width for consistent layout
+                    Layout.minimumWidth: App.Spacing.dp(40)  // Added minimum width for consistent layout
                 }
 
                 // Source toggle button (Local/Spotify)
@@ -1140,7 +1140,7 @@ Item {
             width: durationBar.height * 1.96875
             height: durationBar.height * 1.96875
             anchors.verticalCenter: durationBar.verticalCenter
-            anchors.verticalCenterOffset: -15
+            anchors.verticalCenterOffset: -App.Spacing.dp(15)
             x: (durationBar.x - width) / 2
             background: Rectangle {
                 color: isShuffleEnabled ? App.Style.mediaRoomToggleShade : "transparent"

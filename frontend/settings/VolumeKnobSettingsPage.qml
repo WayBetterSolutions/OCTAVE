@@ -45,9 +45,9 @@ Flickable {
 
                 Rectangle {
                     id: esp32StatusDot
-                    width: 14
-                    height: 14
-                    radius: 7
+                    width: App.Spacing.dp(14)
+                    height: App.Spacing.dp(14)
+                    radius: App.Spacing.dpMin(7, 2)
                     color: (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected()) ? App.Style.statusConnected : App.Style.statusDisconnected
 
                     Connections {
@@ -96,7 +96,7 @@ Flickable {
                         width: refreshChipText.width + App.Spacing.overallSpacing * 2
                         height: App.Spacing.formElementHeight * 0.7
                         radius: App.EnvironmentTheme.active.chipRadius === -1
-                            ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                            ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
                         color: refreshChipArea.containsMouse ? App.Style.hoverColor : "transparent"
                         border.width: 1
                         border.color: App.EnvironmentTheme.active.chipAccentBorder
@@ -155,7 +155,7 @@ Flickable {
                                 width: portChipContent.width + App.Spacing.overallSpacing * 3
                                 height: App.Spacing.formElementHeight * 0.9
                                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                                    ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                 color: portChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -173,7 +173,7 @@ Flickable {
                                 Row {
                                     id: portChipContent
                                     anchors.centerIn: parent
-                                    spacing: 6
+                                    spacing: App.Spacing.dp(6)
 
                                     // Star indicator for ESP32-S3
                                     Text {
@@ -240,7 +240,7 @@ Flickable {
                         width: noPortsText.width + App.Spacing.overallSpacing * 3
                         height: App.Spacing.formElementHeight * 0.9
                         radius: App.EnvironmentTheme.active.chipRadius === -1
-                            ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                            ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
                         color: "transparent"
                         border.width: 1
                         border.color: App.EnvironmentTheme.active.chipAccentBorder
@@ -363,7 +363,7 @@ Flickable {
                                 width: presetText.width + App.Spacing.overallSpacing * 2
                                 height: App.Spacing.formElementHeight * 0.7
                                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                                    ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                 color: presetChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -503,7 +503,7 @@ Flickable {
                             width: themeModeContent.width + App.Spacing.overallSpacing * 3
                             height: App.Spacing.formElementHeight * 0.9
                             radius: App.EnvironmentTheme.active.chipRadius === -1
-                                ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                                ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                             color: themeModeChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -521,7 +521,7 @@ Flickable {
                             Row {
                                 id: themeModeContent
                                 anchors.centerIn: parent
-                                spacing: 6
+                                spacing: App.Spacing.dp(6)
 
                                 Text {
                                     text: "\uD83C\uDFA8"
@@ -591,7 +591,7 @@ Flickable {
                             width: staticModeContent.width + App.Spacing.overallSpacing * 3
                             height: App.Spacing.formElementHeight * 0.9
                             radius: App.EnvironmentTheme.active.chipRadius === -1
-                                ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                                ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                             color: staticModeChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -609,7 +609,7 @@ Flickable {
                             Row {
                                 id: staticModeContent
                                 anchors.centerIn: parent
-                                spacing: 6
+                                spacing: App.Spacing.dp(6)
 
                                 Rectangle {
                                     width: App.Spacing.overallText
@@ -715,7 +715,7 @@ Flickable {
                                 width: colorChipRow.width + App.Spacing.overallSpacing * 2
                                 height: App.Spacing.formElementHeight * 0.8
                                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                                    ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                 color: colorChipWrapper.isSelected ? modelData.color : App.Style.hoverColor
                                 border.width: App.EnvironmentTheme.active.chipAccentBorder ? 1 : 2
@@ -728,12 +728,12 @@ Flickable {
                                 Row {
                                     id: colorChipRow
                                     anchors.centerIn: parent
-                                    spacing: 6
+                                    spacing: App.Spacing.dp(6)
 
                                     Rectangle {
-                                        width: 12
-                                        height: 12
-                                        radius: 6
+                                        width: App.Spacing.dp(12)
+                                        height: App.Spacing.dp(12)
+                                        radius: App.Spacing.dpMin(6, 2)
                                         color: modelData.color
                                         border.width: 1
                                         border.color: Qt.rgba(0, 0, 0, 0.2)
@@ -799,9 +799,9 @@ Flickable {
                     }
 
                     Rectangle {
-                        width: 32
-                        height: 32
-                        radius: App.EnvironmentTheme.active.textFieldRadius
+                        width: App.Spacing.dp(32)
+                        height: App.Spacing.dp(32)
+                        radius: App.Spacing.dpMin(App.EnvironmentTheme.active.textFieldRadius, 2)
                         color: settingsManager ? settingsManager.esp32LedStaticColor : "#00FFFF"
                         border.width: 2
                         border.color: App.Style.hoverColor
@@ -809,7 +809,7 @@ Flickable {
 
                     SettingsTextField {
                         id: customColorField
-                        Layout.preferredWidth: 120
+                        Layout.preferredWidth: App.Spacing.dp(120)
                         text: settingsManager ? settingsManager.esp32LedStaticColor : "#00FFFF"
                         placeholderText: "#RRGGBB"
 

@@ -33,12 +33,12 @@ Rectangle {
     border.color: App.EnvironmentTheme.active.terminalAccentBorder
         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
         : terminalBorder
-    radius: App.EnvironmentTheme.active.terminalRadius
+    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
     clip: true
 
     // Default size (can be overridden)
-    implicitHeight: 150
-    implicitWidth: 300
+    implicitHeight: App.Spacing.dp(150)
+    implicitWidth: App.Spacing.dp(300)
 
     // Pulsing bracket opacity (spacecraft)
     property real bracketPulse: 0.4
@@ -53,14 +53,14 @@ Rectangle {
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left
         anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left
         anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
@@ -69,14 +69,14 @@ Rectangle {
     Rectangle {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
     Rectangle {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
@@ -85,14 +85,14 @@ Rectangle {
     Rectangle {
         anchors.bottom: parent.bottom; anchors.left: parent.left
         anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
     Rectangle {
         anchors.bottom: parent.bottom; anchors.left: parent.left
         anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
@@ -101,14 +101,14 @@ Rectangle {
     Rectangle {
         anchors.bottom: parent.bottom; anchors.right: parent.right
         anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
     Rectangle {
         anchors.bottom: parent.bottom; anchors.right: parent.right
         anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
@@ -138,8 +138,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: App.EnvironmentTheme.active.terminalRadius
-        anchors.rightMargin: App.EnvironmentTheme.active.terminalRadius
+        anchors.leftMargin: App.Spacing.dp(App.EnvironmentTheme.active.terminalRadius)
+        anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.terminalRadius)
         height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
         visible: App.EnvironmentTheme.active.terminalAccentBorder
@@ -154,7 +154,7 @@ Rectangle {
         Rectangle {
             id: headerBar
             Layout.fillWidth: true
-            Layout.preferredHeight: showHeader ? 36 : 0  // Larger for touch
+            Layout.preferredHeight: showHeader ? App.Spacing.dp(36) : 0  // Larger for touch
             visible: showHeader
             color: App.EnvironmentTheme.active.terminalHeaderAccent
                 ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
@@ -173,8 +173,8 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: App.Spacing.dp(12)
+                anchors.rightMargin: App.Spacing.dp(12)
 
                 Text {
                     text: App.EnvironmentTheme.active.terminalHeaderAccent
@@ -193,8 +193,8 @@ Rectangle {
 
                 // Status indicator dot (spacecraft)
                 Rectangle {
-                    width: 6; height: 6
-                    radius: App.EnvironmentTheme.active.terminalRadius === 2 ? 1 : 3
+                    width: App.Spacing.dp(6); height: App.Spacing.dp(6)
+                    radius: App.EnvironmentTheme.active.terminalRadius === 2 ? 1 : App.Spacing.dpMin(3, 1)
                     color: terminalFeedback.lines.length > 0 ? App.Style.accent : "#555555"
                     visible: App.EnvironmentTheme.active.terminalHeaderAccent
 
@@ -209,9 +209,9 @@ Rectangle {
 
                 // Clear button - larger touch target
                 Rectangle {
-                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? 50 : 32
-                    height: 24
-                    radius: App.EnvironmentTheme.active.terminalRadius
+                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? App.Spacing.dp(50) : App.Spacing.dp(32)
+                    height: App.Spacing.dp(24)
+                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
                     color: clearMouseArea.pressed
                         ? (App.EnvironmentTheme.active.terminalHeaderAccent
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
@@ -233,7 +233,7 @@ Rectangle {
                         color: App.EnvironmentTheme.active.terminalHeaderAccent
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.8)
                             : "#aaaaaa"
-                        font.pixelSize: 10
+                        font.pixelSize: App.Spacing.dp(10)
                         font.bold: true
                         font.letterSpacing: App.EnvironmentTheme.active.terminalHeaderAccent ? 1 : 0
                     }
@@ -256,7 +256,7 @@ Rectangle {
             Flickable {
                 id: flickable
                 anchors.fill: parent
-                anchors.margins: 8
+                anchors.margins: App.Spacing.dp(8)
                 contentWidth: width
                 contentHeight: contentColumn.height
                 clip: true
@@ -274,7 +274,7 @@ Rectangle {
                 Column {
                     id: contentColumn
                     width: flickable.width
-                    spacing: 4
+                    spacing: App.Spacing.dp(4)
 
                     Repeater {
                         model: terminalFeedback.lines
@@ -314,8 +314,8 @@ Rectangle {
             Rectangle {
                 id: scrollIndicator
                 anchors.right: parent.right
-                anchors.rightMargin: 2
-                width: App.EnvironmentTheme.active.terminalAccentScroll ? 2 : 4
+                anchors.rightMargin: App.Spacing.dp(2)
+                width: App.EnvironmentTheme.active.terminalAccentScroll ? App.Spacing.dp(2) : App.Spacing.dp(4)
                 radius: App.EnvironmentTheme.active.terminalAccentScroll ? 1 : 2
                 color: App.EnvironmentTheme.active.terminalAccentScroll
                     ? App.Style.accent : "#666666"
@@ -326,9 +326,9 @@ Rectangle {
                 y: {
                     var ratio = flickable.contentY / (flickable.contentHeight - flickable.height)
                     var trackHeight = flickable.height - height
-                    return Math.max(0, Math.min(trackHeight, ratio * trackHeight)) + 8
+                    return Math.max(0, Math.min(trackHeight, ratio * trackHeight)) + App.Spacing.dp(8)
                 }
-                height: Math.max(30, (flickable.height / flickable.contentHeight) * (flickable.height - 16))
+                height: Math.max(App.Spacing.dp(30), (flickable.height / flickable.contentHeight) * (flickable.height - App.Spacing.dp(16)))
 
                 Behavior on opacity {
                     NumberAnimation { duration: 200 }

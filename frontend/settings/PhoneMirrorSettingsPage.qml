@@ -92,7 +92,7 @@ Flickable {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    spacing: App.Spacing.dp(10)
 
                     SettingsTextField {
                         id: scrcpyPathField

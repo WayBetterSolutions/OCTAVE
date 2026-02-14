@@ -103,9 +103,9 @@ Item {
     GridLayout {
         id: gridLayout
         anchors.fill: parent
-        anchors.margins: 10
-        columnSpacing: 10
-        rowSpacing: 10
+        anchors.margins: App.Spacing.dp(10)
+        columnSpacing: App.Spacing.dp(10)
+        rowSpacing: App.Spacing.dp(10)
         columns: homeOBDView.columnCount
 
         // Dynamically create displays (max 8)
@@ -210,7 +210,7 @@ Item {
                     visible: param === "RPM" && shiftLightEnabled && showOnHomeCard
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: 15
+                    anchors.rightMargin: App.Spacing.dp(15)
                     width: parent.height * shiftLightSize
                     height: width
                     radius: width / 2
@@ -380,8 +380,8 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 5
-                    spacing: 5
+                    anchors.margins: App.Spacing.dp(5)
+                    spacing: App.Spacing.dp(5)
 
                     Text {
                         text: info.title.toUpperCase()
@@ -402,13 +402,13 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 8
+                        height: App.Spacing.dp(8)
                         color: App.Style.backgroundColor
                         radius: 4
-                        Layout.topMargin: 2
+                        Layout.topMargin: App.Spacing.dp(2)
 
                         Rectangle {
-                            width: Math.max(4, parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
+                            width: Math.max(App.Spacing.dp(4), parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
                             height: parent.height
                             color: App.Style.accent
                             radius: 4

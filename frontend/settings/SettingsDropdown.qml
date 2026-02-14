@@ -6,9 +6,9 @@ import ".." as App
 Button {
     id: control
     Layout.preferredHeight: App.Spacing.formElementHeight
-    Layout.preferredWidth: 300
-    Layout.maximumWidth: 400
-    Layout.minimumWidth: 250
+    Layout.preferredWidth: App.Spacing.dp(300)
+    Layout.maximumWidth: App.Spacing.dp(400)
+    Layout.minimumWidth: App.Spacing.dp(250)
     Layout.fillWidth: true
     property string displayText: ""
     property var options: []
@@ -28,9 +28,9 @@ Button {
 
             anchors {
                 left: parent.left
-                leftMargin: 20
+                leftMargin: App.Spacing.dp(20)
                 right: arrowText.left
-                rightMargin: 15
+                rightMargin: App.Spacing.dp(15)
                 verticalCenter: parent.verticalCenter
             }
         }
@@ -45,7 +45,7 @@ Button {
 
             anchors {
                 right: parent.right
-                rightMargin: 20
+                rightMargin: App.Spacing.dp(20)
                 verticalCenter: parent.verticalCenter
             }
         }
@@ -54,7 +54,7 @@ Button {
     background: Rectangle {
         color: control.pressed ? Qt.darker(App.Style.hoverColor, 1.2) :
                control.hovered ? Qt.darker(App.Style.hoverColor, 1.1) : App.Style.hoverColor
-        radius: App.EnvironmentTheme.active.dropdownRadius
+        radius: App.Spacing.dpMin(App.EnvironmentTheme.active.dropdownRadius, 2)
 
         // Accent border (spacecraft)
         border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
@@ -77,13 +77,13 @@ Button {
         id: popup
         width: control.width
         y: control.height
-        height: Math.min(contentItem.implicitHeight, 300)
+        height: Math.min(contentItem.implicitHeight, App.Spacing.dp(300))
 
         background: Rectangle {
             color: App.Style.backgroundColor
             border.color: App.Style.accent
             border.width: 1
-            radius: App.EnvironmentTheme.active.dropdownRadius
+            radius: App.Spacing.dpMin(App.EnvironmentTheme.active.dropdownRadius, 2)
         }
 
         contentItem: ListView {
@@ -97,15 +97,15 @@ Button {
                 required property var modelData
 
                 width: parent.width
-                height: 45
+                height: App.Spacing.dp(45)
 
                 contentItem: Text {
                     text: modelData
                     color: App.Style.primaryTextColor
                     font.pixelSize: App.Spacing.overallText
                     font.family: App.Style.fontFamily
-                    leftPadding: 20
-                    rightPadding: 20
+                    leftPadding: App.Spacing.dp(20)
+                    rightPadding: App.Spacing.dp(20)
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
                 }

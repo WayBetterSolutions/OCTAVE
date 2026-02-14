@@ -62,17 +62,17 @@ Item {
         Rectangle {
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.margins: 10
-            width: 40
-            height: 40
-            radius: 20
+            anchors.margins: App.Spacing.dp(10)
+            width: App.Spacing.dp(40)
+            height: App.Spacing.dp(40)
+            radius: App.Spacing.dpMin(20, 2)
             color: "#AA000000"
             z: 10
 
             Text {
                 anchors.centerIn: parent
                 text: "X"
-                font.pixelSize: 20
+                font.pixelSize: App.Spacing.dp(20)
                 font.bold: true
                 color: "white"
             }
@@ -93,7 +93,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: "Starting Android Auto..."
-            font.pixelSize: 24
+            font.pixelSize: App.Spacing.dp(24)
             font.family: androidAutoView.globalFont
             color: "white"
             visible: dhuEmbedded && !embeddedDhu.isStreaming
@@ -110,16 +110,16 @@ Item {
             id: backButton
             anchors.top: parent.top
             anchors.left: parent.left
-            anchors.margins: 15
+            anchors.margins: App.Spacing.dp(15)
             text: "< Back"
-            font.pixelSize: 16
+            font.pixelSize: App.Spacing.dp(16)
             font.family: androidAutoView.globalFont
 
             background: Rectangle {
                 color: parent.pressed ? App.Style.accent : "transparent"
                 border.color: App.Style.accent
                 border.width: 2
-                radius: 8
+                radius: App.Spacing.dpMin(8, 2)
             }
 
             contentItem: Text {
@@ -138,19 +138,19 @@ Item {
         // Main content - centered
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 25
+            spacing: App.Spacing.dp(25)
             width: parent.width * 0.8
 
             // Loading state (before we know if it failed)
             ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 20
+                spacing: App.Spacing.dp(20)
                 visible: !launchFailed
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Starting Android Auto..."
-                    font.pixelSize: 24
+                    font.pixelSize: App.Spacing.dp(24)
                     font.family: androidAutoView.globalFont
                     color: App.Style.primaryTextColor
                 }
@@ -158,15 +158,15 @@ Item {
                 // Progress indicator
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    width: 200
-                    height: 4
+                    width: App.Spacing.dp(200)
+                    height: App.Spacing.dp(4)
                     radius: 2
                     color: App.Style.secondaryTextColor
                     opacity: 0.3
 
                     Rectangle {
                         id: progressBar
-                        width: 60
+                        width: App.Spacing.dp(60)
                         height: parent.height
                         radius: 2
                         color: App.Style.accent
@@ -184,15 +184,15 @@ Item {
             // Error state
             ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 20
+                spacing: App.Spacing.dp(20)
                 visible: launchFailed
 
                 // Error icon
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    width: 80
-                    height: 80
-                    radius: 40
+                    width: App.Spacing.dp(80)
+                    height: App.Spacing.dp(80)
+                    radius: App.Spacing.dpMin(40, 2)
                     color: "#442222"
                     border.color: "#FF6666"
                     border.width: 2
@@ -200,7 +200,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         text: "!"
-                        font.pixelSize: 48
+                        font.pixelSize: App.Spacing.dp(48)
                         font.bold: true
                         color: "#FF6666"
                     }
@@ -209,7 +209,7 @@ Item {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Could not start Android Auto"
-                    font.pixelSize: 24
+                    font.pixelSize: App.Spacing.dp(24)
                     font.bold: true
                     font.family: androidAutoView.globalFont
                     color: "#FF6666"
@@ -218,7 +218,7 @@ Item {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: errorMessage
-                    font.pixelSize: 16
+                    font.pixelSize: App.Spacing.dp(16)
                     font.family: androidAutoView.globalFont
                     color: App.Style.secondaryTextColor
                     visible: errorMessage !== ""
@@ -229,23 +229,23 @@ Item {
                 // Instructions box
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.preferredWidth: Math.min(500, parent.width)
-                    height: instructionsColumn.height + 30
+                    Layout.preferredWidth: Math.min(App.Spacing.dp(500), parent.width)
+                    height: instructionsColumn.height + App.Spacing.dp(30)
                     color: "#1a2a1a"
-                    radius: 8
+                    radius: App.Spacing.dpMin(8, 2)
                     border.color: "#44AA44"
                     border.width: 1
 
                     ColumnLayout {
                         id: instructionsColumn
                         anchors.centerIn: parent
-                        width: parent.width - 40
-                        spacing: 12
+                        width: parent.width - App.Spacing.dp(40)
+                        spacing: App.Spacing.dp(12)
 
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: "Setup Instructions"
-                            font.pixelSize: 18
+                            font.pixelSize: App.Spacing.dp(18)
                             font.bold: true
                             font.family: androidAutoView.globalFont
                             color: "#88DD88"
@@ -254,7 +254,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: "1. Connect your phone via USB"
-                            font.pixelSize: 14
+                            font.pixelSize: App.Spacing.dp(14)
                             font.family: androidAutoView.globalFont
                             color: "#CCCCCC"
                         }
@@ -262,7 +262,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: "2. Enable Developer Mode in Android Auto app"
-                            font.pixelSize: 14
+                            font.pixelSize: App.Spacing.dp(14)
                             font.family: androidAutoView.globalFont
                             color: "#CCCCCC"
                         }
@@ -270,7 +270,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: "(Settings > Tap version 10 times)"
-                            font.pixelSize: 12
+                            font.pixelSize: App.Spacing.dp(12)
                             font.family: androidAutoView.globalFont
                             color: "#888888"
                         }
@@ -278,7 +278,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: "3. Start 'Head unit server' on your phone"
-                            font.pixelSize: 14
+                            font.pixelSize: App.Spacing.dp(14)
                             font.family: androidAutoView.globalFont
                             color: "#CCCCCC"
                         }
@@ -286,7 +286,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignHCenter
                             text: "4. Make sure Google DHU is installed"
-                            font.pixelSize: 14
+                            font.pixelSize: App.Spacing.dp(14)
                             font.family: androidAutoView.globalFont
                             color: "#CCCCCC"
                         }
@@ -295,7 +295,7 @@ Item {
                             Layout.alignment: Qt.AlignHCenter
                             Layout.preferredWidth: parent.width
                             text: "Install via Android Studio:\nTools > SDK Manager > SDK Tools >\n'Android Auto Desktop Head Unit Emulator'"
-                            font.pixelSize: 11
+                            font.pixelSize: App.Spacing.dp(11)
                             font.family: androidAutoView.globalFont
                             color: "#FFAA44"
                             wrapMode: Text.WordWrap
@@ -307,16 +307,16 @@ Item {
                 // Retry button
                 Button {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: 10
+                    Layout.topMargin: App.Spacing.dp(10)
                     text: "Try Again"
-                    font.pixelSize: 16
+                    font.pixelSize: App.Spacing.dp(16)
                     font.family: androidAutoView.globalFont
-                    Layout.preferredWidth: 150
-                    Layout.preferredHeight: 45
+                    Layout.preferredWidth: App.Spacing.dp(150)
+                    Layout.preferredHeight: App.Spacing.dp(45)
 
                     background: Rectangle {
                         color: parent.pressed ? Qt.darker(App.Style.accent, 1.2) : App.Style.accent
-                        radius: 8
+                        radius: App.Spacing.dpMin(8, 2)
                     }
 
                     contentItem: Text {

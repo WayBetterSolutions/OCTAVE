@@ -246,14 +246,14 @@ Item {
                 // Custom playlist dropdown (avoids native style issues)
                 Item {
                     id: playlistDropdownContainer
-                    Layout.preferredWidth: Math.min(300, parent.width * 0.4)
+                    Layout.preferredWidth: Math.min(App.Spacing.dp(300), parent.width * 0.4)
                     Layout.preferredHeight: App.Spacing.formElementHeight
 
                     Rectangle {
                         id: playlistDropdown
                         anchors.fill: parent
                         color: dropdownMouseArea.containsMouse ? Qt.lighter(App.Style.hoverColor, 1.1) : App.Style.hoverColor
-                        radius: 6
+                        radius: App.Spacing.dpMin(6, 2)
                         border.width: 1
                         border.color: Qt.rgba(App.Style.primaryTextColor.r,
                                               App.Style.primaryTextColor.g,
@@ -304,10 +304,10 @@ Item {
                     Popup {
                         id: playlistPopup
                         parent: playlistDropdownContainer
-                        y: playlistDropdown.height + 2
+                        y: playlistDropdown.height + App.Spacing.dp(2)
                         width: playlistDropdown.width
-                        height: Math.min(playlistColumn.implicitHeight + 16, 300)
-                        padding: 8
+                        height: Math.min(playlistColumn.implicitHeight + App.Spacing.dp(16), App.Spacing.dp(300))
+                        padding: App.Spacing.dp(8)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
                         background: Rectangle {
@@ -316,7 +316,7 @@ Item {
                                                   App.Style.primaryTextColor.g,
                                                   App.Style.primaryTextColor.b, 0.3)
                             border.width: 1
-                            radius: 6
+                            radius: App.Spacing.dpMin(6, 2)
                         }
 
                         contentItem: Flickable {
@@ -327,7 +327,7 @@ Item {
                             Column {
                                 id: playlistColumn
                                 width: parent.width
-                                spacing: 2
+                                spacing: App.Spacing.dp(2)
 
                                 Repeater {
                                     model: combinedPlaylists
@@ -349,9 +349,9 @@ Item {
                                             // Spotify indicator circle
                                             Rectangle {
                                                 visible: modelData.type === "spotify"
-                                                width: 8
-                                                height: 8
-                                                radius: 4
+                                                width: App.Spacing.dp(8)
+                                                height: App.Spacing.dp(8)
+                                                radius: App.Spacing.dp(4)
                                                 color: itemMouseArea.containsMouse ? "white" : "#1DB954"
                                             }
 
@@ -529,9 +529,9 @@ Item {
                     visible: isSpotifyPlaylist
                     spacing: App.Spacing.overallMargin
                     Rectangle {
-                        width: 10
-                        height: 10
-                        radius: 5
+                        width: App.Spacing.dp(10)
+                        height: App.Spacing.dp(10)
+                        radius: App.Spacing.dp(5)
                         color: "#1DB954"
                     }
                     Text {
@@ -681,12 +681,12 @@ Item {
                     clip: true
                     model: isSpotifyPlaylist ? spotifyTrackNames : mediaFiles
                     cacheBuffer: height * 0.5
-                    displayMarginBeginning: 40
-                    displayMarginEnd: 40
+                    displayMarginBeginning: App.Spacing.dp(40)
+                    displayMarginEnd: App.Spacing.dp(40)
                     reuseItems: true
 
                     // Add spacing between items
-                    spacing: 6
+                    spacing: App.Spacing.dp(6)
 
                     // Set initial position when ListView geometry is ready
                     onHeightChanged: {
@@ -740,8 +740,8 @@ Item {
                         Rectangle {
                             id: glassCard
                             anchors.fill: parent
-                            anchors.margins: 2
-                            radius: 10
+                            anchors.margins: App.Spacing.dp(2)
+                            radius: App.Spacing.dpMin(10, 2)
                                                         
                             // Glass background - adapts to app theme colors
                             color: {
@@ -812,11 +812,11 @@ Item {
                             // Active song indicator - glowing accent bar
                             Rectangle {
                                 visible: delegate.isCurrentSong
-                                width: 6
+                                width: App.Spacing.dp(6)
                                 height: parent.height
                                 radius: width / 2
                                 anchors.left: parent.left
-                                anchors.leftMargin: 2
+                                anchors.leftMargin: App.Spacing.dp(2)
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: App.Style.accent
                                 opacity: pulseAnimation.opacity
@@ -865,7 +865,7 @@ Item {
                                         id: albumArtContainer
                                         Layout.preferredWidth: App.Spacing.mediaPlayerRowHeight * 1.25
                                         Layout.preferredHeight: App.Spacing.mediaPlayerRowHeight * 1.25
-                                        radius: 8
+                                        radius: App.Spacing.dpMin(8, 2)
                                         color: Qt.rgba(1, 1, 1, 0.08) // Subtle glass effect
                                         border.width: 1
                                         border.color: Qt.rgba(1, 1, 1, 0.2)
@@ -875,7 +875,7 @@ Item {
                                         Image {
                                             id: albumArt
                                             anchors.fill: parent
-                                            anchors.margins: 3
+                                            anchors.margins: App.Spacing.dp(3)
                                             source: delegate.albumArtSource
                                             sourceSize.width: width * 1.5
                                             sourceSize.height: height * 1.5
@@ -890,9 +890,9 @@ Item {
                                             anchors.left: parent.left
                                             anchors.right: parent.right
                                             anchors.top: parent.top
-                                            anchors.margins: 3
+                                            anchors.margins: App.Spacing.dp(3)
                                             height: parent.height * 0.3
-                                            radius: 6
+                                            radius: App.Spacing.dpMin(6, 2)
                                             color: "white"
                                             opacity: 0.1
                                         }
@@ -1056,8 +1056,8 @@ Item {
                             Rectangle {
                                 z: -1
                                 anchors.fill: parent
-                                anchors.margins: -2
-                                radius: parent.radius + 2
+                                anchors.margins: -App.Spacing.dp(2)
+                                radius: parent.radius + App.Spacing.dp(2)
                                 color: "black"
                                 opacity: 0.08
                             }
@@ -1070,7 +1070,7 @@ Item {
                         policy: ScrollBar.AsNeeded
                         
                         Component.onCompleted: {
-                            background.implicitWidth = 12
+                            background.implicitWidth = App.Spacing.dp(12)
                         }
                     
                         palette.mid: App.Style.accent

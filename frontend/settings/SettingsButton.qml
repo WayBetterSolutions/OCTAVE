@@ -13,7 +13,7 @@ Rectangle {
     signal clicked()
 
     Layout.preferredWidth: buttonLabel.implicitWidth + App.Spacing.overallSpacing * 1.5
-    Layout.minimumWidth: 70
+    Layout.minimumWidth: App.Spacing.dp(70)
 
     // Spacecraft: semi-transparent fill with glow border; Standard: solid fill
     color: App.EnvironmentTheme.active.buttonSolidFill
@@ -23,7 +23,7 @@ Rectangle {
            buttonArea.containsMouse ? Qt.rgba(control.buttonColor.r, control.buttonColor.g, control.buttonColor.b, 0.25) :
            Qt.rgba(control.buttonColor.r, control.buttonColor.g, control.buttonColor.b, 0.15))
 
-    radius: App.EnvironmentTheme.active.buttonRadius
+    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.buttonRadius, 2)
 
     border.width: App.EnvironmentTheme.active.buttonGlowBorder ? 1 : 1
     border.color: App.EnvironmentTheme.active.buttonGlowBorder

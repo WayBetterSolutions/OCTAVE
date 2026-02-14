@@ -139,7 +139,7 @@ Flickable {
                 App.TerminalFeedback {
                     id: scanTerminal
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 300
+                    Layout.preferredHeight: App.Spacing.dp(300)
                     Layout.topMargin: App.Spacing.rowSpacing
                     title: "Library Scan Output"
 
@@ -443,7 +443,7 @@ Flickable {
                     // Client ID field
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 4
+                        spacing: App.Spacing.dp(4)
 
                         Text {
                             text: "Client ID"
@@ -478,7 +478,7 @@ Flickable {
                     // Client Secret field
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 4
+                        spacing: App.Spacing.dp(4)
 
                         Text {
                             text: "Client Secret"
@@ -530,7 +530,7 @@ Flickable {
                     SettingsButton {
                         text: "Disconnect"
                         Layout.preferredHeight: spotifyClientIdField.height
-                        Layout.minimumWidth: 90
+                        Layout.minimumWidth: App.Spacing.dp(90)
                         visible: spotifyManager && spotifyManager.is_connected()
                         buttonColor: App.Style.statusDanger
                         tooltipText: "Disconnect from Spotify"
@@ -556,7 +556,7 @@ Flickable {
                 App.TerminalFeedback {
                     id: spotifyTerminal
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 300
+                    Layout.preferredHeight: App.Spacing.dp(300)
                     title: "Spotify Connection"
 
                     Connections {

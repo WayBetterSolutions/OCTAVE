@@ -38,7 +38,7 @@ Flow {
                 width: chipText.width + App.Spacing.overallSpacing * 3
                 height: App.Spacing.formElementHeight * 0.8
                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                    ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                 color: modelData === control.currentValue ? App.Style.accent : App.Style.hoverColor
 

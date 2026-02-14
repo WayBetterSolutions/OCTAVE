@@ -6,8 +6,8 @@ Switch {
     id: control
 
     indicator: Item {
-        implicitWidth: 48
-        implicitHeight: 26
+        implicitWidth: App.Spacing.dp(48)
+        implicitHeight: App.Spacing.dp(26)
         x: control.leftPadding
         y: control.height / 2 - height / 2
 
@@ -16,7 +16,7 @@ Switch {
             anchors.centerIn: parent
             width: parent.width + 6
             height: parent.height + 6
-            radius: App.EnvironmentTheme.active.switchRadius + 3
+            radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchRadius + 3, 2)
             color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
             visible: App.EnvironmentTheme.active.accentBorder && control.checked
         }
@@ -24,7 +24,7 @@ Switch {
         // Track
         Rectangle {
             anchors.fill: parent
-            radius: App.EnvironmentTheme.active.switchRadius
+            radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchRadius, 2)
             color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
             border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
             border.color: control.checked
@@ -35,10 +35,10 @@ Switch {
 
             // Knob
             Rectangle {
-                x: control.checked ? parent.width - width - 3 : 3
-                width: 20
-                height: 20
-                radius: App.EnvironmentTheme.active.switchKnobRadius
+                x: control.checked ? parent.width - width - App.Spacing.dp(3) : App.Spacing.dp(3)
+                width: App.Spacing.dp(20)
+                height: App.Spacing.dp(20)
+                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchKnobRadius, 2)
                 anchors.verticalCenter: parent.verticalCenter
                 color: "white"
 

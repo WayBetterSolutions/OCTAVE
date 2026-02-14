@@ -9,11 +9,17 @@ QtObject {
     
     // Global scaling properties
     property real globalScale: 1.0
+    property real autoScaleFactor: 1.0
+    // effectiveScale: for dp() — scales hardcoded 720p pixel values to actual screen resolution
+    property real effectiveScale: autoScaleFactor * globalScale
+    // baseScale: for scaledSize() — percentage-based properties already adapt to screen size,
+    // they only need the original 0.6 design factor times the user's preference multiplier
+    property real baseScale: 0.6 * globalScale
     property real textScale: 1.0
     property real controlScale: 1.0
     
     // Core sizing values
-    property real normalButtonSize: 0.07
+    property real normalButtonSize: 0.085
     property double settingsMinPreviewWidth: 250
     
     // ===== Core percentage values =====
@@ -41,12 +47,12 @@ QtObject {
     property real bottomBarPlayButtonHeightPercent: normalButtonSize + (normalButtonSize*.5)
     property real bottomBarNextButtonWidthPercent: normalButtonSize
     property real bottomBarNextButtonHeightPercent: normalButtonSize
-    property real bottomBarMuteButtonWidthPercent: normalButtonSize
-    property real bottomBarMuteButtonHeightPercent: normalButtonSize
+    property real bottomBarMuteButtonWidthPercent: normalButtonSize * 1.25
+    property real bottomBarMuteButtonHeightPercent: normalButtonSize * 1.25
     property real bottomBarShuffleButtonWidthPercent: normalButtonSize *1.125
     property real bottomBarShuffleButtonHeightPercent: normalButtonSize *1.125
-    property real bottomBarNavButtonWidthPercent: normalButtonSize * 1.1
-    property real bottomBarNavButtonHeightPercent: normalButtonSize * 2
+    property real bottomBarNavButtonWidthPercent: normalButtonSize * 1.7
+    property real bottomBarNavButtonHeightPercent: normalButtonSize * 1.7
 
     // Bottom bar volume controls
     property real bottomBarVolumeSliderWidthPercent: 0.05
@@ -144,21 +150,43 @@ QtObject {
     
     // ===== Core scaling functions =====
     /**
-     * Applies global scaling to the provided size
+     * Density-independent pixel conversion — scales a reference pixel value
+     * by the combined auto-detection + user preference factor.
+     * @param {real} size - Reference size in pixels (designed at 720p)
+     * @return {int} - Scaled size as an integer
+     */
+    function dp(size) {
+        return Math.round(size * effectiveScale)
+    }
+
+    /**
+     * Like dp() but with a minimum floor (for radii that shouldn't go sub-pixel).
+     * @param {real} size - Reference size in pixels
+     * @param {real} floor - Minimum return value
+     * @return {int} - Scaled size, at least floor
+     */
+    function dpMin(size, floor) {
+        return Math.max(floor, Math.round(size * effectiveScale))
+    }
+
+    /**
+     * Applies base scaling to percentage-based properties.
+     * These properties already adapt to screen size via applicationWidth/Height,
+     * so they only need the 0.6 design factor times the user preference multiplier.
      * @param {real} baseSize - The original size to scale
      * @return {int} - The scaled size as an integer
      */
     function scaledSize(baseSize) {
-        return Math.round(baseSize * globalScale)
+        return Math.round(baseSize * baseScale)
     }
-    
+
     /**
      * Utility function to scale any value based on screen size
      * @param {real} size - The size to scale
      * @return {int} - The scaled size relative to screen dimensions
      */
     function scalePx(size) {
-        return Math.round(size * globalScale * (Math.min(applicationWidth, applicationHeight) / 1000))
+        return Math.round(size * baseScale * (Math.min(applicationWidth, applicationHeight) / 1000))
     }
     
     /**
@@ -187,27 +215,27 @@ QtObject {
     // ===== Calculated Dimensions - Bottom Bar =====
     property int bottomBarHeight: scaledSize(applicationHeight * bottomBarHeightPercent)
     property int bottomBarBetweenButtonMargin: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarBetweenButtonMarginPercent)
-    property int bottomBarPreviousButtonWidth: scaledSize(applicationWidth * bottomBarPreviousButtonWidthPercent)
-    property int bottomBarPreviousButtonHeight: scaledSize(applicationHeight * bottomBarPreviousButtonHeightPercent)
-    property int bottomBarPlayButtonWidth: scaledSize(applicationWidth * bottomBarPlayButtonWidthPercent)
-    property int bottomBarPlayButtonHeight: scaledSize(applicationHeight * bottomBarPlayButtonHeightPercent)
-    property int bottomBarNextButtonWidth: scaledSize(applicationWidth * bottomBarNextButtonWidthPercent)
-    property int bottomBarNextButtonHeight: scaledSize(applicationHeight * bottomBarNextButtonHeightPercent)
-    property int bottomBarMuteButtonWidth: scaledSize(applicationWidth * bottomBarMuteButtonWidthPercent)
-    property int bottomBarMuteButtonHeight: scaledSize(applicationHeight * bottomBarMuteButtonHeightPercent)
-    property int bottomBarShuffleButtonWidth: scaledSize(applicationWidth * bottomBarShuffleButtonWidthPercent)
-    property int bottomBarShuffleButtonHeight: scaledSize(applicationHeight * bottomBarShuffleButtonHeightPercent)
-    property int bottomBarVolumeSliderWidth: scaledSize(applicationWidth * bottomBarVolumeSliderWidthPercent)
-    property int bottomBarVolumeSliderHeight: scaledSize(applicationHeight * bottomBarVolumeSliderHeightPercent)
+    property int bottomBarPreviousButtonWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarPreviousButtonWidthPercent)
+    property int bottomBarPreviousButtonHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarPreviousButtonHeightPercent)
+    property int bottomBarPlayButtonWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarPlayButtonWidthPercent)
+    property int bottomBarPlayButtonHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarPlayButtonHeightPercent)
+    property int bottomBarNextButtonWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarNextButtonWidthPercent)
+    property int bottomBarNextButtonHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarNextButtonHeightPercent)
+    property int bottomBarMuteButtonWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarMuteButtonWidthPercent)
+    property int bottomBarMuteButtonHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarMuteButtonHeightPercent)
+    property int bottomBarShuffleButtonWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarShuffleButtonWidthPercent)
+    property int bottomBarShuffleButtonHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarShuffleButtonHeightPercent)
+    property int bottomBarVolumeSliderWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumeSliderWidthPercent)
+    property int bottomBarVolumeSliderHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumeSliderHeightPercent)
     property int bottomBarVolumeText: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumeTextPercent)
     property int bottomBarVolumePopupTextBoxHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumePopupTextBoxHeightPercent)
     property int bottomBarVolumePopupTextBoxWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumePopupTextBoxWidthPercent)
     property int bottomBarVolumePopupText: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumePopupTextPercent)
     property int bottomBarVolumePopupTextMargin: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumePopupTextMarginPercent)
-    property int bottomBarVolumePopupWidth: scaledSize(applicationWidth * bottomBarVolumePopupWidthPercent)
-    property int bottomBarVolumePopupHeight: scaledSize(applicationHeight * bottomBarVolumePopupHeightPercent)
-    property int bottomBarNavButtonWidth: scaledSize(applicationWidth * bottomBarNavButtonWidthPercent)
-    property int bottomBarNavButtonHeight: scaledSize(applicationHeight * bottomBarNavButtonHeightPercent)
+    property int bottomBarVolumePopupWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumePopupWidthPercent)
+    property int bottomBarVolumePopupHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarVolumePopupHeightPercent)
+    property int bottomBarNavButtonWidth: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarNavButtonWidthPercent)
+    property int bottomBarNavButtonHeight: scaledSize(Math.min(applicationWidth, applicationHeight) * bottomBarNavButtonHeightPercent)
     
     // ===== Calculated Dimensions - Media Room =====
     property int mediaRoomMargin: scaledSize(Math.min(applicationWidth, applicationHeight) * mediaRoomMarginPercent)

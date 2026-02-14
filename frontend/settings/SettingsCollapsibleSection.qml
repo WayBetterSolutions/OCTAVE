@@ -30,7 +30,7 @@ ColumnLayout {
                 leftMargin: 2
                 rightMargin: 2
             }
-            spacing: 8
+            spacing: App.Spacing.dp(8)
 
             Text {
                 text: root.title

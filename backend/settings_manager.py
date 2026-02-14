@@ -27,7 +27,7 @@ SETTINGS_REGISTRY = {
     "ui_scale": {
         "key": "uiScale", "label": "UI Scaling", "category": "displaySettings",
         "controlType": "slider", "saveSlot": "save_ui_scale",
-        "params": {"from": 0.2, "to": 1.2, "stepSize": 0.05}
+        "params": {"from": 0.5, "to": 2.0, "stepSize": 0.05}
     },
     "theme_setting": {
         "key": "themeSetting", "label": "Theme", "category": "displaySettings",
@@ -190,7 +190,7 @@ class SettingsManager(QObject):
             "screenWidth": 1280,
             "screenHeight": 720,
             "backgroundBlurRadius": 40,
-            "uiScale": 0.6,
+            "uiScale": 1.0,
             "colorTransitionMs": 1000,
             "songLengthTransition": False,
             "obdBluetoothPort": "/dev/rfcomm0",
@@ -363,7 +363,13 @@ class SettingsManager(QObject):
             
         # Load settings at startup
         self._settings = self.load_settings()
-        
+
+        # Migrate: old default uiScale 0.6 → new default 1.0
+        if self._settings.get("uiScale") == 0.6:
+            logger.info("Migrating uiScale from old default 0.6 to new default 1.0")
+            self._settings["uiScale"] = 1.0
+            self.save_settings(self._settings)
+
         # Initialize directory history
         self._directory_history = self._settings.get("directoryHistory", [])
 

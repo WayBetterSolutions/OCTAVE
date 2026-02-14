@@ -135,11 +135,15 @@ class MediaManager(QObject):
         self._all_music_file_paths = {}           # Dict: filename -> full directory path
         self._is_all_music_active = False         # True when "All Music" playlist is selected
 
+        # Mute toggle guard - prevents rapid toggling from corrupting state
+        self._mute_toggle_locked = False
+
         # Connect signals
         self._player.durationChanged.connect(self.durationChanged.emit)
         self._player.positionChanged.connect(self.positionChanged.emit)
         self._player.mediaStatusChanged.connect(self._handle_media_status)
-        
+        self._player.errorOccurred.connect(self._handle_player_error)
+
         # Initialize position timer
         self._position_timer = QTimer()
         self._position_timer.setInterval(100)  # Update every 100ms
@@ -194,8 +198,57 @@ class MediaManager(QObject):
             if status == QMediaPlayer.MediaStatus.EndOfMedia:
                 logger.info("Song ended, playing next track")
                 self.next_track()
+            elif status == QMediaPlayer.MediaStatus.StalledMedia:
+                logger.warning("Media stalled — attempting recovery")
+                self._attempt_playback_recovery()
+            elif status == QMediaPlayer.MediaStatus.InvalidMedia:
+                logger.error("Invalid media detected — attempting recovery")
+                self._attempt_playback_recovery()
         except Exception as e:
-            logger.error(f"Media status handling error")
+            logger.error(f"Media status handling error: {e}")
+
+    def _handle_player_error(self, error):
+        """Handle player errors with automatic recovery"""
+        error_msg = self._player.errorString()
+        logger.error(f"Player error ({error}): {error_msg}")
+        self._attempt_playback_recovery()
+
+    def _attempt_playback_recovery(self):
+        """Re-seat the current source and resume playback"""
+        try:
+            current_file = self.get_current_file()
+            if not current_file:
+                logger.warning("Recovery failed — no current file")
+                return
+
+            position = self._player.position()
+            was_playing = self._is_playing
+
+            file_path = self._get_file_path(current_file)
+            if not os.path.exists(file_path):
+                logger.warning(f"Recovery failed — file missing: {file_path}")
+                return
+
+            logger.info(f"Recovering playback for: {current_file} at position {position}ms")
+
+            # Re-set source and restore position
+            self._player.setSource(QUrl.fromLocalFile(file_path))
+            if position > 0:
+                self._player.setPosition(position)
+
+            if was_playing:
+                self._player.play()
+                self._is_playing = True
+                self._is_paused = False
+
+            # Restore volume/mute state after recovery
+            if self._is_muted:
+                self._audio_output.setVolume(0.0)
+
+            self.playStateChanged.emit(self._is_playing)
+            logger.info("Playback recovery successful")
+        except Exception as e:
+            logger.error(f"Playback recovery failed: {e}")
 
     def _cache_metadata(self, filename):
         """Cache metadata for a file to reduce disk operations"""
@@ -908,8 +961,10 @@ class MediaManager(QObject):
         self._is_paused = True
         self._is_playing = False
         self.playStateChanged.emit(False)
-        # Save playback state when paused
         self._save_playback_state()
+        # Preserve mute volume state during pause
+        if not self._is_muted and self._audio_output.volume() > 0.0:
+            self._previous_volume = self._audio_output.volume()
         
     @Slot()
     def toggle_play(self):
@@ -920,18 +975,35 @@ class MediaManager(QObject):
                 self.play_file(current_file)
                 return
 
-        # Rest of method remains the same
         if self._is_playing:
             self._player.pause()
             self._is_paused = True
             self._is_playing = False
-            # Save playback state when pausing
             self._save_playback_state()
         else:
+            # Check if the player is in an error or invalid state before resuming
+            media_status = self._player.mediaStatus()
+            if media_status in (
+                QMediaPlayer.MediaStatus.InvalidMedia,
+                QMediaPlayer.MediaStatus.NoMedia,
+                QMediaPlayer.MediaStatus.StalledMedia
+            ):
+                logger.warning(f"Player in bad state ({media_status}) on resume — recovering")
+                self._attempt_playback_recovery()
+                return
+
             self._player.play()
             self._is_paused = False
             self._is_playing = True
-            # Restore mute state when resuming playback
+
+            # Verify the player actually started — if not, recover
+            actual_state = self._player.playbackState()
+            if actual_state != QMediaPlayer.PlaybackState.PlayingState:
+                logger.warning(f"Player did not start (state={actual_state}) — recovering")
+                self._attempt_playback_recovery()
+                return
+
+            # Restore mute state after successful resume
             if self._is_muted:
                 self._audio_output.setVolume(0.0)
 
@@ -964,16 +1036,33 @@ class MediaManager(QObject):
 
     @Slot()
     def toggle_mute(self):
-        """Toggle mute state"""
-        if self._is_muted:
-            self._audio_output.setVolume(self._previous_volume)
-        else:
-            self._previous_volume = self._audio_output.volume()
-            self._audio_output.setVolume(0.0)
-            
-        self._is_muted = not self._is_muted
-        self.muteChanged.emit(self._is_muted)
-        logger.info(f"Mute toggled: {self._is_muted}")
+        """Toggle mute state with guard against rapid toggling"""
+        if self._mute_toggle_locked:
+            return
+        self._mute_toggle_locked = True
+
+        try:
+            if self._is_muted:
+                # Unmuting — restore previous volume (ensure it's valid)
+                restore_vol = self._previous_volume if self._previous_volume > 0.0 else 0.5
+                self._audio_output.setVolume(restore_vol)
+            else:
+                # Muting — capture current volume only if it's meaningful
+                current_vol = self._audio_output.volume()
+                if current_vol > 0.0:
+                    self._previous_volume = current_vol
+                self._audio_output.setVolume(0.0)
+
+            self._is_muted = not self._is_muted
+            self.muteChanged.emit(self._is_muted)
+            logger.info(f"Mute toggled: {self._is_muted}")
+        finally:
+            # Unlock after a short delay to debounce rapid presses
+            QTimer.singleShot(150, self._unlock_mute_toggle)
+
+    def _unlock_mute_toggle(self):
+        """Unlock mute toggle after debounce period"""
+        self._mute_toggle_locked = False
     
     @Slot(result=bool)
     def is_muted(self):

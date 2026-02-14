@@ -42,9 +42,9 @@ Flickable {
 
                 Rectangle {
                     id: gestureStatusDot
-                    width: 14
-                    height: 14
-                    radius: 7
+                    width: App.Spacing.dp(14)
+                    height: App.Spacing.dp(14)
+                    radius: App.Spacing.dpMin(7, 2)
 
                     property string currentStatus: (typeof gestureSensor !== "undefined" && gestureSensor) ? gestureSensor.getConnectionStatus() : "Disconnected"
                     color: currentStatus === "Connected" ? App.Style.statusConnected : App.Style.statusDisconnected
@@ -156,8 +156,8 @@ Flickable {
                     background: Rectangle {
                         x: volumeStepSlider.leftPadding
                         y: volumeStepSlider.topPadding + volumeStepSlider.availableHeight / 2 - height / 2
-                        implicitWidth: 200
-                        implicitHeight: 6
+                        implicitWidth: App.Spacing.dp(200)
+                        implicitHeight: App.Spacing.dp(6)
                         width: volumeStepSlider.availableWidth
                         height: implicitHeight
                         radius: 3
@@ -174,9 +174,9 @@ Flickable {
                     handle: Rectangle {
                         x: volumeStepSlider.leftPadding + volumeStepSlider.visualPosition * (volumeStepSlider.availableWidth - width)
                         y: volumeStepSlider.topPadding + volumeStepSlider.availableHeight / 2 - height / 2
-                        implicitWidth: 20
-                        implicitHeight: 20
-                        radius: 10
+                        implicitWidth: App.Spacing.dp(20)
+                        implicitHeight: App.Spacing.dp(20)
+                        radius: App.Spacing.dpMin(10, 2)
                         color: volumeStepSlider.pressed ? Qt.darker(App.Style.accent, 1.1) : App.Style.accent
                         border.color: "white"
                         border.width: 2
@@ -251,8 +251,8 @@ Flickable {
                     background: Rectangle {
                         x: cooldownSlider.leftPadding
                         y: cooldownSlider.topPadding + cooldownSlider.availableHeight / 2 - height / 2
-                        implicitWidth: 200
-                        implicitHeight: 6
+                        implicitWidth: App.Spacing.dp(200)
+                        implicitHeight: App.Spacing.dp(6)
                         width: cooldownSlider.availableWidth
                         height: implicitHeight
                         radius: 3
@@ -269,9 +269,9 @@ Flickable {
                     handle: Rectangle {
                         x: cooldownSlider.leftPadding + cooldownSlider.visualPosition * (cooldownSlider.availableWidth - width)
                         y: cooldownSlider.topPadding + cooldownSlider.availableHeight / 2 - height / 2
-                        implicitWidth: 20
-                        implicitHeight: 20
-                        radius: 10
+                        implicitWidth: App.Spacing.dp(20)
+                        implicitHeight: App.Spacing.dp(20)
+                        radius: App.Spacing.dpMin(10, 2)
                         color: cooldownSlider.pressed ? Qt.darker(App.Style.accent, 1.1) : App.Style.accent
                         border.color: "white"
                         border.width: 2
@@ -355,8 +355,8 @@ Flickable {
                                     // Glow behind selected chip (spacecraft)
                                     Rectangle {
                                         anchors.centerIn: actionChipRect
-                                        width: actionChipRect.width + 4
-                                        height: actionChipRect.height + 4
+                                        width: actionChipRect.width + App.Spacing.dp(4)
+                                        height: actionChipRect.height + App.Spacing.dp(4)
                                         radius: actionChipRect.radius + 2
                                         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
                                         visible: App.EnvironmentTheme.active.chipAccentBorder && actionChipWrapper.isSelected
@@ -367,7 +367,7 @@ Flickable {
                                         width: actionChipText.width + App.Spacing.overallSpacing * 3
                                         height: App.Spacing.formElementHeight * 0.8
                                         radius: App.EnvironmentTheme.active.chipRadius === -1
-                                            ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                                            ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                         color: actionChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -433,7 +433,7 @@ Flickable {
                     width: resetContent.width + App.Spacing.overallSpacing * 3
                     height: App.Spacing.formElementHeight * 0.9
                     radius: App.EnvironmentTheme.active.chipRadius === -1
-                        ? height / 2 : App.EnvironmentTheme.active.chipRadius
+                        ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                     color: resetArea.containsMouse ? App.Style.hoverColor : "transparent"
 
@@ -448,7 +448,7 @@ Flickable {
                     Row {
                         id: resetContent
                         anchors.centerIn: parent
-                        spacing: 6
+                        spacing: App.Spacing.dp(6)
 
                         Text {
                             text: "Reset to Defaults"

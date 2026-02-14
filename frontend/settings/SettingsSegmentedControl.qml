@@ -20,7 +20,7 @@ RowLayout {
 
             id: segmentRect
             Layout.fillWidth: true
-            Layout.minimumWidth: 80
+            Layout.minimumWidth: App.Spacing.dp(80)
             height: App.Spacing.formElementHeight
 
             color: modelData === control.currentValue ? App.Style.accent : App.Style.hoverColor

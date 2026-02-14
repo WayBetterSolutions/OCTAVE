@@ -26,7 +26,7 @@ Flickable {
             Item {
                 Layout.fillWidth: true
                 width: parent.width
-                height: 100
+                height: App.Spacing.dp(100)
 
                 Text {
                     id: glowText

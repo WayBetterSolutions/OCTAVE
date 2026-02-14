@@ -8,7 +8,7 @@ Rectangle {
 
     Layout.fillWidth: true
     color: Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.15)
-    radius: App.EnvironmentTheme.active.cardRadius
+    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     implicitHeight: cardLayout.implicitHeight + App.Spacing.overallSpacing * 3
     clip: true
 
@@ -32,8 +32,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: App.EnvironmentTheme.active.cardRadius
-        anchors.rightMargin: App.EnvironmentTheme.active.cardRadius
+        anchors.leftMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius)
+        anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius)
         height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
         visible: App.EnvironmentTheme.active.accentBorder && !App.EnvironmentTheme.active.cardGlassEffect
@@ -57,8 +57,8 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 1
-        anchors.leftMargin: App.EnvironmentTheme.active.cardRadius * 0.5
-        anchors.rightMargin: App.EnvironmentTheme.active.cardRadius * 0.5
+        anchors.leftMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius * 0.5)
+        anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius * 0.5)
         height: 1
         radius: 0.5
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse * 0.3)
@@ -69,14 +69,14 @@ Rectangle {
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left
         anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 15; height: 1
+        width: App.Spacing.dp(15); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left
         anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 1; height: 15
+        width: 1; height: App.Spacing.dp(15)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -85,14 +85,14 @@ Rectangle {
     Rectangle {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 15; height: 1
+        width: App.Spacing.dp(15); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 1; height: 15
+        width: 1; height: App.Spacing.dp(15)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -101,14 +101,14 @@ Rectangle {
     Rectangle {
         anchors.bottom: parent.bottom; anchors.left: parent.left
         anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 15; height: 1
+        width: App.Spacing.dp(15); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.bottom: parent.bottom; anchors.left: parent.left
         anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 1; height: 15
+        width: 1; height: App.Spacing.dp(15)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -117,14 +117,14 @@ Rectangle {
     Rectangle {
         anchors.bottom: parent.bottom; anchors.right: parent.right
         anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 15; height: 1
+        width: App.Spacing.dp(15); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.bottom: parent.bottom; anchors.right: parent.right
         anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 1; height: 15
+        width: 1; height: App.Spacing.dp(15)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }

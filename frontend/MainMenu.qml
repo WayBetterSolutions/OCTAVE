@@ -80,8 +80,8 @@ Item {
     // Main content area - Horizontal layout: Media on left (1/3), OBD on right (2/3)
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 10
-        spacing: 10
+        anchors.margins: App.Spacing.dp(10)
+        spacing: App.Spacing.dp(10)
 
         // ========== LEFT SECTION: Media Controls (1/3 of width) ==========
         Rectangle {
@@ -89,7 +89,7 @@ Item {
             Layout.preferredWidth: parent.width * 0.33
             Layout.fillHeight: true
             color: "transparent"
-            radius: 8
+            radius: App.Spacing.dpMin(8, 2)
             clip: true
 
             // Album art blur background (like MediaRoom)
@@ -128,20 +128,20 @@ Item {
                 color: "transparent"
                 border.color: App.Style.accent
                 border.width: 2
-                radius: 8
+                radius: App.Spacing.dpMin(8, 2)
                 z: 10
             }
 
             // Media content - vertical layout for narrow panel
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 15
-                spacing: 10
+                anchors.margins: App.Spacing.dp(15)
+                spacing: App.Spacing.dp(10)
 
                 // Album Art (top, centered)
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: parent.width + 40
+                    Layout.preferredHeight: parent.width + App.Spacing.dp(40)
                     Layout.alignment: Qt.AlignHCenter
 
                     Image {
@@ -240,7 +240,7 @@ Item {
                         Row {
                             id: metadataRow
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 8
+                            spacing: App.Spacing.dp(8)
 
                             Text {
                                 text: mainMenu.currentFile ? mainMenu.currentArtist : "Select a song"
@@ -298,7 +298,7 @@ Item {
                 // Progress Bar
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: App.Spacing.dp(8)
 
                     Text {
                         id: positionText
@@ -391,12 +391,12 @@ Item {
             color: "transparent"
             border.color: App.Style.accent
             border.width: 2
-            radius: 8
+            radius: App.Spacing.dpMin(8, 2)
 
             // Use the HomeOBDView component (stacked vertically)
             HomeOBDView {
                 anchors.fill: parent
-                anchors.margins: 5
+                anchors.margins: App.Spacing.dp(5)
             }
 
             MouseArea {

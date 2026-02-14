@@ -5,8 +5,8 @@ import ".." as App
 
 Item {
     id: control
-    height: 60
-    Layout.preferredHeight: 60
+    height: App.Spacing.dp(46)
+    Layout.preferredHeight: App.Spacing.dp(46)
     Layout.fillWidth: true
 
     property bool checked: false
@@ -36,16 +36,16 @@ Item {
         }
 
         Item {
-            width: 96
-            height: 48
+            width: App.Spacing.dp(72)
+            height: App.Spacing.dp(36)
 
             // Glow behind toggle (spacecraft, when checked)
             Rectangle {
                 anchors.centerIn: track
                 width: track.width + 6
                 height: track.height + 6
-                radius: (App.EnvironmentTheme.active.toggleTrackRadius === -1
-                    ? track.height / 2 : App.EnvironmentTheme.active.toggleTrackRadius) + 3
+                radius: App.Spacing.dpMin((App.EnvironmentTheme.active.toggleTrackRadius === -1
+                    ? track.height / 2 : App.EnvironmentTheme.active.toggleTrackRadius) + 3, 2)
                 color: Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.2)
                 visible: App.EnvironmentTheme.active.toggleRectShadow && control.checked
             }
@@ -54,7 +54,7 @@ Item {
                 id: track
                 anchors.fill: parent
                 radius: App.EnvironmentTheme.active.toggleTrackRadius === -1
-                    ? height / 2 : App.EnvironmentTheme.active.toggleTrackRadius
+                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.toggleTrackRadius, 2)
                 color: control.checked ? Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.3) :
                                     Qt.rgba(control.inactiveColor.r, control.inactiveColor.g, control.inactiveColor.b, 0.3)
 
@@ -101,10 +101,10 @@ Item {
 
             Rectangle {
                 id: handle
-                width: 48
-                height: 48
+                width: App.Spacing.dp(36)
+                height: App.Spacing.dp(36)
                 radius: App.EnvironmentTheme.active.toggleHandleRadius === -1
-                    ? width / 2 : App.EnvironmentTheme.active.toggleHandleRadius
+                    ? width / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.toggleHandleRadius, 2)
                 x: control.checked ? parent.width - width : 0
                 y: 0
                 color: "white"
@@ -114,7 +114,7 @@ Item {
                     width: parent.width * 0.4
                     height: width
                     radius: App.EnvironmentTheme.active.toggleHandleRadius === -1
-                        ? width / 2 : App.EnvironmentTheme.active.toggleHandleRadius
+                        ? width / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.toggleHandleRadius, 2)
                     color: control.activeColor
                     opacity: control.checked ? 1 : 0
                     scale: control.checked ? 1 : 0.5

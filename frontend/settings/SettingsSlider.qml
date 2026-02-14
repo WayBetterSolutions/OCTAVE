@@ -25,7 +25,7 @@ Slider {
             width: parent.width + 6
             height: parent.height + 6
             radius: App.EnvironmentTheme.active.sliderHandleRadius === -1
-                ? (width / 2) : (App.EnvironmentTheme.active.sliderHandleRadius + 3)
+                ? (width / 2) : App.Spacing.dpMin(App.EnvironmentTheme.active.sliderHandleRadius + 3, 2)
             color: Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.25)
             visible: App.EnvironmentTheme.active.sliderHandleGlow
         }
@@ -34,7 +34,7 @@ Slider {
         Rectangle {
             anchors.fill: parent
             radius: App.EnvironmentTheme.active.sliderHandleRadius === -1
-                ? App.Spacing.overallSliderRadius : App.EnvironmentTheme.active.sliderHandleRadius
+                ? App.Spacing.overallSliderRadius : App.Spacing.dpMin(App.EnvironmentTheme.active.sliderHandleRadius, 2)
             color: control.pressed ? Qt.darker(control.activeColor, 1.1) : control.activeColor
 
             Behavior on color { ColorAnimation { duration: 150 } }
@@ -65,7 +65,7 @@ Slider {
         // Tick marks below the track (spacecraft only)
         Row {
             anchors.top: parent.bottom
-            anchors.topMargin: 4
+            anchors.topMargin: App.Spacing.dp(4)
             anchors.left: parent.left
             anchors.right: parent.right
             visible: App.EnvironmentTheme.active.sliderTickMarks
@@ -74,11 +74,11 @@ Slider {
                 model: 11
                 Item {
                     width: parent.width / 10
-                    height: 6
+                    height: App.Spacing.dp(6)
                     Rectangle {
                         anchors.horizontalCenter: parent.left
                         width: 1
-                        height: index % 5 === 0 ? 6 : 3
+                        height: index % 5 === 0 ? App.Spacing.dp(6) : App.Spacing.dp(3)
                         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
                     }
                 }

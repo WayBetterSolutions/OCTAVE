@@ -14,7 +14,7 @@ Rectangle {
     signal categorySelected(string section)
 
     color: "transparent"
-    radius: App.EnvironmentTheme.active.cardRadius
+    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     clip: true
 
     // Accent border (spacecraft)
@@ -68,14 +68,14 @@ Rectangle {
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left
         anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left
         anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -84,14 +84,14 @@ Rectangle {
     Rectangle {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.top: parent.top; anchors.right: parent.right
         anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -100,14 +100,14 @@ Rectangle {
     Rectangle {
         anchors.bottom: parent.bottom; anchors.left: parent.left
         anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.bottom: parent.bottom; anchors.left: parent.left
         anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -116,14 +116,14 @@ Rectangle {
     Rectangle {
         anchors.bottom: parent.bottom; anchors.right: parent.right
         anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 12; height: 1
+        width: App.Spacing.dp(12); height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
     Rectangle {
         anchors.bottom: parent.bottom; anchors.right: parent.right
         anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 1; height: 12
+        width: 1; height: App.Spacing.dp(12)
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
@@ -202,7 +202,7 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: dataRow.height + App.Spacing.overallSpacing * 0.5
-                    radius: App.EnvironmentTheme.active.cardRadius * 0.5
+                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius * 0.5, 2)
                     color: Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.7)
 
                     Row {
@@ -216,16 +216,16 @@ Rectangle {
 
                         // Status dot with pulse — only visible when statusColor is set
                         Item {
-                            width: 7
-                            height: 7
+                            width: App.Spacing.dp(7)
+                            height: App.Spacing.dp(7)
                             visible: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
                             anchors.verticalCenter: parent.verticalCenter
 
                             // Glow ring
                             Rectangle {
-                                width: 11
-                                height: 11
-                                radius: 5.5
+                                width: App.Spacing.dp(11)
+                                height: App.Spacing.dp(11)
+                                radius: width / 2
                                 anchors.centerIn: parent
                                 color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
                                        ? hubCard.widgetItems[index].statusColor : "transparent"
@@ -241,9 +241,9 @@ Rectangle {
 
                             // Solid dot
                             Rectangle {
-                                width: 7
-                                height: 7
-                                radius: 3.5
+                                width: App.Spacing.dp(7)
+                                height: App.Spacing.dp(7)
+                                radius: width / 2
                                 anchors.centerIn: parent
                                 color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
                                        ? hubCard.widgetItems[index].statusColor : "transparent"

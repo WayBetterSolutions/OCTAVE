@@ -35,8 +35,8 @@ Flickable {
 
                 SettingsSlider {
                     id: uiScaleSlider
-                    from: 0.2
-                    to: 1.2
+                    from: 0.5
+                    to: 2.0
                     stepSize: 0.05
                     value: App.Spacing.globalScale
 
@@ -61,7 +61,7 @@ Flickable {
                 }
 
                 SettingDescription {
-                    text: "Scales all UI elements. Applied immediately."
+                    text: "Adjusts the overall size of UI elements. 100% = default."
                 }
             }
 
@@ -164,7 +164,7 @@ Flickable {
 
                     SettingsTextField {
                         id: screenWidth
-                        Layout.preferredWidth: 120
+                        Layout.preferredWidth: App.Spacing.dp(120)
                         text: mainWindow.width
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
@@ -207,7 +207,7 @@ Flickable {
 
                     SettingsTextField {
                         id: screenHeight
-                        Layout.preferredWidth: 120
+                        Layout.preferredWidth: App.Spacing.dp(120)
                         text: mainWindow.height
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
@@ -244,7 +244,7 @@ Flickable {
                     SettingsButton {
                         text: mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
                         Layout.preferredHeight: screenHeight.height
-                        Layout.minimumWidth: 80
+                        Layout.minimumWidth: App.Spacing.dp(80)
                         tooltipText: mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
                         onClicked: {
                             if (mainWindow.visibility === Window.FullScreen) {
@@ -260,7 +260,7 @@ Flickable {
                     SettingsButton {
                         text: "Maximize"
                         Layout.preferredHeight: screenHeight.height
-                        Layout.minimumWidth: 80
+                        Layout.minimumWidth: App.Spacing.dp(80)
                         tooltipText: "Maximize window to fill screen"
                         onClicked: {
                             mainWindow.visibility = Window.Maximized
