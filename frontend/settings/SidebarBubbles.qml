@@ -34,7 +34,7 @@ Item {
 
     Timer {
         interval: 100  // ~10fps — RPi friendly
-        running: App.EnvironmentTheme.active.sidebarBubbles
+        running: visible && App.EnvironmentTheme.active.sidebarBubbles
         repeat: true
         onTriggered: {
             var b = parent.bubbles.slice()

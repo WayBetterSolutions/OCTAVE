@@ -138,7 +138,16 @@ Item {
                     return 4; // default fallback
                 }
                 spacing: 0
-                
+
+                // Single blur on the entire grid instead of per-cell (16x cheaper on 4x4)
+                layer.enabled: albumArtImage.status === Image.Ready
+                layer.effect: GaussianBlur {
+                    radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
+                    samples: Math.min(32, Math.max(1, radius))
+                    deviation: radius / 2.5
+                    transparentBorder: false
+                }
+
                 Repeater {
                     id: gridRepeater
                     model: {
@@ -152,7 +161,7 @@ Item {
                         }
                         return 16; // default fallback
                     }
-                    
+
                     delegate: Item {
                         width: backgroundContainer.width / albumArtGrid.columns
                         height: backgroundContainer.height / albumArtGrid.columns
@@ -162,18 +171,6 @@ Item {
                             anchors.fill: parent
                             source: albumArtImage.status === Image.Ready ? albumArtImage.source : "./assets/missing_art.png"
                             fillMode: Image.PreserveAspectCrop
-
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            opacity: 1
-                            layer.enabled: status === Image.Ready
-                            layer.effect: GaussianBlur {
-                                radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
-                                samples: Math.min(32, Math.max(1, radius))  // Adjust samples based on radius
-                                deviation: radius / 2.5
-                                transparentBorder: false
-                            }
                         }
                     }
                 }
@@ -181,7 +178,7 @@ Item {
             Rectangle { // Black layer
                 id: colorOverlay
                 anchors.fill: parent
-                color: "#D0000000"
+                color: Qt.rgba(0, 0, 0, (settingsManager ? settingsManager.backgroundOverlayOpacity : 80) / 100)
                 opacity: settingsManager && settingsManager.showBackgroundOverlay ? 1.0 : 0.0
                 Behavior on opacity {
                     NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
@@ -859,86 +856,113 @@ Item {
                     property bool _previewEnabled: settingsManager && settingsManager.show3DAlbumPreview
                     property real artSize: Math.min(width * (_previewEnabled ? 0.75 : 0.85), height * (_previewEnabled ? 0.75 : 0.85))
 
+                    property bool _roundedArt: settingsManager && settingsManager.roundedAlbumArt
+                    property real _artRadius: App.Spacing.dp(settingsManager ? settingsManager.albumArtCornerRadius : 16)
+
+                    // Shared rounded-corner mask for album art OpacityMask
+                    Rectangle {
+                        id: artRoundedMask
+                        width: albumArtStack.artSize
+                        height: width
+                        radius: albumArtStack._roundedArt ? albumArtStack._artRadius : 0
+                        visible: false
+                        layer.enabled: true
+                    }
+
                     // 3D coverflow rotation — center card rotates in from the side position
                     ParallelAnimation {
                         id: cardRotateAnimation
-                        NumberAnimation { target: albumArtImage; property: "_rotateOffset"; to: 0; duration: 500; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtImage; property: "_rotateAngle"; to: 0; duration: 500; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtImage; property: "_rotateScale"; to: 1.0; duration: 500; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtImage; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutQuad }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; to: 0; duration: 500; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; to: 0; duration: 500; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; to: 1.0; duration: 500; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutQuad }
                     }
 
                     function triggerSlide() {
                         cardRotateAnimation.stop()
                         var dir = mediaRoom._slideDirection
+                        var angle = settingsManager ? settingsManager.sideCardAngle : 30
+                        var sideOpacity = settingsManager ? settingsManager.sideCardOpacity : 0.4
                         // Start at the side-card pose and rotate into the center
-                        albumArtImage._rotateOffset = dir * artSize * 0.42
-                        albumArtImage._rotateAngle = dir * -30
-                        albumArtImage._rotateScale = 0.72
-                        albumArtImage.opacity = 0.45
+                        albumArtContainer._rotateOffset = dir * artSize * 0.42
+                        albumArtContainer._rotateAngle = dir * -angle
+                        albumArtContainer._rotateScale = 0.72
+                        albumArtContainer.opacity = sideOpacity + 0.05
                         cardRotateAnimation.start()
                     }
 
                     // Previous card (background, tilted left)
-                    Image {
-                        id: prevArtImage
+                    Item {
+                        id: prevArtWrapper
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.horizontalCenterOffset: -parent.artSize * 0.42
                         width: parent.artSize
                         height: width
-                        source: prevAlbumArt
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true; antialiasing: true; asynchronous: true
                         visible: prevAlbumArt !== "" && settingsManager && settingsManager.show3DAlbumPreview
                         z: 0
                         scale: 0.72
-                        opacity: 0.4
+                        opacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
                         transform: Rotation {
                             axis { x: 0; y: 1; z: 0 }
-                            angle: 30
-                            origin.x: prevArtImage.width / 2
-                            origin.y: prevArtImage.height / 2
+                            angle: settingsManager ? settingsManager.sideCardAngle : 30
+                            origin.x: prevArtWrapper.width / 2
+                            origin.y: prevArtWrapper.height / 2
+                        }
+
+                        Image {
+                            id: prevArtImage
+                            anchors.fill: parent
+                            source: prevAlbumArt
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true; antialiasing: true; asynchronous: true
+                            layer.enabled: albumArtStack._roundedArt
+                            layer.effect: OpacityMask {
+                                maskSource: artRoundedMask
+                            }
                         }
                     }
 
                     // Next card (background, tilted right)
-                    Image {
-                        id: nextArtImage
+                    Item {
+                        id: nextArtWrapper
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.horizontalCenterOffset: parent.artSize * 0.42
                         width: parent.artSize
                         height: width
-                        source: nextAlbumArt
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true; antialiasing: true; asynchronous: true
                         visible: nextAlbumArt !== "" && settingsManager && settingsManager.show3DAlbumPreview
                         z: 0
                         scale: 0.72
-                        opacity: 0.4
+                        opacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
                         transform: Rotation {
                             axis { x: 0; y: 1; z: 0 }
-                            angle: -30
-                            origin.x: nextArtImage.width / 2
-                            origin.y: nextArtImage.height / 2
+                            angle: -(settingsManager ? settingsManager.sideCardAngle : 30)
+                            origin.x: nextArtWrapper.width / 2
+                            origin.y: nextArtWrapper.height / 2
+                        }
+
+                        Image {
+                            id: nextArtImage
+                            anchors.fill: parent
+                            source: nextAlbumArt
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true; antialiasing: true; asynchronous: true
+                            layer.enabled: albumArtStack._roundedArt
+                            layer.effect: OpacityMask {
+                                maskSource: artRoundedMask
+                            }
                         }
                     }
 
                     // Current card (front) — animated properties for 3D rotation transition
-                    Image {
-                        id: albumArtImage
+                    Item {
+                        id: albumArtContainer
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.horizontalCenterOffset: _rotateOffset
                         width: parent.artSize
                         height: width
-                        source: currentAlbumArt
-                        fillMode: Image.PreserveAspectFit
-                        smooth: true
-                        antialiasing: true
-                        mipmap: false
-                        asynchronous: true
                         z: 1
 
                         // Animated transition properties (resting: 0, 0, 1.0)
@@ -950,12 +974,27 @@ Item {
 
                         transform: Rotation {
                             axis { x: 0; y: 1; z: 0 }
-                            angle: albumArtImage._rotateAngle
-                            origin.x: albumArtImage.width / 2
-                            origin.y: albumArtImage.height / 2
+                            angle: albumArtContainer._rotateAngle
+                            origin.x: albumArtContainer.width / 2
+                            origin.y: albumArtContainer.height / 2
                         }
 
-                        layer.enabled: status === Image.Ready
+                        Image {
+                            id: albumArtImage
+                            anchors.fill: parent
+                            source: currentAlbumArt
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            antialiasing: true
+                            mipmap: false
+                            asynchronous: true
+                            layer.enabled: albumArtStack._roundedArt
+                            layer.effect: OpacityMask {
+                                maskSource: artRoundedMask
+                            }
+                        }
+
+                        layer.enabled: albumArtImage.status === Image.Ready && settingsManager && settingsManager.showAlbumArtShadow
                         layer.effect: DropShadow {
                             transparentBorder: true
                             horizontalOffset: 8

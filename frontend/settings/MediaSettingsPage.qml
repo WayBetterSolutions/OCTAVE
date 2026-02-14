@@ -297,9 +297,279 @@ Flickable {
             }
         }
 
-        // ── Card 3: Visuals ──
+        // ── Card 3: Album Art ──
         SettingsCard {
-            SettingsSectionHeader { title: "Visuals" }
+            SettingsSectionHeader { title: "Album Art" }
+
+            // Rounded Album Art
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: roundedAlbumArtToggle
+                    Layout.fillWidth: true
+                    text: "Rounded Corners"
+                    checked: settingsManager ? settingsManager.roundedAlbumArt : true
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_rounded_album_art(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onRoundedAlbumArtChanged() {
+                            roundedAlbumArtToggle.checked = settingsManager.roundedAlbumArt
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Apply rounded corners to album art in the media room."
+                }
+            }
+
+            // Corner Radius (conditional on Rounded Corners)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.roundedAlbumArt
+
+                SettingLabel {
+                    text: "Corner Radius"
+                }
+
+                SettingsSlider {
+                    id: cornerRadiusSlider
+                    from: 2
+                    to: 32
+                    stepSize: 1
+                    value: settingsManager ? settingsManager.albumArtCornerRadius : 16
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: cornerRadiusTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_album_art_corner_radius(cornerRadiusSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: cornerRadiusTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onAlbumArtCornerRadiusChanged() {
+                            cornerRadiusSlider.value = settingsManager.albumArtCornerRadius
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: cornerRadiusSlider.value.toFixed(0) + " dp"
+                }
+            }
+
+            SettingsDivider {}
+
+            // Drop Shadow
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: albumArtShadowToggle
+                    Layout.fillWidth: true
+                    text: "Drop Shadow"
+                    checked: settingsManager ? settingsManager.showAlbumArtShadow : true
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_album_art_shadow(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShowAlbumArtShadowChanged() {
+                            albumArtShadowToggle.checked = settingsManager.showAlbumArtShadow
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Shadow behind the album art card for depth."
+                }
+            }
+
+            SettingsDivider {}
+
+            // Album Art Layout
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingLabel {
+                    text: "Background Layout"
+                }
+
+                SettingsSegmentedControl {
+                    id: backgroundGridButton
+                    Layout.fillWidth: true
+                    currentValue: settingsManager ? settingsManager.backgroundGrid : "4x4"
+                    options: ["Normal", "2x2", "4x4"]
+
+                    onSelected: function(value) {
+                        if (settingsManager) {
+                            settingsManager.save_background_grid(value)
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Grid layout for the album art background behind the player."
+                }
+            }
+        }
+
+        // ── Card 4: Background ──
+        SettingsCard {
+            SettingsSectionHeader { title: "Background" }
+
+            // Album Art Blur
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingLabel {
+                    text: "Album Art Blur"
+                }
+
+                SettingsSlider {
+                    id: blurRadiusSlider
+                    from: 0
+                    to: 100
+                    stepSize: 1
+                    value: settingsManager ? settingsManager.backgroundBlurRadius : 40
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: blurUpdateTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_background_blur_radius(blurRadiusSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: blurUpdateTimer.restart()
+                }
+
+                ValueDisplay {
+                    text: blurRadiusSlider.value.toFixed(0)
+                }
+
+                SettingDescription {
+                    text: "Gaussian blur intensity on the background album art grid."
+                }
+            }
+
+            SettingsDivider {}
+
+            // Dark Overlay
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: backgroundOverlayToggle
+                    Layout.fillWidth: true
+                    text: "Dark Overlay"
+                    checked: settingsManager ? settingsManager.showBackgroundOverlay : true
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_background_overlay(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShowBackgroundOverlayChanged() {
+                            backgroundOverlayToggle.checked = settingsManager.showBackgroundOverlay
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Semi-transparent dark layer over the background for readability."
+                }
+            }
+
+            // Overlay Opacity (conditional on Dark Overlay)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.showBackgroundOverlay
+
+                SettingLabel {
+                    text: "Overlay Opacity"
+                }
+
+                SettingsSlider {
+                    id: overlayOpacitySlider
+                    from: 0
+                    to: 100
+                    stepSize: 1
+                    value: settingsManager ? settingsManager.backgroundOverlayOpacity : 80
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: overlayOpacityTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_background_overlay_opacity(overlayOpacitySlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: overlayOpacityTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onBackgroundOverlayOpacityChanged() {
+                            overlayOpacitySlider.value = settingsManager.backgroundOverlayOpacity
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: overlayOpacitySlider.value.toFixed(0) + "%"
+                }
+            }
+        }
+
+        // ── Card 5: Effects ──
+        SettingsCard {
+            SettingsSectionHeader { title: "Effects" }
 
             // Waveform Visualizer
             ColumnLayout {
@@ -309,7 +579,7 @@ Flickable {
                 SettingsToggle {
                     id: waveformVisualizerToggle
                     Layout.fillWidth: true
-                    text: "Waveform visualizer"
+                    text: "Waveform Visualizer"
                     checked: settingsManager ? settingsManager.showWaveformVisualizer : true
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
@@ -330,6 +600,172 @@ Flickable {
 
                 SettingDescription {
                     text: "Animated waveform in Now Playing, themed to match."
+                }
+            }
+
+            // Visualizer Quality (conditional on Waveform Visualizer)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.showWaveformVisualizer
+
+                SettingLabel {
+                    text: "Visualizer Quality"
+                }
+
+                SettingsSegmentedControl {
+                    id: visualizerQualityControl
+                    Layout.fillWidth: true
+                    currentValue: settingsManager ? settingsManager.visualizerQuality : "Medium"
+                    options: ["Low", "Medium", "High", "Extreme", "Insane"]
+
+                    onSelected: function(value) {
+                        if (settingsManager) {
+                            settingsManager.save_visualizer_quality(value)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onVisualizerQualityChanged() {
+                            visualizerQualityControl.currentValue = settingsManager.visualizerQuality
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: {
+                        var q = settingsManager ? settingsManager.visualizerQuality : "Medium"
+                        if (q === "Low") return "16 bars, lowest CPU usage."
+                        if (q === "High") return "48 bars with smooth animation. Higher CPU usage."
+                        if (q === "Extreme") return "64 bars at 30 FPS with smooth animation. Will eat your CPU alive."
+                        if (q === "Insane") return "96 bars at 60 FPS. God help your CPU."
+                        return "32 bars, balanced performance."
+                    }
+                }
+            }
+
+            SettingsDivider {}
+
+            // 3D Album Preview
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: albumPreviewToggle
+                    Layout.fillWidth: true
+                    text: "3D Album Preview"
+                    checked: settingsManager ? settingsManager.show3DAlbumPreview : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_3d_album_preview(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShow3DAlbumPreviewChanged() {
+                            albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Coverflow-style card stack showing next and previous album art with 3D rotation transitions."
+                }
+            }
+
+            // Side Card Opacity (conditional on 3D Album Preview)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DAlbumPreview
+
+                SettingLabel {
+                    text: "Side Card Opacity"
+                }
+
+                SettingsSlider {
+                    id: sideCardOpacitySlider
+                    from: 0.1
+                    to: 1.0
+                    stepSize: 0.05
+                    value: settingsManager ? settingsManager.sideCardOpacity : 0.4
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: sideCardOpacityTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_side_card_opacity(sideCardOpacitySlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: sideCardOpacityTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onSideCardOpacityChanged() {
+                            sideCardOpacitySlider.value = settingsManager.sideCardOpacity
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: Math.round(sideCardOpacitySlider.value * 100) + "%"
+                }
+            }
+
+            // Side Card Angle (conditional on 3D Album Preview)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DAlbumPreview
+
+                SettingLabel {
+                    text: "Side Card Angle"
+                }
+
+                SettingsSlider {
+                    id: sideCardAngleSlider
+                    from: 5
+                    to: 60
+                    stepSize: 1
+                    value: settingsManager ? settingsManager.sideCardAngle : 30
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: sideCardAngleTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_side_card_angle(sideCardAngleSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: sideCardAngleTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onSideCardAngleChanged() {
+                            sideCardAngleSlider.value = settingsManager.sideCardAngle
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: sideCardAngleSlider.value.toFixed(0) + "°"
                 }
             }
 
@@ -398,178 +834,6 @@ Flickable {
 
                 SettingDescription {
                     text: "Barrel-roll flip animation on song title and metadata when tracks change."
-                }
-            }
-
-            SettingsDivider {}
-
-            // 3D Album Preview
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: albumPreviewToggle
-                    Layout.fillWidth: true
-                    text: "3D Album Preview"
-                    checked: settingsManager ? settingsManager.show3DAlbumPreview : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_3d_album_preview(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShow3DAlbumPreviewChanged() {
-                            albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Coverflow-style card stack showing next and previous album art with 3D rotation transitions."
-                }
-            }
-
-            SettingsDivider {}
-
-            // Visualizer Quality
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.showWaveformVisualizer
-
-                SettingLabel {
-                    text: "Visualizer Quality"
-                }
-
-                SettingsSegmentedControl {
-                    id: visualizerQualityControl
-                    Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.visualizerQuality : "Medium"
-                    options: ["Low", "Medium", "High", "Extreme", "Insane"]
-
-                    onSelected: function(value) {
-                        if (settingsManager) {
-                            settingsManager.save_visualizer_quality(value)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onVisualizerQualityChanged() {
-                            visualizerQualityControl.currentValue = settingsManager.visualizerQuality
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: {
-                        var q = settingsManager ? settingsManager.visualizerQuality : "Medium"
-                        if (q === "Low") return "16 bars, lowest CPU usage."
-                        if (q === "High") return "48 bars with smooth animation. Higher CPU usage."
-                        if (q === "Extreme") return "64 bars at 30 FPS with smooth animation. Will eat your CPU alive."
-                        if (q === "Insane") return "96 bars at 60 FPS. God help your CPU."
-                        return "32 bars, balanced performance."
-                    }
-                }
-            }
-
-            SettingsDivider {}
-
-            // Media Room Background Blur Effect
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Album Art Blur"
-                }
-
-                SettingsSlider {
-                    id: blurRadiusSlider
-                    from: 0
-                    to: 100
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.backgroundBlurRadius : 40
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: blurUpdateTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_background_blur_radius(blurRadiusSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: blurUpdateTimer.restart()
-                }
-
-                ValueDisplay {
-                    text: blurRadiusSlider.value.toFixed(0)
-                }
-            }
-
-            SettingsDivider {}
-
-            // Media Room Background
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Album Art Layout"
-                }
-
-                SettingsSegmentedControl {
-                    id: backgroundGridButton
-                    Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.backgroundGrid : "4x4"
-                    options: ["Normal", "2x2", "4x4"]
-
-                    onSelected: function(value) {
-                        if (settingsManager) {
-                            settingsManager.save_background_grid(value)
-                        }
-                    }
-                }
-            }
-
-            SettingsDivider {}
-
-            // Background Overlay Toggle
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: backgroundOverlayToggle
-                    Layout.fillWidth: true
-                    text: "Dark overlay on album art"
-                    checked: settingsManager ? settingsManager.showBackgroundOverlay : true
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_background_overlay(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShowBackgroundOverlayChanged() {
-                            backgroundOverlayToggle.checked = settingsManager.showBackgroundOverlay
-                        }
-                    }
                 }
             }
         }

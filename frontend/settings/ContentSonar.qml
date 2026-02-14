@@ -10,7 +10,7 @@ Item {
 
     Timer {
         interval: 100  // ~10fps — RPi friendly
-        running: App.EnvironmentTheme.active.contentSonar
+        running: visible && App.EnvironmentTheme.active.contentSonar
         repeat: true
         onTriggered: {
             parent.sonarPhase += 1.0

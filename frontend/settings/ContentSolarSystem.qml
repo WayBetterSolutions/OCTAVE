@@ -10,7 +10,7 @@ Item {
 
     Timer {
         interval: 80  // ~12fps — RPi friendly
-        running: App.EnvironmentTheme.active.scanlineOverlay
+        running: visible && App.EnvironmentTheme.active.scanlineOverlay
         repeat: true
         onTriggered: {
             parent.orbitPhase += 0.4

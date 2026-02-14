@@ -1,0 +1,346 @@
+"""
+Network Manager for OCTAVE
+Handles WiFi/internet connectivity status and checks for updates via GitHub.
+"""
+
+import os
+import subprocess
+import platform
+import urllib.request
+import json
+from concurrent.futures import ThreadPoolExecutor
+
+from PySide6.QtCore import QObject, Signal, Slot, QTimer, Property
+
+from backend.logging_config import get_logger
+logger = get_logger(__name__)
+
+
+class NetworkManager(QObject):
+    """
+    Manager for network connectivity status and update checking.
+
+    Provides:
+    - Internet connectivity check
+    - WiFi/network name detection
+    - GitHub-based update checking (compares local commit to remote HEAD)
+
+    All blocking I/O (subprocess, HTTP) runs on a background thread to avoid
+    freezing the Qt event loop.
+    """
+
+    # Network status signals
+    networkNameChanged = Signal(str)
+    isConnectedChanged = Signal(bool)
+
+    # Update check signals
+    updateStatusChanged = Signal(str)       # "checking", "up-to-date", "update-available", "error"
+    updateMessageChanged = Signal(str)      # Human-readable status message
+    remoteCommitChanged = Signal(str)       # Latest remote commit hash
+    remoteCommitMsgChanged = Signal(str)    # Latest remote commit message
+
+    GITHUB_REPO = "WayBetterSolutions/OCTAVE"
+
+    def __init__(self):
+        super().__init__()
+        self._network_name = ""
+        self._is_connected = False
+        self._update_status = ""
+        self._update_message = ""
+        self._remote_commit = ""
+        self._remote_commit_msg = ""
+
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._pending_future = None
+
+        # Poll for completed background work (avoids emitting signals from worker thread)
+        self._result_poll_timer = QTimer()
+        self._result_poll_timer.setInterval(250)
+        self._result_poll_timer.timeout.connect(self._check_pending_result)
+
+        # Poll network status periodically
+        self._poll_timer = QTimer()
+        self._poll_timer.timeout.connect(self._refresh_network_status)
+        self._poll_timer.start(30000)  # Every 30 seconds
+
+        # Check once on startup (slight delay to let the UI load)
+        QTimer.singleShot(2000, self._refresh_network_status)
+
+    # ==================== Properties ====================
+
+    @Property(str, notify=networkNameChanged)
+    def networkName(self):
+        return self._network_name
+
+    @Property(bool, notify=isConnectedChanged)
+    def isConnected(self):
+        return self._is_connected
+
+    @Property(str, notify=updateStatusChanged)
+    def updateStatus(self):
+        return self._update_status
+
+    @Property(str, notify=updateMessageChanged)
+    def updateMessage(self):
+        return self._update_message
+
+    @Property(str, notify=remoteCommitChanged)
+    def remoteCommit(self):
+        return self._remote_commit
+
+    @Property(str, notify=remoteCommitMsgChanged)
+    def remoteCommitMsg(self):
+        return self._remote_commit_msg
+
+    # ==================== Background work polling ====================
+
+    def _submit_work(self, fn, result_type):
+        """Submit blocking work to the thread pool. Only one job at a time."""
+        if self._pending_future and not self._pending_future.done():
+            return  # Already busy
+        self._pending_future = self._executor.submit(fn)
+        self._pending_future._result_type = result_type
+        self._result_poll_timer.start()
+
+    def _check_pending_result(self):
+        """Poll for completed background work and emit signals on the main thread."""
+        if not self._pending_future or not self._pending_future.done():
+            return
+        self._result_poll_timer.stop()
+        result_type = getattr(self._pending_future, '_result_type', None)
+        try:
+            result = self._pending_future.result()
+        except Exception as e:
+            logger.warning(f"Background network task failed: {e}")
+            if result_type == "update_check":
+                self._update_status = "error"
+                self.updateStatusChanged.emit("error")
+                self._update_message = "Could not reach GitHub"
+                self.updateMessageChanged.emit(self._update_message)
+            self._pending_future = None
+            return
+
+        self._pending_future = None
+
+        if result_type == "network_status":
+            name, connected = result
+            if name != self._network_name:
+                self._network_name = name
+                self.networkNameChanged.emit(name)
+            if connected != self._is_connected:
+                self._is_connected = connected
+                self.isConnectedChanged.emit(connected)
+
+        elif result_type == "update_check":
+            self._apply_update_result(result)
+
+    # ==================== Network Status ====================
+
+    def _refresh_network_status(self):
+        """Kick off a background network status check."""
+        self._submit_work(self._do_network_check, "network_status")
+
+    @staticmethod
+    def _do_network_check():
+        """Blocking network check — runs on worker thread."""
+        name = NetworkManager._get_network_name_sync()
+        connected = NetworkManager._check_internet_sync()
+        return (name, connected)
+
+    @staticmethod
+    def _get_network_name_sync():
+        """Get the name of the connected WiFi network (or wired indicator)."""
+        system = platform.system()
+        try:
+            if system == "Linux":
+                result = subprocess.run(
+                    ['nmcli', '-t', '-f', 'ACTIVE,SSID', 'dev', 'wifi'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        if line.startswith('yes:'):
+                            ssid = line.split(':', 1)[1]
+                            if ssid:
+                                return ssid
+                # Check for wired connection
+                result = subprocess.run(
+                    ['nmcli', '-t', '-f', 'TYPE,STATE', 'dev'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        if 'ethernet' in line and 'connected' in line:
+                            return "Ethernet"
+
+            elif system == "Darwin":
+                result = subprocess.run(
+                    ['networksetup', '-getairportnetwork', 'en0'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and 'Current Wi-Fi Network' in result.stdout:
+                    return result.stdout.split(': ', 1)[1].strip()
+                result = subprocess.run(
+                    ['ifconfig', 'en0'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and 'status: active' in result.stdout:
+                    return "Ethernet"
+
+            elif system == "Windows":
+                result = subprocess.run(
+                    ['netsh', 'wlan', 'show', 'interfaces'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        line = line.strip()
+                        if line.startswith('SSID') and 'BSSID' not in line:
+                            ssid = line.split(':', 1)[1].strip()
+                            if ssid:
+                                return ssid
+                result = subprocess.run(
+                    ['netsh', 'interface', 'show', 'interface'],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if 'Connected' in line and 'Ethernet' in line:
+                            return "Ethernet"
+
+        except Exception as e:
+            logger.debug(f"Error getting network name: {e}")
+
+        return ""
+
+    @staticmethod
+    def _check_internet_sync():
+        """Check if the device has internet connectivity."""
+        try:
+            urllib.request.urlopen("https://clients3.google.com/generate_204", timeout=5)
+            return True
+        except Exception:
+            pass
+        return False
+
+    @Slot()
+    def refreshNetwork(self):
+        """Manually refresh network status (callable from QML)."""
+        self._refresh_network_status()
+
+    # ==================== Update Checking ====================
+
+    @Slot()
+    def checkForUpdates(self):
+        """Start an update check (callable from QML)."""
+        self._update_status = "checking"
+        self.updateStatusChanged.emit("checking")
+        self._update_message = "Checking for updates..."
+        self.updateMessageChanged.emit(self._update_message)
+        self._submit_work(self._do_update_check_sync, "update_check")
+
+    def _do_update_check_sync(self):
+        """Blocking update check — runs on worker thread. Returns a result dict."""
+        # Check connectivity first
+        connected = self._check_internet_sync()
+        if not connected:
+            return {"status": "error", "message": "No internet connection"}
+
+        try:
+            local_hash = self._get_local_commit_hash_sync()
+            if not local_hash:
+                return {"status": "error", "message": "Could not determine local version"}
+
+            url = f"https://api.github.com/repos/{self.GITHUB_REPO}/commits/main"
+            req = urllib.request.Request(url)
+            req.add_header('User-Agent', 'OCTAVE-Updater')
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read().decode())
+
+            remote_hash = data.get("sha", "")[:7]
+            remote_msg = data.get("commit", {}).get("message", "").split('\n')[0]
+
+            if remote_hash == local_hash:
+                status = "up-to-date"
+                message = "You're running the latest version"
+            else:
+                status = "update-available"
+                message = f"Update available (latest: {remote_hash})"
+
+            logger.info(f"Update check: local={local_hash}, remote={remote_hash}, status={status}")
+            return {
+                "status": status,
+                "message": message,
+                "remote_hash": remote_hash,
+                "remote_msg": remote_msg,
+            }
+
+        except Exception as e:
+            logger.warning(f"Update check failed: {e}")
+            return {"status": "error", "message": "Could not reach GitHub"}
+
+    def _apply_update_result(self, result):
+        """Apply update check result on main thread."""
+        status = result.get("status", "error")
+        message = result.get("message", "")
+
+        self._update_status = status
+        self.updateStatusChanged.emit(status)
+        self._update_message = message
+        self.updateMessageChanged.emit(message)
+
+        remote_hash = result.get("remote_hash")
+        if remote_hash is not None:
+            self._remote_commit = remote_hash
+            self.remoteCommitChanged.emit(remote_hash)
+
+        remote_msg = result.get("remote_msg")
+        if remote_msg is not None:
+            self._remote_commit_msg = remote_msg
+            self.remoteCommitMsgChanged.emit(remote_msg)
+
+    @staticmethod
+    def _get_local_commit_hash_sync():
+        """Get the short hash of the local HEAD commit."""
+        try:
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            repo_dir = os.path.dirname(backend_dir)
+            result = subprocess.run(
+                ['git', 'rev-parse', '--short', 'HEAD'],
+                cwd=repo_dir,
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except Exception as e:
+            logger.debug(f"Error getting local commit hash: {e}")
+        return ""
+
+    # ==================== Device Shutdown ====================
+
+    @Slot()
+    def shutdown_device(self):
+        """Shut down the device cleanly: quit OCTAVE, then power off the OS."""
+        system = platform.system()
+        logger.info(f"Device shutdown requested on {system}")
+
+        # Schedule OS shutdown with a brief delay so app cleanup can finish
+        try:
+            if system == "Linux":
+                subprocess.Popen(['sh', '-c', 'sleep 3 && systemctl poweroff'])
+            elif system == "Darwin":
+                subprocess.Popen(['sh', '-c', 'sleep 3 && sudo shutdown -h now'])
+            elif system == "Windows":
+                subprocess.Popen(['shutdown', '/s', '/t', '5'])
+        except Exception as e:
+            logger.error(f"Failed to schedule OS shutdown: {e}")
+
+        # Quit the app (triggers cleanup_on_quit via aboutToQuit signal)
+        from PySide6.QtWidgets import QApplication
+        QApplication.quit()
+
+    def cleanup(self):
+        """Stop timers and thread pool on shutdown."""
+        self._poll_timer.stop()
+        self._result_poll_timer.stop()
+        self._executor.shutdown(wait=False)

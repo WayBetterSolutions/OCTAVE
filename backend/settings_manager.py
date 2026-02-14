@@ -36,6 +36,34 @@ SETTINGS_REGISTRY = {
         "key": "show3DAlbumPreview", "label": "3D Album Preview", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_3d_album_preview"
     },
+    "rounded_album_art": {
+        "key": "roundedAlbumArt", "label": "Rounded Album Art", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_rounded_album_art"
+    },
+    "album_art_corner_radius": {
+        "key": "albumArtCornerRadius", "label": "Corner Radius", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_album_art_corner_radius",
+        "params": {"from": 2, "to": 32, "stepSize": 1}
+    },
+    "show_album_art_shadow": {
+        "key": "showAlbumArtShadow", "label": "Album Art Shadow", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_show_album_art_shadow"
+    },
+    "background_overlay_opacity": {
+        "key": "backgroundOverlayOpacity", "label": "Overlay Opacity", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_background_overlay_opacity",
+        "params": {"from": 0, "to": 100, "stepSize": 1}
+    },
+    "side_card_opacity": {
+        "key": "sideCardOpacity", "label": "Side Card Opacity", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_side_card_opacity",
+        "params": {"from": 0.1, "to": 1.0, "stepSize": 0.05}
+    },
+    "side_card_angle": {
+        "key": "sideCardAngle", "label": "Side Card Angle", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_side_card_angle",
+        "params": {"from": 5, "to": 60, "stepSize": 1}
+    },
     "visualizer_quality": {
         "key": "visualizerQuality", "label": "Visualizer Quality", "category": "mediaSettings",
         "controlType": "chips", "saveSlot": "save_visualizer_quality",
@@ -179,6 +207,12 @@ class SettingsManager(QObject):
     show3DButtonTiltChanged = Signal(bool)
     show3DTextFlipChanged = Signal(bool)
     show3DAlbumPreviewChanged = Signal(bool)
+    roundedAlbumArtChanged = Signal(bool)
+    albumArtCornerRadiusChanged = Signal(int)
+    showAlbumArtShadowChanged = Signal(bool)
+    backgroundOverlayOpacityChanged = Signal(int)
+    sideCardOpacityChanged = Signal(float)
+    sideCardAngleChanged = Signal(int)
 
     # Environment theme signal
     environmentThemeChanged = Signal(str)
@@ -366,6 +400,12 @@ class SettingsManager(QObject):
             "show3DButtonTilt": False,   # 3D tilt on prev/play/next press
             "show3DTextFlip": False,     # 3D barrel-roll text flip on track change
             "show3DAlbumPreview": False,  # Coverflow-style album art card stack
+            "roundedAlbumArt": True,     # Rounded corners on album art
+            "albumArtCornerRadius": 16,  # Corner radius in dp (2-32)
+            "showAlbumArtShadow": True,  # Drop shadow on album art
+            "backgroundOverlayOpacity": 80,  # Dark overlay opacity percentage (0-100)
+            "sideCardOpacity": 0.4,      # 3D preview side card opacity (0.1-1.0)
+            "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             # Gesture sensor settings
             "gestureSensorEnabled": True,
@@ -481,6 +521,12 @@ class SettingsManager(QObject):
         self._show_3d_button_tilt = self._settings.get("show3DButtonTilt", self._default_settings["show3DButtonTilt"])
         self._show_3d_text_flip = self._settings.get("show3DTextFlip", self._default_settings["show3DTextFlip"])
         self._show_3d_album_preview = self._settings.get("show3DAlbumPreview", self._default_settings["show3DAlbumPreview"])
+        self._rounded_album_art = self._settings.get("roundedAlbumArt", self._default_settings["roundedAlbumArt"])
+        self._album_art_corner_radius = self._settings.get("albumArtCornerRadius", self._default_settings["albumArtCornerRadius"])
+        self._show_album_art_shadow = self._settings.get("showAlbumArtShadow", self._default_settings["showAlbumArtShadow"])
+        self._background_overlay_opacity = self._settings.get("backgroundOverlayOpacity", self._default_settings["backgroundOverlayOpacity"])
+        self._side_card_opacity = self._settings.get("sideCardOpacity", self._default_settings["sideCardOpacity"])
+        self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
@@ -1527,6 +1573,60 @@ class SettingsManager(QObject):
         self._show_3d_album_preview = enabled
         self.update_setting("show3DAlbumPreview", enabled, self.show3DAlbumPreviewChanged)
 
+    @Property(bool, notify=roundedAlbumArtChanged)
+    def roundedAlbumArt(self):
+        return self._rounded_album_art
+
+    @Slot(bool)
+    def save_rounded_album_art(self, enabled):
+        self._rounded_album_art = enabled
+        self.update_setting("roundedAlbumArt", enabled, self.roundedAlbumArtChanged)
+
+    @Property(int, notify=albumArtCornerRadiusChanged)
+    def albumArtCornerRadius(self):
+        return self._album_art_corner_radius
+
+    @Slot(int)
+    def save_album_art_corner_radius(self, radius):
+        self._album_art_corner_radius = max(2, min(32, radius))
+        self.update_setting("albumArtCornerRadius", self._album_art_corner_radius, self.albumArtCornerRadiusChanged)
+
+    @Property(bool, notify=showAlbumArtShadowChanged)
+    def showAlbumArtShadow(self):
+        return self._show_album_art_shadow
+
+    @Slot(bool)
+    def save_show_album_art_shadow(self, enabled):
+        self._show_album_art_shadow = enabled
+        self.update_setting("showAlbumArtShadow", enabled, self.showAlbumArtShadowChanged)
+
+    @Property(int, notify=backgroundOverlayOpacityChanged)
+    def backgroundOverlayOpacity(self):
+        return self._background_overlay_opacity
+
+    @Slot(int)
+    def save_background_overlay_opacity(self, opacity):
+        self._background_overlay_opacity = max(0, min(100, opacity))
+        self.update_setting("backgroundOverlayOpacity", self._background_overlay_opacity, self.backgroundOverlayOpacityChanged)
+
+    @Property(float, notify=sideCardOpacityChanged)
+    def sideCardOpacity(self):
+        return self._side_card_opacity
+
+    @Slot(float)
+    def save_side_card_opacity(self, opacity):
+        self._side_card_opacity = max(0.1, min(1.0, opacity))
+        self.update_setting("sideCardOpacity", self._side_card_opacity, self.sideCardOpacityChanged)
+
+    @Property(int, notify=sideCardAngleChanged)
+    def sideCardAngle(self):
+        return self._side_card_angle
+
+    @Slot(int)
+    def save_side_card_angle(self, angle):
+        self._side_card_angle = max(5, min(60, angle))
+        self.update_setting("sideCardAngle", self._side_card_angle, self.sideCardAngleChanged)
+
     @Property(str, notify=visualizerQualityChanged)
     def visualizerQuality(self):
         """Get visualizer quality tier: 'Low', 'Medium', or 'High'"""
@@ -1901,6 +2001,24 @@ class SettingsManager(QObject):
 
         self._gesture_cooldown = self._default_settings["gestureCooldown"]
         self.gestureCooldownChanged.emit(self._gesture_cooldown)
+
+        self._rounded_album_art = self._default_settings["roundedAlbumArt"]
+        self.roundedAlbumArtChanged.emit(self._rounded_album_art)
+
+        self._album_art_corner_radius = self._default_settings["albumArtCornerRadius"]
+        self.albumArtCornerRadiusChanged.emit(self._album_art_corner_radius)
+
+        self._show_album_art_shadow = self._default_settings["showAlbumArtShadow"]
+        self.showAlbumArtShadowChanged.emit(self._show_album_art_shadow)
+
+        self._background_overlay_opacity = self._default_settings["backgroundOverlayOpacity"]
+        self.backgroundOverlayOpacityChanged.emit(self._background_overlay_opacity)
+
+        self._side_card_opacity = self._default_settings["sideCardOpacity"]
+        self.sideCardOpacityChanged.emit(self._side_card_opacity)
+
+        self._side_card_angle = self._default_settings["sideCardAngle"]
+        self.sideCardAngleChanged.emit(self._side_card_angle)
 
         self._pinned_settings = []
         self.pinnedSettingsChanged.emit()

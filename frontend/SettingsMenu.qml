@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "." as App
 import "settings"
+import "settings/ScrollMemory.js" as ScrollMemory
 
 Item {
     id: settingsMenu
@@ -42,9 +43,6 @@ Item {
     // Visible pages model for the hub grid
     property var hubModel: []
 
-    // Scroll memory — stores contentY per section (ephemeral, not persisted)
-    property var scrollPositions: ({})
-
     Component.onCompleted: {
         buildHubModel()
 
@@ -59,6 +57,7 @@ Item {
         }
         viewState = "hub"
     }
+
 
     // Look up the QML source for a given section
     function sourceForSection(section) {
@@ -244,13 +243,6 @@ Item {
 
     // Return to hub
     function navigateToHub() {
-        // Save scroll position before leaving detail
-        if (contentLoader.item && typeof contentLoader.item.contentY !== "undefined") {
-            var copy = ({})
-            for (var key in scrollPositions) copy[key] = scrollPositions[key]
-            copy[currentSection] = contentLoader.item.contentY
-            scrollPositions = copy
-        }
         buildHubModel()
         viewState = "hub"
     }
@@ -470,20 +462,6 @@ Item {
                     }
                     source: viewState === "detail" ? sourceForSection(currentSection) : ""
 
-                    // Track previous section for scroll save
-                    property string previousSection: ""
-
-                    onSourceChanged: {
-                        // Save scroll position of previous page
-                        if (previousSection && item && typeof item.contentY !== "undefined") {
-                            var copy = ({})
-                            for (var key in scrollPositions) copy[key] = scrollPositions[key]
-                            copy[previousSection] = item.contentY
-                            scrollPositions = copy
-                        }
-                        previousSection = currentSection
-                    }
-
                     onLoaded: {
                         // Bind optional properties if the page declares them
                         if (item && typeof item.mainWindow !== "undefined")
@@ -493,10 +471,40 @@ Item {
                         if (item && typeof item.currentSection !== "undefined")
                             item.currentSection = Qt.binding(function() { return settingsMenu.currentSection })
 
-                        // Restore scroll position
-                        if (item && typeof item.contentY !== "undefined" && scrollPositions[currentSection] !== undefined) {
-                            item.contentY = scrollPositions[currentSection]
+                        // Kick off scroll restore — timer polls until layout is ready
+                        var savedY = ScrollMemory.positions[currentSection]
+                        if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
+                            scrollRestoreTimer.savedY = savedY
+                            scrollRestoreTimer.restart()
+                        } else {
+                            scrollRestoreTimer.stop()
                         }
+                    }
+                }
+
+                // Polls each frame until the Flickable has valid dimensions, then restores scroll
+                Timer {
+                    id: scrollRestoreTimer
+                    interval: 16
+                    repeat: true
+                    property real savedY: -1
+                    onTriggered: {
+                        var fl = contentLoader.item
+                        if (fl && fl.contentHeight > 0 && fl.height > 0 && savedY >= 0) {
+                            fl.contentY = Math.min(savedY, Math.max(0, fl.contentHeight - fl.height))
+                            savedY = -1
+                            stop()
+                        }
+                    }
+                }
+
+                // Continuously save scroll position as the user scrolls —
+                // always up-to-date regardless of how they navigate away
+                Connections {
+                    target: contentLoader.item
+                    function onContentYChanged() {
+                        if (contentLoader.item && currentSection)
+                            ScrollMemory.positions[currentSection] = contentLoader.item.contentY
                     }
                 }
             }

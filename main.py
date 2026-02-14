@@ -38,6 +38,7 @@ from backend.esp32_volume_manager import ESP32VolumeManager
 from backend.audio_analyzer import AudioAnalyzer
 from backend.berryimu_manager import BerryIMUManager
 from backend.gesture_manager import GestureManager
+from backend.network_manager import NetworkManager
 
 app = QApplication(sys.argv)
 
@@ -138,6 +139,10 @@ engine.rootContext().setContextProperty("berryIMU", berryimu_manager)
 gesture_manager = GestureManager()
 gesture_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("gestureSensor", gesture_manager)
+
+# Network Manager — WiFi status and update checking
+network_manager = NetworkManager()
+engine.rootContext().setContextProperty("networkManager", network_manager)
 
 # Connect gesture actions to media controls
 def handle_gesture_action(action):
@@ -348,6 +353,7 @@ def cleanup_on_quit():
     esp32_volume_manager.cleanup()  # Disconnect ESP32 volume controller
     berryimu_manager.cleanup()  # Stop BerryIMU sensor reading
     gesture_manager.cleanup()  # Stop gesture sensor reading
+    network_manager.cleanup()  # Stop network polling
 
 app.aboutToQuit.connect(cleanup_on_quit)
 
