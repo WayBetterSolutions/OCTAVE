@@ -56,6 +56,12 @@ class AudioAnalyzer(QObject):
         # Thread pool for off-thread analysis
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._analyzing = False
+        self._pending_future = None
+
+        # Poll timer — checks if the worker thread finished, keeps Qt work on the main thread
+        self._poll_timer = QTimer(self)
+        self._poll_timer.setInterval(100)
+        self._poll_timer.timeout.connect(self._check_analysis_done)
 
     @Slot(str)
     def analyze_file(self, file_path: str):
@@ -89,13 +95,20 @@ class AudioAnalyzer(QObject):
         self.analysisStarted.emit()
         logger.info(f"Starting audio analysis for: {file_path}")
 
-        # Run analysis off the main thread
-        future = self._executor.submit(self._analyze_audio, file_path)
-        future.add_done_callback(self._on_analysis_complete)
+        # Submit work to the thread pool and poll for completion from the main thread
+        self._pending_future = self._executor.submit(self._analyze_audio, file_path)
+        self._poll_timer.start()
 
-    def _on_analysis_complete(self, future):
-        """Callback when threaded analysis finishes."""
+    def _check_analysis_done(self):
+        """Poll callback — runs on the main thread via QTimer."""
+        if self._pending_future is None or not self._pending_future.done():
+            return
+
+        self._poll_timer.stop()
+        future = self._pending_future
+        self._pending_future = None
         self._analyzing = False
+
         try:
             result = future.result()
             if result is not None:

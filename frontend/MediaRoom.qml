@@ -791,9 +791,10 @@ Item {
             // Quality-driven parameters
             property string quality: settingsManager ? settingsManager.visualizerQuality : "Medium"
             property int timerInterval: quality === "Low" ? 200 : (quality === "High" ? 60 : (quality === "Extreme" ? 33 : (quality === "Insane" ? 16 : 100)))
-            property bool smoothBars: quality === "High" || quality === "Extreme" || quality === "Insane"
-            property int animDuration: quality === "Insane" ? 120 : (quality === "Extreme" ? 80 : 50)
+            property bool smoothBars: true
+            property int animDuration: quality === "Insane" ? 120 : (quality === "Extreme" ? 80 : (quality === "High" ? 50 : (quality === "Medium" ? 80 : 150)))
             property int animEasing: quality === "Insane" ? Easing.InOutSine : (quality === "Extreme" ? Easing.InOutQuad : Easing.OutQuad)
+            property bool fancyBars: quality === "Extreme" || quality === "Insane"
 
             Behavior on opacity {
                 NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
@@ -804,6 +805,16 @@ Item {
                 target: settingsManager
                 function onVisualizerQualityChanged() {
                     waveformBars.numBars = audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
+                    // Re-analyze current song with new bar count
+                    if (audioAnalyzer && mediaManager && !mediaRoom.useSpotify) {
+                        var currentFile = mediaManager.get_current_file()
+                        if (currentFile) {
+                            var fullPath = mediaManager.get_full_file_path(currentFile)
+                            if (fullPath) {
+                                audioAnalyzer.analyze_file(fullPath)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -813,7 +824,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 height: parent.height
-                spacing: App.Spacing.dp(2)
+                spacing: waveformContainer.quality === "Insane" ? App.Spacing.dp(1) : App.Spacing.dp(2)
 
                 property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
 
@@ -823,15 +834,39 @@ Item {
 
                     Rectangle {
                         property int barLevel: 0
+                        property bool fancy: waveformContainer.fancyBars
 
                         width: Math.max(2, (waveformContainer.width - (waveformBars.numBars - 1) * waveformBars.spacing) / waveformBars.numBars)
                         height: Math.max(2, (barLevel / 8) * waveformContainer.height)
                         anchors.bottom: parent.bottom
+
+                        // Pill-shaped bars on Extreme/Insane
+                        radius: fancy ? width * 0.4 : 0
+
+                        // Always set color as fallback — Qt ignores color when gradient is active,
+                        // but if the gradient fails to render (Windows GPU quirk) the bar stays visible
                         color: App.Style.accent
-                        opacity: 0.8
+
+                        // Gradient glow from base on Extreme/Insane
+                        gradient: fancy ? barGradient : null
+
+                        // Breathing opacity — quiet bars fade, loud bars pop
+                        opacity: fancy ? (0.4 + (barLevel / 8) * 0.6) : 0.8
+
+                        Gradient {
+                            id: barGradient
+                            GradientStop { position: 0.0; color: Qt.darker(App.Style.accent, 1.4) }
+                            GradientStop { position: 0.5; color: App.Style.accent }
+                            GradientStop { position: 1.0; color: Qt.lighter(App.Style.accent, 1.6) }
+                        }
 
                         Behavior on height {
                             enabled: waveformContainer.smoothBars
+                            NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
+                        }
+
+                        Behavior on opacity {
+                            enabled: fancy
                             NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
                         }
                     }
