@@ -24,6 +24,18 @@ SETTINGS_REGISTRY = {
         "key": "showWaveformVisualizer", "label": "Waveform Visualizer", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_waveform_visualizer"
     },
+    "show_3d_button_tilt": {
+        "key": "show3DButtonTilt", "label": "3D Button Tilt", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_show_3d_button_tilt"
+    },
+    "show_3d_text_flip": {
+        "key": "show3DTextFlip", "label": "3D Text Flip", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_show_3d_text_flip"
+    },
+    "show_3d_album_preview": {
+        "key": "show3DAlbumPreview", "label": "3D Album Preview", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_show_3d_album_preview"
+    },
     "visualizer_quality": {
         "key": "visualizerQuality", "label": "Visualizer Quality", "category": "mediaSettings",
         "controlType": "chips", "saveSlot": "save_visualizer_quality",
@@ -162,6 +174,11 @@ class SettingsManager(QObject):
     # Waveform visualizer signals
     showWaveformVisualizerChanged = Signal(bool)
     visualizerQualityChanged = Signal(str)
+
+    # 3D visual effect signals
+    show3DButtonTiltChanged = Signal(bool)
+    show3DTextFlipChanged = Signal(bool)
+    show3DAlbumPreviewChanged = Signal(bool)
 
     # Environment theme signal
     environmentThemeChanged = Signal(str)
@@ -345,6 +362,10 @@ class SettingsManager(QObject):
             # Waveform visualizer settings
             "showWaveformVisualizer": True,  # Show audio waveform visualization in MediaRoom
             "visualizerQuality": "Medium",  # "Low", "Medium", or "High"
+            # 3D visual effect settings
+            "show3DButtonTilt": False,   # 3D tilt on prev/play/next press
+            "show3DTextFlip": False,     # 3D barrel-roll text flip on track change
+            "show3DAlbumPreview": False,  # Coverflow-style album art card stack
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             # Gesture sensor settings
             "gestureSensorEnabled": True,
@@ -455,6 +476,11 @@ class SettingsManager(QObject):
         # Waveform visualizer settings
         self._show_waveform_visualizer = self._settings.get("showWaveformVisualizer", self._default_settings["showWaveformVisualizer"])
         self._visualizer_quality = self._settings.get("visualizerQuality", self._default_settings["visualizerQuality"])
+
+        # 3D visual effect settings
+        self._show_3d_button_tilt = self._settings.get("show3DButtonTilt", self._default_settings["show3DButtonTilt"])
+        self._show_3d_text_flip = self._settings.get("show3DTextFlip", self._default_settings["show3DTextFlip"])
+        self._show_3d_album_preview = self._settings.get("show3DAlbumPreview", self._default_settings["show3DAlbumPreview"])
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
@@ -1471,6 +1497,35 @@ class SettingsManager(QObject):
         logger.debug(f"Saving show waveform visualizer: {enabled}")
         self._show_waveform_visualizer = enabled
         self.update_setting("showWaveformVisualizer", enabled, self.showWaveformVisualizerChanged)
+
+    # ==================== 3D Visual Effect Settings ====================
+
+    @Property(bool, notify=show3DButtonTiltChanged)
+    def show3DButtonTilt(self):
+        return self._show_3d_button_tilt
+
+    @Slot(bool)
+    def save_show_3d_button_tilt(self, enabled):
+        self._show_3d_button_tilt = enabled
+        self.update_setting("show3DButtonTilt", enabled, self.show3DButtonTiltChanged)
+
+    @Property(bool, notify=show3DTextFlipChanged)
+    def show3DTextFlip(self):
+        return self._show_3d_text_flip
+
+    @Slot(bool)
+    def save_show_3d_text_flip(self, enabled):
+        self._show_3d_text_flip = enabled
+        self.update_setting("show3DTextFlip", enabled, self.show3DTextFlipChanged)
+
+    @Property(bool, notify=show3DAlbumPreviewChanged)
+    def show3DAlbumPreview(self):
+        return self._show_3d_album_preview
+
+    @Slot(bool)
+    def save_show_3d_album_preview(self, enabled):
+        self._show_3d_album_preview = enabled
+        self.update_setting("show3DAlbumPreview", enabled, self.show3DAlbumPreviewChanged)
 
     @Property(str, notify=visualizerQualityChanged)
     def visualizerQuality(self):

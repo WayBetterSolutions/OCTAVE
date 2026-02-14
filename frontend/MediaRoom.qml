@@ -78,6 +78,35 @@ Item {
         return currentSongText.text ? (mediaManager ? mediaManager.get_album_art(currentSongText.text) || "./assets/missing_art.png" : "./assets/missing_art.png") : "./assets/missing_art.png"
     }
 
+    // Card stack -- peek at adjacent tracks
+    property int _trackChangeCounter: 0  // bumped on track change to force re-evaluation
+    property int _slideDirection: 1      // 1 = next (slide from right), -1 = prev (slide from left)
+
+    property string nextAlbumArt: {
+        // depend on counter so bindings re-evaluate on track change
+        var _dep = _trackChangeCounter
+        if (useSpotify && spotifyManager) {
+            var info = spotifyManager.get_next_track_info()
+            if (info) {
+                try { return JSON.parse(info).image || "" } catch(e) { return "" }
+            }
+            return ""
+        }
+        return mediaManager ? mediaManager.get_next_track_album_art() : ""
+    }
+
+    property string prevAlbumArt: {
+        var _dep = _trackChangeCounter
+        if (useSpotify && spotifyManager) {
+            var info = spotifyManager.get_previous_track_info()
+            if (info) {
+                try { return JSON.parse(info).image || "" } catch(e) { return "" }
+            }
+            return ""
+        }
+        return mediaManager ? mediaManager.get_previous_track_album_art() : ""
+    }
+
     function formatTime(ms) {
         var minutes = Math.floor(ms / 60000)
         var seconds = Math.floor((ms % 60000) / 1000)
@@ -181,6 +210,8 @@ Item {
                 }
                 isShuffleEnabled = mediaManager.is_shuffled()
             }
+            // Force initial evaluation of side card art
+            mediaRoom._trackChangeCounter++
         }
 
         Rectangle { // Volume control at top
@@ -443,6 +474,19 @@ Item {
                             id: previousControl
                             implicitHeight: App.Spacing.mediaRoomPreviousButtonHeight
                             implicitWidth: App.Spacing.mediaRoomPreviousButtonWidth
+
+                            property bool _tiltEnabled: settingsManager && settingsManager.show3DButtonTilt
+                            property real tiltAngle: (_tiltEnabled && prevMouseArea.pressed) ? 15 : 0
+                            scale: (_tiltEnabled && prevMouseArea.pressed) ? 0.9 : 1.0
+                            transform: Rotation {
+                                axis { x: 1; y: 0; z: 0 }
+                                angle: previousControl.tiltAngle
+                                origin.x: previousControl.width / 2
+                                origin.y: previousControl.height / 2
+                            }
+                            Behavior on tiltAngle { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+
                             background: Rectangle {
                                 color: "transparent"
                             }
@@ -468,11 +512,11 @@ Item {
                                     layer.enabled: true
                                     layer.effect: DropShadow {
                                         transparentBorder: true
-                                        horizontalOffset: 4       
-                                        verticalOffset: 4         
-                                        radius: 8.0               
-                                        samples: 17               
-                                        color: "#B0000000"        
+                                        horizontalOffset: 4
+                                        verticalOffset: 4
+                                        radius: 8.0
+                                        samples: 17
+                                        color: "#B0000000"
                                     }
                                 }
                             }
@@ -480,6 +524,7 @@ Item {
                                 id: prevMouseArea
                                 anchors.fill: parent
                                 onClicked: {
+                                    mediaRoom._slideDirection = -1
                                     if (useSpotify) {
                                         spotifyManager.previous_track()
                                     } else {
@@ -490,8 +535,22 @@ Item {
                         }
 
                         Control { //Play Button
+                            id: playControl
                             implicitHeight: App.Spacing.mediaRoomPlayButtonHeight
                             implicitWidth: App.Spacing.mediaRoomPlayButtonWidth
+
+                            property bool _tiltEnabled: settingsManager && settingsManager.show3DButtonTilt
+                            property real tiltAngle: (_tiltEnabled && playMouseArea.pressed) ? 25 : 0
+                            scale: (_tiltEnabled && playMouseArea.pressed) ? 0.85 : 1.0
+                            transform: Rotation {
+                                axis { x: 1; y: 0; z: 0 }
+                                angle: playControl.tiltAngle
+                                origin.x: playControl.width / 2
+                                origin.y: playControl.height / 2
+                            }
+                            Behavior on tiltAngle { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+
                             background: Rectangle {
                                 color: "transparent"
                             }
@@ -547,6 +606,19 @@ Item {
                             id: nextControl
                             implicitHeight: App.Spacing.mediaRoomNextButtonHeight
                             implicitWidth: App.Spacing.mediaRoomNextButtonWidth
+
+                            property bool _tiltEnabled: settingsManager && settingsManager.show3DButtonTilt
+                            property real tiltAngle: (_tiltEnabled && nextMouseArea.pressed) ? 15 : 0
+                            scale: (_tiltEnabled && nextMouseArea.pressed) ? 0.9 : 1.0
+                            transform: Rotation {
+                                axis { x: 1; y: 0; z: 0 }
+                                angle: nextControl.tiltAngle
+                                origin.x: nextControl.width / 2
+                                origin.y: nextControl.height / 2
+                            }
+                            Behavior on tiltAngle { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+
                             background: Rectangle {
                                 color: "transparent"
                             }
@@ -572,11 +644,11 @@ Item {
                                     layer.enabled: true
                                     layer.effect: DropShadow {
                                         transparentBorder: true
-                                        horizontalOffset: 4       
-                                        verticalOffset: 4         
-                                        radius: 8.0               
-                                        samples: 17               
-                                        color: "#B0000000"        
+                                        horizontalOffset: 4
+                                        verticalOffset: 4
+                                        radius: 8.0
+                                        samples: 17
+                                        color: "#B0000000"
                                     }
                                 }
                             }
@@ -584,6 +656,7 @@ Item {
                                 id: nextMouseArea
                                 anchors.fill: parent
                                 onClicked: {
+                                    mediaRoom._slideDirection = 1
                                     if (useSpotify) {
                                         spotifyManager.next_track()
                                     } else {
@@ -602,9 +675,18 @@ Item {
 
                         // Song title with scrolling
                         Item {
+                            id: songTitleContainer
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
                             height: Math.ceil(App.Spacing.mediaRoomMetaDataSongText * 1.4)
+
+                            property real flipAngle: 0
+                            transform: Rotation {
+                                axis { x: 1; y: 0; z: 0 }
+                                angle: songTitleContainer.flipAngle
+                                origin.x: songTitleContainer.width / 2
+                                origin.y: songTitleContainer.height / 2
+                            }
 
                             Flickable {
                                 id: songTitleFlickable
@@ -656,9 +738,18 @@ Item {
 
                         // Artist and album info
                         Item {
+                            id: metadataContainer
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
                             height: Math.ceil(App.Spacing.mediaRoomMetaDataBandText * 1.4)
+
+                            property real flipAngle: 0
+                            transform: Rotation {
+                                axis { x: 1; y: 0; z: 0 }
+                                angle: metadataContainer.flipAngle
+                                origin.x: metadataContainer.width / 2
+                                origin.y: metadataContainer.height / 2
+                            }
 
                             Flickable {
                                 id: metadataFlickable
@@ -736,19 +827,111 @@ Item {
                         visible: false
                         Text { id: currentSongText; text: "" }
                     }
+
+                    // 3D text flip animation on track change
+                    SequentialAnimation {
+                        id: trackFlipAnimation
+                        property bool _isFirstRun: true
+                        // Rotate out (old text disappears edge-on)
+                        ParallelAnimation {
+                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 0; to: -90; duration: 250; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 0; to: -90; duration: 250; easing.type: Easing.InOutQuad }
+                        }
+                        // Brief pause — text bindings update reactively during this gap
+                        PauseAnimation { duration: 40 }
+                        // Rotate in (new text appears with smooth spring)
+                        ParallelAnimation {
+                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 90; to: 0; duration: 350; easing.type: Easing.OutBack }
+                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 90; to: 0; duration: 350; easing.type: Easing.OutBack }
+                        }
+                    }
                 }
 
 
-                Item { // Right side - Album Art
+                Item { // Right side - Album Art Card Stack
+                    id: albumArtStack
                     Layout.fillHeight: true
                     Layout.preferredWidth: parent.width * 0.5  // 50% for right side
                     Layout.maximumWidth: parent.width * 0.5
                     Layout.alignment: Qt.AlignVCenter
+                    clip: false
 
+                    property bool _previewEnabled: settingsManager && settingsManager.show3DAlbumPreview
+                    property real artSize: Math.min(width * (_previewEnabled ? 0.75 : 0.85), height * (_previewEnabled ? 0.75 : 0.85))
+
+                    // 3D coverflow rotation — center card rotates in from the side position
+                    ParallelAnimation {
+                        id: cardRotateAnimation
+                        NumberAnimation { target: albumArtImage; property: "_rotateOffset"; to: 0; duration: 500; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtImage; property: "_rotateAngle"; to: 0; duration: 500; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtImage; property: "_rotateScale"; to: 1.0; duration: 500; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtImage; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutQuad }
+                    }
+
+                    function triggerSlide() {
+                        cardRotateAnimation.stop()
+                        var dir = mediaRoom._slideDirection
+                        // Start at the side-card pose and rotate into the center
+                        albumArtImage._rotateOffset = dir * artSize * 0.42
+                        albumArtImage._rotateAngle = dir * -30
+                        albumArtImage._rotateScale = 0.72
+                        albumArtImage.opacity = 0.45
+                        cardRotateAnimation.start()
+                    }
+
+                    // Previous card (background, tilted left)
+                    Image {
+                        id: prevArtImage
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.horizontalCenterOffset: -parent.artSize * 0.42
+                        width: parent.artSize
+                        height: width
+                        source: prevAlbumArt
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true; antialiasing: true; asynchronous: true
+                        visible: prevAlbumArt !== "" && settingsManager && settingsManager.show3DAlbumPreview
+                        z: 0
+                        scale: 0.72
+                        opacity: 0.4
+                        transform: Rotation {
+                            axis { x: 0; y: 1; z: 0 }
+                            angle: 30
+                            origin.x: prevArtImage.width / 2
+                            origin.y: prevArtImage.height / 2
+                        }
+                    }
+
+                    // Next card (background, tilted right)
+                    Image {
+                        id: nextArtImage
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.horizontalCenterOffset: parent.artSize * 0.42
+                        width: parent.artSize
+                        height: width
+                        source: nextAlbumArt
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true; antialiasing: true; asynchronous: true
+                        visible: nextAlbumArt !== "" && settingsManager && settingsManager.show3DAlbumPreview
+                        z: 0
+                        scale: 0.72
+                        opacity: 0.4
+                        transform: Rotation {
+                            axis { x: 0; y: 1; z: 0 }
+                            angle: -30
+                            origin.x: nextArtImage.width / 2
+                            origin.y: nextArtImage.height / 2
+                        }
+                    }
+
+                    // Current card (front) — animated properties for 3D rotation transition
                     Image {
                         id: albumArtImage
-                        anchors.centerIn: parent
-                        width: Math.min(parent.width * 0.85, parent.height * 0.85)
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.horizontalCenterOffset: _rotateOffset
+                        width: parent.artSize
                         height: width
                         source: currentAlbumArt
                         fillMode: Image.PreserveAspectFit
@@ -756,6 +939,21 @@ Item {
                         antialiasing: true
                         mipmap: false
                         asynchronous: true
+                        z: 1
+
+                        // Animated transition properties (resting: 0, 0, 1.0)
+                        property real _rotateOffset: 0
+                        property real _rotateAngle: 0
+                        property real _rotateScale: 1.0
+
+                        scale: _rotateScale
+
+                        transform: Rotation {
+                            axis { x: 0; y: 1; z: 0 }
+                            angle: albumArtImage._rotateAngle
+                            origin.x: albumArtImage.width / 2
+                            origin.y: albumArtImage.height / 2
+                        }
 
                         layer.enabled: status === Image.Ready
                         layer.effect: DropShadow {
@@ -1254,10 +1452,23 @@ Item {
             mediaRoom.position = 0
             progressSlider.value = 0
             currentSongText.text = filename
+
+            // Always refresh side card sources
+            mediaRoom._trackChangeCounter++
+
+            // 3D text flip + card slide on track change (skip first load)
+            if (trackFlipAnimation._isFirstRun) {
+                trackFlipAnimation._isFirstRun = false
+            } else {
+                if (settingsManager && settingsManager.show3DTextFlip && !trackFlipAnimation.running) trackFlipAnimation.start()
+                if (settingsManager && settingsManager.show3DAlbumPreview) albumArtStack.triggerSlide()
+            }
         }
         function onShuffleStateChanged(enabled) {
             if (!useSpotify) {
                 isShuffleEnabled = enabled
+                // Shuffle reorders the playlist — neighbors changed
+                mediaRoom._trackChangeCounter++
             }
         }
     }
@@ -1321,6 +1532,17 @@ Item {
                 if (spotifyManager) {
                     mediaRoom.duration = spotifyManager.get_duration()
                 }
+
+                // Always refresh side card sources
+                mediaRoom._trackChangeCounter++
+
+                // 3D text flip + card rotation on track change (skip first load)
+                if (trackFlipAnimation._isFirstRun) {
+                    trackFlipAnimation._isFirstRun = false
+                } else {
+                    if (settingsManager && settingsManager.show3DTextFlip && !trackFlipAnimation.running) trackFlipAnimation.start()
+                    if (settingsManager && settingsManager.show3DAlbumPreview) albumArtStack.triggerSlide()
+                }
             }
         }
 
@@ -1350,6 +1572,8 @@ Item {
         function onShuffleStateChanged(enabled) {
             if (useSpotify) {
                 isShuffleEnabled = enabled
+                // Shuffle reorders the playlist — neighbors changed
+                mediaRoom._trackChangeCounter++
             }
         }
     }
@@ -1387,6 +1611,9 @@ Item {
                     currentSongText.text = currentFile
                 }
             }
+
+            // Refresh side cards for the new source's neighbors
+            mediaRoom._trackChangeCounter++
 
             // Volume stays unified from Octave settings - no need to change it when switching sources
             // The unified volume is already applied to both sources

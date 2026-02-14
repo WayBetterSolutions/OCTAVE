@@ -1064,6 +1064,42 @@ class SpotifyManager(QObject):
         """Get current album art URL"""
         return self._current_track.get('image', '')
 
+    @Slot(result=str)
+    def get_next_track_info(self):
+        """Peek at the next track in the loaded Spotify playlist. Returns JSON string."""
+        if not self._spotify_tracks or not self._current_track.get('name'):
+            return ""
+        current_name = self._current_track['name']
+        for i, track in enumerate(self._spotify_tracks):
+            if track.get('name') == current_name:
+                next_index = (i + 1) % len(self._spotify_tracks)
+                t = self._spotify_tracks[next_index]
+                return json.dumps({
+                    "name": t.get('name', ''),
+                    "artist": t.get('artist', ''),
+                    "album": t.get('album', ''),
+                    "image": t.get('image', '')
+                })
+        return ""
+
+    @Slot(result=str)
+    def get_previous_track_info(self):
+        """Peek at the previous track in the loaded Spotify playlist. Returns JSON string."""
+        if not self._spotify_tracks or not self._current_track.get('name'):
+            return ""
+        current_name = self._current_track['name']
+        for i, track in enumerate(self._spotify_tracks):
+            if track.get('name') == current_name:
+                prev_index = (i - 1) % len(self._spotify_tracks)
+                t = self._spotify_tracks[prev_index]
+                return json.dumps({
+                    "name": t.get('name', ''),
+                    "artist": t.get('artist', ''),
+                    "album": t.get('album', ''),
+                    "image": t.get('image', '')
+                })
+        return ""
+
     # ==================== Compatibility Methods (match MediaManager API) ====================
 
     @Slot(result=bool)

@@ -335,6 +335,108 @@ Flickable {
 
             SettingsDivider {}
 
+            // 3D Button Tilt
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: buttonTiltToggle
+                    Layout.fillWidth: true
+                    text: "3D Button Tilt"
+                    checked: settingsManager ? settingsManager.show3DButtonTilt : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_3d_button_tilt(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShow3DButtonTiltChanged() {
+                            buttonTiltToggle.checked = settingsManager.show3DButtonTilt
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "3D tilt and scale effect when pressing playback buttons."
+                }
+            }
+
+            SettingsDivider {}
+
+            // 3D Text Flip
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: textFlipToggle
+                    Layout.fillWidth: true
+                    text: "3D Text Flip"
+                    checked: settingsManager ? settingsManager.show3DTextFlip : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_3d_text_flip(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShow3DTextFlipChanged() {
+                            textFlipToggle.checked = settingsManager.show3DTextFlip
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Barrel-roll flip animation on song title and metadata when tracks change."
+                }
+            }
+
+            SettingsDivider {}
+
+            // 3D Album Preview
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: albumPreviewToggle
+                    Layout.fillWidth: true
+                    text: "3D Album Preview"
+                    checked: settingsManager ? settingsManager.show3DAlbumPreview : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_3d_album_preview(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShow3DAlbumPreviewChanged() {
+                            albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Coverflow-style card stack showing next and previous album art with 3D rotation transitions."
+                }
+            }
+
+            SettingsDivider {}
+
             // Visualizer Quality
             ColumnLayout {
                 Layout.fillWidth: true

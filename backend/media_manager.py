@@ -855,7 +855,39 @@ class MediaManager(QObject):
             return self._current_playlist[0]
 
         return ""
-    
+
+    @Slot(result=str)
+    def get_next_track_name(self):
+        """Peek at the next track name without triggering playback"""
+        if not self._current_playlist:
+            return ""
+        next_index = (self._current_index + 1) % len(self._current_playlist)
+        return self._current_playlist[next_index]
+
+    @Slot(result=str)
+    def get_previous_track_name(self):
+        """Peek at the previous track name without triggering playback"""
+        if not self._current_playlist:
+            return ""
+        prev_index = (self._current_index - 1) % len(self._current_playlist)
+        return self._current_playlist[prev_index]
+
+    @Slot(result=str)
+    def get_next_track_album_art(self):
+        """Get album art for the next track without triggering playback"""
+        next_name = self.get_next_track_name()
+        if not next_name:
+            return ""
+        return self.get_album_art(next_name)
+
+    @Slot(result=str)
+    def get_previous_track_album_art(self):
+        """Get album art for the previous track without triggering playback"""
+        prev_name = self.get_previous_track_name()
+        if not prev_name:
+            return ""
+        return self.get_album_art(prev_name)
+
     @Slot(str)
     def play_file(self, filename):
         """Play specified file"""
@@ -1114,7 +1146,6 @@ class MediaManager(QObject):
     def toggle_shuffle(self):
         """Toggle shuffle mode"""
         self._shuffle = not self._shuffle
-        self.shuffleStateChanged.emit(self._shuffle)
 
         # Get current song before changing playlists
         current_song = self.get_current_file()
@@ -1157,6 +1188,9 @@ class MediaManager(QObject):
         # Clear original files when disabling shuffle
         if not self._shuffle:
             self._original_files = []
+
+        # Emit AFTER the playlist is reordered so QML reads the new order
+        self.shuffleStateChanged.emit(self._shuffle)
 
         # Update UI
         self.mediaListChanged.emit(self._current_playlist)
