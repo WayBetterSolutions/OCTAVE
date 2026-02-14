@@ -1203,7 +1203,7 @@ class MediaManager(QObject):
     # ==================== Playlist Management ====================
 
     @Slot()
-    def scan_library(self):
+    def scan_library(self, reset_display_names=True):
         """Scan the library root for subfolders (playlists) and their MP3s"""
         if not self._library_root or not os.path.exists(self._library_root):
             self.scanProgress.emit(f"[ERROR] Library path not set or doesn't exist")
@@ -1222,8 +1222,9 @@ class MediaManager(QObject):
         self._access_count = {}
         self._all_music_file_paths = {}
         self._is_all_music_active = False
-        self._display_names = {}
-        self._save_display_names()
+        if reset_display_names:
+            self._display_names = {}
+            self._save_display_names()
         self.invalidate_stats_cache()
         self.scanProgress.emit(f"[CLEAR] Caches cleared")
 
@@ -1341,7 +1342,7 @@ class MediaManager(QObject):
         if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
             self._library_root = normalized_path
             logger.info(f"Library root set to: {normalized_path}")
-            self.scan_library()
+            self.scan_library(reset_display_names=False)
 
             # Auto-select first playlist if available
             if self._playlist_names:

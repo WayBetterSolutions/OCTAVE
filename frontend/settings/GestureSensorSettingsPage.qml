@@ -136,7 +136,7 @@ Flickable {
                     id: volumeStepSlider
                     Layout.fillWidth: true
                     from: 1
-                    to: 25
+                    to: 100
                     stepSize: 1
                     value: settingsManager ? settingsManager.gestureVolumeStep : 5
 
@@ -186,7 +186,7 @@ Flickable {
                 }
 
                 SettingsChips {
-                    options: ["1%", "2%", "5%", "10%", "15%"]
+                    options: ["1%", "2%", "5%", "10%", "15%", "25%", "50%"]
                     currentValue: settingsManager ? settingsManager.gestureVolumeStep + "%" : "5%"
                     onSelected: function(value) {
                         if (settingsManager) {

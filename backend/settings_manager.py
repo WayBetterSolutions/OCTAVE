@@ -1607,7 +1607,7 @@ class SettingsManager(QObject):
     @Slot(int)
     def save_gesture_volume_step(self, step):
         logger.debug(f"Saving gesture volume step: {step}")
-        self._gesture_volume_step = max(1, min(25, step))
+        self._gesture_volume_step = max(1, min(100, step))
         self.update_setting("gestureVolumeStep", self._gesture_volume_step, self.gestureVolumeStepChanged)
 
     @Property(int, notify=gestureCooldownChanged)
