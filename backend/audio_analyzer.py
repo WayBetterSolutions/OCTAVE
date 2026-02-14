@@ -4,6 +4,7 @@ Analyzes audio files using FFT to generate real-time waveform visualization data
 """
 
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
+from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import os
 
@@ -37,29 +38,30 @@ class AudioAnalyzer(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        # Quality tier → bar count mapping
+        self._quality_bars = {"Low": 16, "Medium": 32, "High": 48, "Extreme": 64, "Insane": 96}
+
         # FFT data storage - list of lists, each inner list is FFT levels for a time chunk
         self._fft_data = []
         self._current_file = ""
-        self._num_bars = 60  # Number of frequency bars
+        self._num_bars = 32
         self._chunk_duration = 0.1  # 100ms chunks (10 chunks per second)
 
-        # Current levels for smooth animation
+        # Current levels emitted to QML (no animation, just the looked-up data)
         self._current_levels = [0] * self._num_bars
-        self._target_levels = [0] * self._num_bars
-
-        # Animation timer - 80ms (12.5 FPS) is smooth enough for visualization
-        self._animation_timer = QTimer(self)
-        self._animation_timer.setInterval(80)
-        self._animation_timer.timeout.connect(self._animate_levels)
 
         # Track if we're actively playing
         self._is_active = False
+
+        # Thread pool for off-thread analysis
+        self._executor = ThreadPoolExecutor(max_workers=1)
+        self._analyzing = False
 
     @Slot(str)
     def analyze_file(self, file_path: str):
         """
         Analyze an audio file and pre-compute FFT visualization data.
-        Called when a new track starts playing.
+        Called when a new track starts playing. Runs off the main thread.
         """
         logger.info(f"analyze_file called with: {file_path}")
 
@@ -76,24 +78,41 @@ class AudioAnalyzer(QObject):
             logger.info(f"File already analyzed: {file_path}")
             return
 
+        # Skip if already analyzing
+        if self._analyzing:
+            logger.info("Analysis already in progress, skipping")
+            return
+
         self._current_file = file_path
-        self._fft_data = []
+        self._analyzing = True
 
         self.analysisStarted.emit()
         logger.info(f"Starting audio analysis for: {file_path}")
 
+        # Run analysis off the main thread
+        future = self._executor.submit(self._analyze_audio, file_path)
+        future.add_done_callback(self._on_analysis_complete)
+
+    def _on_analysis_complete(self, future):
+        """Callback when threaded analysis finishes."""
+        self._analyzing = False
         try:
-            self._analyze_audio(file_path)
-            self.analysisComplete.emit()
-            logger.info(f"Analysis complete: {len(self._fft_data)} chunks generated")
+            result = future.result()
+            if result is not None:
+                self._fft_data = result
+                self.analysisComplete.emit()
+                logger.info(f"Analysis complete: {len(self._fft_data)} chunks generated")
+            else:
+                self._fft_data = []
         except Exception as e:
-            logger.error(f"Error analyzing audio: {e}", exc_info=True)
+            logger.error(f"Error in audio analysis thread: {e}", exc_info=True)
             self._fft_data = []
 
     def _analyze_audio(self, file_path: str):
         """
         Decode audio and compute FFT for visualization.
-        Uses PyAV for decoding.
+        Runs on a worker thread — must not touch Qt objects.
+        Returns the computed FFT data list, or None on failure.
         """
         try:
             container = av.open(file_path)
@@ -101,14 +120,13 @@ class AudioAnalyzer(QObject):
 
             if not audio_stream:
                 logger.debug("No audio stream found")
-                return
+                return None
 
             # Decode all audio frames
             samples = []
             sample_rate = audio_stream.rate or 44100
 
             for frame in container.decode(audio_stream):
-                # Convert to numpy array
                 frame_data = frame.to_ndarray()
 
                 # If stereo, convert to mono by averaging channels
@@ -121,7 +139,7 @@ class AudioAnalyzer(QObject):
 
             if not samples:
                 logger.debug("No audio samples decoded")
-                return
+                return None
 
             # Concatenate all samples
             all_samples = np.concatenate(samples).astype(np.float32)
@@ -142,7 +160,10 @@ class AudioAnalyzer(QObject):
 
             if num_chunks == 0:
                 logger.debug("Audio too short for analysis")
-                return
+                return None
+
+            # Pre-compute window function once
+            window = np.hanning(chunk_size)
 
             # First pass: collect raw FFT magnitudes
             raw_fft_data = []
@@ -150,7 +171,6 @@ class AudioAnalyzer(QObject):
                 chunk = all_samples[i * chunk_size:(i + 1) * chunk_size]
 
                 # Apply window function to reduce spectral leakage
-                window = np.hanning(len(chunk))
                 windowed = chunk * window
 
                 # Compute FFT
@@ -161,8 +181,7 @@ class AudioAnalyzer(QObject):
                     raw_fft_data.append([0.0] * self._num_bars)
                     continue
 
-                # Split into frequency bands with logarithmic spacing for better bass response
-                # Use log spacing to give more bins to lower frequencies
+                # Split into frequency bands with logarithmic spacing
                 log_indices = np.logspace(0, np.log10(len(fft)), self._num_bars + 1, dtype=int)
                 log_indices = np.clip(log_indices, 0, len(fft))
 
@@ -186,100 +205,58 @@ class AudioAnalyzer(QObject):
                 global_max = 1.0
 
             # Second pass: normalize and map to 0-8 range
+            fft_data = []
             for levels in raw_fft_data:
                 normalized = []
                 for level in levels:
                     if global_max > 0:
                         norm = level / global_max
-                        # Apply power curve for more dynamic range
                         norm = min(1.0, norm) ** 0.6
                         normalized.append(int(norm * 8))
                     else:
                         normalized.append(0)
-                self._fft_data.append(normalized)
+                fft_data.append(normalized)
+
+            return fft_data
 
         except Exception as e:
             logger.error(f"FFT analysis error: {e}")
-            self._fft_data = []
+            return None
 
     @Slot(float)
     def update_position(self, position_seconds: float):
         """
-        Update target FFT levels based on current playback position.
-        Called periodically from QML during playback.
+        Look up pre-computed FFT levels for the current playback position
+        and emit them directly to QML. No intermediate animation — QML
+        handles any smoothing it needs.
         """
-        if not self._fft_data:
-            self._target_levels = [0] * self._num_bars
+        if not self._fft_data or not self._is_active:
             return
 
-        # Each chunk is 100ms, so position in chunks is position * 10
         chunk_index = int(position_seconds * 10)
         chunk_index = max(0, min(chunk_index, len(self._fft_data) - 1))
 
-        self._target_levels = self._fft_data[chunk_index]
+        new_levels = self._fft_data[chunk_index]
 
-        # Log occasionally (every ~2 seconds)
-        if chunk_index % 20 == 0:
-            max_level = max(self._target_levels) if self._target_levels else 0
-            logger.debug(f"Position: {position_seconds:.1f}s, chunk: {chunk_index}, max level: {max_level}")
+        # Only emit if levels actually changed
+        if new_levels != self._current_levels:
+            self._current_levels = new_levels
+            self.fftDataChanged.emit(new_levels)
 
     @Slot(bool)
     def set_active(self, active: bool):
-        """Enable or disable the animation."""
+        """Enable or disable the visualizer."""
         logger.info(f"set_active called with: {active}, has FFT data: {len(self._fft_data)} chunks")
         self._is_active = active
-        if active:
-            if not self._animation_timer.isActive():
-                self._animation_timer.start()
-                logger.info("Animation timer started")
-        else:
-            self._target_levels = [0] * self._num_bars
-
-    def _animate_levels(self):
-        """
-        Smoothly animate current levels toward target levels.
-        Asymmetric rise/decay for punchy visuals.
-        """
-        changed = False
-
-        for i in range(self._num_bars):
-            if self._is_active:
-                # Move toward target
-                if self._current_levels[i] < self._target_levels[i]:
-                    # Fast rise
-                    self._current_levels[i] = min(self._current_levels[i] + 2, self._target_levels[i])
-                    changed = True
-                elif self._current_levels[i] > self._target_levels[i]:
-                    # Slower decay
-                    self._current_levels[i] = max(self._current_levels[i] - 1, self._target_levels[i])
-                    changed = True
-            else:
-                # Decay when not active
-                if self._current_levels[i] > 0:
-                    self._current_levels[i] = max(0, self._current_levels[i] - 1)
-                    changed = True
-
-        if changed:
-            self.fftDataChanged.emit(self._current_levels.copy())
-        elif not self._is_active:
-            # Stop timer when not active and decay complete (all levels at 0)
-            self._animation_timer.stop()
-            logger.debug("Animation timer stopped - decay complete")
-
-        # Log occasionally to confirm animation is running
-        if hasattr(self, '_animate_log_counter'):
-            self._animate_log_counter += 1
-        else:
-            self._animate_log_counter = 0
-
-        if self._animate_log_counter % 40 == 0:  # Every 2 seconds
-            max_level = max(self._current_levels) if self._current_levels else 0
-            logger.debug(f"Animation tick: active={self._is_active}, changed={changed}, max_level={max_level}")
+        if not active:
+            # Emit zeros to clear the visualizer
+            self._current_levels = [0] * self._num_bars
+            self.fftDataChanged.emit(self._current_levels)
 
     @Slot(result=list)
     def get_current_levels(self) -> list:
         """Get current FFT levels for QML."""
-        return self._current_levels.copy()
+        return self._current_levels
 
     @Slot(result=int)
     def get_num_bars(self) -> int:
@@ -297,4 +274,16 @@ class AudioAnalyzer(QObject):
         self._fft_data = []
         self._current_file = ""
         self._current_levels = [0] * self._num_bars
-        self._target_levels = [0] * self._num_bars
+
+    @Slot(str)
+    def set_quality(self, quality: str):
+        """Change quality tier — adjusts bar count and clears cached data."""
+        new_bars = self._quality_bars.get(quality, 32)
+        if new_bars == self._num_bars:
+            return
+        logger.info(f"Visualizer quality changed to {quality}: {new_bars} bars")
+        self._num_bars = new_bars
+        self._current_levels = [0] * self._num_bars
+        # Clear cached analysis so next track (or re-analysis) uses new bar count
+        self._fft_data = []
+        self._current_file = ""

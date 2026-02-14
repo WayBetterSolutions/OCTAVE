@@ -24,6 +24,11 @@ SETTINGS_REGISTRY = {
         "key": "showWaveformVisualizer", "label": "Waveform Visualizer", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_waveform_visualizer"
     },
+    "visualizer_quality": {
+        "key": "visualizerQuality", "label": "Visualizer Quality", "category": "mediaSettings",
+        "controlType": "chips", "saveSlot": "save_visualizer_quality",
+        "params": {"options": ["Low", "Medium", "High", "Extreme", "Insane"]}
+    },
     "ui_scale": {
         "key": "uiScale", "label": "UI Scaling", "category": "displaySettings",
         "controlType": "slider", "saveSlot": "save_ui_scale",
@@ -154,8 +159,9 @@ class SettingsManager(QObject):
     esp32LedColorModeChanged = Signal(str)  # "theme" or "static"
     esp32LedStaticColorChanged = Signal(str)  # hex color like "#FF0000"
 
-    # Waveform visualizer signal
+    # Waveform visualizer signals
     showWaveformVisualizerChanged = Signal(bool)
+    visualizerQualityChanged = Signal(str)
 
     # Environment theme signal
     environmentThemeChanged = Signal(str)
@@ -338,6 +344,7 @@ class SettingsManager(QObject):
             "esp32LedStaticColor": "#00FFFF",  # Static color when not using theme
             # Waveform visualizer settings
             "showWaveformVisualizer": True,  # Show audio waveform visualization in MediaRoom
+            "visualizerQuality": "Medium",  # "Low", "Medium", or "High"
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             # Gesture sensor settings
             "gestureSensorEnabled": True,
@@ -447,6 +454,7 @@ class SettingsManager(QObject):
 
         # Waveform visualizer settings
         self._show_waveform_visualizer = self._settings.get("showWaveformVisualizer", self._default_settings["showWaveformVisualizer"])
+        self._visualizer_quality = self._settings.get("visualizerQuality", self._default_settings["visualizerQuality"])
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
@@ -1464,6 +1472,20 @@ class SettingsManager(QObject):
         self._show_waveform_visualizer = enabled
         self.update_setting("showWaveformVisualizer", enabled, self.showWaveformVisualizerChanged)
 
+    @Property(str, notify=visualizerQualityChanged)
+    def visualizerQuality(self):
+        """Get visualizer quality tier: 'Low', 'Medium', or 'High'"""
+        return self._visualizer_quality
+
+    @Slot(str)
+    def save_visualizer_quality(self, quality):
+        """Save visualizer quality tier"""
+        if quality not in ("Low", "Medium", "High", "Extreme", "Insane"):
+            return
+        logger.debug(f"Saving visualizer quality: {quality}")
+        self._visualizer_quality = quality
+        self.update_setting("visualizerQuality", quality, self.visualizerQualityChanged)
+
     # ==================== Environment Theme ====================
 
     @Property(str, notify=environmentThemeChanged)
@@ -1598,6 +1620,7 @@ class SettingsManager(QObject):
             "startUpVolume": "start_volume",
             "autoPlayOnStartup": "auto_play_on_startup",
             "showWaveformVisualizer": "show_waveform_visualizer",
+            "visualizerQuality": "visualizer_quality",
             "uiScale": "ui_scale",
             "themeSetting": "theme_setting",
             "environmentTheme": "environment_theme",
@@ -1808,6 +1831,9 @@ class SettingsManager(QObject):
 
         self._show_waveform_visualizer = self._default_settings["showWaveformVisualizer"]
         self.showWaveformVisualizerChanged.emit(self._show_waveform_visualizer)
+
+        self._visualizer_quality = self._default_settings["visualizerQuality"]
+        self.visualizerQualityChanged.emit(self._visualizer_quality)
 
         self._gesture_sensor_enabled = self._default_settings["gestureSensorEnabled"]
         self.gestureSensorEnabledChanged.emit(self._gesture_sensor_enabled)

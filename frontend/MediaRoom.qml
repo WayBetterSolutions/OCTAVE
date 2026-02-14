@@ -788,8 +788,23 @@ Item {
             property bool isPlaying: false
             property string lastAnalyzedFile: ""
 
+            // Quality-driven parameters
+            property string quality: settingsManager ? settingsManager.visualizerQuality : "Medium"
+            property int timerInterval: quality === "Low" ? 200 : (quality === "High" ? 60 : (quality === "Extreme" ? 33 : (quality === "Insane" ? 16 : 100)))
+            property bool smoothBars: quality === "High" || quality === "Extreme" || quality === "Insane"
+            property int animDuration: quality === "Insane" ? 120 : (quality === "Extreme" ? 80 : 50)
+            property int animEasing: quality === "Insane" ? Easing.InOutSine : (quality === "Extreme" ? Easing.InOutQuad : Easing.OutQuad)
+
             Behavior on opacity {
                 NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
+            }
+
+            // Rebuild bars when quality (and thus bar count) changes
+            Connections {
+                target: settingsManager
+                function onVisualizerQualityChanged() {
+                    waveformBars.numBars = audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
+                }
             }
 
             // Waveform bars
@@ -800,62 +815,54 @@ Item {
                 height: parent.height
                 spacing: App.Spacing.dp(2)
 
-                property var levels: []
-                property int levelsVersion: 0  // Force reactivity when array changes
-                property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 60
+                property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
 
                 Repeater {
+                    id: waveformRepeater
                     model: waveformBars.numBars
 
-                    Item {
+                    Rectangle {
+                        property int barLevel: 0
+
                         width: Math.max(2, (waveformContainer.width - (waveformBars.numBars - 1) * waveformBars.spacing) / waveformBars.numBars)
-                        height: waveformBars.height
+                        height: Math.max(2, (barLevel / 8) * waveformContainer.height)
+                        anchors.bottom: parent.bottom
+                        color: App.Style.accent
+                        opacity: 0.8
 
-                        Rectangle {
-                            id: waveformBar
-                            width: parent.width
-                            height: {
-                                // Reference levelsVersion to force re-evaluation when levels change
-                                var version = waveformBars.levelsVersion
-                                var level = (waveformBars.levels && waveformBars.levels[index]) || 0
-                                // Map 0-8 to height (min 2px, max full height)
-                                return Math.max(2, (level / 8) * waveformContainer.height)
-                            }
-                            anchors.bottom: parent.bottom
-                            color: App.Style.accent
-                            opacity: 0.8
-
-                            Behavior on height {
-                                NumberAnimation { duration: 50; easing.type: Easing.OutQuad }
-                            }
+                        Behavior on height {
+                            enabled: waveformContainer.smoothBars
+                            NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
                         }
                     }
                 }
             }
 
-            // Connect to audio analyzer
+            // Connect to audio analyzer — update each bar's level directly
             Connections {
                 target: audioAnalyzer
                 enabled: waveformContainer.visible
 
                 function onFftDataChanged(levels) {
-                    waveformBars.levels = levels
-                    waveformBars.levelsVersion++  // Trigger binding updates
+                    for (var i = 0; i < waveformRepeater.count; i++) {
+                        var item = waveformRepeater.itemAt(i)
+                        if (item) {
+                            item.barLevel = (levels && levels[i]) || 0
+                        }
+                    }
                 }
             }
 
-            // Update position periodically - only runs when playing
+            // Update position periodically — interval driven by quality tier
             Timer {
                 id: waveformUpdateTimer
-                interval: 80  // 12.5 FPS - smooth enough for visualization
+                interval: waveformContainer.timerInterval
                 running: waveformContainer.visible && waveformContainer.isPlaying
                 repeat: true
 
                 onTriggered: {
-                    // Update position if analyzed (file analysis handled by onCurrentMediaChanged)
                     if (audioAnalyzer && audioAnalyzer.is_analyzed() && mediaManager) {
-                        var positionSeconds = mediaManager.get_position() / 1000.0
-                        audioAnalyzer.update_position(positionSeconds)
+                        audioAnalyzer.update_position(mediaManager.get_position() / 1000.0)
                     }
                 }
             }
