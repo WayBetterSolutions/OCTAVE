@@ -769,6 +769,51 @@ Flickable {
                 }
             }
 
+            // Transition Duration (conditional on 3D Album Preview)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DAlbumPreview
+
+                SettingLabel {
+                    text: "Transition Duration"
+                }
+
+                SettingsSlider {
+                    id: cardTransitionDurationSlider
+                    from: 100
+                    to: 1000
+                    stepSize: 50
+                    value: settingsManager ? settingsManager.cardTransitionDuration : 500
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: cardTransitionDurationTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_card_transition_duration(cardTransitionDurationSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: cardTransitionDurationTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onCardTransitionDurationChanged() {
+                            cardTransitionDurationSlider.value = settingsManager.cardTransitionDuration
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: cardTransitionDurationSlider.value.toFixed(0) + " ms"
+                }
+            }
+
             SettingsDivider {}
 
             // 3D Button Tilt
@@ -803,6 +848,51 @@ Flickable {
                 }
             }
 
+            // Tilt Duration (conditional on 3D Button Tilt)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DButtonTilt
+
+                SettingLabel {
+                    text: "Tilt Duration"
+                }
+
+                SettingsSlider {
+                    id: buttonTiltDurationSlider
+                    from: 50
+                    to: 500
+                    stepSize: 10
+                    value: settingsManager ? settingsManager.buttonTiltDuration : 200
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: buttonTiltDurationTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_button_tilt_duration(buttonTiltDurationSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: buttonTiltDurationTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onButtonTiltDurationChanged() {
+                            buttonTiltDurationSlider.value = settingsManager.buttonTiltDuration
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: buttonTiltDurationSlider.value.toFixed(0) + " ms"
+                }
+            }
+
             SettingsDivider {}
 
             // 3D Text Flip
@@ -834,6 +924,101 @@ Flickable {
 
                 SettingDescription {
                     text: "Barrel-roll flip animation on song title and metadata when tracks change."
+                }
+            }
+
+            // Flip Duration (conditional on 3D Text Flip)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DTextFlip
+
+                SettingLabel {
+                    text: "Flip Duration"
+                }
+
+                SettingsSlider {
+                    id: textFlipDurationSlider
+                    from: 200
+                    to: 1500
+                    stepSize: 50
+                    value: settingsManager ? settingsManager.textFlipDuration : 600
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: textFlipDurationTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_text_flip_duration(textFlipDurationSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: textFlipDurationTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onTextFlipDurationChanged() {
+                            textFlipDurationSlider.value = settingsManager.textFlipDuration
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: textFlipDurationSlider.value.toFixed(0) + " ms"
+                }
+            }
+
+            SettingsDivider {}
+
+            // Text Scroll Speed (always visible)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingLabel {
+                    text: "Text Scroll Speed"
+                }
+
+                SettingsSlider {
+                    id: textScrollSpeedSlider
+                    from: 1000
+                    to: 10000
+                    stepSize: 500
+                    value: settingsManager ? settingsManager.textScrollSpeed : 5000
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: textScrollSpeedTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_text_scroll_speed(textScrollSpeedSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: textScrollSpeedTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onTextScrollSpeedChanged() {
+                            textScrollSpeedSlider.value = settingsManager.textScrollSpeed
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: (textScrollSpeedSlider.value / 1000).toFixed(1) + " s"
+                }
+
+                SettingDescription {
+                    text: "Duration for scrolling long song titles and metadata. Lower is faster."
                 }
             }
         }

@@ -1,7 +1,9 @@
 import json
-from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer
+from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer, QUrl
 import os
 import sys
+import re
+import shutil
 import tempfile
 import subprocess
 from typing import List
@@ -63,6 +65,26 @@ SETTINGS_REGISTRY = {
         "key": "sideCardAngle", "label": "Side Card Angle", "category": "mediaSettings",
         "controlType": "slider", "saveSlot": "save_side_card_angle",
         "params": {"from": 5, "to": 60, "stepSize": 1}
+    },
+    "button_tilt_duration": {
+        "key": "buttonTiltDuration", "label": "Tilt Duration", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_button_tilt_duration",
+        "params": {"from": 50, "to": 500, "stepSize": 10}
+    },
+    "text_flip_duration": {
+        "key": "textFlipDuration", "label": "Flip Duration", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_text_flip_duration",
+        "params": {"from": 200, "to": 1500, "stepSize": 50}
+    },
+    "card_transition_duration": {
+        "key": "cardTransitionDuration", "label": "Transition Duration", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_card_transition_duration",
+        "params": {"from": 100, "to": 1000, "stepSize": 50}
+    },
+    "text_scroll_speed": {
+        "key": "textScrollSpeed", "label": "Text Scroll Speed", "category": "mediaSettings",
+        "controlType": "slider", "saveSlot": "save_text_scroll_speed",
+        "params": {"from": 1000, "to": 10000, "stepSize": 500}
     },
     "visualizer_quality": {
         "key": "visualizerQuality", "label": "Visualizer Quality", "category": "mediaSettings",
@@ -164,6 +186,7 @@ class SettingsManager(QObject):
     showBackgroundOverlayChanged = Signal(bool)
     directoryHistoryChanged = Signal()
     homeOBDParametersChanged = Signal()
+    supportedOBDParametersChanged = Signal()
     customThemesChanged = Signal()
     bottomBarOrientationChanged = Signal(str)
     showBottomBarMediaControlsChanged = Signal(bool)
@@ -213,6 +236,10 @@ class SettingsManager(QObject):
     backgroundOverlayOpacityChanged = Signal(int)
     sideCardOpacityChanged = Signal(float)
     sideCardAngleChanged = Signal(int)
+    buttonTiltDurationChanged = Signal(int)
+    textFlipDurationChanged = Signal(int)
+    cardTransitionDurationChanged = Signal(int)
+    textScrollSpeedChanged = Signal(int)
 
     # Environment theme signal
     environmentThemeChanged = Signal(str)
@@ -356,6 +383,7 @@ class SettingsManager(QObject):
                 "ELM_VOLTAGE": False,
             },
             "homeOBDParameters": ["SPEED", "RPM", "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE"],
+            "supportedOBDParameters": [],
             "lastSettingsSection": "deviceSettings",
             "spotifyClientId": "",
             "spotifyClientSecret": "",
@@ -406,6 +434,10 @@ class SettingsManager(QObject):
             "backgroundOverlayOpacity": 80,  # Dark overlay opacity percentage (0-100)
             "sideCardOpacity": 0.4,      # 3D preview side card opacity (0.1-1.0)
             "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
+            "buttonTiltDuration": 200,   # Button tilt animation duration in ms (50-500)
+            "textFlipDuration": 600,     # Text flip animation total duration in ms (200-1500)
+            "cardTransitionDuration": 500,  # Card coverflow transition duration in ms (100-1000)
+            "textScrollSpeed": 5000,     # Text scroll animation duration in ms (1000-10000)
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             # Gesture sensor settings
             "gestureSensorEnabled": True,
@@ -527,6 +559,10 @@ class SettingsManager(QObject):
         self._background_overlay_opacity = self._settings.get("backgroundOverlayOpacity", self._default_settings["backgroundOverlayOpacity"])
         self._side_card_opacity = self._settings.get("sideCardOpacity", self._default_settings["sideCardOpacity"])
         self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
+        self._button_tilt_duration = self._settings.get("buttonTiltDuration", self._default_settings["buttonTiltDuration"])
+        self._text_flip_duration = self._settings.get("textFlipDuration", self._default_settings["textFlipDuration"])
+        self._card_transition_duration = self._settings.get("cardTransitionDuration", self._default_settings["cardTransitionDuration"])
+        self._text_scroll_speed = self._settings.get("textScrollSpeed", self._default_settings["textScrollSpeed"])
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
@@ -566,7 +602,10 @@ class SettingsManager(QObject):
         self._obd_params_save_timer.setSingleShot(True)
         self._obd_params_save_timer.setInterval(800)  # 800ms debounce
         self._obd_params_save_timer.timeout.connect(self._flush_obd_parameters)
-            
+
+        # Load persisted vehicle scan results
+        self._supported_obd_parameters = self._settings.get("supportedOBDParameters", [])
+
     def _lock_file(self, f, exclusive=True):
         """Acquire a lock on the file (cross-platform)"""
         if sys.platform == 'win32':
@@ -974,6 +1013,20 @@ class SettingsManager(QObject):
         self._obd_parameters[parameter] = default
         return default
 
+    @Slot('QVariantList')
+    def save_supported_obd_parameters(self, parameters):
+        """Save vehicle-supported OBD parameters from scan results"""
+        self._supported_obd_parameters = list(parameters)
+        settings = self.load_settings()
+        settings["supportedOBDParameters"] = list(parameters)
+        self.save_settings(settings)
+        self.supportedOBDParametersChanged.emit()
+
+    @Slot(result='QVariantList')
+    def get_supported_obd_parameters(self):
+        """Return vehicle-supported OBD parameters from last scan"""
+        return self._supported_obd_parameters
+
     @Slot(str)
     def save_media_folder(self, folder_path):
         # Skip if the folder hasn't actually changed (prevents double-scan)
@@ -1081,6 +1134,55 @@ class SettingsManager(QObject):
         if "customThemes" in settings and name in settings["customThemes"]:
             return json.dumps(settings["customThemes"][name])
         return "{}"
+
+    @Slot(str, str, str)
+    def save_custom_theme(self, name, theme_json, album_art_source=""):
+        """Save a custom theme from album art colors, optionally with album art image"""
+        logger.debug(f"Saving custom theme: {name}")
+        settings = self.load_settings()
+        if "customThemes" not in settings:
+            settings["customThemes"] = {}
+        theme = json.loads(theme_json)
+
+        # Copy album art to permanent storage
+        if album_art_source:
+            try:
+                art_dir = os.path.join(self.app_data_dir, "theme_art")
+                os.makedirs(art_dir, exist_ok=True)
+                local_path = QUrl(album_art_source).toLocalFile() if album_art_source.startswith("file://") else album_art_source
+                if local_path and os.path.isfile(local_path):
+                    ext = os.path.splitext(local_path)[1] or ".jpg"
+                    safe_name = re.sub(r'[^\w\-]', '_', name)
+                    dest = os.path.join(art_dir, f"theme_{safe_name}{ext}")
+                    shutil.copy2(local_path, dest)
+                    theme["albumArt"] = QUrl.fromLocalFile(dest).toString()
+                    logger.debug(f"Saved theme art to: {dest}")
+            except Exception as e:
+                logger.warning(f"Failed to save theme album art: {e}")
+
+        settings["customThemes"][name] = theme
+        self.save_settings(settings)
+        self.customThemesChanged.emit()
+
+    @Slot(str)
+    def delete_custom_theme(self, name):
+        """Delete a custom theme by name, including its album art file"""
+        logger.debug(f"Deleting custom theme: {name}")
+        settings = self.load_settings()
+        if "customThemes" in settings and name in settings["customThemes"]:
+            # Clean up album art file
+            theme = settings["customThemes"][name]
+            if "albumArt" in theme:
+                try:
+                    art_path = QUrl(theme["albumArt"]).toLocalFile()
+                    if art_path and os.path.isfile(art_path):
+                        os.remove(art_path)
+                        logger.debug(f"Removed theme art: {art_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to remove theme art: {e}")
+            del settings["customThemes"][name]
+            self.save_settings(settings)
+            self.customThemesChanged.emit()
 
     # ==================== Spotify Credentials ====================
 
@@ -1627,6 +1729,42 @@ class SettingsManager(QObject):
         self._side_card_angle = max(5, min(60, angle))
         self.update_setting("sideCardAngle", self._side_card_angle, self.sideCardAngleChanged)
 
+    @Property(int, notify=buttonTiltDurationChanged)
+    def buttonTiltDuration(self):
+        return self._button_tilt_duration
+
+    @Slot(int)
+    def save_button_tilt_duration(self, duration):
+        self._button_tilt_duration = max(50, min(500, duration))
+        self.update_setting("buttonTiltDuration", self._button_tilt_duration, self.buttonTiltDurationChanged)
+
+    @Property(int, notify=textFlipDurationChanged)
+    def textFlipDuration(self):
+        return self._text_flip_duration
+
+    @Slot(int)
+    def save_text_flip_duration(self, duration):
+        self._text_flip_duration = max(200, min(1500, duration))
+        self.update_setting("textFlipDuration", self._text_flip_duration, self.textFlipDurationChanged)
+
+    @Property(int, notify=cardTransitionDurationChanged)
+    def cardTransitionDuration(self):
+        return self._card_transition_duration
+
+    @Slot(int)
+    def save_card_transition_duration(self, duration):
+        self._card_transition_duration = max(100, min(1000, duration))
+        self.update_setting("cardTransitionDuration", self._card_transition_duration, self.cardTransitionDurationChanged)
+
+    @Property(int, notify=textScrollSpeedChanged)
+    def textScrollSpeed(self):
+        return self._text_scroll_speed
+
+    @Slot(int)
+    def save_text_scroll_speed(self, speed):
+        self._text_scroll_speed = max(1000, min(10000, speed))
+        self.update_setting("textScrollSpeed", self._text_scroll_speed, self.textScrollSpeedChanged)
+
     @Property(str, notify=visualizerQualityChanged)
     def visualizerQuality(self):
         """Get visualizer quality tier: 'Low', 'Medium', or 'High'"""
@@ -2019,6 +2157,18 @@ class SettingsManager(QObject):
 
         self._side_card_angle = self._default_settings["sideCardAngle"]
         self.sideCardAngleChanged.emit(self._side_card_angle)
+
+        self._button_tilt_duration = self._default_settings["buttonTiltDuration"]
+        self.buttonTiltDurationChanged.emit(self._button_tilt_duration)
+
+        self._text_flip_duration = self._default_settings["textFlipDuration"]
+        self.textFlipDurationChanged.emit(self._text_flip_duration)
+
+        self._card_transition_duration = self._default_settings["cardTransitionDuration"]
+        self.cardTransitionDurationChanged.emit(self._card_transition_duration)
+
+        self._text_scroll_speed = self._default_settings["textScrollSpeed"]
+        self.textScrollSpeedChanged.emit(self._text_scroll_speed)
 
         self._pinned_settings = []
         self.pinnedSettingsChanged.emit()

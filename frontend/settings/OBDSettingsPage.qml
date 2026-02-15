@@ -637,7 +637,7 @@ Flickable {
                                 anchors.fill: parent
                                 onClicked: {
                                     if (settingsManager) {
-                                        parameterSelectionLayout.allOBDParameters.forEach(function(param) {
+                                        parameterChipsFlow.visibleCommandsList.forEach(function(param) {
                                             settingsManager.save_obd_parameter_enabled(param, true);
                                         });
                                     }
@@ -688,7 +688,7 @@ Flickable {
                                 anchors.fill: parent
                                 onClicked: {
                                     if (settingsManager) {
-                                        parameterSelectionLayout.allOBDParameters.forEach(function(param) {
+                                        parameterChipsFlow.visibleCommandsList.forEach(function(param) {
                                             settingsManager.save_obd_parameter_enabled(param, false);
                                         });
                                     }
@@ -707,18 +707,20 @@ Flickable {
                             font.pixelSize: App.Spacing.overallText
                             font.family: App.Style.fontFamily
 
-                            // Count enabled parameters
+                            // Count enabled parameters (scoped to visible set)
                             function updateEnabledCount() {
                                 if (!settingsManager) return;
 
+                                var visible = parameterChipsFlow.visibleCommandsList;
                                 let count = 0;
-                                parameterSelectionLayout.allOBDParameters.forEach(function(param) {
-                                    if (settingsManager.get_obd_parameter_enabled(param, false)) {
+                                visible.forEach(function(param) {
+                                    var isOriginal = parameterChipsFlow.isOriginalParameter(param);
+                                    if (settingsManager.get_obd_parameter_enabled(param, isOriginal)) {
                                         count++;
                                     }
                                 });
 
-                                enabledCount.text = count + " of " + parameterSelectionLayout.allOBDParameters.length + " enabled";
+                                enabledCount.text = count + " of " + visible.length + " enabled";
                             }
 
                             Component.onCompleted: {
@@ -797,6 +799,10 @@ Flickable {
                     Connections {
                         target: settingsManager
                         function onObdParametersChanged() {
+                            updateCountTimer.restart();
+                        }
+                        function onSupportedOBDParametersChanged() {
+                            parameterChipsFlow.supportedParamsVersion++;
                             updateCountTimer.restart();
                         }
                     }
@@ -915,13 +921,37 @@ Flickable {
                             "OIL_TEMP", "IGNITION_TIMING"
                         ]
 
+                        // Version counter to force re-evaluation when scan results change
+                        property int supportedParamsVersion: 0
+
+                        // Filtered model: core 18 before scan, vehicle-supported after scan
+                        property var visibleParameters: {
+                            var _v = supportedParamsVersion;
+                            if (!settingsManager) return parametersModel;
+                            var supported = settingsManager.get_supported_obd_parameters();
+                            if (supported.length > 0) {
+                                return parametersModel.filter(function(p) {
+                                    return supported.indexOf(p.command) !== -1;
+                                });
+                            } else {
+                                return parametersModel.filter(function(p) {
+                                    return originalParameters.indexOf(p.command) !== -1;
+                                });
+                            }
+                        }
+
+                        // Flat list of visible command strings for Select All / Deselect All / counter
+                        property var visibleCommandsList: {
+                            return visibleParameters.map(function(p) { return p.command; });
+                        }
+
                         // Helper function to get the default enabled state for a parameter
                         function isOriginalParameter(command) {
                             return originalParameters.indexOf(command) !== -1;
                         }
 
                         Repeater {
-                            model: parameterChipsFlow.parametersModel
+                            model: parameterChipsFlow.visibleParameters
 
                             delegate: Rectangle {
                                 id: paramChip
@@ -1058,6 +1088,25 @@ Flickable {
                                 }
                             }
                         }
+                    }
+
+                    // Hint text showing scan status
+                    Text {
+                        Layout.fillWidth: true
+                        Layout.topMargin: App.Spacing.dp(8)
+                        text: {
+                            var _v = parameterChipsFlow.supportedParamsVersion;
+                            var supported = settingsManager ? settingsManager.get_supported_obd_parameters() : [];
+                            if (supported.length === 0) {
+                                return "Showing core parameters. Scan your vehicle to discover additional supported parameters.";
+                            } else {
+                                return "Showing " + supported.length + " vehicle-supported parameters from last scan.";
+                            }
+                        }
+                        color: App.Style.secondaryTextColor
+                        font.pixelSize: App.Spacing.smallText
+                        font.family: App.Style.fontFamily
+                        wrapMode: Text.WordWrap
                     }
 
                     // Initialize counter on load

@@ -1608,34 +1608,21 @@ class OBDManager(QObject):
         QTimer.singleShot(0, lambda m=message: self.scanOutputChanged.emit(m))
 
     def _do_vehicle_scan(self):
-        """Perform the actual vehicle scan (runs in background thread) using a sync connection"""
-        sync_conn = None
-        use_diagnostic_conn = self._diagnostic_mode and self._diagnostic_sync_conn
+        """Perform the actual vehicle scan (runs in background thread).
+
+        Reads supported_commands from the existing async connection's cached set
+        (populated during connection init). This avoids stopping async polling or
+        opening a second sync connection on the same serial port, keeping the
+        live data stream uninterrupted.
+        """
         try:
             self._emit_scan_output("[SCAN] Starting vehicle PID scan...")
+            self._emit_scan_output("[INFO] Reading supported commands from active connection...")
 
-            if use_diagnostic_conn:
-                # Use the persistent diagnostic connection
-                sync_conn = self._diagnostic_sync_conn
-                self._emit_scan_output("[INFO] Using diagnostic connection")
-            else:
-                # Stop async polling while we use the port
-                self._connection.stop()
-                self._emit_scan_output("[INFO] Pausing data stream for scan...")
-                # Create a fresh sync connection to get supported commands
-                sync_conn = self._create_sync_connection()
-
-            if not sync_conn:
-                logger.info("[OBD] Failed to get sync connection for vehicle scan")
-                self._emit_scan_output("[ERROR] Failed to establish sync connection")
-                QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, "Connection failed"))
-                QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit([]))
-                return
-
-            self._emit_scan_output("[INFO] Querying vehicle ECU for supported PIDs...")
-
-            # Get supported commands from the sync connection
-            supported = sync_conn.supported_commands
+            # Read the cached supported_commands set from the existing connection.
+            # obd.Async inherits from obd.OBD; supported_commands is populated
+            # during __init__ — it's a frozen set, safe to read from any thread.
+            supported = self._connection.supported_commands
 
             if not supported:
                 self._emit_scan_output("[WARN] No supported commands returned from vehicle")
@@ -1667,6 +1654,11 @@ class OBDManager(QObject):
 
             self._supported_commands = supported_names
 
+            # Persist scan results so they survive app restarts
+            if self._settings_manager:
+                QTimer.singleShot(0, lambda names=list(supported_names):
+                    self._settings_manager.save_supported_obd_parameters(names))
+
             # Summary output
             self._emit_scan_output("")
             self._emit_scan_output("=" * 40)
@@ -1689,14 +1681,6 @@ class OBDManager(QObject):
 
         finally:
             self._is_scanning = False
-            if not use_diagnostic_conn:
-                # Only close and resume if we created a temporary connection
-                if sync_conn:
-                    sync_conn.close()
-                # Resume async polling
-                if self._connection:
-                    self._connection.start()
-                    self._emit_scan_output("[INFO] Data stream resumed")
 
     @Slot(list)
     def enable_scanned_parameters(self, param_names):

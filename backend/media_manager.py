@@ -1379,7 +1379,6 @@ class MediaManager(QObject):
             # Update media_dir to playlist path for existing methods
             self.media_dir = playlist["path"]
 
-        # Reset current playlist to sorted files
         self._current_playlist = sorted(
             playlist["files"],
             key=lambda x: re.sub(r'[^\w\s]|_', '', x.lower())
@@ -1865,7 +1864,7 @@ class MediaManager(QObject):
             # Use cached files instead of calling get_media_files() again
             # This is the key change to prevent the infinite recursion
             files = self._current_playlist if self._current_playlist else self.get_media_files(emit_signal=False)
-            
+
             if sort_column == "title":
                 sorted_files = sorted(files, 
                                 key=lambda x: re.sub(r'[^\w\s]|_', '', 

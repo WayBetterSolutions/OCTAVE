@@ -101,16 +101,25 @@ ApplicationWindow {
         App.Style.systemDefaultFont = font.family
 
         if (settingsManager) {
+            // Load custom themes BEFORE setTheme so saved custom themes
+            // are available when the theme guard checks customThemes[theme]
+            let customThemes = settingsManager.customThemes
+            customThemes.forEach(function(themeName) {
+                let themeJSON = settingsManager.get_custom_theme(themeName)
+                let themeObj = JSON.parse(themeJSON)
+                App.Style.addCustomTheme(themeName, themeObj)
+            })
+
             // Load theme
             console.log("[QML] Loading theme:", settingsManager.themeSetting)
             if (settingsManager.themeSetting) {
                 App.Style.setTheme(settingsManager.themeSetting)
             }
-            
+
             // Load dimensions
             width = settingsManager.screenWidth
             height = settingsManager.screenHeight
-            
+
             // Initialize spacing
             App.Spacing.updateDimensions(width, height)
 
@@ -145,16 +154,6 @@ ApplicationWindow {
                 mainWindow.visibility = Window.Maximized
             }
         }
-        
-        // Load custom themes
-        if (settingsManager) {
-            let customThemes = settingsManager.customThemes
-            customThemes.forEach(function(themeName) {
-                let themeJSON = settingsManager.get_custom_theme(themeName)
-                let themeObj = JSON.parse(themeJSON)
-                App.Style.addCustomTheme(themeName, themeObj)
-            })
-        }
 
         // Note: albumColorsExtracted signal is connected via Connections component below
         // for better reliability with PySide6 signals
@@ -162,17 +161,17 @@ ApplicationWindow {
         // Update theme list when custom themes change
         if (settingsManager) {
             settingsManager.customThemesChanged.connect(function() {
-                // Clear existing custom themes
-                App.Style.customThemes = {}
-                
-                // Reload custom themes
+                // Build new custom themes object and assign in one shot
+                // (avoids briefly clearing customThemes which would make activeTheme
+                // fall back to SolarizedLight if a custom theme is currently active)
+                var newCustomThemes = {}
                 let customThemes = settingsManager.customThemes
                 customThemes.forEach(function(themeName) {
                     let themeJSON = settingsManager.get_custom_theme(themeName)
-                    let themeObj = JSON.parse(themeJSON)
-                    App.Style.addCustomTheme(themeName, themeObj)
+                    newCustomThemes[themeName] = JSON.parse(themeJSON)
                 })
-                
+                App.Style.customThemes = newCustomThemes
+
                 // Force update of theme options
                 App.Style.customThemesUpdated()
             })

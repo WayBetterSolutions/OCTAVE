@@ -8,6 +8,30 @@ Flickable {
     property var mainWindow: null
     property string currentSection: ""
 
+    function buildThemeChipColors() {
+        var colors = {}
+        var customNames = settingsManager ? settingsManager.customThemes : []
+        for (var i = 0; i < customNames.length; i++) {
+            var theme = App.Style.customThemes[customNames[i]]
+            if (theme && theme.accent) {
+                colors[customNames[i]] = theme.accent
+            }
+        }
+        return colors
+    }
+
+    function buildThemeChipImages() {
+        var images = {}
+        var customNames = settingsManager ? settingsManager.customThemes : []
+        for (var i = 0; i < customNames.length; i++) {
+            var theme = App.Style.customThemes[customNames[i]]
+            if (theme && theme.albumArt) {
+                images[customNames[i]] = theme.albumArt
+            }
+        }
+        return images
+    }
+
     contentWidth: width
     contentHeight: settingsContent.implicitHeight
     clip: true
@@ -289,8 +313,11 @@ Flickable {
                 Connections {
                     target: App.Style
                     function onCustomThemesUpdated() {
-                        // Force refresh of theme options
+                        // Force refresh of theme options, chip colors, images, and deletable items
                         themeButton.options = App.Style.getAllThemeNames()
+                        themeButton.chipColors = buildThemeChipColors()
+                        themeButton.chipImages = buildThemeChipImages()
+                        themeButton.deletableItems = settingsManager ? settingsManager.customThemes : []
                     }
                 }
 
@@ -300,10 +327,23 @@ Flickable {
                     Layout.fillWidth: true
                     currentValue: settingsManager ? settingsManager.themeSetting : "Light"
                     options: App.Style.getAllThemeNames()
+                    chipColors: buildThemeChipColors()
+                    chipImages: buildThemeChipImages()
+                    deletableItems: settingsManager ? settingsManager.customThemes : []
 
                     onSelected: function(value) {
                         if (settingsManager) {
                             mainWindow.updateTheme(value)
+                        }
+                    }
+
+                    onItemDeleted: function(value) {
+                        if (settingsManager) {
+                            // If deleting the active theme, switch to default first
+                            if (settingsManager.themeSetting === value) {
+                                mainWindow.updateTheme("CosmicVoyager")
+                            }
+                            settingsManager.delete_custom_theme(value)
                         }
                     }
                 }

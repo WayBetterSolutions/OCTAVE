@@ -481,8 +481,8 @@ Item {
                                 origin.x: previousControl.width / 2
                                 origin.y: previousControl.height / 2
                             }
-                            Behavior on tiltAngle { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on tiltAngle { NumberAnimation { duration: settingsManager ? settingsManager.buttonTiltDuration : 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on scale { NumberAnimation { duration: settingsManager ? settingsManager.buttonTiltDuration : 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
 
                             background: Rectangle {
                                 color: "transparent"
@@ -545,8 +545,8 @@ Item {
                                 origin.x: playControl.width / 2
                                 origin.y: playControl.height / 2
                             }
-                            Behavior on tiltAngle { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
-                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+                            Behavior on tiltAngle { NumberAnimation { duration: settingsManager ? settingsManager.buttonTiltDuration : 200; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
+                            Behavior on scale { NumberAnimation { duration: settingsManager ? settingsManager.buttonTiltDuration : 200; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
 
                             background: Rectangle {
                                 color: "transparent"
@@ -613,8 +613,8 @@ Item {
                                 origin.x: nextControl.width / 2
                                 origin.y: nextControl.height / 2
                             }
-                            Behavior on tiltAngle { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on tiltAngle { NumberAnimation { duration: settingsManager ? settingsManager.buttonTiltDuration : 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
+                            Behavior on scale { NumberAnimation { duration: settingsManager ? settingsManager.buttonTiltDuration : 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
 
                             background: Rectangle {
                                 color: "transparent"
@@ -726,7 +726,7 @@ Item {
                                     id: songScrollAnimation
                                     target: songTitleFlickable
                                     property: "contentX"
-                                    duration: 5000
+                                    duration: settingsManager ? settingsManager.textScrollSpeed : 5000
                                     easing.type: Easing.InOutQuad
                                     onFinished: songScrollTimer.restart()
                                 }
@@ -807,7 +807,7 @@ Item {
                                     id: metadataScrollAnimation
                                     target: metadataFlickable
                                     property: "contentX"
-                                    duration: 5000
+                                    duration: settingsManager ? settingsManager.textScrollSpeed : 5000
                                     easing.type: Easing.InOutQuad
                                     onFinished: metadataScrollTimer.restart()
                                 }
@@ -829,17 +829,18 @@ Item {
                     SequentialAnimation {
                         id: trackFlipAnimation
                         property bool _isFirstRun: true
-                        // Rotate out (old text disappears edge-on)
+                        property int _flipDuration: settingsManager ? settingsManager.textFlipDuration : 600
+                        // Rotate out (old text disappears edge-on) — 42% of total
                         ParallelAnimation {
-                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 0; to: -90; duration: 250; easing.type: Easing.InOutQuad }
-                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 0; to: -90; duration: 250; easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 0; to: -90; duration: Math.round(trackFlipAnimation._flipDuration * 0.42); easing.type: Easing.InOutQuad }
+                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 0; to: -90; duration: Math.round(trackFlipAnimation._flipDuration * 0.42); easing.type: Easing.InOutQuad }
                         }
                         // Brief pause — text bindings update reactively during this gap
                         PauseAnimation { duration: 40 }
-                        // Rotate in (new text appears with smooth spring)
+                        // Rotate in (new text appears with smooth spring) — 58% of total
                         ParallelAnimation {
-                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 90; to: 0; duration: 350; easing.type: Easing.OutBack }
-                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 90; to: 0; duration: 350; easing.type: Easing.OutBack }
+                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 90; to: 0; duration: Math.round(trackFlipAnimation._flipDuration * 0.58); easing.type: Easing.OutBack }
+                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 90; to: 0; duration: Math.round(trackFlipAnimation._flipDuration * 0.58); easing.type: Easing.OutBack }
                         }
                     }
                 }
@@ -872,10 +873,11 @@ Item {
                     // 3D coverflow rotation — center card rotates in from the side position
                     ParallelAnimation {
                         id: cardRotateAnimation
-                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; to: 0; duration: 500; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; to: 0; duration: 500; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; to: 1.0; duration: 500; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "opacity"; to: 1.0; duration: 400; easing.type: Easing.OutQuad }
+                        property int _transDuration: settingsManager ? settingsManager.cardTransitionDuration : 500
+                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; to: 0; duration: cardRotateAnimation._transDuration; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; to: 0; duration: cardRotateAnimation._transDuration; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; to: 1.0; duration: cardRotateAnimation._transDuration; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "opacity"; to: 1.0; duration: Math.round(cardRotateAnimation._transDuration * 0.8); easing.type: Easing.OutQuad }
                     }
 
                     function triggerSlide() {
@@ -992,6 +994,13 @@ Item {
                             layer.effect: OpacityMask {
                                 maskSource: artRoundedMask
                             }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            z: 2
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: albumArtPopup.open()
                         }
 
                         layer.enabled: albumArtImage.status === Image.Ready && settingsManager && settingsManager.showAlbumArtShadow
@@ -1657,6 +1666,104 @@ Item {
             // Volume stays unified from Octave settings - no need to change it when switching sources
             // The unified volume is already applied to both sources
             topVolumeControl.updateVolumeIcon()
+        }
+    }
+
+    // Album Art Popup — Save Theme
+    Popup {
+        id: albumArtPopup
+        anchors.centerIn: Overlay.overlay
+        width: App.Spacing.dp(340)
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property bool themeSaved: false
+
+        onOpened: {
+            themeSaved = false
+            // Always extract fresh colors for the current song so the theme
+            // matches what's playing now, not a stale previous extraction
+            if (mediaManager) {
+                var currentFile = mediaManager.get_current_file()
+                if (currentFile) {
+                    mediaManager.extract_colors_from_album_art(currentFile)
+                }
+            }
+        }
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            radius: App.Spacing.dpMin(8, 2)
+            border.color: App.Style.accent
+            border.width: 1
+
+            layer.enabled: true
+            layer.effect: DropShadow {
+                horizontalOffset: 0
+                verticalOffset: 4
+                radius: 30.0
+                samples: 31
+                color: Qt.rgba(0, 0, 0, 0.5)
+            }
+        }
+
+        contentItem: ColumnLayout {
+            spacing: App.Spacing.dp(16)
+
+            // Header — album name
+            Text {
+                Layout.fillWidth: true
+                text: mediaRoom.currentAlbum
+                color: App.Style.primaryTextColor
+                font.pixelSize: App.Spacing.dp(16)
+                font.bold: true
+                font.family: mediaRoom.globalFont
+                horizontalAlignment: Text.AlignHCenter
+                elide: Text.ElideRight
+            }
+
+            // Thin divider
+            Rectangle {
+                Layout.fillWidth: true
+                height: 1
+                color: Qt.rgba(App.Style.primaryTextColor.r,
+                               App.Style.primaryTextColor.g,
+                               App.Style.primaryTextColor.b, 0.15)
+            }
+
+            // Save as Theme button
+            Rectangle {
+                Layout.fillWidth: true
+                height: App.Spacing.formElementHeight
+                radius: App.Spacing.dpMin(6, 2)
+                color: saveThemeMA.containsMouse ? App.Style.accent : App.Style.hoverColor
+                opacity: App.Style.albumArtTheme ? 1.0 : 0.4
+
+                Text {
+                    anchors.centerIn: parent
+                    text: albumArtPopup.themeSaved ? "Theme Saved" : "Save as Theme"
+                    color: saveThemeMA.containsMouse ? "white" : App.Style.primaryTextColor
+                    font.pixelSize: App.Spacing.overallText
+                    font.family: mediaRoom.globalFont
+                }
+
+                MouseArea {
+                    id: saveThemeMA
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled: App.Style.albumArtTheme !== null && !albumArtPopup.themeSaved
+                    onClicked: {
+                        var themeName = mediaRoom.currentAlbum
+                        if (!themeName || themeName === "Unknown Album") {
+                            themeName = mediaRoom.currentTrackName || "Custom Theme"
+                        }
+                        var themeJson = JSON.stringify(App.Style.albumArtTheme)
+                        settingsManager.save_custom_theme(themeName, themeJson, mediaRoom.currentAlbumArt)
+                        albumArtPopup.themeSaved = true
+                    }
+                }
+            }
         }
     }
 }

@@ -354,10 +354,11 @@ Item {
                                                     if (itemMouseArea.containsMouse) {
                                                         return "white"
                                                     }
-                                                    return modelData.type === "spotify" ? "#1DB954" : App.Style.primaryTextColor
+                                                    if (modelData.type === "spotify") return "#1DB954"
+                                                    return App.Style.primaryTextColor
                                                 }
                                                 font.pixelSize: App.Spacing.overallText
-                                                font.bold: (modelData.type === "local" && modelData.name === currentPlaylistName) ||
+                                                font.bold: (modelData.type !== "spotify" && modelData.name === currentPlaylistName) ||
                                                            (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
                                                 font.family: mediaPlayer.globalFont
                                                 elide: Text.ElideRight
