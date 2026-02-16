@@ -150,7 +150,10 @@ Item {
                 spacing: 0
 
                 // Single blur on the entire grid instead of per-cell (16x cheaper on 4x4)
+                // Freeze blur texture during card animation — avoids a full-screen
+                // multi-pass re-render when grid images change source mid-transition
                 layer.enabled: true
+                layer.live: !cardRotateAnimation.running
                 layer.effect: GaussianBlur {
                     radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
                     samples: Math.min(32, Math.max(1, radius))
@@ -181,6 +184,7 @@ Item {
                             anchors.fill: parent
                             source: mediaRoom._displayAlbumArt || "./assets/missing_art.png"
                             fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
                         }
                     }
                 }
