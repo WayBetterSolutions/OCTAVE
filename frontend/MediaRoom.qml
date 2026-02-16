@@ -81,6 +81,12 @@ Item {
     // Card stack -- peek at adjacent tracks
     property int _trackChangeCounter: 0  // bumped on track change to force re-evaluation
     property int _slideDirection: 1      // 1 = next (slide from right), -1 = prev (slide from left)
+    property string _previousAlbumArt: "" // cached old art for exit card during transitions
+
+    // Resolved album art source — tracks currentAlbumArt but falls back to
+    // missing_art.png if the image fails to load (e.g. corrupted extract, stale cache)
+    property string _displayAlbumArt: currentAlbumArt
+    onCurrentAlbumArtChanged: _displayAlbumArt = currentAlbumArt
 
     property string nextAlbumArt: {
         // depend on counter so bindings re-evaluate on track change
@@ -113,6 +119,10 @@ Item {
         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
     }
 
+    function animateTrackChange() {
+        if (settingsManager && settingsManager.show3DAlbumPreview) albumArtStack.triggerSlide()
+    }
+
     Rectangle {
         id: mainContent        
         anchors.fill: parent
@@ -140,7 +150,7 @@ Item {
                 spacing: 0
 
                 // Single blur on the entire grid instead of per-cell (16x cheaper on 4x4)
-                layer.enabled: albumArtImage.status === Image.Ready
+                layer.enabled: true
                 layer.effect: GaussianBlur {
                     radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
                     samples: Math.min(32, Math.max(1, radius))
@@ -169,7 +179,7 @@ Item {
                         Image {
                             id: gridImage
                             anchors.fill: parent
-                            source: albumArtImage.status === Image.Ready ? albumArtImage.source : "./assets/missing_art.png"
+                            source: mediaRoom._displayAlbumArt || "./assets/missing_art.png"
                             fillMode: Image.PreserveAspectCrop
                         }
                     }
@@ -209,6 +219,7 @@ Item {
             }
             // Force initial evaluation of side card art
             mediaRoom._trackChangeCounter++
+            mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
         }
 
         Rectangle { // Volume control at top
@@ -677,14 +688,6 @@ Item {
                             Layout.alignment: Qt.AlignHCenter
                             height: Math.ceil(App.Spacing.mediaRoomMetaDataSongText * 1.4)
 
-                            property real flipAngle: 0
-                            transform: Rotation {
-                                axis { x: 1; y: 0; z: 0 }
-                                angle: songTitleContainer.flipAngle
-                                origin.x: songTitleContainer.width / 2
-                                origin.y: songTitleContainer.height / 2
-                            }
-
                             Flickable {
                                 id: songTitleFlickable
                                 anchors.centerIn: parent
@@ -739,14 +742,6 @@ Item {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
                             height: Math.ceil(App.Spacing.mediaRoomMetaDataBandText * 1.4)
-
-                            property real flipAngle: 0
-                            transform: Rotation {
-                                axis { x: 1; y: 0; z: 0 }
-                                angle: metadataContainer.flipAngle
-                                origin.x: metadataContainer.width / 2
-                                origin.y: metadataContainer.height / 2
-                            }
 
                             Flickable {
                                 id: metadataFlickable
@@ -825,24 +820,6 @@ Item {
                         Text { id: currentSongText; text: "" }
                     }
 
-                    // 3D text flip animation on track change
-                    SequentialAnimation {
-                        id: trackFlipAnimation
-                        property bool _isFirstRun: true
-                        property int _flipDuration: settingsManager ? settingsManager.textFlipDuration : 600
-                        // Rotate out (old text disappears edge-on) — 42% of total
-                        ParallelAnimation {
-                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 0; to: -90; duration: Math.round(trackFlipAnimation._flipDuration * 0.42); easing.type: Easing.InOutQuad }
-                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 0; to: -90; duration: Math.round(trackFlipAnimation._flipDuration * 0.42); easing.type: Easing.InOutQuad }
-                        }
-                        // Brief pause — text bindings update reactively during this gap
-                        PauseAnimation { duration: 40 }
-                        // Rotate in (new text appears with smooth spring) — 58% of total
-                        ParallelAnimation {
-                            NumberAnimation { target: songTitleContainer; property: "flipAngle"; from: 90; to: 0; duration: Math.round(trackFlipAnimation._flipDuration * 0.58); easing.type: Easing.OutBack }
-                            NumberAnimation { target: metadataContainer; property: "flipAngle"; from: 90; to: 0; duration: Math.round(trackFlipAnimation._flipDuration * 0.58); easing.type: Easing.OutBack }
-                        }
-                    }
                 }
 
 
@@ -870,27 +847,43 @@ Item {
                         layer.enabled: true
                     }
 
-                    // 3D coverflow rotation — center card rotates in from the side position
+                    // 3D coverflow — old card exits while new card enters simultaneously
                     ParallelAnimation {
                         id: cardRotateAnimation
-                        property int _transDuration: settingsManager ? settingsManager.cardTransitionDuration : 500
-                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; to: 0; duration: cardRotateAnimation._transDuration; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; to: 0; duration: cardRotateAnimation._transDuration; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; to: 1.0; duration: cardRotateAnimation._transDuration; easing.type: Easing.OutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "opacity"; to: 1.0; duration: Math.round(cardRotateAnimation._transDuration * 0.8); easing.type: Easing.OutQuad }
+                        property int _direction: 1
+                        // Computed in triggerSlide() so they're stable for the animation's lifetime
+                        property real _sideOffset: 0
+                        property real _sideAngle: 0
+
+                        // Exit card: current position → opposite side (no `from` — picks up live on interrupt)
+                        NumberAnimation { target: exitCardWrapper; property: "_offset"; to: -cardRotateAnimation._sideOffset; duration: 250; easing.type: Easing.InOutCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_angle"; to: cardRotateAnimation._direction * cardRotateAnimation._sideAngle; duration: 250; easing.type: Easing.InOutCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_cardScale"; to: 0.72; duration: 250; easing.type: Easing.InOutCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_cardOpacity"; to: 0; duration: 250; easing.type: Easing.InCubic }
+
+                        // Enter card: side → center (always starts fresh from the side)
+                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; from: cardRotateAnimation._sideOffset; to: 0; duration: 250; easing.type: Easing.InOutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; from: -cardRotateAnimation._direction * cardRotateAnimation._sideAngle; to: 0; duration: 250; easing.type: Easing.InOutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; from: 0.72; to: 1.0; duration: 250; easing.type: Easing.InOutCubic }
+                        NumberAnimation { target: albumArtContainer; property: "opacity"; from: 0; to: 1.0; duration: 250; easing.type: Easing.OutCubic }
                     }
 
                     function triggerSlide() {
                         cardRotateAnimation.stop()
-                        var dir = mediaRoom._slideDirection
-                        var angle = settingsManager ? settingsManager.sideCardAngle : 30
-                        var sideOpacity = settingsManager ? settingsManager.sideCardOpacity : 0.4
-                        // Start at the side-card pose and rotate into the center
-                        albumArtContainer._rotateOffset = dir * artSize * 0.42
-                        albumArtContainer._rotateAngle = dir * -angle
-                        albumArtContainer._rotateScale = 0.72
-                        albumArtContainer.opacity = sideOpacity + 0.05
+                        // Transfer enter card's live state to exit card (seamless handoff on interrupt)
+                        exitCardWrapper._offset = albumArtContainer._rotateOffset
+                        exitCardWrapper._angle = albumArtContainer._rotateAngle
+                        exitCardWrapper._cardScale = albumArtContainer._rotateScale
+                        exitCardWrapper._cardOpacity = albumArtContainer.opacity
+                        // Load old art onto exit card (fallback if cached art is empty/invalid)
+                        exitArtImage.source = mediaRoom._previousAlbumArt || "./assets/missing_art.png"
+                        // Snapshot direction-dependent values (avoid binding re-evaluation mid-animation)
+                        cardRotateAnimation._direction = mediaRoom._slideDirection
+                        cardRotateAnimation._sideOffset = mediaRoom._slideDirection * albumArtStack.artSize * 0.42
+                        cardRotateAnimation._sideAngle = settingsManager ? settingsManager.sideCardAngle : 30
                         cardRotateAnimation.start()
+                        // Cache resolved art for next transition (uses _displayAlbumArt which has error fallback)
+                        mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
                     }
 
                     // Previous card (background, tilted left)
@@ -957,12 +950,65 @@ Item {
                         }
                     }
 
+                    // Exit card — shows old art sliding away during transitions
+                    Item {
+                        id: exitCardWrapper
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: parent.artSize
+                        height: width
+                        z: 0
+                        visible: cardRotateAnimation.running && exitArtImage.status === Image.Ready
+
+                        property real _offset: 0
+                        property real _angle: 0
+                        property real _cardScale: 1.0
+                        property real _cardOpacity: 1.0
+
+                        scale: _cardScale
+                        opacity: _cardOpacity
+
+                        transform: [
+                            Translate { x: exitCardWrapper._offset },
+                            Rotation {
+                                axis { x: 0; y: 1; z: 0 }
+                                angle: exitCardWrapper._angle
+                                origin.x: exitCardWrapper.width / 2
+                                origin.y: exitCardWrapper.height / 2
+                            }
+                        ]
+
+                        Image {
+                            id: exitArtImage
+                            anchors.fill: parent
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            antialiasing: true
+                            onStatusChanged: {
+                                if (status === Image.Error) source = "./assets/missing_art.png"
+                            }
+                            layer.enabled: albumArtStack._roundedArt
+                            layer.effect: OpacityMask {
+                                maskSource: artRoundedMask
+                            }
+                        }
+
+                        layer.enabled: exitArtImage.status === Image.Ready && settingsManager && settingsManager.showAlbumArtShadow
+                        layer.effect: DropShadow {
+                            transparentBorder: true
+                            horizontalOffset: 8
+                            verticalOffset: 8
+                            radius: 16.0
+                            samples: 33
+                            color: "#E0000000"
+                        }
+                    }
+
                     // Current card (front) — animated properties for 3D rotation transition
                     Item {
                         id: albumArtContainer
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.horizontalCenterOffset: _rotateOffset
                         width: parent.artSize
                         height: width
                         z: 1
@@ -974,22 +1020,31 @@ Item {
 
                         scale: _rotateScale
 
-                        transform: Rotation {
-                            axis { x: 0; y: 1; z: 0 }
-                            angle: albumArtContainer._rotateAngle
-                            origin.x: albumArtContainer.width / 2
-                            origin.y: albumArtContainer.height / 2
-                        }
+                        // Use transform list instead of anchors.horizontalCenterOffset
+                        // for the slide — transforms are purely visual and skip
+                        // anchor layout recalculations on every animation frame
+                        transform: [
+                            Translate { x: albumArtContainer._rotateOffset },
+                            Rotation {
+                                axis { x: 0; y: 1; z: 0 }
+                                angle: albumArtContainer._rotateAngle
+                                origin.x: albumArtContainer.width / 2
+                                origin.y: albumArtContainer.height / 2
+                            }
+                        ]
 
                         Image {
                             id: albumArtImage
                             anchors.fill: parent
-                            source: currentAlbumArt
+                            source: mediaRoom._displayAlbumArt
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             antialiasing: true
                             mipmap: false
                             asynchronous: true
+                            onStatusChanged: {
+                                if (status === Image.Error) mediaRoom._displayAlbumArt = "./assets/missing_art.png"
+                            }
                             layer.enabled: albumArtStack._roundedArt
                             layer.effect: OpacityMask {
                                 maskSource: artRoundedMask
@@ -1107,12 +1162,12 @@ Item {
                         }
 
                         Behavior on height {
-                            enabled: waveformContainer.smoothBars
+                            enabled: waveformContainer.smoothBars && !cardRotateAnimation.running
                             NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
                         }
 
                         Behavior on opacity {
-                            enabled: fancy
+                            enabled: fancy && !cardRotateAnimation.running
                             NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
                         }
                     }
@@ -1504,13 +1559,8 @@ Item {
             // Always refresh side card sources
             mediaRoom._trackChangeCounter++
 
-            // 3D text flip + card slide on track change (skip first load)
-            if (trackFlipAnimation._isFirstRun) {
-                trackFlipAnimation._isFirstRun = false
-            } else {
-                if (settingsManager && settingsManager.show3DTextFlip && !trackFlipAnimation.running) trackFlipAnimation.start()
-                if (settingsManager && settingsManager.show3DAlbumPreview) albumArtStack.triggerSlide()
-            }
+            // 3D text flip + card slide on track change
+            mediaRoom.animateTrackChange()
         }
         function onShuffleStateChanged(enabled) {
             if (!useSpotify) {
@@ -1584,13 +1634,8 @@ Item {
                 // Always refresh side card sources
                 mediaRoom._trackChangeCounter++
 
-                // 3D text flip + card rotation on track change (skip first load)
-                if (trackFlipAnimation._isFirstRun) {
-                    trackFlipAnimation._isFirstRun = false
-                } else {
-                    if (settingsManager && settingsManager.show3DTextFlip && !trackFlipAnimation.running) trackFlipAnimation.start()
-                    if (settingsManager && settingsManager.show3DAlbumPreview) albumArtStack.triggerSlide()
-                }
+                // 3D text flip + card rotation on track change
+                mediaRoom.animateTrackChange()
             }
         }
 

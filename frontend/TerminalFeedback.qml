@@ -23,7 +23,7 @@ Rectangle {
     property color infoColor: "#4a9eff"
     property color successColor: "#44ff44"
     property color warningColor: "#ffaa00"
-    property real fontSize: App.Spacing.settingsTextFieldSize * 0.75
+    property real fontSize: App.Spacing.overallText * 0.85
 
     // Internal state
     property var lines: []
@@ -183,7 +183,7 @@ Rectangle {
                     color: App.EnvironmentTheme.active.terminalHeaderAccent
                         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.7)
                         : "#888888"
-                    font.pixelSize: terminalFeedback.fontSize
+                    font.pixelSize: App.Spacing.overallText * 1.2
                     font.family: App.Style.fontFamily
                     font.bold: true
                     font.letterSpacing: App.EnvironmentTheme.active.terminalHeaderAccent ? 1.5 : 0
@@ -209,8 +209,8 @@ Rectangle {
 
                 // Clear button - larger touch target
                 Rectangle {
-                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? App.Spacing.dp(50) : App.Spacing.dp(32)
-                    height: App.Spacing.dp(24)
+                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? App.Spacing.dp(64) : App.Spacing.dp(48)
+                    height: App.Spacing.dp(30)
                     radius: App.Spacing.dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
                     color: clearMouseArea.pressed
                         ? (App.EnvironmentTheme.active.terminalHeaderAccent
@@ -233,7 +233,7 @@ Rectangle {
                         color: App.EnvironmentTheme.active.terminalHeaderAccent
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.8)
                             : "#aaaaaa"
-                        font.pixelSize: App.Spacing.dp(10)
+                        font.pixelSize: App.Spacing.dp(12)
                         font.bold: true
                         font.letterSpacing: App.EnvironmentTheme.active.terminalHeaderAccent ? 1 : 0
                     }

@@ -448,15 +448,98 @@ Item {
                     }
                 }
 
+                // ─── Scroll rail (touch-friendly drag area) ───
+                Rectangle {
+                    id: scrollRail
+                    anchors.top: headingBar.bottom
+                    anchors.left: parent.left
+                    anchors.bottom: parent.bottom
+                    width: App.Spacing.dp(40)
+                    color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.03)
+
+                    // Convenience aliases for the loaded Flickable
+                    property var flick: contentLoader.item
+                    property bool canScroll: flick && flick.contentHeight > flick.height
+
+                    // Right-edge separator
+                    Rectangle {
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: 1
+                        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+                    }
+
+                    // Scroll handle
+                    Rectangle {
+                        id: scrollHandle
+                        visible: scrollRail.canScroll
+                        width: App.Spacing.dp(6)
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: width / 2
+                        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b,
+                                       scrollHandleArea.pressed ? 0.8 : scrollHandleArea.containsMouse ? 0.6 : 0.4)
+
+                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                        // Handle height proportional to visible/total content
+                        property real trackHeight: scrollRail.height
+                        property real handleRatio: scrollRail.flick ? Math.min(1, scrollRail.flick.height / scrollRail.flick.contentHeight) : 1
+                        height: Math.max(App.Spacing.dp(50), trackHeight * handleRatio)
+
+                        // Position bound to Flickable scroll position
+                        y: {
+                            if (!scrollRail.canScroll) return 0
+                            var scrollRange = scrollRail.flick.contentHeight - scrollRail.flick.height
+                            var trackRange = scrollRail.height - height
+                            if (scrollRange <= 0) return 0
+                            return (scrollRail.flick.contentY / scrollRange) * trackRange
+                        }
+                    }
+
+                    // Full-rail touch/drag area
+                    MouseArea {
+                        id: scrollHandleArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        preventStealing: true
+
+                        property real dragStartY: 0
+                        property real dragStartContentY: 0
+
+                        onPressed: function(mouse) {
+                            if (!scrollRail.canScroll) return
+                            // If pressing outside the handle, jump to that position first
+                            var scrollRange = scrollRail.flick.contentHeight - scrollRail.flick.height
+                            var trackRange = scrollRail.height - scrollHandle.height
+                            if (trackRange > 0) {
+                                var targetHandleY = Math.max(0, Math.min(mouse.y - scrollHandle.height / 2, trackRange))
+                                scrollRail.flick.contentY = (targetHandleY / trackRange) * scrollRange
+                            }
+                            dragStartY = mouse.y
+                            dragStartContentY = scrollRail.flick.contentY
+                        }
+
+                        onPositionChanged: function(mouse) {
+                            if (!pressed || !scrollRail.canScroll) return
+                            var deltaY = mouse.y - dragStartY
+                            var scrollRange = scrollRail.flick.contentHeight - scrollRail.flick.height
+                            var trackRange = scrollRail.height - scrollHandle.height
+                            if (trackRange <= 0) return
+                            var newContentY = dragStartContentY + (deltaY / trackRange) * scrollRange
+                            scrollRail.flick.contentY = Math.max(0, Math.min(newContentY, scrollRange))
+                        }
+                    }
+                }
+
                 // ─── Content below heading ───
                 Loader {
                     id: contentLoader
                     anchors {
                         top: headingBar.bottom
-                        left: parent.left
+                        left: scrollRail.right
                         right: parent.right
                         bottom: parent.bottom
-                        leftMargin: App.Spacing.settingsContentMargin
                         rightMargin: App.Spacing.settingsContentMargin
                         bottomMargin: App.Spacing.settingsContentMargin
                     }

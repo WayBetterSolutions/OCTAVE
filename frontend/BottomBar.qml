@@ -349,15 +349,15 @@ Rectangle {
 
                             background: Rectangle {
                                 color: bottomBar.isShuffleEnabled ? App.Style.bottomBarToggleShade : "transparent"
-                                radius: width / 2
+                                radius: 4
                             }
 
                             contentItem: Item {
                                 Image {
                                     id: shuffleButtonImage
                                     anchors.centerIn: parent
-                                    width: parent.width
-                                    height: parent.height
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
                                     source: "./assets/shuffle_button.svg"
                                     sourceSize: Qt.size(width * 2, height * 2)
                                     fillMode: Image.PreserveAspectFit
@@ -1630,15 +1630,15 @@ Rectangle {
 
                             background: Rectangle {
                                 color: bottomBar.isShuffleEnabled ? App.Style.bottomBarToggleShade : "transparent"
-                                radius: width / 2
+                                radius: 4
                             }
 
                             contentItem: Item {
                                 Image {
                                     id: shuffleButtonImageVertical
                                     anchors.centerIn: parent
-                                    width: parent.width
-                                    height: parent.height
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
                                     source: "./assets/shuffle_button.svg"
                                     sourceSize: Qt.size(width * 2, height * 2)
                                     fillMode: Image.PreserveAspectFit

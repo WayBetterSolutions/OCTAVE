@@ -10,7 +10,7 @@ Flickable {
     boundsBehavior: Flickable.DragAndOvershootBounds
     flickDeceleration: 1200
     maximumFlickVelocity: 4000
-    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
     ColumnLayout {
         id: settingsContent
@@ -516,7 +516,7 @@ Flickable {
                     Layout.fillWidth: true
                     Layout.preferredHeight: App.Spacing.dp(300)
                     Layout.topMargin: App.Spacing.rowSpacing
-                    title: "Vehicle Scan Output"
+                    title: "Vehicle Scan Terminal Output"
                     maxLines: 100
 
                     // Connect to obdManager scan output signal

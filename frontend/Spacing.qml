@@ -49,8 +49,8 @@ QtObject {
     property real bottomBarNextButtonHeightPercent: normalButtonSize
     property real bottomBarMuteButtonWidthPercent: normalButtonSize * 1.25
     property real bottomBarMuteButtonHeightPercent: normalButtonSize * 1.25
-    property real bottomBarShuffleButtonWidthPercent: normalButtonSize *1.125
-    property real bottomBarShuffleButtonHeightPercent: normalButtonSize *1.125
+    property real bottomBarShuffleButtonWidthPercent: normalButtonSize * 1.4878125
+    property real bottomBarShuffleButtonHeightPercent: normalButtonSize * 1.4878125
     property real bottomBarNavButtonWidthPercent: normalButtonSize * 1.7
     property real bottomBarNavButtonHeightPercent: normalButtonSize * 1.7
 

@@ -38,7 +38,7 @@ Flickable {
     boundsBehavior: Flickable.DragAndOvershootBounds
     flickDeceleration: 1200
     maximumFlickVelocity: 4000
-    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
     ColumnLayout {
         id: settingsContent

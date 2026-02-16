@@ -7,7 +7,7 @@ Rectangle {
     default property alias cardContent: cardLayout.data
 
     Layout.fillWidth: true
-    color: Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.15)
+    color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.07)
     radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     implicitHeight: cardLayout.implicitHeight + App.Spacing.overallSpacing * 3
     clip: true

@@ -428,7 +428,7 @@ Item {
             var filename = mediaManager.get_current_file()
             if (filename) {
                 mainMenu.currentFile = filename
-                mainMenu._localTitle = filename.replace('.mp3', '')
+                mainMenu._localTitle = mediaManager.get_display_name(filename)
                 mainMenu._localArtist = mediaManager.get_band(filename)
                 mainMenu._localAlbum = mediaManager.get_album(filename)
                 mainMenu._localArt = mediaManager.get_album_art(filename)

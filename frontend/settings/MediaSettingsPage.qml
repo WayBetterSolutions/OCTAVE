@@ -13,7 +13,7 @@ Flickable {
     boundsBehavior: Flickable.DragAndOvershootBounds
     flickDeceleration: 1200
     maximumFlickVelocity: 4000
-    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
     property string currentSection: ""
 
@@ -151,7 +151,7 @@ Flickable {
                     Layout.fillWidth: true
                     Layout.preferredHeight: App.Spacing.dp(300)
                     Layout.topMargin: App.Spacing.rowSpacing
-                    title: "Library Scan Output"
+                    title: "Library Scan Terminal Output"
 
                     Connections {
                         target: mediaManager
@@ -769,51 +769,6 @@ Flickable {
                 }
             }
 
-            // Transition Duration (conditional on 3D Album Preview)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DAlbumPreview
-
-                SettingLabel {
-                    text: "Transition Duration"
-                }
-
-                SettingsSlider {
-                    id: cardTransitionDurationSlider
-                    from: 100
-                    to: 1000
-                    stepSize: 50
-                    value: settingsManager ? settingsManager.cardTransitionDuration : 500
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: cardTransitionDurationTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_card_transition_duration(cardTransitionDurationSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: cardTransitionDurationTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onCardTransitionDurationChanged() {
-                            cardTransitionDurationSlider.value = settingsManager.cardTransitionDuration
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: cardTransitionDurationSlider.value.toFixed(0) + " ms"
-                }
-            }
-
             SettingsDivider {}
 
             // 3D Button Tilt
@@ -890,85 +845,6 @@ Flickable {
 
                 ValueDisplay {
                     text: buttonTiltDurationSlider.value.toFixed(0) + " ms"
-                }
-            }
-
-            SettingsDivider {}
-
-            // 3D Text Flip
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: textFlipToggle
-                    Layout.fillWidth: true
-                    text: "3D Text Flip"
-                    checked: settingsManager ? settingsManager.show3DTextFlip : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_3d_text_flip(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShow3DTextFlipChanged() {
-                            textFlipToggle.checked = settingsManager.show3DTextFlip
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Barrel-roll flip animation on song title and metadata when tracks change."
-                }
-            }
-
-            // Flip Duration (conditional on 3D Text Flip)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DTextFlip
-
-                SettingLabel {
-                    text: "Flip Duration"
-                }
-
-                SettingsSlider {
-                    id: textFlipDurationSlider
-                    from: 200
-                    to: 1500
-                    stepSize: 50
-                    value: settingsManager ? settingsManager.textFlipDuration : 600
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: textFlipDurationTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_text_flip_duration(textFlipDurationSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: textFlipDurationTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onTextFlipDurationChanged() {
-                            textFlipDurationSlider.value = settingsManager.textFlipDuration
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: textFlipDurationSlider.value.toFixed(0) + " ms"
                 }
             }
 
@@ -1162,7 +1038,7 @@ Flickable {
                     id: spotifyTerminal
                     Layout.fillWidth: true
                     Layout.preferredHeight: App.Spacing.dp(300)
-                    title: "Spotify Connection"
+                    title: "Spotify Connection Terminal Output"
 
                     Connections {
                         target: spotifyManager

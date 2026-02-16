@@ -30,10 +30,6 @@ SETTINGS_REGISTRY = {
         "key": "show3DButtonTilt", "label": "3D Button Tilt", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_3d_button_tilt"
     },
-    "show_3d_text_flip": {
-        "key": "show3DTextFlip", "label": "3D Text Flip", "category": "mediaSettings",
-        "controlType": "toggle", "saveSlot": "save_show_3d_text_flip"
-    },
     "show_3d_album_preview": {
         "key": "show3DAlbumPreview", "label": "3D Album Preview", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_3d_album_preview"
@@ -70,16 +66,6 @@ SETTINGS_REGISTRY = {
         "key": "buttonTiltDuration", "label": "Tilt Duration", "category": "mediaSettings",
         "controlType": "slider", "saveSlot": "save_button_tilt_duration",
         "params": {"from": 50, "to": 500, "stepSize": 10}
-    },
-    "text_flip_duration": {
-        "key": "textFlipDuration", "label": "Flip Duration", "category": "mediaSettings",
-        "controlType": "slider", "saveSlot": "save_text_flip_duration",
-        "params": {"from": 200, "to": 1500, "stepSize": 50}
-    },
-    "card_transition_duration": {
-        "key": "cardTransitionDuration", "label": "Transition Duration", "category": "mediaSettings",
-        "controlType": "slider", "saveSlot": "save_card_transition_duration",
-        "params": {"from": 100, "to": 1000, "stepSize": 50}
     },
     "text_scroll_speed": {
         "key": "textScrollSpeed", "label": "Text Scroll Speed", "category": "mediaSettings",
@@ -228,7 +214,6 @@ class SettingsManager(QObject):
 
     # 3D visual effect signals
     show3DButtonTiltChanged = Signal(bool)
-    show3DTextFlipChanged = Signal(bool)
     show3DAlbumPreviewChanged = Signal(bool)
     roundedAlbumArtChanged = Signal(bool)
     albumArtCornerRadiusChanged = Signal(int)
@@ -237,8 +222,6 @@ class SettingsManager(QObject):
     sideCardOpacityChanged = Signal(float)
     sideCardAngleChanged = Signal(int)
     buttonTiltDurationChanged = Signal(int)
-    textFlipDurationChanged = Signal(int)
-    cardTransitionDurationChanged = Signal(int)
     textScrollSpeedChanged = Signal(int)
 
     # Environment theme signal
@@ -426,7 +409,6 @@ class SettingsManager(QObject):
             "visualizerQuality": "Medium",  # "Low", "Medium", or "High"
             # 3D visual effect settings
             "show3DButtonTilt": False,   # 3D tilt on prev/play/next press
-            "show3DTextFlip": False,     # 3D barrel-roll text flip on track change
             "show3DAlbumPreview": False,  # Coverflow-style album art card stack
             "roundedAlbumArt": True,     # Rounded corners on album art
             "albumArtCornerRadius": 16,  # Corner radius in dp (2-32)
@@ -435,8 +417,6 @@ class SettingsManager(QObject):
             "sideCardOpacity": 0.4,      # 3D preview side card opacity (0.1-1.0)
             "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
             "buttonTiltDuration": 200,   # Button tilt animation duration in ms (50-500)
-            "textFlipDuration": 600,     # Text flip animation total duration in ms (200-1500)
-            "cardTransitionDuration": 500,  # Card coverflow transition duration in ms (100-1000)
             "textScrollSpeed": 5000,     # Text scroll animation duration in ms (1000-10000)
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             # Gesture sensor settings
@@ -551,7 +531,6 @@ class SettingsManager(QObject):
 
         # 3D visual effect settings
         self._show_3d_button_tilt = self._settings.get("show3DButtonTilt", self._default_settings["show3DButtonTilt"])
-        self._show_3d_text_flip = self._settings.get("show3DTextFlip", self._default_settings["show3DTextFlip"])
         self._show_3d_album_preview = self._settings.get("show3DAlbumPreview", self._default_settings["show3DAlbumPreview"])
         self._rounded_album_art = self._settings.get("roundedAlbumArt", self._default_settings["roundedAlbumArt"])
         self._album_art_corner_radius = self._settings.get("albumArtCornerRadius", self._default_settings["albumArtCornerRadius"])
@@ -560,8 +539,6 @@ class SettingsManager(QObject):
         self._side_card_opacity = self._settings.get("sideCardOpacity", self._default_settings["sideCardOpacity"])
         self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
         self._button_tilt_duration = self._settings.get("buttonTiltDuration", self._default_settings["buttonTiltDuration"])
-        self._text_flip_duration = self._settings.get("textFlipDuration", self._default_settings["textFlipDuration"])
-        self._card_transition_duration = self._settings.get("cardTransitionDuration", self._default_settings["cardTransitionDuration"])
         self._text_scroll_speed = self._settings.get("textScrollSpeed", self._default_settings["textScrollSpeed"])
 
         # Environment theme
@@ -1657,15 +1634,6 @@ class SettingsManager(QObject):
         self._show_3d_button_tilt = enabled
         self.update_setting("show3DButtonTilt", enabled, self.show3DButtonTiltChanged)
 
-    @Property(bool, notify=show3DTextFlipChanged)
-    def show3DTextFlip(self):
-        return self._show_3d_text_flip
-
-    @Slot(bool)
-    def save_show_3d_text_flip(self, enabled):
-        self._show_3d_text_flip = enabled
-        self.update_setting("show3DTextFlip", enabled, self.show3DTextFlipChanged)
-
     @Property(bool, notify=show3DAlbumPreviewChanged)
     def show3DAlbumPreview(self):
         return self._show_3d_album_preview
@@ -1737,24 +1705,6 @@ class SettingsManager(QObject):
     def save_button_tilt_duration(self, duration):
         self._button_tilt_duration = max(50, min(500, duration))
         self.update_setting("buttonTiltDuration", self._button_tilt_duration, self.buttonTiltDurationChanged)
-
-    @Property(int, notify=textFlipDurationChanged)
-    def textFlipDuration(self):
-        return self._text_flip_duration
-
-    @Slot(int)
-    def save_text_flip_duration(self, duration):
-        self._text_flip_duration = max(200, min(1500, duration))
-        self.update_setting("textFlipDuration", self._text_flip_duration, self.textFlipDurationChanged)
-
-    @Property(int, notify=cardTransitionDurationChanged)
-    def cardTransitionDuration(self):
-        return self._card_transition_duration
-
-    @Slot(int)
-    def save_card_transition_duration(self, duration):
-        self._card_transition_duration = max(100, min(1000, duration))
-        self.update_setting("cardTransitionDuration", self._card_transition_duration, self.cardTransitionDurationChanged)
 
     @Property(int, notify=textScrollSpeedChanged)
     def textScrollSpeed(self):
@@ -2160,12 +2110,6 @@ class SettingsManager(QObject):
 
         self._button_tilt_duration = self._default_settings["buttonTiltDuration"]
         self.buttonTiltDurationChanged.emit(self._button_tilt_duration)
-
-        self._text_flip_duration = self._default_settings["textFlipDuration"]
-        self.textFlipDurationChanged.emit(self._text_flip_duration)
-
-        self._card_transition_duration = self._default_settings["cardTransitionDuration"]
-        self.cardTransitionDurationChanged.emit(self._card_transition_duration)
 
         self._text_scroll_speed = self._default_settings["textScrollSpeed"]
         self.textScrollSpeedChanged.emit(self._text_scroll_speed)
