@@ -47,6 +47,7 @@ Flickable {
 
         // ── Card 1: Layout ──────────────────────────────────────────────
         SettingsCard {
+            objectName: "Layout"
             SettingsSectionHeader { title: "Layout" }
 
             ColumnLayout { // UI Scaling slider
@@ -165,6 +166,7 @@ Flickable {
 
         // ── Card 2: Window ──────────────────────────────────────────────
         SettingsCard {
+            objectName: "Window"
             SettingsSectionHeader { title: "Window" }
 
             ColumnLayout { // Screen Dimensions
@@ -299,6 +301,7 @@ Flickable {
 
         // ── Card 3: Appearance ──────────────────────────────────────────
         SettingsCard {
+            objectName: "Appearance"
             SettingsSectionHeader { title: "Appearance" }
 
             ColumnLayout { // Theme Selection
@@ -501,6 +504,7 @@ Flickable {
 
         // ── Card 4: Clock ─────────────────────────────────────────────────
         SettingsCard {
+            objectName: "Clock"
             SettingsSectionHeader { title: "Clock" }
 
             ColumnLayout {

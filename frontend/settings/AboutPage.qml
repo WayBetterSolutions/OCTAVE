@@ -240,13 +240,155 @@ Flickable {
                             visible: text !== ""
                         }
 
-                        Text {
-                            text: "Pull the latest changes from GitHub to update."
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText * 0.75
-                            font.family: App.Style.fontFamily
+                        // ─── Update Action Area ───
+                        ColumnLayout {
                             Layout.fillWidth: true
                             Layout.topMargin: App.Spacing.overallSpacing * 0.3
+                            spacing: App.Spacing.overallSpacing * 0.5
+
+                            // "Update Now" button with confirmation (when git self-update is available)
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing
+                                visible: networkManager && networkManager.canSelfUpdate
+                                         && networkManager.selfUpdateStatus !== "fetching"
+                                         && networkManager.selfUpdateStatus !== "restart-required"
+
+                                property bool confirming: false
+
+                                Timer {
+                                    id: updateConfirmResetTimer
+                                    interval: 5000
+                                    onTriggered: parent.confirming = false
+                                }
+
+                                SettingsButton {
+                                    text: parent.confirming ? "Confirm Update" : "Update Now"
+                                    buttonColor: parent.confirming ? "#FF9800" : App.Style.accent
+                                    height: App.Spacing.dp(30)
+                                    onClicked: {
+                                        if (parent.confirming) {
+                                            parent.confirming = false
+                                            networkManager.applySelfUpdate()
+                                        } else {
+                                            parent.confirming = true
+                                            updateConfirmResetTimer.restart()
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text: "This will overwrite local changes"
+                                    color: "#FF9800"
+                                    font.pixelSize: App.Spacing.overallText * 0.75
+                                    font.family: App.Style.fontFamily
+                                    visible: parent.confirming
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    SequentialAnimation on opacity {
+                                        running: parent.parent.confirming
+                                        loops: Animation.Infinite
+                                        NumberAnimation { from: 1.0; to: 0.4; duration: 800 }
+                                        NumberAnimation { from: 0.4; to: 1.0; duration: 800 }
+                                    }
+                                }
+                            }
+
+                            // Progress indicator during fetch/apply
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing * 0.5
+                                visible: networkManager && networkManager.selfUpdateStatus === "fetching"
+
+                                Rectangle {
+                                    width: App.Spacing.dp(8)
+                                    height: App.Spacing.dp(8)
+                                    radius: width / 2
+                                    color: App.Style.accent
+
+                                    SequentialAnimation on opacity {
+                                        running: networkManager && networkManager.selfUpdateStatus === "fetching"
+                                        loops: Animation.Infinite
+                                        NumberAnimation { from: 1.0; to: 0.3; duration: 500 }
+                                        NumberAnimation { from: 0.3; to: 1.0; duration: 500 }
+                                    }
+                                }
+
+                                Text {
+                                    text: networkManager ? networkManager.selfUpdateMessage : ""
+                                    color: App.Style.primaryTextColor
+                                    font.pixelSize: App.Spacing.overallText * 0.85
+                                    font.family: App.Style.fontFamily
+                                }
+                            }
+
+                            // Error state
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing * 0.5
+                                visible: networkManager && networkManager.selfUpdateStatus === "error"
+
+                                Rectangle {
+                                    width: App.Spacing.dp(8)
+                                    height: App.Spacing.dp(8)
+                                    radius: width / 2
+                                    color: "#F44336"
+                                }
+
+                                Text {
+                                    text: networkManager ? networkManager.selfUpdateMessage : "Update failed"
+                                    color: "#F44336"
+                                    font.pixelSize: App.Spacing.overallText * 0.8
+                                    font.family: App.Style.fontFamily
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+
+                            // Success + Restart button
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing * 0.5
+                                visible: networkManager && networkManager.selfUpdateStatus === "restart-required"
+
+                                RowLayout {
+                                    spacing: App.Spacing.overallSpacing * 0.5
+
+                                    Rectangle {
+                                        width: App.Spacing.dp(8)
+                                        height: App.Spacing.dp(8)
+                                        radius: width / 2
+                                        color: "#4CAF50"
+                                    }
+
+                                    Text {
+                                        text: networkManager ? networkManager.selfUpdateMessage : "Update complete"
+                                        color: "#4CAF50"
+                                        font.pixelSize: App.Spacing.overallText * 0.85
+                                        font.family: App.Style.fontFamily
+                                    }
+                                }
+
+                                SettingsButton {
+                                    text: "Restart Now"
+                                    buttonColor: "#4CAF50"
+                                    height: App.Spacing.dp(30)
+                                    onClicked: {
+                                        if (networkManager)
+                                            networkManager.restartApp()
+                                    }
+                                }
+                            }
+
+                            // Fallback for non-git environments (PyInstaller builds)
+                            Text {
+                                text: "Pull the latest changes from GitHub to update."
+                                color: App.Style.secondaryTextColor
+                                font.pixelSize: App.Spacing.overallText * 0.75
+                                font.family: App.Style.fontFamily
+                                Layout.fillWidth: true
+                                visible: !networkManager || !networkManager.canSelfUpdate
+                            }
                         }
                     }
                 }

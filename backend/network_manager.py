@@ -4,6 +4,7 @@ Handles WiFi/internet connectivity status and checks for updates via GitHub.
 """
 
 import os
+import sys
 import subprocess
 import platform
 import urllib.request
@@ -39,6 +40,11 @@ class NetworkManager(QObject):
     remoteCommitChanged = Signal(str)       # Latest remote commit hash
     remoteCommitMsgChanged = Signal(str)    # Latest remote commit message
 
+    # Self-update signals
+    selfUpdateStatusChanged = Signal(str)   # "idle", "fetching", "error", "restart-required"
+    selfUpdateMessageChanged = Signal(str)  # Human-readable progress message
+    canSelfUpdateChanged = Signal(bool)     # Whether git-based self-update is possible
+
     GITHUB_REPO = "WayBetterSolutions/OCTAVE"
 
     def __init__(self):
@@ -49,6 +55,11 @@ class NetworkManager(QObject):
         self._update_message = ""
         self._remote_commit = ""
         self._remote_commit_msg = ""
+
+        # Self-update state
+        self._self_update_status = "idle"
+        self._self_update_message = ""
+        self._can_self_update = self._check_can_self_update()
 
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._pending_future = None
@@ -92,6 +103,18 @@ class NetworkManager(QObject):
     def remoteCommitMsg(self):
         return self._remote_commit_msg
 
+    @Property(str, notify=selfUpdateStatusChanged)
+    def selfUpdateStatus(self):
+        return self._self_update_status
+
+    @Property(str, notify=selfUpdateMessageChanged)
+    def selfUpdateMessage(self):
+        return self._self_update_message
+
+    @Property(bool, notify=canSelfUpdateChanged)
+    def canSelfUpdate(self):
+        return self._can_self_update
+
     # ==================== Background work polling ====================
 
     def _submit_work(self, fn, result_type):
@@ -117,6 +140,11 @@ class NetworkManager(QObject):
                 self.updateStatusChanged.emit("error")
                 self._update_message = "Could not reach GitHub"
                 self.updateMessageChanged.emit(self._update_message)
+            elif result_type == "self_update":
+                self._self_update_status = "error"
+                self.selfUpdateStatusChanged.emit("error")
+                self._self_update_message = "Update failed unexpectedly"
+                self.selfUpdateMessageChanged.emit(self._self_update_message)
             self._pending_future = None
             return
 
@@ -133,6 +161,9 @@ class NetworkManager(QObject):
 
         elif result_type == "update_check":
             self._apply_update_result(result)
+
+        elif result_type == "self_update":
+            self._apply_self_update_result(result)
 
     # ==================== Network Status ====================
 
@@ -315,6 +346,129 @@ class NetworkManager(QObject):
         except Exception as e:
             logger.debug(f"Error getting local commit hash: {e}")
         return ""
+
+    # ==================== Self-Update ====================
+
+    @staticmethod
+    def _check_can_self_update():
+        """Check if self-update is possible (requires git, not a frozen PyInstaller build)."""
+        if getattr(sys, 'frozen', False):
+            return False
+        try:
+            result = subprocess.run(
+                ['git', '--version'],
+                capture_output=True, text=True, timeout=5
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    @Slot()
+    def applySelfUpdate(self):
+        """Start the self-update process (callable from QML)."""
+        if not self._can_self_update:
+            return
+        if self._pending_future and not self._pending_future.done():
+            return
+
+        self._self_update_status = "fetching"
+        self.selfUpdateStatusChanged.emit("fetching")
+        self._self_update_message = "Fetching latest changes..."
+        self.selfUpdateMessageChanged.emit(self._self_update_message)
+        self._submit_work(self._do_self_update_sync, "self_update")
+
+    def _do_self_update_sync(self):
+        """Blocking self-update — runs on worker thread. Returns a result dict."""
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_dir = os.path.dirname(backend_dir)
+
+        try:
+            # Step 1: git fetch origin main
+            result = subprocess.run(
+                ['git', 'fetch', 'origin', 'main'],
+                cwd=repo_dir,
+                capture_output=True, text=True, timeout=60
+            )
+            if result.returncode != 0:
+                return {
+                    "status": "error",
+                    "message": f"Fetch failed: {result.stderr.strip() or 'unknown error'}"
+                }
+
+            # Step 2: git reset --hard origin/main
+            result = subprocess.run(
+                ['git', 'reset', '--hard', 'origin/main'],
+                cwd=repo_dir,
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode != 0:
+                return {
+                    "status": "error",
+                    "message": f"Apply failed: {result.stderr.strip() or 'unknown error'}"
+                }
+
+            # Step 3: Get new commit info for confirmation
+            result = subprocess.run(
+                ['git', 'log', '-1', '--format=%h %s'],
+                cwd=repo_dir,
+                capture_output=True, text=True, timeout=5
+            )
+            new_info = result.stdout.strip() if result.returncode == 0 else ""
+
+            logger.info(f"Self-update applied successfully: {new_info}")
+            return {
+                "status": "restart-required",
+                "message": f"Update applied. Now on: {new_info}"
+            }
+
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "message": "Update timed out — check your connection"}
+        except Exception as e:
+            logger.warning(f"Self-update failed: {e}")
+            return {"status": "error", "message": f"Update failed: {str(e)}"}
+
+    def _apply_self_update_result(self, result):
+        """Apply self-update result on main thread."""
+        status = result.get("status", "error")
+        message = result.get("message", "")
+
+        self._self_update_status = status
+        self.selfUpdateStatusChanged.emit(status)
+        self._self_update_message = message
+        self.selfUpdateMessageChanged.emit(message)
+
+        # If successful, also update the main update status
+        if status == "restart-required":
+            self._update_status = "up-to-date"
+            self.updateStatusChanged.emit("up-to-date")
+            self._update_message = "Update applied — restart to complete"
+            self.updateMessageChanged.emit(self._update_message)
+
+    @Slot()
+    def restartApp(self):
+        """Restart the OCTAVE application (callable from QML)."""
+        logger.info("App restart requested")
+
+        from PySide6.QtWidgets import QApplication
+        qapp = QApplication.instance()
+
+        python_path = sys.executable
+        main_py = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "main.py"
+        )
+        args = [python_path, main_py] + sys.argv[1:]
+
+        system = platform.system()
+        logger.info(f"Restarting on {system}: {args}")
+
+        if system == "Windows":
+            subprocess.Popen(args)
+            qapp.quit()
+        else:
+            # On Unix, os.execv replaces the process after cleanup runs
+            qapp.aboutToQuit.connect(lambda: os.execv(python_path, args))
+            qapp.quit()
 
     # ==================== Device Shutdown ====================
 

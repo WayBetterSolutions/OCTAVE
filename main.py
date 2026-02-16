@@ -345,7 +345,7 @@ esp32_volume_manager.connectionStatusChanged.connect(on_esp32_connection_changed
 # Add the cleanup connection after creating managers:
 def cleanup_on_quit():
     """Save state and cleanup before app exits"""
-    media_manager._save_playback_state()
+    media_manager._save_playback_state_now()
     media_manager._clear_temp_files()
     spotify_manager.cleanup()
     android_auto_manager.cleanup()  # Full cleanup: stops DHU, ADB, and head unit server

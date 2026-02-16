@@ -3,22 +3,38 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import ".." as App
 
-Flickable {
-    contentWidth: width
-    contentHeight: settingsContent.implicitHeight
-    clip: true
-    boundsBehavior: Flickable.DragAndOvershootBounds
-    flickDeceleration: 1200
-    maximumFlickVelocity: 4000
-    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+Item {
+    id: pageRoot
 
-    ColumnLayout {
-        id: settingsContent
-        width: parent.width
-        spacing: App.Spacing.sectionSpacing
+    // Expose Flickable properties for SettingsMenu.qml scroll rail
+    property alias contentHeight: rootFlickable.contentHeight
+    property alias contentY: rootFlickable.contentY
+
+    // ── Drag state ───────────────────────────────────────────────────
+    property string draggedParam: ""
+    property string dragSource: "" // "left" or "right"
+    property int dragSourceIndex: -1
+
+    Flickable {
+        id: rootFlickable
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: settingsContent.implicitHeight
+        clip: true
+        interactive: true  // Card MouseAreas disable this on press to prevent steal
+        boundsBehavior: Flickable.DragAndOvershootBounds
+        flickDeceleration: 1200
+        maximumFlickVelocity: 4000
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+        ColumnLayout {
+            id: settingsContent
+            width: parent.width
+            spacing: App.Spacing.sectionSpacing
 
         // ── Card 1: Connection ──────────────────────────────────
         SettingsCard {
+            objectName: "Connection"
 
             SettingsSectionHeader { title: "Connection" }
 
@@ -431,692 +447,848 @@ Flickable {
             }
         }
 
-        // ── Card 2: Vehicle Scan ────────────────────────────────
+        // ── Card 2: Parameters (two-panel drag-and-drop) ─────────────
         SettingsCard {
+            id: parametersCard
+            objectName: "Parameters"
 
-            SettingsSectionHeader { title: "Vehicle Scan" }
+            // Version counter to force re-evaluation when scan results change
+            property int supportedParamsVersion: 0
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingDescription {
-                    text: "Detect which parameters your vehicle supports"
+            // Visible parameters: vehicle-supported if scanned, else original 18
+            property var visibleParameters: {
+                var _v = supportedParamsVersion;
+                if (!settingsManager) return App.OBDParameterModel.allParameters;
+                var supported = settingsManager.get_supported_obd_parameters();
+                if (supported.length > 0) {
+                    return App.OBDParameterModel.allParameters.filter(function(p) {
+                        return supported.indexOf(p.id) !== -1;
+                    });
+                } else {
+                    return App.OBDParameterModel.allParameters.filter(function(p) {
+                        return App.OBDParameterModel.originalParameters.indexOf(p.id) !== -1;
+                    });
                 }
+            }
 
-                // Scan button
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing
+            // Current home parameters list (reactive)
+            property var homeParams: settingsManager ? settingsManager.get_home_obd_parameters() : []
 
-                    Button {
-                        id: vehicleScanButton
-                        property bool isScanning: false
-                        text: isScanning ? "Scanning..." : "Scan Vehicle"
-                        enabled: obdManager && obdManager.is_connected() && !isScanning
-                        implicitHeight: App.Spacing.overallSpacing * 2.5
-                        implicitWidth: vehicleScanButtonText.implicitWidth + App.Spacing.overallSpacing * 2
+            function refreshHomeParams() {
+                homeParams = settingsManager ? settingsManager.get_home_obd_parameters() : [];
+            }
 
-                        scale: vehicleScanMouseArea.pressed ? 0.95 : 1.0
-                        opacity: enabled ? (vehicleScanMouseArea.pressed ? 0.8 : 1.0) : 0.5
+            function isOnHomeGrid(paramId) {
+                return homeParams.indexOf(paramId) !== -1;
+            }
 
-                        Behavior on scale {
-                            NumberAnimation { duration: 100; easing.type: Easing.OutBack }
-                        }
+            SettingsSectionHeader { title: "Parameters" }
 
-                        background: Rectangle {
-                            color: vehicleScanButton.enabled ? App.Style.statusSuccess : Qt.rgba(0.3, 0.3, 0.3, 0.5)
-                            radius: 4
-                        }
+            // ── Controls row ─────────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.bottomMargin: App.Spacing.dp(6)
 
-                        contentItem: Text {
-                            id: vehicleScanButtonText
-                            text: vehicleScanButton.text
-                            color: App.Style.primaryTextColor
-                            font.pixelSize: App.Spacing.overallText
-                            font.family: App.Style.fontFamily
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
+                // Select All button
+                Button {
+                    id: selectAllButton
+                    text: "Select All"
+                    implicitHeight: App.Spacing.overallSpacing * 2
+                    implicitWidth: selectAllButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
 
-                        MouseArea {
-                            id: vehicleScanMouseArea
-                            anchors.fill: parent
-                            enabled: parent.enabled
-                            onClicked: {
-                                if (obdManager) {
-                                    vehicleScanTerminal.clear()
-                                    vehicleScanButton.isScanning = true
-                                    obdManager.scan_vehicle()
-                                }
-                            }
-                        }
+                    scale: selectAllMouseArea.pressed ? 0.95 : 1.0
+                    opacity: selectAllMouseArea.pressed ? 0.8 : 1.0
 
-                        // Listen for scan completion
-                        Connections {
-                            target: obdManager
-                            function onScanCompleteChanged(supportedList) {
-                                vehicleScanButton.isScanning = false
-                            }
-                        }
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
+                    Behavior on opacity { NumberAnimation { duration: 100 } }
+
+                    background: Rectangle {
+                        color: App.Style.accent
+                        radius: 4
                     }
 
-                    Text {
-                        text: obdManager && obdManager.is_connected() ? "OBD Connected" : "Connect OBD first"
-                        color: obdManager && obdManager.is_connected() ? App.Style.statusSuccess : App.Style.statusError
-                        font.pixelSize: App.Spacing.smallText
+                    contentItem: Text {
+                        id: selectAllButtonText
+                        text: selectAllButton.text
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.overallText
                         font.family: App.Style.fontFamily
+                        horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
+
+                    MouseArea {
+                        id: selectAllMouseArea
+                        anchors.fill: parent
+                        onClicked: {
+                            if (settingsManager) {
+                                parametersCard.visibleParameters.forEach(function(p) {
+                                    settingsManager.save_obd_parameter_enabled(p.id, true);
+                                });
+                            }
+                        }
+                    }
                 }
 
-                // Terminal output for scan progress
-                App.TerminalFeedback {
-                    id: vehicleScanTerminal
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(300)
-                    Layout.topMargin: App.Spacing.rowSpacing
-                    title: "Vehicle Scan Terminal Output"
-                    maxLines: 100
+                // Deselect All button
+                Button {
+                    id: deselectAllButton
+                    text: "Deselect All"
+                    implicitHeight: App.Spacing.overallSpacing * 2
+                    implicitWidth: deselectAllButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
 
-                    // Connect to obdManager scan output signal
-                    Connections {
-                        target: obdManager
-                        function onScanOutputChanged(message) {
-                            vehicleScanTerminal.appendLine(message)
+                    scale: deselectAllMouseArea.pressed ? 0.95 : 1.0
+                    opacity: deselectAllMouseArea.pressed ? 0.8 : 1.0
+
+                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutBack } }
+                    Behavior on opacity { NumberAnimation { duration: 100 } }
+
+                    background: Rectangle {
+                        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
+                        radius: 4
+                    }
+
+                    contentItem: Text {
+                        id: deselectAllButtonText
+                        text: deselectAllButton.text
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.overallText
+                        font.family: App.Style.fontFamily
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    MouseArea {
+                        id: deselectAllMouseArea
+                        anchors.fill: parent
+                        onClicked: {
+                            if (settingsManager) {
+                                parametersCard.visibleParameters.forEach(function(p) {
+                                    settingsManager.save_obd_parameter_enabled(p.id, false);
+                                });
+                            }
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                // Parameter counter
+                Text {
+                    id: enabledCount
+                    text: "0 of 0 enabled"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.overallText
+                    font.family: App.Style.fontFamily
+
+                    function updateEnabledCount() {
+                        if (!settingsManager) return;
+                        var visible = parametersCard.visibleParameters;
+                        var count = 0;
+                        visible.forEach(function(p) {
+                            var isOrig = App.OBDParameterModel.isOriginalParameter(p.id);
+                            if (settingsManager.get_obd_parameter_enabled(p.id, isOrig)) {
+                                count++;
+                            }
+                        });
+                        enabledCount.text = count + " of " + visible.length + " enabled";
+                    }
+
+                    Component.onCompleted: updateEnabledCount()
+                }
+            }
+
+            // ── Auto-scan progress (shown during scan) ───────────
+            RowLayout {
+                id: scanProgressRow
+                Layout.fillWidth: true
+                visible: scanProgressRow.isScanning || scanProgressRow.scanStatus !== ""
+                spacing: App.Spacing.dp(10)
+
+                property bool isScanning: false
+                property string scanStatus: ""
+                property int scanProgress: 0
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 6
+                    color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
+                    radius: 3
+
+                    Rectangle {
+                        width: parent.width * (scanProgressRow.scanProgress / 100)
+                        height: parent.height
+                        color: App.Style.statusSuccess
+                        radius: 3
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
+
+                Text {
+                    text: scanProgressRow.scanStatus
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.overallText * 0.9
+                    font.family: App.Style.fontFamily
+                }
+
+                Connections {
+                    target: obdManager
+                    function onScanProgressChanged(progress, message) {
+                        scanProgressRow.scanProgress = progress;
+                        scanProgressRow.scanStatus = message;
+                        scanProgressRow.isScanning = progress < 100;
+                    }
+                    function onScanCompleteChanged(supportedParams) {
+                        scanProgressRow.isScanning = false;
+                        // Auto-enable all supported parameters
+                        if (supportedParams.length > 0 && settingsManager) {
+                            supportedParams.forEach(function(param) {
+                                settingsManager.save_obd_parameter_enabled(param, true);
+                            });
                         }
                     }
                 }
             }
-        }
 
-        // ── Card 3: Parameters ──────────────────────────────────
-        SettingsCard {
-
-            SettingsCollapsibleSection {
-                title: "Parameters"
-                expanded: false
+            // ── Two-panel layout ─────────────────────────────────
+            RowLayout {
                 Layout.fillWidth: true
+                Layout.preferredHeight: App.Spacing.dp(500)
+                spacing: App.Spacing.dp(12)
 
-                ColumnLayout {
-                    id: parameterSelectionLayout
+                // ── LEFT PANEL: Available parameters ─────────────
+                Rectangle {
+                    id: leftPanel
                     Layout.fillWidth: true
-                    spacing: App.Spacing.rowSpacing
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 1 // Equal weight
+                    color: Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.3)
+                    radius: 4
+                    border.width: 1
+                    border.color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.1)
 
-                    // Full parameter list for all operations
-                    property var allOBDParameters: [
-                        // Original parameters
-                        "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE", "ENGINE_LOAD",
-                        "THROTTLE_POS", "INTAKE_TEMP", "TIMING_ADVANCE",
-                        "MAF", "SPEED", "RPM", "COMMANDED_EQUIV_RATIO",
-                        "FUEL_LEVEL", "INTAKE_PRESSURE", "SHORT_FUEL_TRIM_1",
-                        "LONG_FUEL_TRIM_1", "O2_B1S1", "FUEL_PRESSURE",
-                        "OIL_TEMP", "IGNITION_TIMING",
-                        // Additional parameters
-                        "RUN_TIME", "DISTANCE_W_MIL", "FUEL_RAIL_PRESSURE_VAC",
-                        "FUEL_RAIL_PRESSURE_DIRECT", "BAROMETRIC_PRESSURE", "AMBIANT_AIR_TEMP",
-                        "RELATIVE_THROTTLE_POS", "THROTTLE_POS_B", "ACCELERATOR_POS_D",
-                        "CATALYST_TEMP_B1S1", "CATALYST_TEMP_B1S2", "EVAP_VAPOR_PRESSURE",
-                        "SHORT_FUEL_TRIM_2", "LONG_FUEL_TRIM_2", "O2_B1S2",
-                        "O2_B2S1", "O2_B2S2", "DISTANCE_SINCE_DTC_CLEAR",
-                        "WARMUPS_SINCE_DTC_CLEAR", "ABSOLUTE_LOAD", "COMMANDED_EGR",
-                        "EGR_ERROR", "ETHANOL_PERCENT",
-                        // Batch 2 - Additional O2 sensors
-                        "O2_B1S3", "O2_B1S4", "O2_B2S3", "O2_B2S4",
-                        // Wide-range O2 sensors voltage
-                        "O2_S1_WR_VOLTAGE", "O2_S2_WR_VOLTAGE", "O2_S3_WR_VOLTAGE", "O2_S4_WR_VOLTAGE",
-                        "O2_S5_WR_VOLTAGE", "O2_S6_WR_VOLTAGE", "O2_S7_WR_VOLTAGE", "O2_S8_WR_VOLTAGE",
-                        // Wide-range O2 sensors current
-                        "O2_S1_WR_CURRENT", "O2_S2_WR_CURRENT", "O2_S3_WR_CURRENT", "O2_S4_WR_CURRENT",
-                        "O2_S5_WR_CURRENT", "O2_S6_WR_CURRENT", "O2_S7_WR_CURRENT", "O2_S8_WR_CURRENT",
-                        // Bank 2 catalyst temps
-                        "CATALYST_TEMP_B2S1", "CATALYST_TEMP_B2S2",
-                        // Additional throttle/accelerator
-                        "THROTTLE_POS_C", "ACCELERATOR_POS_E", "ACCELERATOR_POS_F", "THROTTLE_ACTUATOR",
-                        // Fuel system
-                        "EVAPORATIVE_PURGE", "FUEL_RAIL_PRESSURE_ABS", "FUEL_INJECT_TIMING", "FUEL_RATE",
-                        // Time-based
-                        "RUN_TIME_MIL", "TIME_SINCE_DTC_CLEARED",
-                        // Other
-                        "MAX_MAF", "FUEL_TYPE", "EVAP_VAPOR_PRESSURE_ABS", "EVAP_VAPOR_PRESSURE_ALT",
-                        "SHORT_O2_TRIM_B1", "LONG_O2_TRIM_B1", "SHORT_O2_TRIM_B2", "LONG_O2_TRIM_B2",
-                        "RELATIVE_ACCEL_POS", "HYBRID_BATTERY_REMAINING", "ELM_VOLTAGE"
-                    ]
+                    // Drop area for returning cards from the right panel
+                    DropArea {
+                        id: leftDropArea
+                        anchors.fill: parent
+                        keys: ["obdParam"]
 
-                    // Scan vehicle state
-                    property bool isScanning: false
-                    property string scanStatus: ""
-                    property int scanProgress: 0
-                    property var supportedCommands: []
-
-                    // Controls row (Select All and Deselect All buttons)
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.bottomMargin: App.Spacing.dp(10)
-
-                        // Select All button
-                        Button {
-                            id: selectAllButton
-                            text: "Select All"
-                            implicitHeight: App.Spacing.overallSpacing * 2
-                            implicitWidth: selectAllButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-
-                            // Add click animation
-                            scale: selectAllMouseArea.pressed ? 0.95 : 1.0
-                            opacity: selectAllMouseArea.pressed ? 0.8 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 100
-                                    easing.type: Easing.OutBack
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 100 }
-                            }
-
-                            background: Rectangle {
-                                color: App.Style.accent
-                                radius: 4
-                                clip: true
-                            }
-
-                            contentItem: Text {
-                                id: selectAllButtonText
-                                text: selectAllButton.text
-                                color: App.Style.primaryTextColor
-                                font.pixelSize: App.Spacing.overallText
-                                font.family: App.Style.fontFamily
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            MouseArea {
-                                id: selectAllMouseArea
-                                anchors.fill: parent
-                                onClicked: {
-                                    if (settingsManager) {
-                                        parameterChipsFlow.visibleCommandsList.forEach(function(param) {
-                                            settingsManager.save_obd_parameter_enabled(param, true);
-                                        });
-                                    }
+                        onDropped: function(drop) {
+                            if (pageRoot.dragSource === "right" && pageRoot.draggedParam !== "") {
+                                // Remove from home grid — defer save so delegate isn't
+                                // destroyed while the MouseArea onReleased is still running
+                                var hp = settingsManager.get_home_obd_parameters();
+                                var idx = hp.indexOf(pageRoot.draggedParam);
+                                if (idx !== -1) {
+                                    hp.splice(idx, 1);
+                                    var hpCopy = hp.slice();
+                                    Qt.callLater(function() {
+                                        settingsManager.save_home_obd_parameters(hpCopy);
+                                    });
                                 }
                             }
                         }
 
-                        // Deselect All button
-                        Button {
-                            id: deselectAllButton
-                            text: "Deselect All"
-                            implicitHeight: App.Spacing.overallSpacing * 2
-                            implicitWidth: deselectAllButtonText.implicitWidth + App.Spacing.overallSpacing * 1.5
-
-                            // Add click animation
-                            scale: deselectAllMouseArea.pressed ? 0.95 : 1.0
-                            opacity: deselectAllMouseArea.pressed ? 0.8 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 100
-                                    easing.type: Easing.OutBack
-                                }
-                            }
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 100 }
-                            }
-
-                            background: Rectangle {
-                                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                                radius: 4
-                                clip: true
-                            }
-
-                            contentItem: Text {
-                                id: deselectAllButtonText
-                                text: deselectAllButton.text
-                                color: App.Style.primaryTextColor
-                                font.pixelSize: App.Spacing.overallText
-                                font.family: App.Style.fontFamily
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-
-                            MouseArea {
-                                id: deselectAllMouseArea
-                                anchors.fill: parent
-                                onClicked: {
-                                    if (settingsManager) {
-                                        parameterChipsFlow.visibleCommandsList.forEach(function(param) {
-                                            settingsManager.save_obd_parameter_enabled(param, false);
-                                        });
-                                    }
-                                }
-                            }
-                        }
-
-                        // Spacer
-                        Item { Layout.fillWidth: true }
-
-                        // Parameter counter
-                        Text {
-                            id: enabledCount
-                            text: "0 of 0 enabled"
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText
-                            font.family: App.Style.fontFamily
-
-                            // Count enabled parameters (scoped to visible set)
-                            function updateEnabledCount() {
-                                if (!settingsManager) return;
-
-                                var visible = parameterChipsFlow.visibleCommandsList;
-                                let count = 0;
-                                visible.forEach(function(param) {
-                                    var isOriginal = parameterChipsFlow.isOriginalParameter(param);
-                                    if (settingsManager.get_obd_parameter_enabled(param, isOriginal)) {
-                                        count++;
-                                    }
-                                });
-
-                                enabledCount.text = count + " of " + visible.length + " enabled";
-                            }
-
-                            Component.onCompleted: {
-                                updateEnabledCount();
-                            }
-                        }
-                    }
-
-                    // Scan progress indicator (shown during scan)
-                    RowLayout {
-                        Layout.fillWidth: true
-                        visible: parameterSelectionLayout.isScanning || parameterSelectionLayout.scanStatus !== ""
-                        spacing: App.Spacing.dp(10)
-
+                        // Highlight when dragging from right
                         Rectangle {
-                            Layout.fillWidth: true
-                            height: 6
-                            color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
-                            radius: 3
-
-                            Rectangle {
-                                width: parent.width * (parameterSelectionLayout.scanProgress / 100)
-                                height: parent.height
-                                color: App.Style.statusSuccess
-                                radius: 3
-
-                                Behavior on width {
-                                    NumberAnimation { duration: 200 }
-                                }
-                            }
+                            anchors.fill: parent
+                            color: "transparent"
+                            border.width: 2
+                            border.color: App.Style.accent
+                            radius: 4
+                            opacity: leftDropArea.containsDrag && pageRoot.dragSource === "right" ? 0.8 : 0
+                            Behavior on opacity { NumberAnimation { duration: 150 } }
                         }
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: App.Spacing.dp(8)
+                        spacing: 0
 
                         Text {
-                            text: parameterSelectionLayout.scanStatus
+                            text: "Available Parameters"
                             color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText * 0.9
+                            font.pixelSize: App.Spacing.overallText * 0.85
                             font.family: App.Style.fontFamily
-                        }
-                    }
-
-                    // OBD scan connections
-                    Connections {
-                        target: obdManager
-
-                        function onScanProgressChanged(progress, message) {
-                            parameterSelectionLayout.scanProgress = progress;
-                            parameterSelectionLayout.scanStatus = message;
-                            parameterSelectionLayout.isScanning = progress < 100;
+                            font.bold: true
+                            Layout.bottomMargin: App.Spacing.dp(6)
                         }
 
-                        function onScanCompleteChanged(supportedParams) {
-                            parameterSelectionLayout.supportedCommands = supportedParams;
-                            parameterSelectionLayout.isScanning = false;
+                        MouseArea {
+                            id: leftScrollContainer
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            acceptedButtons: Qt.NoButton
 
-                            // Auto-enable all supported parameters
-                            if (supportedParams.length > 0 && settingsManager) {
-                                supportedParams.forEach(function(param) {
-                                    settingsManager.save_obd_parameter_enabled(param, true);
-                                });
+                            property real scrollY: 0
+                            property real maxScroll: Math.max(0, leftColumn.implicitHeight - leftScrollContainer.height)
+
+                            onWheel: function(wheel) {
+                                var delta = wheel.angleDelta.y / 120 * App.Spacing.dp(40);
+                                scrollY = Math.max(0, Math.min(maxScroll, scrollY - delta));
+                                wheel.accepted = true;
                             }
-                        }
-                    }
 
-                    // Debounce timer for counter updates
-                    Timer {
-                        id: updateCountTimer
-                        interval: 10
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            enabledCount.updateEnabledCount();
-                        }
-                    }
+                            Column {
+                                id: leftColumn
+                                width: parent.width
+                                spacing: App.Spacing.dp(6)
+                                y: -leftScrollContainer.scrollY
+                                Behavior on y { NumberAnimation { duration: 80; easing.type: Easing.OutQuad } }
 
-                    // Track settings changes
-                    Connections {
-                        target: settingsManager
-                        function onObdParametersChanged() {
-                            updateCountTimer.restart();
-                        }
-                        function onSupportedOBDParametersChanged() {
-                            parameterChipsFlow.supportedParamsVersion++;
-                            updateCountTimer.restart();
-                        }
-                    }
+                                Repeater {
+                                    id: leftRepeater
+                                    model: parametersCard.visibleParameters
 
-                    // IMPROVED PARAMETER CHIPS AREA
-                    Flow {
-                        id: parameterChipsFlow
-                        Layout.fillWidth: true
-                        spacing: App.Spacing.dp(12)
-                        Layout.preferredHeight: childrenRect.height
+                                    Rectangle {
+                                        id: leftCard
+                                        width: leftColumn.width
+                                        height: App.Spacing.dp(56)
+                                        radius: 4
 
-                        // Parameter chips model - all supported parameters
-                        property var parametersModel: [
-                            // Original parameters (enabled by default)
-                            { name: "Vehicle Speed", command: "SPEED" },
-                            { name: "Engine RPM", command: "RPM" },
-                            { name: "Coolant Temperature", command: "COOLANT_TEMP" },
-                            { name: "System Voltage", command: "CONTROL_MODULE_VOLTAGE" },
-                            { name: "Engine Load", command: "ENGINE_LOAD" },
-                            { name: "Throttle Position", command: "THROTTLE_POS" },
-                            { name: "Intake Temperature", command: "INTAKE_TEMP" },
-                            { name: "Timing Advance", command: "TIMING_ADVANCE" },
-                            { name: "Mass Air Flow", command: "MAF" },
-                            { name: "Air-Fuel Ratio", command: "COMMANDED_EQUIV_RATIO" },
-                            { name: "Fuel Level", command: "FUEL_LEVEL" },
-                            { name: "Intake Manifold Pressure", command: "INTAKE_PRESSURE" },
-                            { name: "Short Term Fuel Trim 1", command: "SHORT_FUEL_TRIM_1" },
-                            { name: "Long Term Fuel Trim 1", command: "LONG_FUEL_TRIM_1" },
-                            { name: "O2 Bank 1 Sensor 1", command: "O2_B1S1" },
-                            { name: "Fuel Pressure", command: "FUEL_PRESSURE" },
-                            { name: "Oil Temperature", command: "OIL_TEMP" },
-                            { name: "Ignition Timing", command: "IGNITION_TIMING" },
-                            // Additional parameters (disabled by default, enable via scan)
-                            { name: "Run Time", command: "RUN_TIME" },
-                            { name: "Distance w/ MIL", command: "DISTANCE_W_MIL" },
-                            { name: "Fuel Rail Pressure", command: "FUEL_RAIL_PRESSURE_VAC" },
-                            { name: "Fuel Rail Direct", command: "FUEL_RAIL_PRESSURE_DIRECT" },
-                            { name: "Barometric Pressure", command: "BAROMETRIC_PRESSURE" },
-                            { name: "Ambient Air Temp", command: "AMBIANT_AIR_TEMP" },
-                            { name: "Relative Throttle", command: "RELATIVE_THROTTLE_POS" },
-                            { name: "Throttle Position B", command: "THROTTLE_POS_B" },
-                            { name: "Accelerator Pedal", command: "ACCELERATOR_POS_D" },
-                            { name: "Catalyst Temp B1S1", command: "CATALYST_TEMP_B1S1" },
-                            { name: "Catalyst Temp B1S2", command: "CATALYST_TEMP_B1S2" },
-                            { name: "EVAP Vapor Pressure", command: "EVAP_VAPOR_PRESSURE" },
-                            { name: "Short Term Fuel Trim 2", command: "SHORT_FUEL_TRIM_2" },
-                            { name: "Long Term Fuel Trim 2", command: "LONG_FUEL_TRIM_2" },
-                            { name: "O2 Bank 1 Sensor 2", command: "O2_B1S2" },
-                            { name: "O2 Bank 2 Sensor 1", command: "O2_B2S1" },
-                            { name: "O2 Bank 2 Sensor 2", command: "O2_B2S2" },
-                            { name: "Distance Since Clear", command: "DISTANCE_SINCE_DTC_CLEAR" },
-                            { name: "Warmups Since Clear", command: "WARMUPS_SINCE_DTC_CLEAR" },
-                            { name: "Absolute Load", command: "ABSOLUTE_LOAD" },
-                            { name: "Commanded EGR", command: "COMMANDED_EGR" },
-                            { name: "EGR Error", command: "EGR_ERROR" },
-                            { name: "Ethanol Percent", command: "ETHANOL_PERCENT" },
-                            // Batch 2 - Additional O2 sensors
-                            { name: "O2 Bank 1 Sensor 3", command: "O2_B1S3" },
-                            { name: "O2 Bank 1 Sensor 4", command: "O2_B1S4" },
-                            { name: "O2 Bank 2 Sensor 3", command: "O2_B2S3" },
-                            { name: "O2 Bank 2 Sensor 4", command: "O2_B2S4" },
-                            // Wide-range O2 sensors voltage
-                            { name: "O2 S1 WR Voltage", command: "O2_S1_WR_VOLTAGE" },
-                            { name: "O2 S2 WR Voltage", command: "O2_S2_WR_VOLTAGE" },
-                            { name: "O2 S3 WR Voltage", command: "O2_S3_WR_VOLTAGE" },
-                            { name: "O2 S4 WR Voltage", command: "O2_S4_WR_VOLTAGE" },
-                            { name: "O2 S5 WR Voltage", command: "O2_S5_WR_VOLTAGE" },
-                            { name: "O2 S6 WR Voltage", command: "O2_S6_WR_VOLTAGE" },
-                            { name: "O2 S7 WR Voltage", command: "O2_S7_WR_VOLTAGE" },
-                            { name: "O2 S8 WR Voltage", command: "O2_S8_WR_VOLTAGE" },
-                            // Wide-range O2 sensors current
-                            { name: "O2 S1 WR Current", command: "O2_S1_WR_CURRENT" },
-                            { name: "O2 S2 WR Current", command: "O2_S2_WR_CURRENT" },
-                            { name: "O2 S3 WR Current", command: "O2_S3_WR_CURRENT" },
-                            { name: "O2 S4 WR Current", command: "O2_S4_WR_CURRENT" },
-                            { name: "O2 S5 WR Current", command: "O2_S5_WR_CURRENT" },
-                            { name: "O2 S6 WR Current", command: "O2_S6_WR_CURRENT" },
-                            { name: "O2 S7 WR Current", command: "O2_S7_WR_CURRENT" },
-                            { name: "O2 S8 WR Current", command: "O2_S8_WR_CURRENT" },
-                            // Bank 2 catalyst temps
-                            { name: "Catalyst Temp B2S1", command: "CATALYST_TEMP_B2S1" },
-                            { name: "Catalyst Temp B2S2", command: "CATALYST_TEMP_B2S2" },
-                            // Additional throttle/accelerator
-                            { name: "Throttle Position C", command: "THROTTLE_POS_C" },
-                            { name: "Accelerator Pos E", command: "ACCELERATOR_POS_E" },
-                            { name: "Accelerator Pos F", command: "ACCELERATOR_POS_F" },
-                            { name: "Throttle Actuator", command: "THROTTLE_ACTUATOR" },
-                            // Fuel system
-                            { name: "EVAP Purge", command: "EVAPORATIVE_PURGE" },
-                            { name: "Fuel Rail Abs", command: "FUEL_RAIL_PRESSURE_ABS" },
-                            { name: "Fuel Inject Timing", command: "FUEL_INJECT_TIMING" },
-                            { name: "Fuel Rate", command: "FUEL_RATE" },
-                            // Time-based
-                            { name: "Run Time w/ MIL", command: "RUN_TIME_MIL" },
-                            { name: "Time Since Clear", command: "TIME_SINCE_DTC_CLEARED" },
-                            // Other
-                            { name: "Max MAF", command: "MAX_MAF" },
-                            { name: "Fuel Type", command: "FUEL_TYPE" },
-                            { name: "EVAP Pressure Abs", command: "EVAP_VAPOR_PRESSURE_ABS" },
-                            { name: "EVAP Pressure Alt", command: "EVAP_VAPOR_PRESSURE_ALT" },
-                            { name: "Short O2 Trim B1", command: "SHORT_O2_TRIM_B1" },
-                            { name: "Long O2 Trim B1", command: "LONG_O2_TRIM_B1" },
-                            { name: "Short O2 Trim B2", command: "SHORT_O2_TRIM_B2" },
-                            { name: "Long O2 Trim B2", command: "LONG_O2_TRIM_B2" },
-                            { name: "Rel. Accel Position", command: "RELATIVE_ACCEL_POS" },
-                            { name: "Hybrid Battery", command: "HYBRID_BATTERY_REMAINING" },
-                            { name: "ELM Voltage", command: "ELM_VOLTAGE" }
-                        ]
+                                        property string paramId: modelData.id
+                                        property bool isOriginal: App.OBDParameterModel.isOriginalParameter(paramId)
+                                        property bool isEnabled: settingsManager ?
+                                            settingsManager.get_obd_parameter_enabled(paramId, isOriginal) : isOriginal
+                                        property bool onHome: parametersCard.isOnHomeGrid(paramId)
+                                        property var info: App.OBDParameterModel.getParamInfo(paramId)
+                                        property real liveValue: App.OBDParameterModel.paramValues[paramId] || 0
 
-                        // Original parameters that are enabled by default
-                        property var originalParameters: [
-                            "SPEED", "RPM", "COOLANT_TEMP", "CONTROL_MODULE_VOLTAGE",
-                            "ENGINE_LOAD", "THROTTLE_POS", "INTAKE_TEMP", "TIMING_ADVANCE",
-                            "MAF", "COMMANDED_EQUIV_RATIO", "FUEL_LEVEL", "INTAKE_PRESSURE",
-                            "SHORT_FUEL_TRIM_1", "LONG_FUEL_TRIM_1", "O2_B1S1", "FUEL_PRESSURE",
-                            "OIL_TEMP", "IGNITION_TIMING"
-                        ]
+                                        color: onHome ?
+                                            Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.12) :
+                                            (isEnabled ?
+                                                Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.06) :
+                                                Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.5))
+                                        border.width: 1
+                                        border.color: onHome ?
+                                            App.Style.accent :
+                                            (isEnabled ?
+                                                Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) :
+                                                Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.15))
+                                        opacity: (pageRoot.draggedParam === paramId) ? 0.3 : 1.0
 
-                        // Version counter to force re-evaluation when scan results change
-                        property int supportedParamsVersion: 0
+                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on border.color { ColorAnimation { duration: 150 } }
 
-                        // Filtered model: core 18 before scan, vehicle-supported after scan
-                        property var visibleParameters: {
-                            var _v = supportedParamsVersion;
-                            if (!settingsManager) return parametersModel;
-                            var supported = settingsManager.get_supported_obd_parameters();
-                            if (supported.length > 0) {
-                                return parametersModel.filter(function(p) {
-                                    return supported.indexOf(p.command) !== -1;
-                                });
-                            } else {
-                                return parametersModel.filter(function(p) {
-                                    return originalParameters.indexOf(p.command) !== -1;
-                                });
-                            }
-                        }
-
-                        // Flat list of visible command strings for Select All / Deselect All / counter
-                        property var visibleCommandsList: {
-                            return visibleParameters.map(function(p) { return p.command; });
-                        }
-
-                        // Helper function to get the default enabled state for a parameter
-                        function isOriginalParameter(command) {
-                            return originalParameters.indexOf(command) !== -1;
-                        }
-
-                        Repeater {
-                            model: parameterChipsFlow.visibleParameters
-
-                            delegate: Rectangle {
-                                id: paramChip
-                                width: Math.min(parameterChipsFlow.width * 0.3, App.Spacing.dp(400))
-                                height: App.Spacing.settingsButtonHeight*.8
-                                radius: App.Spacing.dpMin(12, 2)
-
-                                // Check if this is an original parameter (enabled by default)
-                                property bool isOriginal: parameterChipsFlow.isOriginalParameter(modelData.command)
-
-                                // Bind the color directly to the parameter's enabled state
-                                property bool isEnabled: settingsManager ?
-                                    settingsManager.get_obd_parameter_enabled(modelData.command, isOriginal) : isOriginal
-
-                                // Track if this parameter is on the home screen
-                                property bool isOnHomeScreen: {
-                                    if (!settingsManager) return false;
-                                    let homeParams = settingsManager.get_home_obd_parameters();
-                                    return homeParams.indexOf(modelData.command) !== -1;
-                                }
-
-                                // Use a darker background for disabled chips to improve contrast
-                                color: isEnabled ?
-                                    Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2) :
-                                    Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.5)
-
-                                border.width: 1
-                                border.color: isEnabled ?
-                                    App.Style.accent :
-                                    Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.3)
-
-                                // Add click animation
-                                scale: chipMouseArea.pressed ? 0.97 : 1.0
-                                opacity: chipMouseArea.pressed ? 0.9 : 1.0
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: 100
-                                        easing.type: Easing.OutQuad
-                                    }
-                                }
-
-                                Behavior on opacity {
-                                    NumberAnimation { duration: 100 }
-                                }
-
-                                // Update enabled state when settings change
-                                Connections {
-                                    target: settingsManager
-                                    function onObdParametersChanged() {
-                                        if (settingsManager) {
-                                            paramChip.isEnabled = settingsManager.get_obd_parameter_enabled(modelData.command, paramChip.isOriginal);
-                                        }
-                                    }
-
-                                    function onHomeOBDParametersChanged() {
-                                        if (settingsManager) {
-                                            let homeParams = settingsManager.get_home_obd_parameters();
-                                            paramChip.isOnHomeScreen = homeParams.indexOf(modelData.command) !== -1;
-                                            homeButton.updateHomeStatus();
-                                        }
-                                    }
-                                }
-
-                                RowLayout {
-                                    anchors {
-                                        fill: parent
-                                        margins: App.Spacing.dp(12)
-                                    }
-                                    spacing: App.Spacing.dp(8)
-
-                                    // Parameter name - always make the text visible regardless of enabled state
-                                    Text {
-                                        text: modelData.name
-                                        color: App.Style.primaryTextColor
-                                        font.pixelSize: App.Spacing.overallText
-                                        font.family: App.Style.fontFamily
-                                        Layout.fillWidth: true
-                                        elide: Text.ElideRight
-                                    }
-
-                                    // Add home button
-                                    HomeScreenButton {
-                                        id: homeButton
-                                        isActive: paramChip.isOnHomeScreen
-
-                                        function updateHomeStatus() {
-                                            if (settingsManager) {
-                                                let homeParams = settingsManager.get_home_obd_parameters();
-                                                isActive = homeParams.indexOf(modelData.command) !== -1;
+                                        // Update when settings change
+                                        Connections {
+                                            target: settingsManager
+                                            function onObdParametersChanged() {
+                                                leftCard.isEnabled = settingsManager.get_obd_parameter_enabled(leftCard.paramId, leftCard.isOriginal);
+                                            }
+                                            function onHomeOBDParametersChanged() {
+                                                parametersCard.refreshHomeParams();
+                                                leftCard.onHome = parametersCard.isOnHomeGrid(leftCard.paramId);
                                             }
                                         }
 
-                                        Component.onCompleted: {
-                                            updateHomeStatus();
-                                        }
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: App.Spacing.dp(10)
+                                            anchors.rightMargin: App.Spacing.dp(10)
+                                            spacing: App.Spacing.dp(8)
 
-                                        onClicked: {
-                                            if (settingsManager) {
-                                                let homeParams = settingsManager.get_home_obd_parameters();
+                                            // Param name
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 1
 
-                                                if (isActive) {
-                                                    // Remove from home screen
-                                                    let index = homeParams.indexOf(modelData.command);
-                                                    if (index !== -1) {
-                                                        homeParams.splice(index, 1);
-                                                        settingsManager.save_home_obd_parameters(homeParams);
-                                                    }
-                                                } else {
-                                                    // Add to home screen if space available (max 8)
-                                                    if (homeParams.length < 8) {
-                                                        homeParams.push(modelData.command);
-                                                        settingsManager.save_home_obd_parameters(homeParams);
+                                                Text {
+                                                    text: modelData.title
+                                                    color: leftCard.isEnabled ? App.Style.primaryTextColor :
+                                                        Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.5)
+                                                    font.pixelSize: App.Spacing.overallText * 0.9
+                                                    font.family: App.Style.fontFamily
+                                                    font.bold: leftCard.onHome
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                // Mini progress bar
+                                                Rectangle {
+                                                    Layout.fillWidth: true
+                                                    height: 3
+                                                    color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.1)
+                                                    radius: 1.5
+                                                    visible: leftCard.isEnabled
+
+                                                    Rectangle {
+                                                        width: {
+                                                            var range = leftCard.info.maxValue - leftCard.info.minValue;
+                                                            if (range <= 0) return 0;
+                                                            return Math.max(2, parent.width * Math.min(1, Math.max(0, (leftCard.liveValue - leftCard.info.minValue) / range)));
+                                                        }
+                                                        height: parent.height
+                                                        color: App.Style.accent
+                                                        radius: 1.5
                                                     }
                                                 }
                                             }
+
+                                            // Live value display
+                                            Text {
+                                                text: leftCard.isEnabled ?
+                                                    (leftCard.liveValue.toFixed(1) + " " + leftCard.info.unit) : "OFF"
+                                                color: leftCard.isEnabled ?
+                                                    App.Style.primaryTextColor :
+                                                    Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.4)
+                                                font.pixelSize: App.Spacing.overallText * 0.85
+                                                font.family: App.Style.fontFamily
+                                                font.bold: leftCard.isEnabled
+                                                horizontalAlignment: Text.AlignRight
+                                                Layout.preferredWidth: App.Spacing.dp(80)
+                                            }
+
+                                            // Home badge
+                                            Rectangle {
+                                                width: App.Spacing.dp(8)
+                                                height: App.Spacing.dp(8)
+                                                radius: 4
+                                                color: App.Style.accent
+                                                visible: leftCard.onHome
+                                            }
+                                        }
+
+                                        // Interaction: click to toggle, click-and-drag to move
+                                        // No parent Flickable — events come straight to us
+                                        MouseArea {
+                                            id: leftCardMouse
+                                            anchors.fill: parent
+                                            preventStealing: true
+
+                                            property bool dragging: false
+                                            property bool scrolling: false
+                                            property real startX: 0
+                                            property real startY: 0
+                                            property real lastY: 0
+                                            property real dragThreshold: App.Spacing.dp(8)
+
+                                            onPressed: function(mouse) {
+                                                dragging = false;
+                                                scrolling = false;
+                                                startX = mouse.x;
+                                                startY = mouse.y;
+                                                lastY = mouse.y;
+                                                rootFlickable.interactive = false;
+                                            }
+
+                                            onPositionChanged: function(mouse) {
+                                                if (dragging) {
+                                                    // Already dragging — update proxy position
+                                                    var globalPos = leftCardMouse.mapToItem(pageRoot, mouse.x, mouse.y);
+                                                    dragProxy.x = globalPos.x - dragProxy.width / 2;
+                                                    dragProxy.y = globalPos.y - dragProxy.height / 2;
+                                                } else if (scrolling) {
+                                                    // Vertical scroll — manually scroll the list
+                                                    var dy = mouse.y - lastY;
+                                                    leftScrollContainer.scrollY = Math.max(0, Math.min(leftScrollContainer.maxScroll, leftScrollContainer.scrollY - dy));
+                                                    lastY = mouse.y;
+                                                } else {
+                                                    var dx = mouse.x - startX;
+                                                    var dy2 = mouse.y - startY;
+                                                    var dist = Math.sqrt(dx * dx + dy2 * dy2);
+
+                                                    if (dist > dragThreshold) {
+                                                        if (Math.abs(dy2) > Math.abs(dx) * 1.5) {
+                                                            // Vertical gesture → scroll the list
+                                                            scrolling = true;
+                                                            lastY = mouse.y;
+                                                        } else {
+                                                            // Horizontal/diagonal → drag-and-drop
+                                                            if (!leftCard.isEnabled) return;
+                                                            if (parametersCard.homeParams.length >= 8 && !leftCard.onHome) return;
+
+                                                            dragging = true;
+                                                            pageRoot.draggedParam = leftCard.paramId;
+                                                            pageRoot.dragSource = "left";
+                                                            pageRoot.dragSourceIndex = -1;
+
+                                                            var globalPos2 = leftCard.mapToItem(pageRoot, 0, 0);
+                                                            dragProxy.x = globalPos2.x;
+                                                            dragProxy.y = globalPos2.y;
+                                                            dragProxy.width = leftCard.width;
+                                                            dragProxy.height = leftCard.height;
+                                                            dragProxy.paramId = leftCard.paramId;
+                                                            dragProxy.paramTitle = modelData.title;
+                                                            dragProxy.paramValue = leftCard.liveValue.toFixed(1) + " " + leftCard.info.unit;
+                                                            dragProxy.visible = true;
+                                                            dragProxy.Drag.active = true;
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            onReleased: {
+                                                rootFlickable.interactive = true;
+                                                if (dragging && dragProxy.visible) {
+                                                    dragProxy.Drag.drop();
+                                                    dragProxy.visible = false;
+                                                    dragProxy.Drag.active = false;
+                                                } else if (!dragging && !scrolling) {
+                                                    // Simple click — toggle enabled
+                                                    if (settingsManager) {
+                                                        settingsManager.save_obd_parameter_enabled(leftCard.paramId, !leftCard.isEnabled);
+                                                        updateCountTimer.restart();
+                                                    }
+                                                }
+                                                dragging = false;
+                                                scrolling = false;
+                                                pageRoot.draggedParam = "";
+                                                pageRoot.dragSource = "";
+                                                pageRoot.dragSourceIndex = -1;
+                                            }
+
+                                            onCanceled: {
+                                                rootFlickable.interactive = true;
+                                                if (dragProxy.visible) {
+                                                    dragProxy.visible = false;
+                                                    dragProxy.Drag.active = false;
+                                                }
+                                                dragging = false;
+                                                scrolling = false;
+                                                pageRoot.draggedParam = "";
+                                                pageRoot.dragSource = "";
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                        }
+                    }
+                }
+
+                // ── RIGHT PANEL: Home grid preview ───────────────
+                Rectangle {
+                    id: rightPanel
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 1 // Equal weight
+                    color: Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.3)
+                    radius: 4
+                    border.width: 1
+                    border.color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.1)
+
+                    property int homeCount: parametersCard.homeParams.length
+                    property int gridColumns: homeCount <= 5 ? 1 : 2
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: App.Spacing.dp(8)
+                        spacing: 0
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.bottomMargin: App.Spacing.dp(6)
+
+                            Text {
+                                text: "Home Grid"
+                                color: App.Style.secondaryTextColor
+                                font.pixelSize: App.Spacing.overallText * 0.85
+                                font.family: App.Style.fontFamily
+                                font.bold: true
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Text {
+                                text: rightPanel.homeCount + " / 8"
+                                color: rightPanel.homeCount >= 8 ? App.Style.statusWarning : App.Style.secondaryTextColor
+                                font.pixelSize: App.Spacing.overallText * 0.8
+                                font.family: App.Style.fontFamily
+                            }
+                        }
+
+                        // The grid itself with a DropArea
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            // Drop area for adding new cards (covers entire grid area)
+                            DropArea {
+                                id: rightDropArea
+                                anchors.fill: parent
+                                keys: ["obdParam"]
+
+                                onDropped: function(drop) {
+                                    // Defer all saves — the drop is triggered from a card
+                                    // MouseArea's onReleased. Saving synchronously would
+                                    // destroy/recreate Repeater delegates mid-handler,
+                                    // preventing cleanup code from running (floating proxy bug).
+                                    if (pageRoot.dragSource === "left" && pageRoot.draggedParam !== "") {
+                                        // Add to home grid
+                                        var hp = settingsManager.get_home_obd_parameters();
+                                        if (hp.indexOf(pageRoot.draggedParam) === -1 && hp.length < 8) {
+                                            hp.push(pageRoot.draggedParam);
+                                            var hpCopy = hp.slice();
+                                            Qt.callLater(function() {
+                                                settingsManager.save_home_obd_parameters(hpCopy);
+                                            });
+                                        }
+                                    } else if (pageRoot.dragSource === "right" && pageRoot.draggedParam !== "") {
+                                        // Reorder within grid - find drop position
+                                        var hp2 = settingsManager.get_home_obd_parameters();
+                                        var fromIdx = pageRoot.dragSourceIndex;
+                                        if (fromIdx >= 0 && fromIdx < hp2.length) {
+                                            var targetIdx = calculateDropIndex(drop.x, drop.y);
+                                            if (targetIdx !== fromIdx && targetIdx >= 0) {
+                                                var param = hp2.splice(fromIdx, 1)[0];
+                                                if (targetIdx > fromIdx) targetIdx--;
+                                                hp2.splice(targetIdx, 0, param);
+                                                var hp2Copy = hp2.slice();
+                                                Qt.callLater(function() {
+                                                    settingsManager.save_home_obd_parameters(hp2Copy);
+                                                });
+                                            }
                                         }
                                     }
                                 }
 
-                                // Simple click area with animation
-                                MouseArea {
-                                    id: chipMouseArea
+                                function calculateDropIndex(dropX, dropY) {
+                                    // Map drop coords to a grid cell index
+                                    var cols = rightPanel.gridColumns;
+                                    var totalItems = parametersCard.homeParams.length;
+                                    var rows = Math.ceil(totalItems / cols);
+                                    if (rows <= 0 || cols <= 0) return 0;
+
+                                    var cellW = homeGrid.width / cols;
+                                    var cellH = homeGrid.height / rows;
+
+                                    var col = Math.floor(dropX / cellW);
+                                    var row = Math.floor(dropY / cellH);
+
+                                    col = Math.max(0, Math.min(col, cols - 1));
+                                    row = Math.max(0, Math.min(row, rows - 1));
+
+                                    var idx = row * cols + col;
+                                    return Math.min(idx, totalItems);
+                                }
+
+                                // Highlight when dragging over
+                                Rectangle {
                                     anchors.fill: parent
-                                    anchors.rightMargin: App.Spacing.dp(64) // Leave space for home button
-                                    onClicked: {
-                                        if (settingsManager) {
-                                            // Toggle the enabled state
-                                            let newState = !paramChip.isEnabled;
-                                            settingsManager.save_obd_parameter_enabled(modelData.command, newState);
-                                            updateCountTimer.restart();
+                                    color: "transparent"
+                                    border.width: 2
+                                    border.color: App.Style.accent
+                                    radius: 4
+                                    opacity: rightDropArea.containsDrag ? 0.8 : 0
+                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                                }
+                            }
+
+                            // Empty state placeholder
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Drag parameters here"
+                                color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.3)
+                                font.pixelSize: App.Spacing.overallText
+                                font.family: App.Style.fontFamily
+                                visible: rightPanel.homeCount === 0
+                            }
+
+                            // Home grid
+                            GridLayout {
+                                id: homeGrid
+                                anchors.fill: parent
+                                columns: rightPanel.gridColumns
+                                columnSpacing: App.Spacing.dp(6)
+                                rowSpacing: App.Spacing.dp(6)
+
+                                Repeater {
+                                    id: homeRepeater
+                                    model: parametersCard.homeParams
+
+                                    Rectangle {
+                                        id: homeCard
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        color: App.Style.backgroundColor
+                                        border.color: App.Style.accent
+                                        border.width: 1
+                                        radius: 3
+
+                                        property string paramId: modelData
+                                        property var info: App.OBDParameterModel.getParamInfo(paramId)
+                                        property real liveValue: App.OBDParameterModel.paramValues[paramId] || 0
+                                        property int cardIndex: index
+
+                                        opacity: (pageRoot.draggedParam === paramId && pageRoot.dragSource === "right") ? 0.3 : 1.0
+                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                        ColumnLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: App.Spacing.dp(5)
+                                            spacing: App.Spacing.dp(3)
+
+                                            Text {
+                                                text: homeCard.info.title.toUpperCase()
+                                                font.pixelSize: App.Spacing.overallText * 0.7
+                                                font.family: App.Style.fontFamily
+                                                color: App.Style.secondaryTextColor
+                                                Layout.alignment: Qt.AlignLeft
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+
+                                            Text {
+                                                text: homeCard.liveValue.toFixed(1) + " " + homeCard.info.unit
+                                                font.pixelSize: App.Spacing.overallText * 1.1
+                                                font.bold: true
+                                                font.family: App.Style.fontFamily
+                                                color: App.Style.primaryTextColor
+                                                Layout.alignment: Qt.AlignLeft
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+
+                                            Rectangle {
+                                                Layout.fillWidth: true
+                                                height: App.Spacing.dp(4)
+                                                color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.1)
+                                                radius: 2
+
+                                                Rectangle {
+                                                    width: {
+                                                        var range = homeCard.info.maxValue - homeCard.info.minValue;
+                                                        if (range <= 0) return 0;
+                                                        return Math.max(2, parent.width * Math.min(1, Math.max(0, (homeCard.liveValue - homeCard.info.minValue) / range)));
+                                                    }
+                                                    height: parent.height
+                                                    color: App.Style.accent
+                                                    radius: 2
+                                                    Behavior on width { NumberAnimation { duration: 200 } }
+                                                }
+                                            }
+                                        }
+
+                                        // Click-and-drag for reorder or remove
+                                        MouseArea {
+                                            id: homeCardMouse
+                                            anchors.fill: parent
+                                            preventStealing: true
+
+                                            property bool dragging: false
+                                            property real startX: 0
+                                            property real startY: 0
+                                            property real dragThreshold: App.Spacing.dp(8)
+
+                                            onPressed: function(mouse) {
+                                                dragging = false;
+                                                startX = mouse.x;
+                                                startY = mouse.y;
+                                                rootFlickable.interactive = false;
+                                            }
+
+                                            onPositionChanged: function(mouse) {
+                                                if (dragging) {
+                                                    var globalPos = homeCardMouse.mapToItem(pageRoot, mouse.x, mouse.y);
+                                                    dragProxy.x = globalPos.x - dragProxy.width / 2;
+                                                    dragProxy.y = globalPos.y - dragProxy.height / 2;
+                                                } else {
+                                                    var dx = mouse.x - startX;
+                                                    var dy = mouse.y - startY;
+                                                    if (Math.sqrt(dx * dx + dy * dy) > dragThreshold) {
+                                                        dragging = true;
+                                                        pageRoot.draggedParam = homeCard.paramId;
+                                                        pageRoot.dragSource = "right";
+                                                        pageRoot.dragSourceIndex = homeCard.cardIndex;
+
+                                                        var globalPos2 = homeCard.mapToItem(pageRoot, 0, 0);
+                                                        dragProxy.x = globalPos2.x;
+                                                        dragProxy.y = globalPos2.y;
+                                                        dragProxy.width = homeCard.width;
+                                                        dragProxy.height = homeCard.height;
+                                                        dragProxy.paramId = homeCard.paramId;
+                                                        dragProxy.paramTitle = homeCard.info.title;
+                                                        dragProxy.paramValue = homeCard.liveValue.toFixed(1) + " " + homeCard.info.unit;
+                                                        dragProxy.visible = true;
+                                                        dragProxy.Drag.active = true;
+                                                    }
+                                                }
+                                            }
+
+                                            onReleased: {
+                                                rootFlickable.interactive = true;
+                                                if (dragging && dragProxy.visible) {
+                                                    dragProxy.Drag.drop();
+                                                    dragProxy.visible = false;
+                                                    dragProxy.Drag.active = false;
+                                                }
+                                                dragging = false;
+                                                pageRoot.draggedParam = "";
+                                                pageRoot.dragSource = "";
+                                                pageRoot.dragSourceIndex = -1;
+                                            }
+
+                                            onCanceled: {
+                                                rootFlickable.interactive = true;
+                                                if (dragProxy.visible) {
+                                                    dragProxy.visible = false;
+                                                    dragProxy.Drag.active = false;
+                                                }
+                                                dragging = false;
+                                                pageRoot.draggedParam = "";
+                                                pageRoot.dragSource = "";
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
 
-                    // Hint text showing scan status
-                    Text {
-                        Layout.fillWidth: true
-                        Layout.topMargin: App.Spacing.dp(8)
-                        text: {
-                            var _v = parameterChipsFlow.supportedParamsVersion;
-                            var supported = settingsManager ? settingsManager.get_supported_obd_parameters() : [];
-                            if (supported.length === 0) {
-                                return "Showing core parameters. Scan your vehicle to discover additional supported parameters.";
-                            } else {
-                                return "Showing " + supported.length + " vehicle-supported parameters from last scan.";
-                            }
-                        }
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.smallText
-                        font.family: App.Style.fontFamily
-                        wrapMode: Text.WordWrap
+            // ── Hint text ────────────────────────────────────────
+            Text {
+                Layout.fillWidth: true
+                Layout.topMargin: App.Spacing.dp(4)
+                text: {
+                    var _v = parametersCard.supportedParamsVersion;
+                    var supported = settingsManager ? settingsManager.get_supported_obd_parameters() : [];
+                    if (supported.length === 0) {
+                        return "Showing core parameters. Connect OBD to auto-detect vehicle-supported parameters.";
+                    } else {
+                        return "Showing " + supported.length + " vehicle-supported parameters from last scan.";
                     }
+                }
+                color: App.Style.secondaryTextColor
+                font.pixelSize: App.Spacing.smallText
+                font.family: App.Style.fontFamily
+                wrapMode: Text.WordWrap
+            }
 
-                    // Initialize counter on load
-                    Component.onCompleted: {
-                        Qt.callLater(function() {
-                            if (enabledCount) {
-                                enabledCount.updateEnabledCount();
-                            }
-                        });
-                    }
+            Text {
+                Layout.fillWidth: true
+                text: "Tap to enable/disable. Drag sideways to add to home grid."
+                color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.7)
+                font.pixelSize: App.Spacing.smallText
+                font.family: App.Style.fontFamily
+                wrapMode: Text.WordWrap
+            }
+
+            // ── Settings change connections ───────────────────────
+            Timer {
+                id: updateCountTimer
+                interval: 10
+                repeat: false
+                onTriggered: enabledCount.updateEnabledCount()
+            }
+
+            Connections {
+                target: settingsManager
+                function onObdParametersChanged() {
+                    updateCountTimer.restart();
+                }
+                function onSupportedOBDParametersChanged() {
+                    parametersCard.supportedParamsVersion++;
+                    updateCountTimer.restart();
+                }
+                function onHomeOBDParametersChanged() {
+                    parametersCard.refreshHomeParams();
                 }
             }
         }
@@ -1126,24 +1298,52 @@ Flickable {
             Layout.fillHeight: true
             Layout.minimumHeight: App.Spacing.bottomBarHeight
         }
+    }
 
-        function updateHomeDisplay() {
-            // Force refresh of home parameters display
-            homeParametersRepeater.model = [];
-            Qt.callLater(function() {
-                if (settingsManager) {
-                    homeParametersRepeater.model = settingsManager.get_home_obd_parameters();
-                    homeParametersEmptyRepeater.model = Math.max(0, 8 - (settingsManager ? settingsManager.get_home_obd_parameters().length : 0));
+    } // end Flickable
 
-                    // Also update all home buttons in the parameter list
-                    for (let i = 0; i < parameterListView.count; i++) {
-                        let item = parameterListView.itemAtIndex(i);
-                        if (item && item.homeButton) {
-                            item.homeButton.updateHomeStatus();
-                        }
-                    }
-                }
-            });
+    // ── Floating drag proxy (viewport space, outside Flickable) ─────
+    Rectangle {
+        id: dragProxy
+        visible: false
+        z: 100
+        color: App.Style.backgroundColor
+        border.color: App.Style.accent
+        border.width: 2
+        radius: 4
+        opacity: 0.9
+
+        property string paramId: ""
+        property string paramTitle: ""
+        property string paramValue: ""
+
+        Drag.keys: ["obdParam"]
+        Drag.hotSpot.x: width / 2
+        Drag.hotSpot.y: height / 2
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: App.Spacing.dp(6)
+            spacing: 2
+
+            Text {
+                text: dragProxy.paramTitle
+                color: App.Style.primaryTextColor
+                font.pixelSize: App.Spacing.overallText * 0.9
+                font.family: App.Style.fontFamily
+                font.bold: true
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: dragProxy.paramValue
+                color: App.Style.secondaryTextColor
+                font.pixelSize: App.Spacing.overallText * 0.8
+                font.family: App.Style.fontFamily
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
         }
     }
 }

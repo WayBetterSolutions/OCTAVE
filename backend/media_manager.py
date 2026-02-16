@@ -9,6 +9,7 @@ import random
 import re
 import hashlib
 import colorsys
+import threading
 from PIL import Image
 import numpy as np
 
@@ -152,9 +153,23 @@ class MediaManager(QObject):
         self._position_timer.timeout.connect(self._update_position)
         self._position_timer.start()
         
+        # Debounce timer for saving playback state — avoids disk writes on every
+        # rapid track change (spam next/prev).  Saves once 1s after the last change.
+        self._save_state_timer = QTimer()
+        self._save_state_timer.setInterval(1000)
+        self._save_state_timer.setSingleShot(True)
+        self._save_state_timer.timeout.connect(self._save_playback_state_now)
+
+        # Pre-cache timer — after a track change, pre-cache metadata + album art
+        # for neighboring tracks in a background thread so the NEXT click is instant.
+        self._precache_timer = QTimer()
+        self._precache_timer.setInterval(80)
+        self._precache_timer.setSingleShot(True)
+        self._precache_timer.timeout.connect(self._precache_neighbors_start)
+
         # Create media and temp directories if they don't exist
         self._ensure_directories()
-        
+
         # Clear temp files on startup
         self._clear_temp_files()
 
@@ -171,13 +186,17 @@ class MediaManager(QObject):
     def __del__(self):
         """Clean up resources on destruction"""
         try:
-            # Save playback state before shutdown
-            self._save_playback_state()
+            # Flush any pending debounced save immediately on shutdown
+            if self._save_state_timer and self._save_state_timer.isActive():
+                self._save_state_timer.stop()
+                self._save_playback_state_now()
             self._clear_temp_files()
             if self._player:
                 self._player.stop()
             if self._position_timer:
                 self._position_timer.stop()
+            if self._precache_timer:
+                self._precache_timer.stop()
         except Exception:
             pass  # Avoid errors during shutdown
     
@@ -258,7 +277,11 @@ class MediaManager(QObject):
             logger.error(f"Playback recovery failed: {e}")
 
     def _cache_metadata(self, filename):
-        """Cache metadata for a file to reduce disk operations"""
+        """Cache metadata for a file to reduce disk operations.
+
+        Also extracts album art from the same ID3 read so that a subsequent
+        get_album_art() call is an instant cache hit (avoids a second file open).
+        """
         if filename in self._metadata_cache:
             return
 
@@ -283,6 +306,9 @@ class MediaManager(QObject):
                 "title": self._extract_id3_text(audio.get('TIT2'), display_name.replace('.mp3', '')),
                 "duration": int(mp3.info.length)
             }
+
+            # Piggyback album art extraction on the same ID3 read
+            self._cache_album_art_from_id3(filename, audio)
         except Exception as e:
             logger.error(f"Metadata caching error")
             # Set fallback values
@@ -303,6 +329,41 @@ class MediaManager(QObject):
         if hasattr(tag, 'text') and tag.text:
             return sanitize_metadata(tag.text[0])
         return sanitize_metadata(str(tag)) if tag else sanitize_metadata(default)
+
+    def _cache_album_art_from_id3(self, filename, audio):
+        """Extract and cache album art from an already-loaded ID3 object.
+
+        Called by _cache_metadata() so a single file read populates both caches.
+        get_album_art() then returns instantly from cache.
+        """
+        try:
+            album_id = self._get_album_id(filename)
+            if album_id in self._album_art_cache:
+                return
+            self._manage_cache(album_id)
+            self._access_count[album_id] = self._access_count.get(album_id, 0) + 1
+            for tag in audio.values():
+                if tag.FrameID == 'APIC':
+                    mime = tag.mime.lower()
+                    if mime in ('image/jpeg', 'image/jpg'):
+                        ext = 'jpg'
+                    elif mime == 'image/png':
+                        ext = 'png'
+                    elif mime == 'image/gif':
+                        ext = 'gif'
+                    else:
+                        ext = 'img'
+                    cache_key = f"{album_id}_0"
+                    cache_hash = hashlib.sha256(cache_key.encode('utf-8')).hexdigest()[:16]
+                    temp_path = os.path.join(self.temp_dir, f'cover_{cache_hash}.{ext}')
+                    if not os.path.exists(temp_path):
+                        with open(temp_path, 'wb') as img_file:
+                            img_file.write(tag.data)
+                    url = QUrl.fromLocalFile(temp_path).toString()
+                    self._album_art_cache[album_id] = url
+                    return
+        except Exception:
+            pass  # non-critical — get_album_art() is the fallback
 
     def _emit_metadata(self, filename):
         """Emit metadata change signals"""
@@ -487,9 +548,10 @@ class MediaManager(QObject):
                     cache_hash = hashlib.sha256(cache_key.encode('utf-8')).hexdigest()[:16]
                     temp_path = os.path.join(self.temp_dir, f'cover_{cache_hash}.{ext}')
                     
-                    # Write the image data
-                    with open(temp_path, 'wb') as img_file:
-                        img_file.write(tag.data)
+                    # Write the image data (skip if temp file already exists from this session)
+                    if not os.path.exists(temp_path):
+                        with open(temp_path, 'wb') as img_file:
+                            img_file.write(tag.data)
                     
                     # Convert to URL and cache (cache only the first one for this album_id)
                     if album_id not in self._album_art_cache:
@@ -943,9 +1005,17 @@ class MediaManager(QObject):
                     self._audio_output.setVolume(0.0)
 
                 self.playStateChanged.emit(True)
-                self.currentMediaChanged.emit(filename)
+                # Pre-populate caches BEFORE emitting currentMediaChanged — this
+                # moves the ID3/disk I/O out of the QML binding evaluation (render
+                # phase) so the animation can start without blocking the scene graph.
+                # _cache_metadata now extracts album art from the same ID3 read,
+                # so get_album_art() in QML bindings is an instant cache hit.
                 self._emit_metadata(filename)
+                self.currentMediaChanged.emit(filename)
                 self.get_formatted_duration(filename)
+                # Schedule background pre-cache for neighboring tracks so the
+                # NEXT click's get_album_art() is an instant cache hit.
+                self._precache_timer.start()
                 logger.info(f"Now playing: {filename} from {'shuffled' if self._shuffle else 'alphabetical'} playlist at position {self._current_index}")
 
             except Exception as e:
@@ -968,8 +1038,8 @@ class MediaManager(QObject):
             self._current_index = (self._current_index + 1) % len(self._current_playlist)
             next_song = self._current_playlist[self._current_index]
             self.play_file(next_song)
-            # Save playback state on track change (survives power loss)
-            self._save_playback_state()
+            # Debounced — only writes to disk 1s after the last track change
+            self._save_state_timer.start()
         except Exception as e:
             logger.error(f"Error in next_track: {e}")
 
@@ -988,8 +1058,8 @@ class MediaManager(QObject):
             self._current_index = (self._current_index - 1) % len(self._current_playlist)
             prev_song = self._current_playlist[self._current_index]
             self.play_file(prev_song)
-            # Save playback state on track change (survives power loss)
-            self._save_playback_state()
+            # Debounced — only writes to disk 1s after the last track change
+            self._save_state_timer.start()
         except Exception as e:
             logger.error(f"Error in previous_track: {e}")
         
@@ -1704,7 +1774,11 @@ class MediaManager(QObject):
 
     @Slot()
     def _save_playback_state(self):
-        """Save current playback state to settings"""
+        """Debounced entry point — restarts the timer so only the last call wins."""
+        self._save_state_timer.start()
+
+    def _save_playback_state_now(self):
+        """Actually write playback state to disk (called by debounce timer)."""
         if not self._settings_manager:
             return
 
@@ -1718,6 +1792,40 @@ class MediaManager(QObject):
                 current_position,
                 current_playlist
             )
+
+    def _precache_neighbors_start(self):
+        """Kick off background pre-caching of neighboring tracks' metadata + art.
+
+        Runs in a daemon thread so the main thread (and animation) is never blocked.
+        CPython's GIL makes dict reads/writes atomic, so accessing the caches from
+        the worker thread is safe without a lock.
+        """
+        if not self._current_playlist:
+            return
+        idx = self._current_index
+        playlist = list(self._current_playlist)  # snapshot
+        n = len(playlist)
+        if n == 0:
+            return
+        neighbors = []
+        for offset in range(-3, 4):
+            if offset == 0:
+                continue
+            neighbors.append(playlist[(idx + offset) % n])
+        threading.Thread(
+            target=self._precache_tracks,
+            args=(neighbors,),
+            daemon=True,
+        ).start()
+
+    def _precache_tracks(self, filenames):
+        """Background: pre-cache metadata and album art so future clicks are instant."""
+        for filename in filenames:
+            try:
+                self._cache_metadata(filename)
+                self.get_album_art(filename)
+            except Exception:
+                pass  # non-critical — worst case the main thread does the work later
 
     def update_media_directory(self, directory):
         if os.path.exists(directory) and os.path.isdir(directory):

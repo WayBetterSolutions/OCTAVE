@@ -10,8 +10,10 @@ Rectangle {
     property var widgetItems: []
     property string categoryIcon: ""
     property int cardSpan: 1
+    property string widgetSource: ""
 
     signal categorySelected(string section)
+    signal subSectionSelected(string section, string subSection)
 
     color: "transparent"
     radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
@@ -163,14 +165,16 @@ Rectangle {
         }
         spacing: App.Spacing.rowSpacing * 0.3
 
-        // Category name row with chevron
+        // Category name row with indicator
         RowLayout {
+            id: titleRow
             Layout.fillWidth: true
             spacing: App.Spacing.overallSpacing * 0.5
+            z: 2
 
             Text {
                 text: hubCard.categoryName
-                color: App.Style.primaryTextColor
+                color: titleMouseArea.containsMouse ? App.Style.accent : App.Style.primaryTextColor
                 font.pixelSize: App.Spacing.overallText * 1.3
                 font.bold: true
                 font.family: App.Style.fontFamily
@@ -178,23 +182,58 @@ Rectangle {
                 font.capitalization: App.EnvironmentTheme.active.labelUppercase ? Font.AllUppercase : Font.MixedCase
                 Layout.fillWidth: true
                 elide: Text.ElideRight
+
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Text {
                 text: "\u203A"
-                color: App.Style.secondaryTextColor
+                color: titleMouseArea.containsMouse ? App.Style.accent : App.Style.secondaryTextColor
                 font.pixelSize: App.Spacing.overallText * 1.1
                 font.family: App.Style.fontFamily
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+            }
+
+            // Title row mouse area — always goes to detail page
+            MouseArea {
+                id: titleMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: hubCard.categorySelected(hubCard.section)
             }
         }
 
-        // Widget info rows — flows into 2 columns for wide (span-2) cards
+        // Widget Loader — loads per-category interactive widget
+        Loader {
+            id: widgetLoader
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            source: hubCard.widgetSource
+            active: hubCard.widgetSource !== ""
+            z: 1
+            onLoaded: {
+                if (item) {
+                    item.cardSpan = Qt.binding(function() { return hubCard.cardSpan })
+                    // Wire sub-section navigation if the widget supports it
+                    if (typeof item.navigateToSubSection !== "undefined") {
+                        item.navigateToSubSection.connect(function(subSection) {
+                            hubCard.subSectionSelected(hubCard.section, subSection)
+                        })
+                    }
+                }
+            }
+        }
+
+        // Fallback: passive widget info rows (used when no widgetSource)
         GridLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             columns: hubCard.cardSpan >= 2 ? 2 : 1
             columnSpacing: App.Spacing.overallSpacing * 0.4
             rowSpacing: App.Spacing.overallSpacing * 0.25
-            visible: hubCard.widgetItems.length > 0
+            visible: hubCard.widgetSource === "" && hubCard.widgetItems.length > 0
 
             Repeater {
                 model: hubCard.widgetItems.length
@@ -214,14 +253,13 @@ Rectangle {
                         anchors.rightMargin: App.Spacing.overallSpacing * 0.5
                         spacing: App.Spacing.overallSpacing * 0.3
 
-                        // Status dot with pulse — only visible when statusColor is set
+                        // Status dot with pulse
                         Item {
                             width: App.Spacing.dp(7)
                             height: App.Spacing.dp(7)
                             visible: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
                             anchors.verticalCenter: parent.verticalCenter
 
-                            // Glow ring
                             Rectangle {
                                 width: App.Spacing.dp(11)
                                 height: App.Spacing.dp(11)
@@ -239,7 +277,6 @@ Rectangle {
                                 }
                             }
 
-                            // Solid dot
                             Rectangle {
                                 width: App.Spacing.dp(7)
                                 height: App.Spacing.dp(7)
@@ -270,15 +307,15 @@ Rectangle {
                 }
             }
         }
-
-        Item { Layout.fillHeight: true }
     }
 
+    // Card background mouse area — below widget controls (z: -1)
     MouseArea {
         id: cardMouseArea
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        z: -1
         onClicked: hubCard.categorySelected(hubCard.section)
     }
 }

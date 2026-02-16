@@ -20,16 +20,15 @@ Item {
 
     // Central page model — single source of truth for all pages
     // Order optimized for dashboard grid packing: span-2 cards first in each row, span-1 fills column 3
+    // Row 1: Display(2) + Device(1)  |  Row 2: Media(2) + Phone Dock(1)  |  Row 3: OBD(1) + Accessories(1) + About(1)
     readonly property var pageModel: [
-        { name: "Display",        section: "displaySettings",        source: "settings/DisplaySettingsPage.qml",        status: "", icon: "\u263C" },
-        { name: "Device",         section: "deviceSettings",         source: "settings/DeviceSettingsPage.qml",         status: "", icon: "\u2699" },
-        { name: "Media",          section: "mediaSettings",          source: "settings/MediaSettingsPage.qml",          status: "", icon: "\u266B" },
-        { name: "Android Auto",   section: "androidAutoSettings",    source: "settings/AndroidAutoSettingsPage.qml",    status: "", icon: "\u25B6" },
-        { name: "OBD",            section: "obdSettings",            source: "settings/OBDSettingsPage.qml",            status: "", icon: "\u26A1" },
-        { name: "Phone Mirror",   section: "phoneMirrorSettings",    source: "settings/PhoneMirrorSettingsPage.qml",    status: "", icon: "\u260E" },
-        { name: "Volume Knob",    section: "volumeKnobSettings",     source: "settings/VolumeKnobSettingsPage.qml",     status: "", icon: "\u23F6" },
-        { name: "Gesture Sensor", section: "gestureSensorSettings",  source: "settings/GestureSensorSettingsPage.qml",  status: "", icon: "\u270B" },
-        { name: "About",          section: "about",                  source: "settings/AboutPage.qml",                  status: "", icon: "\u2139" }
+        { name: "Display",     section: "displaySettings",     source: "settings/DisplaySettingsPage.qml",     widget: "widgets/DisplayWidget.qml",     icon: "\u263C" },
+        { name: "Device",      section: "deviceSettings",      source: "settings/DeviceSettingsPage.qml",      widget: "widgets/DeviceWidget.qml",      icon: "\u2699" },
+        { name: "Media",       section: "mediaSettings",       source: "settings/MediaSettingsPage.qml",       widget: "widgets/MediaWidget.qml",       icon: "\u266B" },
+        { name: "Phone Dock",  section: "phoneDockSettings",   source: "settings/PhoneDockSettingsPage.qml",   widget: "widgets/PhoneDockWidget.qml",   icon: "\u260E" },
+        { name: "OBD",         section: "obdSettings",         source: "settings/OBDSettingsPage.qml",         widget: "widgets/OBDWidget.qml",         icon: "\u26A1" },
+        { name: "Accessories", section: "accessoriesSettings", source: "settings/AccessoriesSettingsPage.qml", widget: "widgets/AccessoriesWidget.qml", icon: "\u2388" },
+        { name: "About",       section: "about",               source: "settings/AboutPage.qml",               widget: "widgets/AboutWidget.qml",       icon: "\u2139" }
     ]
 
     // Derived section order for fallback when current section is hidden
@@ -96,7 +95,6 @@ Item {
         switch (section) {
             case "displaySettings":
             case "mediaSettings":
-            case "obdSettings":
                 return 2
             default:
                 return 1
@@ -133,103 +131,13 @@ Item {
                     name: page.name,
                     section: page.section,
                     icon: page.icon,
-                    widgetItems: getWidgetForSection(page.section),
+                    widgetItems: [],
+                    widgetSource: page.widget || "",
                     span: getSpanForSection(page.section)
                 })
             }
         }
         hubModel = model
-    }
-
-    // Get widget info lines for a hub card
-    // Items with live connection state include statusColor for dot indicator
-    function getWidgetForSection(section) {
-        if (!settingsManager) return []
-        switch (section) {
-            case "deviceSettings":
-                return [
-                    { label: "Name", value: settingsManager.deviceName || "OCTAVE", statusColor: "" },
-                    { label: "Resolution", value: settingsManager.screenWidth + " x " + settingsManager.screenHeight, statusColor: "" }
-                ]
-            case "mediaSettings": {
-                var isSpotify = settingsManager.mediaSource === "spotify"
-                var spotifyColor = ""
-                if (isSpotify && typeof spotifyManager !== "undefined" && spotifyManager) {
-                    spotifyColor = spotifyManager.is_connected()
-                        ? App.Style.statusConnected.toString()
-                        : App.Style.statusDisconnected.toString()
-                }
-                var mediaItems = [
-                    { label: "Source", value: isSpotify ? "Spotify" : "Local", statusColor: spotifyColor },
-                    { label: "Autoplay", value: settingsManager.autoPlayOnStartup ? "On" : "Off", statusColor: "" },
-                    { label: "Visualizer", value: settingsManager.showWaveformVisualizer ? "On" : "Off", statusColor: "" }
-                ]
-                if (!isSpotify && typeof mediaManager !== "undefined" && mediaManager) {
-                    var albums = mediaManager.get_album_count()
-                    var artists = mediaManager.get_artist_count()
-                    if (albums > 0) mediaItems.push({ label: "Albums", value: albums.toString(), statusColor: "" })
-                    if (artists > 0) mediaItems.push({ label: "Artists", value: artists.toString(), statusColor: "" })
-                }
-                return mediaItems
-            }
-            case "displaySettings": {
-                var fontVal = settingsManager.fontSetting || "System Default"
-                if (fontVal.length > 14) fontVal = fontVal.substring(0, 14) + "\u2026"
-                return [
-                    { label: "Theme", value: settingsManager.themeSetting, statusColor: "" },
-                    { label: "Environment", value: settingsManager.environmentTheme, statusColor: "" },
-                    { label: "Scale", value: Math.round(settingsManager.uiScale * 100) + "%", statusColor: "" },
-                    { label: "Font", value: fontVal, statusColor: "" }
-                ]
-            }
-            case "obdSettings": {
-                var obdStatus = obdManager ? obdManager.get_connection_status() : "N/A"
-                var obdColor = App.Style.statusDisconnected.toString()
-                if (obdStatus.indexOf("Connected") !== -1)
-                    obdColor = App.Style.statusConnected.toString()
-                else if (obdStatus.indexOf("Connecting") !== -1)
-                    obdColor = App.Style.statusWarning.toString()
-                var obdItems = [
-                    { label: "Status", value: obdStatus, statusColor: obdColor },
-                    { label: "Port", value: settingsManager.obdBluetoothPort || "Not set", statusColor: "" },
-                    { label: "Fast", value: settingsManager.obdFastMode ? "On" : "Off", statusColor: "" }
-                ]
-                if (obdManager && obdManager.is_connected()) {
-                    var v = obdManager.voltage()
-                    if (v > 0) obdItems.push({ label: "Voltage", value: v.toFixed(1) + "V", statusColor: "" })
-                }
-                return obdItems
-            }
-            case "androidAutoSettings":
-                return [
-                    { label: "Nav Bar", value: settingsManager.androidAutoEnabled ? "Shown" : "Hidden", statusColor: "" }
-                ]
-            case "phoneMirrorSettings":
-                return [
-                    { label: "Nav Bar", value: settingsManager.phoneMirrorEnabled ? "Shown" : "Hidden", statusColor: "" },
-                    { label: "Audio", value: settingsManager.scrcpyAudioEnabled ? "On" : "Off", statusColor: "" }
-                ]
-            case "volumeKnobSettings": {
-                var espConnected = (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected())
-                return [
-                    { label: "Status", value: espConnected ? "Connected" : "Disconnected",
-                      statusColor: espConnected ? App.Style.statusConnected.toString() : App.Style.statusDisconnected.toString() },
-                    { label: "Port", value: settingsManager.esp32VolumePort || "Not set", statusColor: "" },
-                    { label: "LED", value: settingsManager.esp32LedColorMode || "Off", statusColor: "" }
-                ]
-            }
-            case "gestureSensorSettings": {
-                var gestureEnabled = settingsManager.gestureSensorEnabled
-                return [
-                    { label: "Status", value: gestureEnabled ? "Enabled" : "Disabled",
-                      statusColor: gestureEnabled ? App.Style.statusConnected.toString() : App.Style.statusDisconnected.toString() },
-                    { label: "Vol Step", value: settingsManager.gestureVolumeStep + "%", statusColor: "" },
-                    { label: "Cooldown", value: settingsManager.gestureCooldown + "ms", statusColor: "" }
-                ]
-            }
-            default:
-                return []
-        }
     }
 
     // Navigate to a category detail view
@@ -247,6 +155,15 @@ Item {
         viewState = "hub"
     }
 
+    // ─── Sub-section scroll targeting ───
+    // When a chip is clicked, we navigate to the detail page and scroll to the target card
+    property string pendingScrollTarget: ""
+
+    function navigateToSubSection(section, subSection) {
+        pendingScrollTarget = subSection
+        navigateToCategory(section)
+    }
+
     // When visibility changes, rebuild hub and check if we need to navigate away
     Connections {
         target: settingsManager
@@ -258,41 +175,9 @@ Item {
         }
     }
 
-    // Live hub refresh — rebuild when device status changes (only while hub is showing)
-    Connections {
-        target: typeof obdManager !== "undefined" && obdManager ? obdManager : null
-        enabled: viewState === "hub"
-        function onConnectionStatusChanged() { buildHubModel() }
-    }
-
-    Connections {
-        target: typeof esp32VolumeManager !== "undefined" && esp32VolumeManager ? esp32VolumeManager : null
-        enabled: viewState === "hub"
-        function onConnectionStatusChanged() { buildHubModel() }
-    }
-
-    Connections {
-        target: typeof gestureManager !== "undefined" && gestureManager ? gestureManager : null
-        enabled: viewState === "hub"
-        function onConnectionStatusChanged() { buildHubModel() }
-    }
-
-    // Live hub refresh — settings changes
-    Connections {
-        target: settingsManager
-        enabled: viewState === "hub"
-        function onThemeSettingChanged() { buildHubModel() }
-        function onFontSettingChanged() { buildHubModel() }
-        function onMediaSourceChanged() { buildHubModel() }
-    }
-
-    // Live hub refresh — media library counts
-    Connections {
-        target: typeof mediaManager !== "undefined" && mediaManager ? mediaManager : null
-        enabled: viewState === "hub"
-        function onAlbumCountChanged() { buildHubModel() }
-        function onArtistCountChanged() { buildHubModel() }
-    }
+    // Note: Live hub refresh Connections removed — widget QML files have live
+    // property bindings that update automatically. Only visibility changes
+    // (handled by onSettingsMenuVisibilityChanged above) require rebuilding hubModel.
 
     // MAIN LAYOUT
     Rectangle {
@@ -333,6 +218,7 @@ Item {
                         categoryName: hubModel[index] ? hubModel[index].name : ""
                         section: hubModel[index] ? hubModel[index].section : ""
                         widgetItems: hubModel[index] ? hubModel[index].widgetItems : []
+                        widgetSource: hubModel[index] ? hubModel[index].widgetSource : ""
                         categoryIcon: hubModel[index] ? hubModel[index].icon : ""
                         cardSpan: hubGrid.columns === 3 ? (hubModel[index] ? hubModel[index].span : 1) : 1
                         radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
@@ -340,9 +226,13 @@ Item {
                         onCategorySelected: function(sec) {
                             settingsMenu.navigateToCategory(sec)
                         }
+                        onSubSectionSelected: function(sec, sub) {
+                            settingsMenu.navigateToSubSection(sec, sub)
+                        }
                     }
                 }
             }
+
         }
 
         // ─── Detail State ────────────────────────────────────────────
@@ -554,13 +444,20 @@ Item {
                         if (item && typeof item.currentSection !== "undefined")
                             item.currentSection = Qt.binding(function() { return settingsMenu.currentSection })
 
-                        // Kick off scroll restore — timer polls until layout is ready
-                        var savedY = ScrollMemory.positions[currentSection]
-                        if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
-                            scrollRestoreTimer.savedY = savedY
-                            scrollRestoreTimer.restart()
+                        // Sub-section scroll targeting — find card by objectName and scroll to it
+                        if (pendingScrollTarget !== "") {
+                            scrollToSectionTimer.targetName = pendingScrollTarget
+                            pendingScrollTarget = ""
+                            scrollToSectionTimer.restart()
                         } else {
-                            scrollRestoreTimer.stop()
+                            // Normal scroll restore from memory
+                            var savedY = ScrollMemory.positions[currentSection]
+                            if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
+                                scrollRestoreTimer.savedY = savedY
+                                scrollRestoreTimer.restart()
+                            } else {
+                                scrollRestoreTimer.stop()
+                            }
                         }
                     }
                 }
@@ -578,6 +475,41 @@ Item {
                             savedY = -1
                             stop()
                         }
+                    }
+                }
+
+                // Polls until layout is ready, then scrolls to the target SettingsCard by objectName
+                Timer {
+                    id: scrollToSectionTimer
+                    interval: 16
+                    repeat: true
+                    property string targetName: ""
+                    onTriggered: {
+                        var fl = contentLoader.item
+                        if (!fl || fl.contentHeight <= 0 || fl.height <= 0 || targetName === "") return
+
+                        // Walk the Flickable's content children to find a card with matching objectName
+                        var content = fl.contentItem ? fl.contentItem : fl
+                        var targetCard = findChildByObjectName(content, targetName)
+                        if (targetCard) {
+                            // Map the card's position to the Flickable's coordinate space
+                            var pos = targetCard.mapToItem(fl.contentItem, 0, 0)
+                            var scrollMax = Math.max(0, fl.contentHeight - fl.height)
+                            fl.contentY = Math.min(pos.y, scrollMax)
+                            targetName = ""
+                            stop()
+                        }
+                    }
+
+                    function findChildByObjectName(parent, name) {
+                        for (var i = 0; i < parent.children.length; i++) {
+                            var child = parent.children[i]
+                            if (child.objectName === name) return child
+                            // Recurse one level into ColumnLayouts
+                            var found = findChildByObjectName(child, name)
+                            if (found) return found
+                        }
+                        return null
                     }
                 }
 

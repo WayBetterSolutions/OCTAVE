@@ -2743,10 +2743,8 @@ Rectangle {
                             { name: "Media", section: "mediaSettings" },
                             { name: "Display", section: "displaySettings" },
                             { name: "OBD", section: "obdSettings" },
-                            { name: "Android Auto", section: "androidAutoSettings" },
-                            { name: "Phone Mirror", section: "phoneMirrorSettings" },
-                            { name: "Volume Knob", section: "volumeKnobSettings" },
-                            { name: "Gesture Sensor", section: "gestureSensorSettings" },
+                            { name: "Phone Dock", section: "phoneDockSettings" },
+                            { name: "Accessories", section: "accessoriesSettings" },
                             { name: "About", section: "about" }
                         ]
 

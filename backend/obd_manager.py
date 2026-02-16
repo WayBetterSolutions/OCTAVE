@@ -616,6 +616,9 @@ class OBDManager(QObject):
             self._connection.start()
             self._start_connection_monitor()
 
+            # Auto-scan for supported parameters on connection
+            QTimer.singleShot(2000, self.scan_vehicle)
+
             # Start the data watchdog timer to detect stale connections
             self._last_data_received = time.time()  # Initialize timestamp
             self._data_watchdog_timer.start()

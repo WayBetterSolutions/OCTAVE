@@ -82,6 +82,7 @@ Item {
     property int _trackChangeCounter: 0  // bumped on track change to force re-evaluation
     property int _slideDirection: 1      // 1 = next (slide from right), -1 = prev (slide from left)
     property string _previousAlbumArt: "" // cached old art for exit card during transitions
+    property bool _userInitiatedChange: false // true when click handler already started animation
 
     // Resolved album art source — tracks currentAlbumArt but falls back to
     // missing_art.png if the image fails to load (e.g. corrupted extract, stale cache)
@@ -119,8 +120,46 @@ Item {
         return minutes + ":" + (seconds < 10 ? "0" : "") + seconds
     }
 
+    // True while card animation is running + a brief settle buffer after,
+    // so the blur re-render and visualizer bar Behaviors don't all resume
+    // on the exact frame the bounce lands (avoids a one-frame stutter)
+    property bool _cardAnimBusy: false
+
+    Timer {
+        id: cardAnimSettleTimer
+        interval: 50
+        onTriggered: {
+            mediaRoom._cardAnimBusy = false
+            mediaRoom._doTrackChangeWork()
+        }
+    }
+
+    // Heavy work deferred until after animation settles — side card refresh
+    // (Python slot calls) and FFT analysis don't compete with animation frames
+    function _doTrackChangeWork() {
+        _trackChangeCounter++
+        if (audioAnalyzer && mediaManager && !useSpotify) {
+            var currentFile = mediaManager.get_current_file()
+            if (currentFile) {
+                var fullPath = mediaManager.get_full_file_path(currentFile)
+                if (fullPath) {
+                    audioAnalyzer.analyze_file(fullPath)
+                    waveformContainer.lastAnalyzedFile = currentFile
+                }
+            }
+        }
+    }
+
     function animateTrackChange() {
-        if (settingsManager && settingsManager.show3DAlbumPreview) albumArtStack.triggerSlide()
+        if (settingsManager && settingsManager.show3DAlbumPreview) {
+            albumArtStack.triggerSlide()
+            // Heavy work deferred — cardAnimSettleTimer handles it
+        } else if (!_userInitiatedChange) {
+            // No animation, auto/external change — do heavy work immediately.
+            // (User-initiated changes defer heavy work to onCurrentMediaChanged
+            //  since the Python backend hasn't processed the track switch yet.)
+            _doTrackChangeWork()
+        }
     }
 
     Rectangle {
@@ -153,7 +192,7 @@ Item {
                 // Freeze blur texture during card animation — avoids a full-screen
                 // multi-pass re-render when grid images change source mid-transition
                 layer.enabled: true
-                layer.live: !cardRotateAnimation.running
+                layer.live: !mediaRoom._cardAnimBusy
                 layer.effect: GaussianBlur {
                     radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
                     samples: Math.min(32, Math.max(1, radius))
@@ -537,6 +576,11 @@ Item {
                                 anchors.fill: parent
                                 onClicked: {
                                     mediaRoom._slideDirection = -1
+                                    // Fire animation BEFORE the Python call — enter card
+                                    // starts at opacity 0 so stale art is invisible.
+                                    // Backend data arrives while card is still transparent.
+                                    mediaRoom._userInitiatedChange = true
+                                    mediaRoom.animateTrackChange()
                                     if (useSpotify) {
                                         spotifyManager.previous_track()
                                     } else {
@@ -669,6 +713,8 @@ Item {
                                 anchors.fill: parent
                                 onClicked: {
                                     mediaRoom._slideDirection = 1
+                                    mediaRoom._userInitiatedChange = true
+                                    mediaRoom.animateTrackChange()
                                     if (useSpotify) {
                                         spotifyManager.next_track()
                                     } else {
@@ -857,19 +903,28 @@ Item {
                         property int _direction: 1
                         // Computed in triggerSlide() so they're stable for the animation's lifetime
                         property real _sideOffset: 0
+
+                        onRunningChanged: {
+                            if (running) {
+                                cardAnimSettleTimer.stop()
+                                mediaRoom._cardAnimBusy = true
+                            } else {
+                                cardAnimSettleTimer.restart()
+                            }
+                        }
                         property real _sideAngle: 0
 
-                        // Exit card: current position → opposite side (no `from` — picks up live on interrupt)
-                        NumberAnimation { target: exitCardWrapper; property: "_offset"; to: -cardRotateAnimation._sideOffset; duration: 250; easing.type: Easing.InOutCubic }
-                        NumberAnimation { target: exitCardWrapper; property: "_angle"; to: cardRotateAnimation._direction * cardRotateAnimation._sideAngle; duration: 250; easing.type: Easing.InOutCubic }
-                        NumberAnimation { target: exitCardWrapper; property: "_cardScale"; to: 0.72; duration: 250; easing.type: Easing.InOutCubic }
+                        // Exit card — flung away with accelerating motion (inertia → picks up speed)
+                        NumberAnimation { target: exitCardWrapper; property: "_offset"; to: -cardRotateAnimation._sideOffset; duration: 250; easing.type: Easing.InCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_angle"; to: cardRotateAnimation._direction * cardRotateAnimation._sideAngle; duration: 250; easing.type: Easing.InCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_cardScale"; to: 0.72; duration: 250; easing.type: Easing.InCubic }
                         NumberAnimation { target: exitCardWrapper; property: "_cardOpacity"; to: 0; duration: 250; easing.type: Easing.InCubic }
 
-                        // Enter card: side → center (always starts fresh from the side)
-                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; from: cardRotateAnimation._sideOffset; to: 0; duration: 250; easing.type: Easing.InOutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; from: -cardRotateAnimation._direction * cardRotateAnimation._sideAngle; to: 0; duration: 250; easing.type: Easing.InOutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; from: 0.72; to: 1.0; duration: 250; easing.type: Easing.InOutCubic }
-                        NumberAnimation { target: albumArtContainer; property: "opacity"; from: 0; to: 1.0; duration: 250; easing.type: Easing.OutCubic }
+                        // Enter card — arrives with momentum, overshoots center, bounces into place
+                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; from: cardRotateAnimation._sideOffset; to: 0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; from: -cardRotateAnimation._direction * cardRotateAnimation._sideAngle; to: 0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
+                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; from: 0.72; to: 1.0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 2.5 }
+                        NumberAnimation { target: albumArtContainer; property: "opacity"; from: 0; to: 1.0; duration: 200; easing.type: Easing.OutQuart }
                     }
 
                     function triggerSlide() {
@@ -988,6 +1043,7 @@ Item {
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             antialiasing: true
+                            asynchronous: true
                             onStatusChanged: {
                                 if (status === Image.Error) source = "./assets/missing_art.png"
                             }
@@ -997,15 +1053,6 @@ Item {
                             }
                         }
 
-                        layer.enabled: exitArtImage.status === Image.Ready && settingsManager && settingsManager.showAlbumArtShadow
-                        layer.effect: DropShadow {
-                            transparentBorder: true
-                            horizontalOffset: 8
-                            verticalOffset: 8
-                            radius: 16.0
-                            samples: 33
-                            color: "#E0000000"
-                        }
                     }
 
                     // Current card (front) — animated properties for 3D rotation transition
@@ -1062,7 +1109,7 @@ Item {
                             onClicked: albumArtPopup.open()
                         }
 
-                        layer.enabled: albumArtImage.status === Image.Ready && settingsManager && settingsManager.showAlbumArtShadow
+                        layer.enabled: settingsManager && settingsManager.showAlbumArtShadow
                         layer.effect: DropShadow {
                             transparentBorder: true
                             horizontalOffset: 8
@@ -1131,6 +1178,11 @@ Item {
                 height: parent.height
                 spacing: waveformContainer.quality === "Insane" ? App.Spacing.dp(1) : App.Spacing.dp(2)
 
+                // Cache all bars as a single texture during card animation —
+                // collapses 96 individual gradient draw calls into one texture blit
+                layer.enabled: true
+                layer.live: !mediaRoom._cardAnimBusy
+
                 property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
 
                 Repeater {
@@ -1166,12 +1218,12 @@ Item {
                         }
 
                         Behavior on height {
-                            enabled: waveformContainer.smoothBars && !cardRotateAnimation.running
+                            enabled: waveformContainer.smoothBars && !mediaRoom._cardAnimBusy
                             NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
                         }
 
                         Behavior on opacity {
-                            enabled: fancy && !cardRotateAnimation.running
+                            enabled: fancy && !mediaRoom._cardAnimBusy
                             NumberAnimation { duration: waveformContainer.animDuration; easing.type: waveformContainer.animEasing }
                         }
                     }
@@ -1181,7 +1233,7 @@ Item {
             // Connect to audio analyzer — update each bar's level directly
             Connections {
                 target: audioAnalyzer
-                enabled: waveformContainer.visible
+                enabled: waveformContainer.visible && !mediaRoom._cardAnimBusy
 
                 function onFftDataChanged(levels) {
                     for (var i = 0; i < waveformRepeater.count; i++) {
@@ -1197,7 +1249,7 @@ Item {
             Timer {
                 id: waveformUpdateTimer
                 interval: waveformContainer.timerInterval
-                running: waveformContainer.visible && waveformContainer.isPlaying
+                running: waveformContainer.visible && waveformContainer.isPlaying && !mediaRoom._cardAnimBusy
                 repeat: true
 
                 onTriggered: {
@@ -1213,13 +1265,7 @@ Item {
                 enabled: settingsManager && settingsManager.showWaveformVisualizer
 
                 function onCurrentMediaChanged(filename) {
-                    if (audioAnalyzer && filename && !mediaRoom.useSpotify) {
-                        var fullPath = mediaManager.get_full_file_path(filename)
-                        if (fullPath) {
-                            audioAnalyzer.analyze_file(fullPath)
-                            waveformContainer.lastAnalyzedFile = filename
-                        }
-                    }
+                    // analyze_file is handled by _doTrackChangeWork() (deferred until after card animation)
                 }
 
                 function onPlayStateChanged(playing) {
@@ -1560,11 +1606,20 @@ Item {
             progressSlider.value = 0
             currentSongText.text = filename
 
-            // Always refresh side card sources
-            mediaRoom._trackChangeCounter++
-
-            // 3D text flip + card slide on track change
-            mediaRoom.animateTrackChange()
+            if (mediaRoom._userInitiatedChange) {
+                // Animation already started by click handler — just sync art cache.
+                // Bindings have now updated _displayAlbumArt to the new track's art,
+                // and albumArtImage.source is loading it asynchronously while the
+                // enter card is still near-transparent.
+                mediaRoom._userInitiatedChange = false
+                mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
+                if (!settingsManager || !settingsManager.show3DAlbumPreview) {
+                    mediaRoom._doTrackChangeWork()
+                }
+            } else {
+                // Auto-advance or external track change — trigger animation
+                mediaRoom.animateTrackChange()
+            }
         }
         function onShuffleStateChanged(enabled) {
             if (!useSpotify) {
@@ -1635,11 +1690,16 @@ Item {
                     mediaRoom.duration = spotifyManager.get_duration()
                 }
 
-                // Always refresh side card sources
-                mediaRoom._trackChangeCounter++
-
-                // 3D text flip + card rotation on track change
-                mediaRoom.animateTrackChange()
+                if (mediaRoom._userInitiatedChange) {
+                    mediaRoom._userInitiatedChange = false
+                    mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
+                    if (!settingsManager || !settingsManager.show3DAlbumPreview) {
+                        mediaRoom._doTrackChangeWork()
+                    }
+                } else {
+                    // External Spotify change (phone, another device) — animate
+                    mediaRoom.animateTrackChange()
+                }
             }
         }
 

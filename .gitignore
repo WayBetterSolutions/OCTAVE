@@ -45,3 +45,4 @@ clear_dtc.py
 # Performance profiling (dev tools)
 profile_performance.py
 profile_data_*.csv
+PERFORMANCE_AUDIT.md
