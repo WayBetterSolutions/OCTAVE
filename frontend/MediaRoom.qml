@@ -79,9 +79,7 @@ Item {
     }
 
     // Card stack -- peek at adjacent tracks
-    property int _trackChangeCounter: 0  // bumped on track change to force re-evaluation
     property int _slideDirection: 1      // 1 = next (slide from right), -1 = prev (slide from left)
-    property string _previousAlbumArt: "" // cached old art for exit card during transitions
     property bool _userInitiatedChange: false // true when click handler already started animation
 
     // Resolved album art source — tracks currentAlbumArt but falls back to
@@ -89,29 +87,53 @@ Item {
     property string _displayAlbumArt: currentAlbumArt
     onCurrentAlbumArtChanged: _displayAlbumArt = currentAlbumArt
 
-    property string nextAlbumArt: {
-        // depend on counter so bindings re-evaluate on track change
-        var _dep = _trackChangeCounter
-        if (useSpotify && spotifyManager) {
-            var info = spotifyManager.get_next_track_info()
-            if (info) {
-                try { return JSON.parse(info).image || "" } catch(e) { return "" }
+    // Side-card art refresh — fires on the next event-loop tick after any
+    // track or shuffle change so the Python slot calls never compete with
+    // animation frames for frame budget.  Uses a single batched backend
+    // call (get_neighbor_album_arts) to halve PySide6 bridge crossings.
+    // Also feeds the hidden preloader Images (full-res decode in background)
+    // so albumArtImage gets an instant QML cache hit on the next track change.
+    Timer {
+        id: sideCardRefreshTimer
+        interval: 0
+        onTriggered: {
+            if (!settingsManager || !settingsManager.show3DAlbumPreview) return
+            var prevUrl = "", nextUrl = ""
+            if (useSpotify && spotifyManager) {
+                var prevInfo = spotifyManager.get_previous_track_info()
+                try { prevUrl = prevInfo ? JSON.parse(prevInfo).image || "" : "" } catch(e) {}
+                var nextInfo = spotifyManager.get_next_track_info()
+                try { nextUrl = nextInfo ? JSON.parse(nextInfo).image || "" : "" } catch(e) {}
+            } else if (mediaManager) {
+                var arts = mediaManager.get_neighbor_album_arts()
+                prevUrl = arts[0] || ""
+                nextUrl = arts[1] || ""
             }
-            return ""
+            // Low-res side cards
+            prevArtImage.source = prevUrl
+            nextArtImage.source = nextUrl
+            // Full-res background preloaders — warm the QML image cache
+            // at the same sourceSize albumArtImage uses, so the decode is
+            // already done when the user clicks next/prev
+            prevArtPreloader.source = prevUrl
+            nextArtPreloader.source = nextUrl
         }
-        return mediaManager ? mediaManager.get_next_track_album_art() : ""
     }
 
-    property string prevAlbumArt: {
-        var _dep = _trackChangeCounter
-        if (useSpotify && spotifyManager) {
-            var info = spotifyManager.get_previous_track_info()
-            if (info) {
-                try { return JSON.parse(info).image || "" } catch(e) { return "" }
-            }
-            return ""
-        }
-        return mediaManager ? mediaManager.get_previous_track_album_art() : ""
+    // Hidden preloaders — decode next/prev art at full resolution in the
+    // background so albumArtImage gets an instant cache hit on track change.
+    // Minimal scene graph footprint (1x1, invisible).
+    Image {
+        id: prevArtPreloader
+        visible: false; width: 1; height: 1
+        sourceSize: Qt.size(albumArtStack ? albumArtStack.artSize : 400, albumArtStack ? albumArtStack.artSize : 400)
+        asynchronous: true; cache: true
+    }
+    Image {
+        id: nextArtPreloader
+        visible: false; width: 1; height: 1
+        sourceSize: Qt.size(albumArtStack ? albumArtStack.artSize : 400, albumArtStack ? albumArtStack.artSize : 400)
+        asynchronous: true; cache: true
     }
 
     function formatTime(ms) {
@@ -134,10 +156,9 @@ Item {
         }
     }
 
-    // Heavy work deferred until after animation settles — side card refresh
-    // (Python slot calls) and FFT analysis don't compete with animation frames
+    // Heavy work deferred until after animation settles — FFT analysis
+    // doesn't compete with animation frames.
     function _doTrackChangeWork() {
-        _trackChangeCounter++
         if (audioAnalyzer && mediaManager && !useSpotify) {
             var currentFile = mediaManager.get_current_file()
             if (currentFile) {
@@ -261,8 +282,8 @@ Item {
                 isShuffleEnabled = mediaManager.is_shuffled()
             }
             // Force initial evaluation of side card art
-            mediaRoom._trackChangeCounter++
-            mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
+            sideCardRefreshTimer.restart()
+
         }
 
         Rectangle { // Volume control at top
@@ -897,13 +918,138 @@ Item {
                         layer.enabled: true
                     }
 
-                    // 3D coverflow — old card exits while new card enters simultaneously
+                    // Restore all card properties to their idle state.
+                    // Called from both onRunningChanged and the interrupt path in triggerSlide().
+                    function _resetCards() {
+                        prevArtWrapper._cfOffset = Qt.binding(function() { return -albumArtStack.artSize * 0.42 })
+                        prevArtWrapper._cfAngle = Qt.binding(function() { return settingsManager ? settingsManager.sideCardAngle : 30 })
+                        prevArtWrapper._cfScale = 0.72
+                        prevArtWrapper._cfOpacity = Qt.binding(function() { return settingsManager ? settingsManager.sideCardOpacity : 0.4 })
+                        prevArtWrapper.z = 0
+
+                        nextArtWrapper._cfOffset = Qt.binding(function() { return albumArtStack.artSize * 0.42 })
+                        nextArtWrapper._cfAngle = Qt.binding(function() { return -(settingsManager ? settingsManager.sideCardAngle : 30) })
+                        nextArtWrapper._cfScale = 0.72
+                        nextArtWrapper._cfOpacity = Qt.binding(function() { return settingsManager ? settingsManager.sideCardOpacity : 0.4 })
+                        nextArtWrapper.z = 0
+
+                        albumArtContainer.opacity = 1.0
+                    }
+
+                    // 3D coverflow — all three cards animate together like a carousel.
+                    // Exit card slides center → side, entering side card slides to center,
+                    // far side card slides away and fades out.
                     ParallelAnimation {
                         id: cardRotateAnimation
                         property int _direction: 1
-                        // Computed in triggerSlide() so they're stable for the animation's lifetime
+                        // Computed in triggerSlide() — stable for the animation's lifetime
                         property real _sideOffset: 0
+                        property real _sideAngle: 0
+                        property real _sideOpacity: 0.4
 
+                        onRunningChanged: {
+                            if (running) {
+                                cardAnimSettleTimer.stop()
+                                mediaRoom._cardAnimBusy = true
+                            } else {
+                                albumArtStack._resetCards()
+                                sideCardRefreshTimer.restart()
+                                cardAnimSettleTimer.restart()
+                            }
+                        }
+
+                        // ── Exit card: old center art → opposite side position ──
+                        NumberAnimation { target: exitCardWrapper; property: "_offset"
+                            to: cardRotateAnimation._direction === 1
+                                ? -cardRotateAnimation._sideOffset : cardRotateAnimation._sideOffset
+                            duration: 280; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_angle"
+                            to: cardRotateAnimation._direction === 1
+                                ? cardRotateAnimation._sideAngle : -cardRotateAnimation._sideAngle
+                            duration: 280; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_cardScale"
+                            to: 0.72; duration: 280; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: exitCardWrapper; property: "_cardOpacity"
+                            to: cardRotateAnimation._sideOpacity
+                            duration: 280; easing.type: Easing.OutCubic }
+
+                        // ── Prev card ──
+                        // Next direction: exits further left, fades out
+                        // Prev direction: enters center, grows, straightens (bounce)
+                        NumberAnimation { target: prevArtWrapper; property: "_cfOffset"
+                            from: -cardRotateAnimation._sideOffset
+                            to: cardRotateAnimation._direction === 1
+                                ? -cardRotateAnimation._sideOffset * 2 : 0
+                            duration: 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.InCubic : Easing.OutBack
+                            easing.overshoot: 1.4 }
+                        NumberAnimation { target: prevArtWrapper; property: "_cfAngle"
+                            from: cardRotateAnimation._sideAngle
+                            to: cardRotateAnimation._direction === 1
+                                ? cardRotateAnimation._sideAngle : 0
+                            duration: 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.InCubic : Easing.OutBack
+                            easing.overshoot: 1.4 }
+                        NumberAnimation { target: prevArtWrapper; property: "_cfScale"
+                            from: 0.72
+                            to: cardRotateAnimation._direction === 1 ? 0.5 : 1.0
+                            duration: 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.InCubic : Easing.OutBack
+                            easing.overshoot: 2.5 }
+                        NumberAnimation { target: prevArtWrapper; property: "_cfOpacity"
+                            from: cardRotateAnimation._sideOpacity
+                            to: cardRotateAnimation._direction === 1 ? 0 : 1.0
+                            duration: cardRotateAnimation._direction === 1 ? 220 : 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.InCubic : Easing.OutQuart }
+
+                        // ── Next card ──
+                        // Next direction: enters center, grows, straightens (bounce)
+                        // Prev direction: exits further right, fades out
+                        NumberAnimation { target: nextArtWrapper; property: "_cfOffset"
+                            from: cardRotateAnimation._sideOffset
+                            to: cardRotateAnimation._direction === 1
+                                ? 0 : cardRotateAnimation._sideOffset * 2
+                            duration: 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.OutBack : Easing.InCubic
+                            easing.overshoot: 1.4 }
+                        NumberAnimation { target: nextArtWrapper; property: "_cfAngle"
+                            from: -cardRotateAnimation._sideAngle
+                            to: cardRotateAnimation._direction === 1
+                                ? 0 : -cardRotateAnimation._sideAngle
+                            duration: 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.OutBack : Easing.InCubic
+                            easing.overshoot: 1.4 }
+                        NumberAnimation { target: nextArtWrapper; property: "_cfScale"
+                            from: 0.72
+                            to: cardRotateAnimation._direction === 1 ? 1.0 : 0.5
+                            duration: 280
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.OutBack : Easing.InCubic
+                            easing.overshoot: 2.5 }
+                        NumberAnimation { target: nextArtWrapper; property: "_cfOpacity"
+                            from: cardRotateAnimation._sideOpacity
+                            to: cardRotateAnimation._direction === 1 ? 1.0 : 0
+                            duration: cardRotateAnimation._direction === 1 ? 280 : 220
+                            easing.type: cardRotateAnimation._direction === 1
+                                ? Easing.OutQuart : Easing.InCubic }
+                    }
+
+                    // Quick-swap animation for rapid track skipping — lightweight
+                    // opacity fade avoids the overhead of the full 3D coverflow when
+                    // the user clicks faster than the animation can finish
+                    NumberAnimation {
+                        id: cardQuickFadeIn
+                        target: albumArtContainer
+                        property: "opacity"
+                        from: 0; to: 1.0
+                        duration: 120
+                        easing.type: Easing.OutQuad
                         onRunningChanged: {
                             if (running) {
                                 cardAnimSettleTimer.stop()
@@ -912,104 +1058,151 @@ Item {
                                 cardAnimSettleTimer.restart()
                             }
                         }
-                        property real _sideAngle: 0
-
-                        // Exit card — flung away with accelerating motion (inertia → picks up speed)
-                        NumberAnimation { target: exitCardWrapper; property: "_offset"; to: -cardRotateAnimation._sideOffset; duration: 250; easing.type: Easing.InCubic }
-                        NumberAnimation { target: exitCardWrapper; property: "_angle"; to: cardRotateAnimation._direction * cardRotateAnimation._sideAngle; duration: 250; easing.type: Easing.InCubic }
-                        NumberAnimation { target: exitCardWrapper; property: "_cardScale"; to: 0.72; duration: 250; easing.type: Easing.InCubic }
-                        NumberAnimation { target: exitCardWrapper; property: "_cardOpacity"; to: 0; duration: 250; easing.type: Easing.InCubic }
-
-                        // Enter card — arrives with momentum, overshoots center, bounces into place
-                        NumberAnimation { target: albumArtContainer; property: "_rotateOffset"; from: cardRotateAnimation._sideOffset; to: 0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateAngle"; from: -cardRotateAnimation._direction * cardRotateAnimation._sideAngle; to: 0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
-                        NumberAnimation { target: albumArtContainer; property: "_rotateScale"; from: 0.72; to: 1.0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 2.5 }
-                        NumberAnimation { target: albumArtContainer; property: "opacity"; from: 0; to: 1.0; duration: 200; easing.type: Easing.OutQuart }
                     }
 
                     function triggerSlide() {
-                        cardRotateAnimation.stop()
-                        // Transfer enter card's live state to exit card (seamless handoff on interrupt)
-                        exitCardWrapper._offset = albumArtContainer._rotateOffset
-                        exitCardWrapper._angle = albumArtContainer._rotateAngle
-                        exitCardWrapper._cardScale = albumArtContainer._rotateScale
-                        exitCardWrapper._cardOpacity = albumArtContainer.opacity
-                        // Load old art onto exit card (fallback if cached art is empty/invalid)
-                        exitArtImage.source = mediaRoom._previousAlbumArt || "./assets/missing_art.png"
-                        // Snapshot direction-dependent values (avoid binding re-evaluation mid-animation)
-                        cardRotateAnimation._direction = mediaRoom._slideDirection
-                        cardRotateAnimation._sideOffset = mediaRoom._slideDirection * albumArtStack.artSize * 0.42
+                        if (cardQuickFadeIn.running) {
+                            // Already in quick-skip mode — let current fade finish.
+                            return
+                        }
+
+                        if (cardRotateAnimation.running) {
+                            // Full animation interrupted — switch to lightweight fade.
+                            cardRotateAnimation.stop()
+                            exitCardWrapper._cardOpacity = 0
+                            albumArtStack._resetCards()
+                            sideCardRefreshTimer.restart()
+                            cardQuickFadeIn.start()
+                            return
+                        }
+
+                        // Full 3D coverflow — all three cards animate as a carousel.
+                        // exitArtSnapshot auto-freezes via its live binding.
+
+                        // Exit card starts at center
+                        exitCardWrapper._offset = 0
+                        exitCardWrapper._angle = 0
+                        exitCardWrapper._cardScale = 1.0
+                        exitCardWrapper._cardOpacity = 1.0
+
+                        // Hide center card — entering side card handles the visual
+                        albumArtContainer.opacity = 0
+
+                        // Z-order: entering card on top, exit card in middle
+                        var dir = mediaRoom._slideDirection
+                        if (dir === 1) {
+                            nextArtWrapper.z = 2
+                            prevArtWrapper.z = 0
+                        } else {
+                            prevArtWrapper.z = 2
+                            nextArtWrapper.z = 0
+                        }
+                        exitCardWrapper.z = 1
+
+                        cardRotateAnimation._direction = dir
+                        cardRotateAnimation._sideOffset = albumArtStack.artSize * 0.42
                         cardRotateAnimation._sideAngle = settingsManager ? settingsManager.sideCardAngle : 30
+                        cardRotateAnimation._sideOpacity = settingsManager ? settingsManager.sideCardOpacity : 0.4
                         cardRotateAnimation.start()
-                        // Cache resolved art for next transition (uses _displayAlbumArt which has error fallback)
-                        mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
                     }
 
-                    // Previous card (background, tilted left)
+                    // Previous card (background, tilted left) — animated via _cf* properties
                     Item {
                         id: prevArtWrapper
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.horizontalCenterOffset: -parent.artSize * 0.42
                         width: parent.artSize
                         height: width
-                        visible: prevAlbumArt !== "" && settingsManager && settingsManager.show3DAlbumPreview
+                        visible: prevArtImage.source != "" && settingsManager && settingsManager.show3DAlbumPreview
                         z: 0
-                        scale: 0.72
-                        opacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
-                        transform: Rotation {
-                            axis { x: 0; y: 1; z: 0 }
-                            angle: settingsManager ? settingsManager.sideCardAngle : 30
-                            origin.x: prevArtWrapper.width / 2
-                            origin.y: prevArtWrapper.height / 2
-                        }
+
+                        // Coverflow animated properties — rest values bound to settings,
+                        // overridden by ParallelAnimation during transitions
+                        property real _cfOffset: -parent.artSize * 0.42
+                        property real _cfAngle: settingsManager ? settingsManager.sideCardAngle : 30
+                        property real _cfScale: 0.72
+                        property real _cfOpacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
+
+                        scale: _cfScale
+                        opacity: _cfOpacity
+
+                        transform: [
+                            Translate { x: prevArtWrapper._cfOffset },
+                            Rotation {
+                                axis { x: 0; y: 1; z: 0 }
+                                angle: prevArtWrapper._cfAngle
+                                origin.x: prevArtWrapper.width / 2
+                                origin.y: prevArtWrapper.height / 2
+                            }
+                        ]
 
                         Image {
                             id: prevArtImage
                             anchors.fill: parent
-                            source: prevAlbumArt
+                            // source set imperatively by sideCardRefreshTimer
+                            sourceSize: Qt.size(albumArtStack.artSize * 0.45, albumArtStack.artSize * 0.45)
                             fillMode: Image.PreserveAspectFit
-                            smooth: true; antialiasing: true; asynchronous: true
-                            layer.enabled: albumArtStack._roundedArt
+                            smooth: true; asynchronous: true
+                            cache: true
+                            layer.enabled: albumArtStack._roundedArt || mediaRoom._cardAnimBusy
+                            layer.live: !mediaRoom._cardAnimBusy
                             layer.effect: OpacityMask {
                                 maskSource: artRoundedMask
                             }
                         }
                     }
 
-                    // Next card (background, tilted right)
+                    // Next card (background, tilted right) — animated via _cf* properties
                     Item {
                         id: nextArtWrapper
                         anchors.verticalCenter: parent.verticalCenter
                         anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.horizontalCenterOffset: parent.artSize * 0.42
                         width: parent.artSize
                         height: width
-                        visible: nextAlbumArt !== "" && settingsManager && settingsManager.show3DAlbumPreview
+                        visible: nextArtImage.source != "" && settingsManager && settingsManager.show3DAlbumPreview
                         z: 0
-                        scale: 0.72
-                        opacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
-                        transform: Rotation {
-                            axis { x: 0; y: 1; z: 0 }
-                            angle: -(settingsManager ? settingsManager.sideCardAngle : 30)
-                            origin.x: nextArtWrapper.width / 2
-                            origin.y: nextArtWrapper.height / 2
-                        }
+
+                        // Coverflow animated properties — rest values bound to settings,
+                        // overridden by ParallelAnimation during transitions
+                        property real _cfOffset: parent.artSize * 0.42
+                        property real _cfAngle: -(settingsManager ? settingsManager.sideCardAngle : 30)
+                        property real _cfScale: 0.72
+                        property real _cfOpacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
+
+                        scale: _cfScale
+                        opacity: _cfOpacity
+
+                        transform: [
+                            Translate { x: nextArtWrapper._cfOffset },
+                            Rotation {
+                                axis { x: 0; y: 1; z: 0 }
+                                angle: nextArtWrapper._cfAngle
+                                origin.x: nextArtWrapper.width / 2
+                                origin.y: nextArtWrapper.height / 2
+                            }
+                        ]
 
                         Image {
                             id: nextArtImage
                             anchors.fill: parent
-                            source: nextAlbumArt
+                            // source set imperatively by sideCardRefreshTimer
+                            sourceSize: Qt.size(albumArtStack.artSize * 0.45, albumArtStack.artSize * 0.45)
                             fillMode: Image.PreserveAspectFit
-                            smooth: true; antialiasing: true; asynchronous: true
-                            layer.enabled: albumArtStack._roundedArt
+                            smooth: true; asynchronous: true
+                            cache: true
+                            layer.enabled: albumArtStack._roundedArt || mediaRoom._cardAnimBusy
+                            layer.live: !mediaRoom._cardAnimBusy
                             layer.effect: OpacityMask {
                                 maskSource: artRoundedMask
                             }
                         }
                     }
 
-                    // Exit card — shows old art sliding away during transitions
+                    // Exit card — GPU texture snapshot of old art, slides away during transitions.
+                    // Uses ShaderEffectSource instead of Image to eliminate the entire
+                    // image pipeline (URL resolution, cache lookup, decode, error handling)
+                    // and the OpacityMask layer.  The snapshot already includes rounded
+                    // corners from albumArtImage's layer, so zero shader work per frame.
                     Item {
                         id: exitCardWrapper
                         anchors.verticalCenter: parent.verticalCenter
@@ -1017,7 +1210,7 @@ Item {
                         width: parent.artSize
                         height: width
                         z: 0
-                        visible: cardRotateAnimation.running && exitArtImage.status === Image.Ready
+                        visible: cardRotateAnimation.running
 
                         property real _offset: 0
                         property real _angle: 0
@@ -1037,25 +1230,22 @@ Item {
                             }
                         ]
 
-                        Image {
-                            id: exitArtImage
+                        ShaderEffectSource {
+                            id: exitArtSnapshot
                             anchors.fill: parent
-                            fillMode: Image.PreserveAspectFit
-                            smooth: true
-                            antialiasing: true
-                            asynchronous: true
-                            onStatusChanged: {
-                                if (status === Image.Error) source = "./assets/missing_art.png"
-                            }
-                            layer.enabled: albumArtStack._roundedArt
-                            layer.effect: OpacityMask {
-                                maskSource: artRoundedMask
-                            }
+                            sourceItem: albumArtImage
+                            // Continuously mirror albumArtImage while idle so the texture
+                            // is always fresh with the current art.  When animation starts
+                            // (running → true), live flips to false and the texture freezes
+                            // at the PREVIOUS render pass's content — guaranteed old art,
+                            // regardless of async image timing.
+                            live: !cardRotateAnimation.running && !cardQuickFadeIn.running
+                            hideSource: false
                         }
 
                     }
 
-                    // Current card (front) — animated properties for 3D rotation transition
+                    // Current card (front) — sits at center, opacity toggles during coverflow
                     Item {
                         id: albumArtContainer
                         anchors.verticalCenter: parent.verticalCenter
@@ -1064,30 +1254,11 @@ Item {
                         height: width
                         z: 1
 
-                        // Animated transition properties (resting: 0, 0, 1.0)
-                        property real _rotateOffset: 0
-                        property real _rotateAngle: 0
-                        property real _rotateScale: 1.0
-
-                        scale: _rotateScale
-
-                        // Use transform list instead of anchors.horizontalCenterOffset
-                        // for the slide — transforms are purely visual and skip
-                        // anchor layout recalculations on every animation frame
-                        transform: [
-                            Translate { x: albumArtContainer._rotateOffset },
-                            Rotation {
-                                axis { x: 0; y: 1; z: 0 }
-                                angle: albumArtContainer._rotateAngle
-                                origin.x: albumArtContainer.width / 2
-                                origin.y: albumArtContainer.height / 2
-                            }
-                        ]
-
                         Image {
                             id: albumArtImage
                             anchors.fill: parent
                             source: mediaRoom._displayAlbumArt
+                            sourceSize: Qt.size(albumArtStack.artSize, albumArtStack.artSize)
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             antialiasing: true
@@ -1110,6 +1281,7 @@ Item {
                         }
 
                         layer.enabled: settingsManager && settingsManager.showAlbumArtShadow
+                        layer.live: !cardRotateAnimation.running && !cardQuickFadeIn.running
                         layer.effect: DropShadow {
                             transparentBorder: true
                             horizontalOffset: 8
@@ -1605,6 +1777,7 @@ Item {
             mediaRoom.position = 0
             progressSlider.value = 0
             currentSongText.text = filename
+            sideCardRefreshTimer.restart()
 
             if (mediaRoom._userInitiatedChange) {
                 // Animation already started by click handler — just sync art cache.
@@ -1612,7 +1785,7 @@ Item {
                 // and albumArtImage.source is loading it asynchronously while the
                 // enter card is still near-transparent.
                 mediaRoom._userInitiatedChange = false
-                mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
+    
                 if (!settingsManager || !settingsManager.show3DAlbumPreview) {
                     mediaRoom._doTrackChangeWork()
                 }
@@ -1625,7 +1798,7 @@ Item {
             if (!useSpotify) {
                 isShuffleEnabled = enabled
                 // Shuffle reorders the playlist — neighbors changed
-                mediaRoom._trackChangeCounter++
+                sideCardRefreshTimer.restart()
             }
         }
     }
@@ -1684,6 +1857,7 @@ Item {
                 // Reset position for new track
                 mediaRoom.position = 0
                 progressSlider.value = 0
+                sideCardRefreshTimer.restart()
 
                 // Update duration
                 if (spotifyManager) {
@@ -1692,7 +1866,7 @@ Item {
 
                 if (mediaRoom._userInitiatedChange) {
                     mediaRoom._userInitiatedChange = false
-                    mediaRoom._previousAlbumArt = mediaRoom._displayAlbumArt
+        
                     if (!settingsManager || !settingsManager.show3DAlbumPreview) {
                         mediaRoom._doTrackChangeWork()
                     }
@@ -1730,7 +1904,7 @@ Item {
             if (useSpotify) {
                 isShuffleEnabled = enabled
                 // Shuffle reorders the playlist — neighbors changed
-                mediaRoom._trackChangeCounter++
+                sideCardRefreshTimer.restart()
             }
         }
     }
@@ -1770,7 +1944,7 @@ Item {
             }
 
             // Refresh side cards for the new source's neighbors
-            mediaRoom._trackChangeCounter++
+            sideCardRefreshTimer.restart()
 
             // Volume stays unified from Octave settings - no need to change it when switching sources
             // The unified volume is already applied to both sources

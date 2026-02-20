@@ -950,6 +950,20 @@ class MediaManager(QObject):
             return ""
         return self.get_album_art(prev_name)
 
+    @Slot(result=list)
+    def get_neighbor_album_arts(self):
+        """Get album art URLs for both neighbors in a single call.
+
+        Returns [prevArtUrl, nextArtUrl] — halves the PySide6 bridge
+        crossings compared to two separate slot calls from QML.
+        """
+        prev_name = self.get_previous_track_name()
+        next_name = self.get_next_track_name()
+        return [
+            self.get_album_art(prev_name) if prev_name else "",
+            self.get_album_art(next_name) if next_name else ""
+        ]
+
     @Slot(str)
     def play_file(self, filename):
         """Play specified file"""
