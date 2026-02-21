@@ -1,0 +1,644 @@
+"""
+DownloadManager — QObject manager for music downloads in OCTAVE.
+Uses music_dl (forked spotdl) for Spotify metadata + YouTube audio downloading.
+Follows the standard OCTAVE manager pattern with ThreadPoolExecutor + QTimer polling.
+"""
+
+import json
+import os
+import threading
+import traceback
+from concurrent.futures import Future, ThreadPoolExecutor
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from PySide6.QtCore import QObject, QTimer, Signal, Slot, Property
+
+from backend.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+class DownloadManager(QObject):
+    """
+    Manages music search and download operations.
+    Exposes search/download to QML via signals and slots.
+    """
+
+    # Search signals
+    searchResults = Signal(str)        # JSON array of song results
+    searchInProgress = Signal(bool)    # Loading state
+    searchError = Signal(str)          # Error message
+
+    # Download signals
+    downloadStarted = Signal(str)      # Song display name
+    downloadProgress = Signal(str, float)  # Song name, progress 0.0-1.0
+    downloadComplete = Signal(str, str)    # Song name, file path
+    downloadError = Signal(str, str)       # Song name, error message
+    downloadQueueChanged = Signal()        # Queue updated
+
+    # Status
+    statusMessage = Signal(str)        # General status messages
+
+    # Properties
+    _is_searching = False
+    _active_downloads = 0
+    _download_queue: List[Dict[str, Any]] = []
+
+    isSearchingChanged = Signal(bool)
+    activeDownloadsChanged = Signal(int)
+
+    def __init__(self):
+        super().__init__()
+        self._settings_manager = None
+        self._music_dl = None
+        self._executor = ThreadPoolExecutor(max_workers=2)
+        self._pending_futures: Dict[str, Future] = {}  # song_name -> future
+        self._download_queue = []
+
+        # Search pagination state
+        self._last_query = ""
+        self._search_offset = 0
+        self._all_results: List[Dict[str, Any]] = []  # accumulated results across pages
+
+        # Thread-safe progress queue: worker threads push updates here,
+        # main thread poll timer reads and emits Qt signals
+        self._progress_lock = threading.Lock()
+        self._progress_updates: List[Tuple[str, float]] = []
+
+        # QTimer for polling futures AND progress (Windows-safe signal emission)
+        self._poll_timer = QTimer()
+        self._poll_timer.setInterval(200)
+        self._poll_timer.timeout.connect(self._poll_futures)
+
+    def connect_settings_manager(self, settings_manager):
+        """Wire up settings manager for credentials and paths."""
+        self._settings_manager = settings_manager
+        logger.info("DownloadManager connected to SettingsManager")
+
+    def _get_download_path(self) -> str:
+        """Get the download destination folder."""
+        if not self._settings_manager:
+            return os.path.expanduser("~/Music/Downloads")
+
+        media_folder = self._settings_manager.mediaFolder
+        if not media_folder:
+            media_folder = os.path.expanduser("~/Music")
+
+        subfolder = self._settings_manager.get_setting(
+            "downloadSubfolder", "Downloads"
+        )
+        download_path = os.path.join(media_folder, subfolder)
+        os.makedirs(download_path, exist_ok=True)
+        return download_path
+
+    def _get_download_format(self) -> str:
+        """Get the configured download format."""
+        if not self._settings_manager:
+            return "mp3"
+        return self._settings_manager.get_setting("downloadFormat", "mp3")
+
+    def _get_download_bitrate(self) -> str:
+        """Get the configured download bitrate."""
+        if not self._settings_manager:
+            return "auto"
+        return self._settings_manager.get_setting("downloadBitrate", "auto")
+
+    def _ensure_music_dl(self) -> bool:
+        """
+        Lazily initialize the music_dl engine.
+        Returns True if ready, False if credentials are missing.
+        """
+        if self._music_dl is not None:
+            return True
+
+        if not self._settings_manager:
+            logger.error("DownloadManager: no settings manager connected")
+            self.statusMessage.emit("Download engine not configured")
+            return False
+
+        client_id = self._settings_manager.get_spotify_client_id()
+        client_secret = self._settings_manager.get_spotify_client_secret()
+
+        if not client_id or not client_secret:
+            logger.warning("DownloadManager: Spotify credentials not configured")
+            self.statusMessage.emit(
+                "Spotify credentials required. Set them in Settings > Spotify."
+            )
+            return False
+
+        try:
+            from backend.music_dl import MusicDL
+            from backend.music_dl.utils.spotify import SpotifyClient
+
+            # Reset any stale client instance
+            try:
+                SpotifyClient.reset()
+            except Exception:
+                pass
+
+            download_path = self._get_download_path()
+            dl_format = self._get_download_format()
+            bitrate = self._get_download_bitrate()
+
+            self._music_dl = MusicDL(
+                client_id=client_id,
+                client_secret=client_secret,
+                headless=True,
+                downloader_settings={
+                    "output": os.path.join(download_path, "{artists} - {title}.{output-ext}"),
+                    "format": dl_format,
+                    "bitrate": bitrate,
+                    "threads": 2,
+                    "overwrite": "skip",
+                    "_progress_callback": self._on_download_progress,
+                },
+            )
+            logger.info("MusicDL engine initialized (format=%s, path=%s)", dl_format, download_path)
+            self.statusMessage.emit("Download engine ready")
+            return True
+
+        except Exception as exc:
+            logger.error("Failed to initialize MusicDL: %s", exc)
+            logger.debug(traceback.format_exc())
+            self.statusMessage.emit(f"Download engine error: {exc}")
+            self._music_dl = None
+            return False
+
+    def _on_download_progress(self, tracker, message):
+        """Callback from music_dl progress handler (runs on WORKER thread).
+        Queues progress for the main-thread poll timer to emit as Qt signals."""
+        try:
+            song_name = tracker.song.display_name if tracker.song else "Unknown"
+            progress = tracker.progress / 100.0
+            with self._progress_lock:
+                self._progress_updates.append((song_name, progress))
+        except Exception:
+            pass
+
+    # ─── QML Properties ───────────────────────────────────────────────
+
+    @Property(bool, notify=isSearchingChanged)
+    def isSearching(self):
+        return self._is_searching
+
+    @Property(int, notify=activeDownloadsChanged)
+    def activeDownloads(self):
+        return self._active_downloads
+
+    @Property(str, constant=True)
+    def downloadPath(self):
+        return self._get_download_path()
+
+    # ─── QML Slots ────────────────────────────────────────────────────
+
+    @Slot(str)
+    def search(self, query: str):
+        """
+        Search for songs by text query or Spotify URL.
+        Results emitted via searchResults signal as JSON.
+        """
+        if not query.strip():
+            return
+
+        if not self._ensure_music_dl():
+            return
+
+        # Reset pagination for new search
+        self._last_query = query.strip()
+        self._search_offset = 0
+        self._all_results = []
+
+        self._is_searching = True
+        self.isSearchingChanged.emit(True)
+        self.searchInProgress.emit(True)
+        self.statusMessage.emit(f"Searching: {query}")
+
+        future = self._executor.submit(self._do_search, query.strip(), 0)
+        self._pending_futures["__search__"] = future
+
+        if not self._poll_timer.isActive():
+            self._poll_timer.start()
+
+    @Slot()
+    def search_more(self):
+        """Load more results for the current search query."""
+        if not self._last_query or not self._ensure_music_dl():
+            return
+
+        # Don't allow if already searching
+        if self._is_searching:
+            return
+
+        self._is_searching = True
+        self.isSearchingChanged.emit(True)
+        self.searchInProgress.emit(True)
+        self.statusMessage.emit("Loading more results...")
+
+        future = self._executor.submit(
+            self._do_search, self._last_query, self._search_offset
+        )
+        self._pending_futures["__search__"] = future
+
+        if not self._poll_timer.isActive():
+            self._poll_timer.start()
+
+    @Slot(str)
+    def download_song(self, song_json: str):
+        """
+        Download a single song from its JSON representation.
+        Called from QML when user clicks download on a search result.
+        """
+        if not self._ensure_music_dl():
+            return
+
+        try:
+            song_data = json.loads(song_json)
+        except json.JSONDecodeError as exc:
+            logger.error("Invalid song JSON: %s", exc)
+            self.downloadError.emit("Unknown", f"Invalid song data: {exc}")
+            return
+
+        song_name = f"{song_data.get('artist', 'Unknown')} - {song_data.get('name', 'Unknown')}"
+
+        # Prevent duplicate download of the same song
+        # Key format is "dl_{counter}_{songName}", so split to extract song name
+        for key in self._pending_futures:
+            if key.startswith("dl_"):
+                parts = key.split("_", 2)
+                existing_name = parts[2] if len(parts) >= 3 else key[3:]
+                if existing_name == song_name:
+                    self.statusMessage.emit(f"Already downloading: {song_name}")
+                    return
+
+        self.statusMessage.emit(f"Queuing download: {song_name}")
+        self.downloadStarted.emit(song_name)
+
+        self._active_downloads += 1
+        self.activeDownloadsChanged.emit(self._active_downloads)
+
+        # Use unique key with counter to avoid collisions between different songs
+        self._dl_counter = getattr(self, '_dl_counter', 0) + 1
+        future_key = f"dl_{self._dl_counter}_{song_name}"
+
+        future = self._executor.submit(self._do_download, song_data)
+        self._pending_futures[future_key] = future
+
+        if not self._poll_timer.isActive():
+            self._poll_timer.start()
+
+    @Slot(str)
+    def download_from_url(self, url: str):
+        """
+        Download from a Spotify URL (track, album, or playlist).
+        """
+        if not url.strip():
+            return
+
+        if not self._ensure_music_dl():
+            return
+
+        self.statusMessage.emit(f"Fetching: {url}")
+
+        future = self._executor.submit(self._do_url_download, url.strip())
+        self._pending_futures[f"url_{url[:30]}"] = future
+
+        if not self._poll_timer.isActive():
+            self._poll_timer.start()
+
+    @Slot()
+    def reset_engine(self):
+        """Reset the download engine (e.g., after credential change)."""
+        if self._music_dl:
+            try:
+                self._music_dl.cleanup()
+            except Exception:
+                pass
+            self._music_dl = None
+        self.statusMessage.emit("Download engine reset")
+
+    # ─── Background work (runs on ThreadPoolExecutor) ─────────────────
+
+    _AUDIO_EXTENSIONS = ('.mp3', '.flac', '.ogg', '.opus', '.m4a')
+
+    def _get_downloaded_files(self) -> set:
+        """Get a set of lowercase filenames (without extension) across the entire library."""
+        names = set()
+        # Check all folders under the media library root
+        if self._settings_manager:
+            media_folder = self._settings_manager.mediaFolder
+            if media_folder and os.path.isdir(media_folder):
+                try:
+                    for root, _dirs, files in os.walk(media_folder):
+                        for f in files:
+                            if f.lower().endswith(self._AUDIO_EXTENSIONS):
+                                names.add(os.path.splitext(f)[0].lower())
+                except OSError:
+                    pass
+        # Fallback: also check the download subfolder specifically
+        if not names:
+            download_path = self._get_download_path()
+            try:
+                for f in os.listdir(download_path):
+                    if f.lower().endswith(self._AUDIO_EXTENSIONS):
+                        names.add(os.path.splitext(f)[0].lower())
+            except OSError:
+                pass
+        return names
+
+    @staticmethod
+    def _sanitize_for_match(text: str) -> str:
+        """Apply the same sanitization music_dl uses for filenames, for matching."""
+        # Mirror sanitize_string from music_dl/utils/formatter.py
+        text = "".join(c for c in text if c not in "/?\\*|<>")
+        text = text.replace('"', "'").replace(":", "-")
+        return text.lower()
+
+    def _mark_downloaded(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Tag each result with is_downloaded based on files in the download folder."""
+        downloaded = self._get_downloaded_files()
+        for r in results:
+            artist = r.get('artist', '')
+            name = r.get('name', '')
+            # Apply the same sanitization that music_dl applies when saving files
+            expected = self._sanitize_for_match(f"{artist} - {name}")
+            r["is_downloaded"] = expected in downloaded
+        return results
+
+    def _do_search(self, query: str, offset: int = 0) -> List[Dict[str, Any]]:
+        """Perform search in background thread using Spotify API directly."""
+        from backend.music_dl.utils.spotify import SpotifyClient
+
+        # If it's a Spotify URL, use the single-song pipeline (no pagination)
+        if "open.spotify.com" in query or "spotify.link" in query:
+            from backend.music_dl.types.song import Song
+            songs = self._music_dl.search([query])
+            results = []
+            for song in songs:
+                song_dict = song.json
+                results.append(self._song_dict_to_result(song_dict))
+            return self._mark_downloaded(results)
+
+        # For text queries, search Spotify API directly for multiple results
+        spotify_client = SpotifyClient()
+        raw = spotify_client.search(query, limit=20, offset=offset, type="track")
+
+        if not raw or "tracks" not in raw or not raw["tracks"]["items"]:
+            return []
+
+        results = []
+        for track in raw["tracks"]["items"]:
+            album = track.get("album", {})
+            images = album.get("images", [])
+            cover_url = ""
+            if images:
+                # Pick largest image
+                cover_url = max(images, key=lambda i: i.get("width", 0) * i.get("height", 0)).get("url", "")
+
+            artists = [a["name"] for a in track.get("artists", [])]
+            result = {
+                "name": track.get("name", ""),
+                "artist": artists[0] if artists else "",
+                "artists": artists,
+                "album_name": album.get("name", ""),
+                "duration": int(track.get("duration_ms", 0) / 1000),
+                "year": int(album.get("release_date", "0")[:4]) if album.get("release_date") else 0,
+                "cover_url": cover_url,
+                "url": track.get("external_urls", {}).get("spotify", ""),
+                "song_id": track.get("id", ""),
+                "explicit": track.get("explicit", False),
+                "track_number": track.get("track_number", 0),
+                "disc_number": track.get("disc_number", 0),
+            }
+            results.append(result)
+
+        return self._mark_downloaded(results)
+
+    @staticmethod
+    def _song_dict_to_result(song_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert a Song.json dict to a search result dict."""
+        return {
+            "name": song_dict.get("name", ""),
+            "artist": song_dict.get("artist", ""),
+            "artists": song_dict.get("artists", []),
+            "album_name": song_dict.get("album_name", ""),
+            "duration": song_dict.get("duration", 0),
+            "year": song_dict.get("year", 0),
+            "cover_url": song_dict.get("cover_url", ""),
+            "url": song_dict.get("url", ""),
+            "song_id": song_dict.get("song_id", ""),
+            "explicit": song_dict.get("explicit", False),
+            "track_number": song_dict.get("track_number", 0),
+            "disc_number": song_dict.get("disc_number", 0),
+        }
+
+    def _do_download(self, song_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform single song download in background thread."""
+        from backend.music_dl.types.song import Song
+
+        # Build Song from Spotify URL (fetches full metadata) or from dict
+        url = song_data.get("url", "")
+        if url and "open.spotify.com" in url:
+            song = Song.from_url(url)
+        elif all(k in song_data for k in ["name", "artists", "artist"]):
+            song = Song.from_missing_data(**song_data)
+        else:
+            raise ValueError(f"Cannot build song from data: {song_data}")
+
+        result_song, path = self._music_dl.download(song)
+        return {
+            "song_name": result_song.display_name,
+            "path": str(path) if path else None,
+            "success": path is not None,
+        }
+
+    def _do_url_download(self, url: str) -> Dict[str, Any]:
+        """Download from URL in background thread."""
+        songs = self._music_dl.search([url])
+        if not songs:
+            return {"error": f"No songs found at URL: {url}", "results": []}
+
+        results = self._music_dl.download_songs(songs)
+        downloaded = []
+        for song, path in results:
+            downloaded.append({
+                "song_name": song.display_name,
+                "path": str(path) if path else None,
+                "success": path is not None,
+            })
+        return {"results": downloaded, "total": len(songs)}
+
+    # ─── QTimer polling (main thread, safe for Qt signals) ────────────
+
+    def _poll_futures(self):
+        """Check pending futures AND drain progress queue from main thread."""
+
+        # 1) Drain progress updates (thread-safe)
+        with self._progress_lock:
+            updates = self._progress_updates[:]
+            self._progress_updates.clear()
+
+        for song_name, progress in updates:
+            self.downloadProgress.emit(song_name, progress)
+
+        # 2) Check completed futures
+        completed_keys = []
+
+        for key, future in self._pending_futures.items():
+            if not future.done():
+                continue
+
+            completed_keys.append(key)
+
+            try:
+                result = future.result()
+
+                if key == "__search__":
+                    self._handle_search_result(result)
+                elif key.startswith("dl_"):
+                    self._handle_download_result(result)
+                elif key.startswith("url_"):
+                    self._handle_url_download_result(result)
+
+            except Exception as exc:
+                logger.error("Future %s failed: %s", key, exc)
+                logger.debug(traceback.format_exc())
+
+                if key == "__search__":
+                    self._is_searching = False
+                    self.isSearchingChanged.emit(False)
+                    self.searchInProgress.emit(False)
+                    self.searchError.emit(str(exc))
+                    self.statusMessage.emit(f"Search failed: {exc}")
+                elif key.startswith("dl_"):
+                    # Key format: "dl_{counter}_{song_name}"
+                    song_name = key.split("_", 2)[2] if key.count("_") >= 2 else key[3:]
+                    self.downloadError.emit(song_name, str(exc))
+                    self._active_downloads = max(0, self._active_downloads - 1)
+                    self.activeDownloadsChanged.emit(self._active_downloads)
+                    self.statusMessage.emit(f"Download failed: {song_name}")
+                    self._mark_result_status(song_name, "is_failed", True)
+                elif key.startswith("url_"):
+                    self.downloadError.emit("URL download", str(exc))
+                    self.statusMessage.emit(f"URL download failed: {exc}")
+
+        for key in completed_keys:
+            del self._pending_futures[key]
+
+        # Stop timer when no more pending work AND no progress to drain
+        if not self._pending_futures and not self._progress_updates:
+            self._poll_timer.stop()
+
+    def _handle_search_result(self, results: List[Dict[str, Any]]):
+        """Handle completed search — emit results to QML."""
+        self._is_searching = False
+        self.isSearchingChanged.emit(False)
+        self.searchInProgress.emit(False)
+
+        # Accumulate results (append for "load more", replace for new search)
+        if self._search_offset == 0:
+            self._all_results = results
+        else:
+            # Deduplicate by song_id
+            existing_ids = {r.get("song_id") for r in self._all_results}
+            for r in results:
+                if r.get("song_id") not in existing_ids:
+                    self._all_results.append(r)
+                    existing_ids.add(r.get("song_id"))
+
+        # Advance offset for next "load more"
+        self._search_offset += len(results)
+
+        self.searchResults.emit(json.dumps(self._all_results))
+        self.statusMessage.emit(f"Showing {len(self._all_results)} result(s)")
+
+        # Store results for download_song lookup
+        self._last_search_results = self._all_results
+
+    def _mark_result_status(self, song_name: str, field: str, value: Any):
+        """Set a field on the matching search result and re-emit to QML."""
+        if not self._all_results:
+            return
+        sanitized_name = self._sanitize_for_match(song_name)
+        for r in self._all_results:
+            expected = self._sanitize_for_match(
+                f"{r.get('artist', '')} - {r.get('name', '')}"
+            )
+            if expected == sanitized_name:
+                r[field] = value
+                break
+        self.searchResults.emit(json.dumps(self._all_results))
+
+    def _handle_download_result(self, result: Dict[str, Any]):
+        """Handle completed download."""
+        song_name = result.get("song_name", "Unknown")
+        path = result.get("path")
+        success = result.get("success", False)
+
+        self._active_downloads = max(0, self._active_downloads - 1)
+        self.activeDownloadsChanged.emit(self._active_downloads)
+
+        if success and path:
+            self.downloadComplete.emit(song_name, path)
+            self.statusMessage.emit(f"Downloaded: {song_name}")
+            logger.info("Download complete: %s -> %s", song_name, path)
+            self._mark_result_status(song_name, "is_downloaded", True)
+        else:
+            self.downloadError.emit(song_name, "Download failed")
+            self.statusMessage.emit(f"Failed: {song_name}")
+            logger.warning("Download failed: %s", song_name)
+            self._mark_result_status(song_name, "is_failed", True)
+
+    def _handle_url_download_result(self, result: Dict[str, Any]):
+        """Handle completed URL download (possibly multiple songs)."""
+        if "error" in result:
+            self.downloadError.emit("URL download", result["error"])
+            self.statusMessage.emit(result["error"])
+            return
+
+        downloaded = result.get("results", [])
+        total = result.get("total", 0)
+        success_count = sum(1 for d in downloaded if d.get("success"))
+
+        for dl in downloaded:
+            song_name = dl.get("song_name", "Unknown")
+            path = dl.get("path")
+            if dl.get("success") and path:
+                self.downloadComplete.emit(song_name, path)
+            else:
+                self.downloadError.emit(song_name, "Download failed")
+
+        self.statusMessage.emit(
+            f"Downloaded {success_count}/{total} song(s)"
+        )
+
+    # ─── Utility Slots for QML ────────────────────────────────────────
+
+    @Slot(str, result=str)
+    def get_song_data_for_download(self, song_url: str) -> str:
+        """
+        Get the full song data JSON for a song from the last search results.
+        Used by QML to pass full data to download_song().
+        """
+        if not hasattr(self, "_last_search_results"):
+            return ""
+
+        for result in self._last_search_results:
+            if result.get("url") == song_url:
+                full_data = result.get("_full_data", result)
+                return json.dumps(full_data)
+
+        return ""
+
+    # ─── Cleanup ──────────────────────────────────────────────────────
+
+    def cleanup(self):
+        """Clean up resources on app exit."""
+        self._poll_timer.stop()
+        self._executor.shutdown(wait=False)
+        if self._music_dl:
+            try:
+                self._music_dl.cleanup()
+            except Exception:
+                pass
+        logger.info("DownloadManager cleaned up")

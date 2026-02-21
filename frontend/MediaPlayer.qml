@@ -986,27 +986,22 @@ Item {
                                 }
                             }
                             
-                            // Click behavior for list items
+                            // Click + long-press behavior for list items
                             MouseArea {
                                 anchors.fill: parent
+                                pressAndHoldInterval: 600
                                 onClicked: {
-                                    console.log("Song clicked - isSpotifyPlaylist: " + mediaPlayer.isSpotifyPlaylist + ", modelData: " + modelData)
                                     var returnToLibrary = settingsManager ? settingsManager.returnToLibraryAfterSelection : false
 
                                     if (mediaPlayer.isSpotifyPlaylist) {
-                                        // Handle Spotify track playback
                                         if (spotifyManager) {
-                                            // Pause local playback first
                                             if (mediaManager && mediaManager.is_playing()) {
                                                 mediaManager.pause()
                                             }
-
                                             var uri = spotifyManager.get_spotify_track_uri(modelData)
-                                            console.log("Playing Spotify URI: " + uri)
                                             if (uri) {
                                                 spotifyManager.play_uri(uri)
                                             }
-                                            // Only navigate to MediaRoom if returnToLibrary is OFF
                                             if (!returnToLibrary) {
                                                 stackView.push("MediaRoom.qml", {
                                                     stackView: mediaPlayer.stackView
@@ -1014,28 +1009,31 @@ Item {
                                             }
                                         }
                                     } else {
-                                        // Handle local file playback
                                         if (mediaManager) {
-                                            // If Spotify is playing, pause it
                                             if (spotifyManager && spotifyManager.is_connected() && spotifyManager.is_playing()) {
                                                 spotifyManager.pause()
                                             }
-
-                                            // Switch to local source
                                             if (settingsManager && settingsManager.mediaSource !== "local") {
                                                 settingsManager.set_media_source("local")
                                             }
-
-                                            // Play the selected file
                                             mediaManager.play_file(modelData)
                                             lastPlayedSong = modelData
-                                            // Only navigate to MediaRoom if returnToLibrary is OFF
                                             if (!returnToLibrary) {
                                                 stackView.push("MediaRoom.qml", {
                                                     stackView: mediaPlayer.stackView
                                                 })
                                             }
                                         }
+                                    }
+                                }
+                                onPressAndHold: {
+                                    // Only allow delete for local files
+                                    if (!mediaPlayer.isSpotifyPlaylist) {
+                                        deleteDialog.songFilename = modelData
+                                        deleteDialog.songDisplayName = mediaManager
+                                            ? (mediaManager.get_display_name(modelData) || modelData)
+                                            : modelData
+                                        deleteDialog.open()
                                     }
                                 }
                             }
@@ -1192,6 +1190,148 @@ Item {
         function onPlayStateChanged(playing) {
             // Update cached play state - delegates will automatically update via binding
             spotifyIsPlaying = playing
+        }
+    }
+
+    // ─── Delete Confirmation Dialog ─────────────────────────────
+
+    Popup {
+        id: deleteDialog
+        anchors.centerIn: parent
+        width: App.Spacing.dp(320)
+        height: deleteDialogContent.implicitHeight + App.Spacing.dp(32)
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string songFilename: ""
+        property string songDisplayName: ""
+
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.5)
+        }
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        ColumnLayout {
+            id: deleteDialogContent
+            anchors.fill: parent
+            anchors.margins: App.Spacing.dp(16)
+            spacing: App.Spacing.dp(12)
+
+            Text {
+                text: "Delete Song"
+                font.family: mediaPlayer.globalFont
+                font.pixelSize: App.Spacing.dp(18)
+                font.weight: Font.Bold
+                color: App.Style.primaryTextColor
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: "Are you sure you want to delete this file?"
+                font.family: mediaPlayer.globalFont
+                font.pixelSize: App.Spacing.dp(13)
+                color: App.Style.secondaryTextColor
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+
+            // Song name
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: songNameLabel.implicitHeight + App.Spacing.dp(16)
+                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                radius: App.Spacing.dp(6)
+
+                Text {
+                    id: songNameLabel
+                    anchors.centerIn: parent
+                    width: parent.width - App.Spacing.dp(16)
+                    text: deleteDialog.songDisplayName
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(13)
+                    font.weight: Font.DemiBold
+                    color: App.Style.primaryTextColor
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Text {
+                text: "This cannot be undone."
+                font.family: mediaPlayer.globalFont
+                font.pixelSize: App.Spacing.dp(11)
+                color: Qt.rgba(1, 0.4, 0.4, 0.8)
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+            }
+
+            // Buttons
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.dp(10)
+
+                // Cancel
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: App.Spacing.dp(36)
+                    color: cancelMouse.pressed
+                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+                        : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                    border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                    border.width: 1
+                    radius: App.Spacing.dp(6)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Cancel"
+                        font.family: mediaPlayer.globalFont
+                        font.pixelSize: App.Spacing.dp(13)
+                        font.weight: Font.DemiBold
+                        color: App.Style.primaryTextColor
+                    }
+
+                    MouseArea {
+                        id: cancelMouse
+                        anchors.fill: parent
+                        onClicked: deleteDialog.close()
+                    }
+                }
+
+                // Delete
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: App.Spacing.dp(36)
+                    color: deleteMouse.pressed ? Qt.darker("#e53935", 1.3) : "#e53935"
+                    radius: App.Spacing.dp(6)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Delete"
+                        font.family: mediaPlayer.globalFont
+                        font.pixelSize: App.Spacing.dp(13)
+                        font.weight: Font.DemiBold
+                        color: "#ffffff"
+                    }
+
+                    MouseArea {
+                        id: deleteMouse
+                        anchors.fill: parent
+                        onClicked: {
+                            if (mediaManager && deleteDialog.songFilename) {
+                                mediaManager.delete_song(deleteDialog.songFilename)
+                            }
+                            deleteDialog.close()
+                        }
+                    }
+                }
+            }
         }
     }
 }

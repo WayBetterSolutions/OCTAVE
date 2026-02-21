@@ -67,6 +67,7 @@ Item {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.columnSpan: (index === 0 && homeOBDView.columnCount === 2 && homeOBDView.cardCount % 2 !== 0) ? 2 : 1
                 color: App.Style.backgroundColor
                 border.color: App.Style.accent
                 border.width: 1

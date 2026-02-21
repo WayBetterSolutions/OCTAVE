@@ -19,6 +19,43 @@ Rectangle {
 
     // Shared shuffle state - single source of truth for all shuffle buttons
     property bool isShuffleEnabled: false
+
+    // Cached DownloadPage — created once, reused on every navigation
+    property var _downloadPage: null
+
+    function openDownloadPage() {
+        var currentItem = stackView.currentItem
+        if (currentItem && currentItem.objectName === "downloadPage") {
+            return  // Already on the page
+        }
+
+        // If cached page still exists and is in the stack, find and pop back to it
+        if (_downloadPage) {
+            // Check if it's somewhere in the stack
+            for (var i = 0; i < stackView.depth; i++) {
+                if (stackView.get(i) === _downloadPage) {
+                    // Pop back to it
+                    stackView.pop(_downloadPage)
+                    return
+                }
+            }
+            // Not in stack anymore — re-push the existing instance
+            stackView.push(_downloadPage)
+            return
+        }
+
+        // First time: create and cache
+        var component = Qt.createComponent("DownloadPage.qml")
+        if (component.status === Component.Ready) {
+            _downloadPage = component.createObject(null, {
+                stackView: bottomBar.stackView,
+                mainWindow: stackView.parent.Window.window
+            })
+            if (_downloadPage) {
+                stackView.push(_downloadPage)
+            }
+        }
+    }
     
     
     Component.onCompleted: {
@@ -1061,6 +1098,73 @@ Rectangle {
                                         stackView.push(page)
                                     }
                                 }
+                            }
+                        }
+
+                        // Download Button
+                        Control {
+                            id: downloadButton
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: App.Spacing.dpMin(8, 2)
+                                border.color: App.Style.accent
+                                border.width: 1
+                                scale: mouseAreaDownload.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaDownload.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+
+                            contentItem: Item {
+                                scale: mouseAreaDownload.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaDownload.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                                Image {
+                                    id: downloadButtonImage
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/download_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: downloadButtonImage
+                                    source: downloadButtonImage
+                                    color: App.Style.accent
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaDownload
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: bottomBar.openDownloadPage()
                             }
                         }
 
@@ -2324,6 +2428,74 @@ Rectangle {
                                         stackView.push(page)
                                     }
                                 }
+                            }
+                        }
+
+                        // Download Button (Vertical)
+                        Control {
+                            id: downloadButtonVertical
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            Layout.alignment: Qt.AlignHCenter
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: App.Spacing.dpMin(8, 2)
+                                border.color: App.Style.accent
+                                border.width: 1
+                                scale: mouseAreaDownloadVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaDownloadVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+
+                            contentItem: Item {
+                                scale: mouseAreaDownloadVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaDownloadVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                                Image {
+                                    id: downloadButtonImageVertical
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/download_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: downloadButtonImageVertical
+                                    source: downloadButtonImageVertical
+                                    color: App.Style.accent
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaDownloadVertical
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: bottomBar.openDownloadPage()
                             }
                         }
 

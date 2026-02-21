@@ -39,6 +39,7 @@ from backend.audio_analyzer import AudioAnalyzer
 from backend.berryimu_manager import BerryIMUManager
 from backend.gesture_manager import GestureManager
 from backend.network_manager import NetworkManager
+from backend.download_manager import DownloadManager
 
 app = QApplication(sys.argv)
 
@@ -143,6 +144,16 @@ engine.rootContext().setContextProperty("gestureSensor", gesture_manager)
 # Network Manager — WiFi status and update checking
 network_manager = NetworkManager()
 engine.rootContext().setContextProperty("networkManager", network_manager)
+
+# Download Manager — music search and download via music_dl
+download_manager = DownloadManager()
+download_manager.connect_settings_manager(settings_manager)
+engine.rootContext().setContextProperty("downloadManager", download_manager)
+
+# Auto-rescan library when a download completes
+download_manager.downloadComplete.connect(
+    lambda name, path: media_manager.scan_library(reset_display_names=False)
+)
 
 # Connect gesture actions to media controls
 def handle_gesture_action(action):
@@ -354,6 +365,7 @@ def cleanup_on_quit():
     berryimu_manager.cleanup()  # Stop BerryIMU sensor reading
     gesture_manager.cleanup()  # Stop gesture sensor reading
     network_manager.cleanup()  # Stop network polling
+    download_manager.cleanup()  # Clean up download engine
 
 app.aboutToQuit.connect(cleanup_on_quit)
 

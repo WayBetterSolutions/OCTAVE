@@ -12,3 +12,9 @@ pyusb>=1.2.0
 libusb>=1.0.27
 pycaw>=20240210; sys_platform == "win32"  # Windows audio control for scrcpy volume
 Pillow>=10.0.0  # Image processing for album art color extraction
+# Music download engine (music_dl) dependencies
+yt-dlp>=2024.1.0
+ytmusicapi>=1.3.0
+rapidfuzz>=3.0.0
+python-slugify>=8.0.0
+typing_extensions>=4.0.0

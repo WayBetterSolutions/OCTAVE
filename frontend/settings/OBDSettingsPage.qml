@@ -14,6 +14,7 @@ Item {
     property string draggedParam: ""
     property string dragSource: "" // "left" or "right"
     property int dragSourceIndex: -1
+    property int dropPreviewIndex: -1
 
     Flickable {
         id: rootFlickable
@@ -830,8 +831,7 @@ Item {
 
                                             // Live value display
                                             Text {
-                                                text: leftCard.isEnabled ?
-                                                    (leftCard.liveValue.toFixed(1) + " " + leftCard.info.unit) : "OFF"
+                                                text: leftCard.liveValue.toFixed(1) + " " + leftCard.info.unit
                                                 color: leftCard.isEnabled ?
                                                     App.Style.primaryTextColor :
                                                     Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.4)
@@ -939,6 +939,7 @@ Item {
                                                 pageRoot.draggedParam = "";
                                                 pageRoot.dragSource = "";
                                                 pageRoot.dragSourceIndex = -1;
+                                                pageRoot.dropPreviewIndex = -1;
                                             }
 
                                             onCanceled: {
@@ -951,6 +952,7 @@ Item {
                                                 scrolling = false;
                                                 pageRoot.draggedParam = "";
                                                 pageRoot.dragSource = "";
+                                                pageRoot.dropPreviewIndex = -1;
                                             }
                                         }
                                     }
@@ -1013,31 +1015,45 @@ Item {
                                 anchors.fill: parent
                                 keys: ["obdParam"]
 
+                                onEntered: function(drag) {
+                                    pageRoot.dropPreviewIndex = calculateDropIndex(drag.x, drag.y);
+                                }
+
+                                onPositionChanged: function(drag) {
+                                    pageRoot.dropPreviewIndex = calculateDropIndex(drag.x, drag.y);
+                                }
+
+                                onExited: {
+                                    pageRoot.dropPreviewIndex = -1;
+                                }
+
                                 onDropped: function(drop) {
+                                    pageRoot.dropPreviewIndex = -1;
                                     // Defer all saves — the drop is triggered from a card
                                     // MouseArea's onReleased. Saving synchronously would
                                     // destroy/recreate Repeater delegates mid-handler,
                                     // preventing cleanup code from running (floating proxy bug).
                                     if (pageRoot.dragSource === "left" && pageRoot.draggedParam !== "") {
-                                        // Add to home grid
+                                        // Add to home grid at drop position
                                         var hp = settingsManager.get_home_obd_parameters();
                                         if (hp.indexOf(pageRoot.draggedParam) === -1 && hp.length < 8) {
-                                            hp.push(pageRoot.draggedParam);
+                                            var targetIdx = calculateDropIndex(drop.x, drop.y);
+                                            hp.splice(targetIdx, 0, pageRoot.draggedParam);
                                             var hpCopy = hp.slice();
                                             Qt.callLater(function() {
                                                 settingsManager.save_home_obd_parameters(hpCopy);
                                             });
                                         }
                                     } else if (pageRoot.dragSource === "right" && pageRoot.draggedParam !== "") {
-                                        // Reorder within grid - find drop position
+                                        // Swap positions within grid
                                         var hp2 = settingsManager.get_home_obd_parameters();
                                         var fromIdx = pageRoot.dragSourceIndex;
                                         if (fromIdx >= 0 && fromIdx < hp2.length) {
                                             var targetIdx = calculateDropIndex(drop.x, drop.y);
-                                            if (targetIdx !== fromIdx && targetIdx >= 0) {
-                                                var param = hp2.splice(fromIdx, 1)[0];
-                                                if (targetIdx > fromIdx) targetIdx--;
-                                                hp2.splice(targetIdx, 0, param);
+                                            if (targetIdx !== fromIdx && targetIdx >= 0 && targetIdx < hp2.length) {
+                                                var temp = hp2[fromIdx];
+                                                hp2[fromIdx] = hp2[targetIdx];
+                                                hp2[targetIdx] = temp;
                                                 var hp2Copy = hp2.slice();
                                                 Qt.callLater(function() {
                                                     settingsManager.save_home_obd_parameters(hp2Copy);
@@ -1105,6 +1121,7 @@ Item {
                                         id: homeCard
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
+                                        Layout.columnSpan: (index === 0 && rightPanel.gridColumns === 2 && parametersCard.homeParams.length % 2 !== 0) ? 2 : 1
                                         color: App.Style.backgroundColor
                                         border.color: App.Style.accent
                                         border.width: 1
@@ -1117,6 +1134,41 @@ Item {
 
                                         opacity: (pageRoot.draggedParam === paramId && pageRoot.dragSource === "right") ? 0.3 : 1.0
                                         Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                        // Drop target highlight
+                                        Rectangle {
+                                            id: dropHighlight
+                                            anchors.fill: parent
+                                            z: 2
+                                            radius: homeCard.radius
+                                            color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                                            border.color: App.Style.accent
+                                            border.width: 2
+                                            opacity: (pageRoot.dropPreviewIndex === homeCard.cardIndex &&
+                                                      pageRoot.draggedParam !== homeCard.paramId) ? 1 : 0
+                                            visible: opacity > 0
+
+                                            Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                            // Subtle pulse on the border
+                                            SequentialAnimation on border.width {
+                                                running: dropHighlight.visible
+                                                loops: Animation.Infinite
+                                                NumberAnimation { to: 3; duration: 600; easing.type: Easing.InOutQuad }
+                                                NumberAnimation { to: 2; duration: 600; easing.type: Easing.InOutQuad }
+                                            }
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: pageRoot.draggedParam !== "" ?
+                                                    (App.OBDParameterModel.getParamInfo(pageRoot.draggedParam).title || "") : ""
+                                                color: App.Style.accent
+                                                font.pixelSize: App.Spacing.overallText * 0.75
+                                                font.family: App.Style.fontFamily
+                                                font.bold: true
+                                                opacity: 0.6
+                                            }
+                                        }
 
                                         ColumnLayout {
                                             anchors.fill: parent
@@ -1221,6 +1273,7 @@ Item {
                                                 pageRoot.draggedParam = "";
                                                 pageRoot.dragSource = "";
                                                 pageRoot.dragSourceIndex = -1;
+                                                pageRoot.dropPreviewIndex = -1;
                                             }
 
                                             onCanceled: {
@@ -1232,9 +1285,76 @@ Item {
                                                 dragging = false;
                                                 pageRoot.draggedParam = "";
                                                 pageRoot.dragSource = "";
+                                                pageRoot.dropPreviewIndex = -1;
                                             }
                                         }
                                     }
+                                }
+                            }
+
+                            // Ghost placeholder for left→right append position
+                            Rectangle {
+                                id: appendGhost
+                                z: 5
+
+                                property int _cols: rightPanel.gridColumns
+                                property int _count: parametersCard.homeParams.length
+                                property int _rows: Math.max(1, Math.ceil(_count / _cols))
+                                property real _cellW: _cols > 0 ?
+                                    (homeGrid.width - Math.max(0, _cols - 1) * homeGrid.columnSpacing) / _cols :
+                                    homeGrid.width
+                                property real _cellH: _rows > 0 ?
+                                    (homeGrid.height - Math.max(0, _rows - 1) * homeGrid.rowSpacing) / _rows :
+                                    homeGrid.height
+
+                                property int _nextCol: _count % _cols
+                                property int _nextRow: Math.floor(_count / _cols)
+
+                                visible: rightDropArea.containsDrag &&
+                                         pageRoot.dragSource === "left" &&
+                                         _count < 8 &&
+                                         (_count === 0 || _nextRow < _rows) &&
+                                         pageRoot.dropPreviewIndex >= _count
+
+                                x: _nextCol * (_cellW + homeGrid.columnSpacing)
+                                y: _nextRow * (_cellH + homeGrid.rowSpacing)
+                                width: _cellW
+                                height: _cellH
+
+                                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.12)
+                                border.color: App.Style.accent
+                                border.width: 2
+                                radius: 3
+
+                                Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: App.Spacing.dp(5)
+                                    spacing: App.Spacing.dp(3)
+
+                                    Text {
+                                        text: dragProxy.paramTitle ? dragProxy.paramTitle.toUpperCase() : ""
+                                        font.pixelSize: App.Spacing.overallText * 0.7
+                                        font.family: App.Style.fontFamily
+                                        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.7)
+                                        Layout.alignment: Qt.AlignLeft
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Text {
+                                        text: dragProxy.paramValue || ""
+                                        font.pixelSize: App.Spacing.overallText * 1.1
+                                        font.bold: true
+                                        font.family: App.Style.fontFamily
+                                        color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.4)
+                                        Layout.alignment: Qt.AlignLeft
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Item { Layout.fillHeight: true }
                                 }
                             }
                         }
@@ -1263,7 +1383,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "Tap to enable/disable. Drag sideways to add to home grid."
+                text: "Tap to enable/disable. Drag sideways to add to home grid. Reorder by dragging within the grid."
                 color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.7)
                 font.pixelSize: App.Spacing.smallText
                 font.family: App.Style.fontFamily

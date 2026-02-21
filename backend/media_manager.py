@@ -1298,6 +1298,9 @@ class MediaManager(QObject):
         self.scanProgress.emit(f"[PATH] {self._library_root}")
         logger.info(f"Scanning library at: {self._library_root}")
 
+        # Remember active playlist so we can re-select it after rescan
+        previous_playlist = self._current_playlist_name
+
         # Clear existing caches
         self._playlists = {}
         self._playlist_names = []
@@ -1413,6 +1416,19 @@ class MediaManager(QObject):
         # Emit signal
         self.playlistsChanged.emit()
 
+        # If a playlist was active before the rescan, re-select it to refresh
+        # the song list in QML (emits mediaListChanged). Preserve current
+        # playback position so the playing song is not disrupted.
+        if previous_playlist and previous_playlist in self._playlists:
+            previous_file = None
+            if self._current_playlist and 0 <= self._current_index < len(self._current_playlist):
+                previous_file = self._current_playlist[self._current_index]
+            self.select_playlist(previous_playlist)
+            # Restore playback index to the same song if possible
+            if previous_file and previous_file in self._current_playlist:
+                self._current_index = self._current_playlist.index(previous_file)
+            logger.info("Re-selected playlist '%s' after rescan", previous_playlist)
+
     @Slot(str)
     def set_library_root(self, path):
         """Set the main library folder and scan for playlists"""
@@ -1487,7 +1503,10 @@ class MediaManager(QObject):
     def _get_file_path(self, filename):
         """Get the full file path for a filename, handling All Music multi-folder playlist"""
         # Reject filenames with path traversal attempts
-        if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+        # Check for ".." as a path separator component (not just anywhere in the string,
+        # since song titles like "still feel..mp3" contain ".." legitimately)
+        if (os.sep + '..' in filename or filename.startswith('..' + os.sep)
+                or filename == '..' or filename.startswith('/') or filename.startswith('\\')):
             logger.info(f"Rejected potentially unsafe filename: {filename}")
             return None
 
@@ -1527,6 +1546,61 @@ class MediaManager(QObject):
                 if potential_original in self._all_music_file_paths:
                     return potential_original
         return filename
+
+    # ─── Song deletion ──────────────────────────────────────────────
+
+    songDeleted = Signal(str)  # filename that was deleted
+
+    @Slot(str, result=bool)
+    def delete_song(self, filename):
+        """Delete a song file from disk and refresh the playlist."""
+        if not filename:
+            logger.warning("delete_song called with empty filename")
+            return False
+
+        file_path = self._get_file_path(filename)
+        if not file_path:
+            logger.warning("delete_song: could not resolve path for %s", filename)
+            return False
+
+        if not os.path.isfile(file_path):
+            logger.warning("delete_song: file not found: %s", file_path)
+            return False
+
+        # Don't delete the currently playing file
+        is_current = (
+            self._current_playlist
+            and 0 <= self._current_index < len(self._current_playlist)
+            and self._current_playlist[self._current_index] == filename
+            and self._is_playing
+        )
+        if is_current:
+            self._player.stop()
+            self._is_playing = False
+            self.playStateChanged.emit(False)
+
+        try:
+            os.remove(file_path)
+            logger.info("Deleted song: %s", file_path)
+        except OSError as e:
+            logger.error("Failed to delete %s: %s", file_path, e)
+            return False
+
+        # Remove from display names if present
+        if filename in self._display_names:
+            del self._display_names[filename]
+            self._save_display_names()
+
+        # Rescan library to rebuild playlists
+        self.scan_library(reset_display_names=False)
+        self.songDeleted.emit(filename)
+        return True
+
+    @Slot(str, result=str)
+    def get_song_file_path(self, filename):
+        """Return the full file path for a song filename (for UI display)."""
+        path = self._get_file_path(filename)
+        return path if path else ""
 
     def _load_display_names(self):
         """Load persisted display names from JSON"""
