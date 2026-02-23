@@ -30,12 +30,12 @@ class DownloadManager(QObject):
     searchInProgress = Signal(bool)    # Loading state
     searchError = Signal(str)          # Error message
 
-    # Download signals
-    downloadStarted = Signal(str)      # Song display name
-    downloadProgress = Signal(str, float)  # Song name, progress 0.0-1.0
-    downloadComplete = Signal(str, str)    # Song name, file path
-    downloadError = Signal(str, str)       # Song name, error message
-    downloadQueueChanged = Signal()        # Queue updated
+    # Download signals (keyed by song_id for uniqueness)
+    downloadStarted = Signal(str, str)         # song_id, display name
+    downloadProgress = Signal(str, float)      # song_id, progress 0.0-1.0
+    downloadComplete = Signal(str, str)        # song_id, file path
+    downloadError = Signal(str, str, str)      # song_id, display name, error message
+    downloadQueueChanged = Signal()            # Queue updated
 
     # Status
     statusMessage = Signal(str)        # General status messages
@@ -66,6 +66,9 @@ class DownloadManager(QObject):
         self._progress_lock = threading.Lock()
         self._progress_updates: List[Tuple[str, float]] = []
 
+        # Target playlist override (None = use downloadSubfolder setting)
+        self._target_subfolder = None
+
         # QTimer for polling futures AND progress (Windows-safe signal emission)
         self._poll_timer = QTimer()
         self._poll_timer.setInterval(200)
@@ -85,10 +88,23 @@ class DownloadManager(QObject):
         if not media_folder:
             media_folder = os.path.expanduser("~/Music")
 
-        subfolder = self._settings_manager.get_setting(
-            "downloadSubfolder", "Downloads"
+        # Use target subfolder override if set, otherwise fall back to setting
+        subfolder = (
+            self._target_subfolder
+            if self._target_subfolder is not None
+            else self._settings_manager.get_setting("downloadSubfolder", "Downloads")
         )
+
+        # Validate subfolder to prevent path traversal
+        from backend.media_manager import is_safe_path
         download_path = os.path.join(media_folder, subfolder)
+        if not is_safe_path(media_folder, download_path):
+            logger.warning(
+                "Download subfolder '%s' escapes media folder, using 'Downloads'",
+                subfolder,
+            )
+            download_path = os.path.join(media_folder, "Downloads")
+
         os.makedirs(download_path, exist_ok=True)
         return download_path
 
@@ -169,10 +185,10 @@ class DownloadManager(QObject):
         """Callback from music_dl progress handler (runs on WORKER thread).
         Queues progress for the main-thread poll timer to emit as Qt signals."""
         try:
-            song_name = tracker.song.display_name if tracker.song else "Unknown"
+            song_id = tracker.song.song_id if tracker.song else ""
             progress = tracker.progress / 100.0
             with self._progress_lock:
-                self._progress_updates.append((song_name, progress))
+                self._progress_updates.append((song_id, progress))
         except Exception:
             pass
 
@@ -191,6 +207,35 @@ class DownloadManager(QObject):
         return self._get_download_path()
 
     # ─── QML Slots ────────────────────────────────────────────────────
+
+    @Slot(str)
+    def set_download_playlist(self, name: str):
+        """Set the target playlist (subfolder) for downloads."""
+        if not name or not name.strip():
+            self._target_subfolder = None
+            logger.info("Download playlist reset to default")
+        else:
+            self._target_subfolder = name.strip()
+            logger.info("Download playlist set to: %s", self._target_subfolder)
+
+        # If engine is already initialized, update its output path
+        if self._music_dl is not None:
+            download_path = self._get_download_path()
+            dl_format = self._get_download_format()
+            output_template = os.path.join(
+                download_path, "{artists} - {title}.{output-ext}"
+            )
+            self._music_dl.downloader.settings["output"] = output_template
+            logger.info("Updated engine output path to: %s", download_path)
+
+    @Slot(result=str)
+    def get_download_playlist(self) -> str:
+        """Get the current target playlist name for downloads."""
+        if self._target_subfolder is not None:
+            return self._target_subfolder
+        if self._settings_manager:
+            return self._settings_manager.get_setting("downloadSubfolder", "Downloads")
+        return "Downloads"
 
     @Slot(str)
     def search(self, query: str):
@@ -256,30 +301,28 @@ class DownloadManager(QObject):
             song_data = json.loads(song_json)
         except json.JSONDecodeError as exc:
             logger.error("Invalid song JSON: %s", exc)
-            self.downloadError.emit("Unknown", f"Invalid song data: {exc}")
+            self.downloadError.emit("", "Unknown", f"Invalid song data: {exc}")
             return
 
+        song_id = song_data.get("song_id", "")
         song_name = f"{song_data.get('artist', 'Unknown')} - {song_data.get('name', 'Unknown')}"
 
-        # Prevent duplicate download of the same song
-        # Key format is "dl_{counter}_{songName}", so split to extract song name
-        for key in self._pending_futures:
-            if key.startswith("dl_"):
-                parts = key.split("_", 2)
-                existing_name = parts[2] if len(parts) >= 3 else key[3:]
-                if existing_name == song_name:
+        # Prevent duplicate download of the same song by song_id
+        if song_id:
+            for key in self._pending_futures:
+                if key.startswith("dl_") and key.endswith(f"_{song_id}"):
                     self.statusMessage.emit(f"Already downloading: {song_name}")
                     return
 
         self.statusMessage.emit(f"Queuing download: {song_name}")
-        self.downloadStarted.emit(song_name)
+        self.downloadStarted.emit(song_id, song_name)
 
         self._active_downloads += 1
         self.activeDownloadsChanged.emit(self._active_downloads)
 
-        # Use unique key with counter to avoid collisions between different songs
+        # Use song_id as the unique key suffix
         self._dl_counter = getattr(self, '_dl_counter', 0) + 1
-        future_key = f"dl_{self._dl_counter}_{song_name}"
+        future_key = f"dl_{self._dl_counter}_{song_id}"
 
         future = self._executor.submit(self._do_download, song_data)
         self._pending_futures[future_key] = future
@@ -321,27 +364,31 @@ class DownloadManager(QObject):
 
     _AUDIO_EXTENSIONS = ('.mp3', '.flac', '.ogg', '.opus', '.m4a')
 
-    def _get_downloaded_files(self) -> set:
-        """Get a set of lowercase filenames (without extension) across the entire library."""
-        names = set()
-        # Check all folders under the media library root
+    def _get_downloaded_files(self) -> Dict[str, str]:
+        """Get a dict mapping lowercase filename (no ext) -> folder name across the library."""
+        names: Dict[str, str] = {}
         if self._settings_manager:
             media_folder = self._settings_manager.mediaFolder
             if media_folder and os.path.isdir(media_folder):
                 try:
                     for root, _dirs, files in os.walk(media_folder):
+                        folder = os.path.basename(root)
+                        # Root-level files belong to "Unsorted"
+                        if os.path.normpath(root) == os.path.normpath(media_folder):
+                            folder = "Unsorted"
                         for f in files:
                             if f.lower().endswith(self._AUDIO_EXTENSIONS):
-                                names.add(os.path.splitext(f)[0].lower())
+                                names[os.path.splitext(f)[0].lower()] = folder
                 except OSError:
                     pass
         # Fallback: also check the download subfolder specifically
         if not names:
             download_path = self._get_download_path()
+            folder = os.path.basename(download_path)
             try:
                 for f in os.listdir(download_path):
                     if f.lower().endswith(self._AUDIO_EXTENSIONS):
-                        names.add(os.path.splitext(f)[0].lower())
+                        names[os.path.splitext(f)[0].lower()] = folder
             except OSError:
                 pass
         return names
@@ -355,14 +402,19 @@ class DownloadManager(QObject):
         return text.lower()
 
     def _mark_downloaded(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Tag each result with is_downloaded based on files in the download folder."""
+        """Tag each result with is_downloaded and downloaded_playlist."""
         downloaded = self._get_downloaded_files()
         for r in results:
             artist = r.get('artist', '')
             name = r.get('name', '')
             # Apply the same sanitization that music_dl applies when saving files
             expected = self._sanitize_for_match(f"{artist} - {name}")
-            r["is_downloaded"] = expected in downloaded
+            if expected in downloaded:
+                r["is_downloaded"] = True
+                r["downloaded_playlist"] = downloaded[expected]
+            else:
+                r["is_downloaded"] = False
+                r["downloaded_playlist"] = ""
         return results
 
     def _do_search(self, query: str, offset: int = 0) -> List[Dict[str, Any]]:
@@ -436,6 +488,8 @@ class DownloadManager(QObject):
         """Perform single song download in background thread."""
         from backend.music_dl.types.song import Song
 
+        song_id = song_data.get("song_id", "")
+
         # Build Song from Spotify URL (fetches full metadata) or from dict
         url = song_data.get("url", "")
         if url and "open.spotify.com" in url:
@@ -447,6 +501,7 @@ class DownloadManager(QObject):
 
         result_song, path = self._music_dl.download(song)
         return {
+            "song_id": song_id,
             "song_name": result_song.display_name,
             "path": str(path) if path else None,
             "success": path is not None,
@@ -511,15 +566,17 @@ class DownloadManager(QObject):
                     self.searchError.emit(str(exc))
                     self.statusMessage.emit(f"Search failed: {exc}")
                 elif key.startswith("dl_"):
-                    # Key format: "dl_{counter}_{song_name}"
-                    song_name = key.split("_", 2)[2] if key.count("_") >= 2 else key[3:]
-                    self.downloadError.emit(song_name, str(exc))
+                    # Key format: "dl_{counter}_{song_id}"
+                    song_id = key.split("_", 2)[2] if key.count("_") >= 2 else ""
+                    error_msg = str(exc)
+                    self.downloadError.emit(song_id, "", error_msg)
                     self._active_downloads = max(0, self._active_downloads - 1)
                     self.activeDownloadsChanged.emit(self._active_downloads)
-                    self.statusMessage.emit(f"Download failed: {song_name}")
-                    self._mark_result_status(song_name, "is_failed", True)
+                    self.statusMessage.emit(f"Download failed")
+                    self._mark_result_status_by_id(song_id, "is_failed", True)
+                    self._mark_result_status_by_id(song_id, "error_message", error_msg)
                 elif key.startswith("url_"):
-                    self.downloadError.emit("URL download", str(exc))
+                    self.downloadError.emit("", "URL download", str(exc))
                     self.statusMessage.emit(f"URL download failed: {exc}")
 
         for key in completed_keys:
@@ -555,8 +612,18 @@ class DownloadManager(QObject):
         # Store results for download_song lookup
         self._last_search_results = self._all_results
 
+    def _mark_result_status_by_id(self, song_id: str, field: str, value: Any):
+        """Set a field on the matching search result by song_id and re-emit to QML."""
+        if not self._all_results or not song_id:
+            return
+        for r in self._all_results:
+            if r.get("song_id") == song_id:
+                r[field] = value
+                break
+        self.searchResults.emit(json.dumps(self._all_results))
+
     def _mark_result_status(self, song_name: str, field: str, value: Any):
-        """Set a field on the matching search result and re-emit to QML."""
+        """Set a field on the matching search result by name and re-emit to QML."""
         if not self._all_results:
             return
         sanitized_name = self._sanitize_for_match(song_name)
@@ -571,6 +638,7 @@ class DownloadManager(QObject):
 
     def _handle_download_result(self, result: Dict[str, Any]):
         """Handle completed download."""
+        song_id = result.get("song_id", "")
         song_name = result.get("song_name", "Unknown")
         path = result.get("path")
         success = result.get("success", False)
@@ -579,20 +647,22 @@ class DownloadManager(QObject):
         self.activeDownloadsChanged.emit(self._active_downloads)
 
         if success and path:
-            self.downloadComplete.emit(song_name, path)
+            self.downloadComplete.emit(song_id, path)
             self.statusMessage.emit(f"Downloaded: {song_name}")
             logger.info("Download complete: %s -> %s", song_name, path)
-            self._mark_result_status(song_name, "is_downloaded", True)
+            self._mark_result_status_by_id(song_id, "is_downloaded", True)
         else:
-            self.downloadError.emit(song_name, "Download failed")
+            error_msg = "Download failed — no audio source found"
+            self.downloadError.emit(song_id, song_name, error_msg)
             self.statusMessage.emit(f"Failed: {song_name}")
             logger.warning("Download failed: %s", song_name)
-            self._mark_result_status(song_name, "is_failed", True)
+            self._mark_result_status_by_id(song_id, "is_failed", True)
+            self._mark_result_status_by_id(song_id, "error_message", error_msg)
 
     def _handle_url_download_result(self, result: Dict[str, Any]):
         """Handle completed URL download (possibly multiple songs)."""
         if "error" in result:
-            self.downloadError.emit("URL download", result["error"])
+            self.downloadError.emit("", "URL download", result["error"])
             self.statusMessage.emit(result["error"])
             return
 
@@ -602,11 +672,12 @@ class DownloadManager(QObject):
 
         for dl in downloaded:
             song_name = dl.get("song_name", "Unknown")
+            song_id = dl.get("song_id", "")
             path = dl.get("path")
             if dl.get("success") and path:
-                self.downloadComplete.emit(song_name, path)
+                self.downloadComplete.emit(song_id, path)
             else:
-                self.downloadError.emit(song_name, "Download failed")
+                self.downloadError.emit(song_id, song_name, "Download failed")
 
         self.statusMessage.emit(
             f"Downloaded {success_count}/{total} song(s)"

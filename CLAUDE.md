@@ -9,21 +9,21 @@ OCTAVE (Open-source Cross-platform Telematics for Augmented Vehicle Experience) 
 ## Commands
 
 ```bash
-# First-time setup (creates venv, installs system deps on Linux)
-python3 setup.py
+# First-time setup + run (creates venv, installs deps, launches app)
+python setup.py
 
-# Run the app (activate venv first)
+# Setup only, don't launch
+python setup.py --no-run
+
+# Run the app directly (activate venv first)
 source venv/bin/activate
-python3 main.py
-
-# Setup + run in one command
-python3 setup.py --run
+python main.py
 
 # Debug mode (enables debug logging)
-python3 main.py --debug
+python main.py --debug
 
 # Developer mode (simulated OBD data, keyboard controls for testing)
-python3 dev/dev_main.py
+python dev/dev_main.py
 
 # Build for distribution
 python build_scripts/build.py

@@ -335,6 +335,9 @@ ApplicationWindow {
             id: stackView
             z: 1
 
+            // Cached DownloadPage — created once, reused across all navigations
+            property var _cachedDownloadPage: null
+
             // Different anchoring based on orientation
             anchors {
                 left: isVerticalLayout ? bottomBar.right : parent.left

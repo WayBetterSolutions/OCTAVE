@@ -4,8 +4,8 @@ OCTAVE Setup Script
 Cross-platform installer that handles dependencies and environment setup.
 
 Usage:
-    python setup.py          # Setup only
-    python setup.py --run    # Setup and run the app
+    python setup.py            # Setup and run the app
+    python setup.py --no-run   # Setup only, don't launch
 """
 
 import subprocess
@@ -13,6 +13,12 @@ import sys
 import os
 import platform
 import shutil
+import time
+
+# Ensure Unicode output works on Windows (cp1252 can't handle ✓/✗/→)
+if sys.stdout.encoding and sys.stdout.encoding.lower().replace("-", "") != "utf8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 def print_header(text):
     print("\n" + "=" * 50)
@@ -132,8 +138,7 @@ def install_linux_deps():
             "qt6-base", "qt6-multimedia"
         ]
 
-        all_packages = " ".join(packages)
-        run_command(f"sudo pacman -S --needed --noconfirm {all_packages}", shell=True, check=False)
+        run_command(["sudo", "pacman", "-S", "--needed", "--noconfirm"] + packages, check=False)
 
     elif distro == "fedora":
         # Fedora / RHEL / CentOS packages
@@ -152,8 +157,7 @@ def install_linux_deps():
             "qt6-qtbase", "qt6-qtmultimedia"
         ]
 
-        all_packages = " ".join(packages)
-        run_command(f"sudo dnf install -y {all_packages}", shell=True, check=False)
+        run_command(["sudo", "dnf", "install", "-y"] + packages, check=False)
 
     else:
         # Debian / Ubuntu / Mint / Pop!_OS (default)
@@ -190,11 +194,10 @@ def install_linux_deps():
         ]
 
         # Update package list
-        run_command("sudo apt update", shell=True)
+        run_command(["sudo", "apt", "update"])
 
         # Install all packages at once (faster), ignore errors for missing packages
-        all_packages = " ".join(packages)
-        run_command(f"sudo apt install -y {all_packages}", shell=True, check=False)
+        run_command(["sudo", "apt", "install", "-y"] + packages, check=False)
 
     print("✓ System dependencies installed")
 
@@ -229,13 +232,13 @@ def setup_venv():
                 if is_windows_venv != current_is_windows:
                     print(f"  Existing venv is from {'Windows' if is_windows_venv else 'Linux/macOS'}, recreating...")
                 else:
-                    # Check Python version compatibility
+                    # Check that pip actually works (not just that the shim exists)
                     pip_path = get_pip_path(venv_path)
-                    if os.path.exists(pip_path):
+                    if os.path.exists(pip_path) and run_command([pip_path, "--version"], check=True):
                         venv_valid = True
                         print("✓ Virtual environment already exists")
                     else:
-                        print("  Existing venv is missing pip, recreating...")
+                        print("  Existing venv has broken pip, recreating...")
             except Exception:
                 print("  Could not read venv config, recreating...")
         else:
@@ -243,7 +246,26 @@ def setup_venv():
 
         if not venv_valid:
             # Remove incompatible venv
-            shutil.rmtree(venv_path)
+            def _remove_readonly(func, path, exc_info):
+                """Handle permission errors on Windows (read-only or locked files)."""
+                import stat
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    func(path)
+                except Exception:
+                    pass  # Skip files that are truly locked by another process
+
+            try:
+                shutil.rmtree(venv_path, onexc=_remove_readonly)
+            except Exception:
+                # If rmtree still fails, try renaming and moving on
+                fallback = venv_path + f"_old_{int(time.time())}"
+                try:
+                    os.rename(venv_path, fallback)
+                    print(f"  Could not fully remove old venv (files locked), renamed to {os.path.basename(fallback)}")
+                except Exception:
+                    print("✗ Could not remove old venv — close any programs using it and try again.")
+                    sys.exit(1)
 
     if not os.path.exists(venv_path):
         try:
@@ -333,18 +355,14 @@ def main():
     # Show run instructions
     if plat == "windows":
         activate_cmd = r"venv\Scripts\activate"
-        python_cmd = "python"
     else:
         activate_cmd = "source venv/bin/activate"
-        python_cmd = "python3"
 
-    print(f"""
+    if "--no-run" in sys.argv:
+        print(f"""
 To run OCTAVE:
     {activate_cmd}
-    {python_cmd} main.py
-
-Or run directly:
-    {python_cmd} setup.py --run
+    python main.py
 """)
 
     # WSL-specific guidance
@@ -364,11 +382,11 @@ OCTAVE requires a display to run. Options:
 3. Run on Windows directly instead of WSL
 """)
 
-    # Run the app if --run flag is passed
-    if "--run" in sys.argv:
+    # Run the app unless --no-run flag is passed
+    if "--no-run" not in sys.argv:
         if wsl and not check_display():
             print("Skipping app launch - no display available.")
-            print("Set up a display first, then run: python3 main.py")
+            print("Set up a display first, then run: python main.py")
         else:
             run_app(venv_path)
 

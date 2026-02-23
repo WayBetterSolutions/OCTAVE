@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import Qt5Compat.GraphicalEffects
 import "." as App
 
 Item {
@@ -12,6 +13,56 @@ Item {
     // Global font binding for all text in this component
     // fontFamily always returns a valid font (systemDefaultFont or custom font)
     property string globalFont: App.Style.fontFamily
+
+    // Navigate to cached DownloadPage, pre-selecting the current playlist
+    function openDownloadPage() {
+        var sv = mediaPlayer.stackView
+        if (sv.currentItem && sv.currentItem.objectName === "downloadPage") return
+
+        // Determine current local playlist to pre-select (skip special playlists)
+        var preselect = ""
+        if (!mediaPlayer.isSpotifyPlaylist && currentPlaylistName
+            && currentPlaylistName !== "All Music" && currentPlaylistName !== "Unsorted") {
+            preselect = currentPlaylistName
+        }
+
+        // Reuse cached page if it exists
+        if (sv._cachedDownloadPage) {
+            // Check if it's already in the stack
+            for (var i = 0; i < sv.depth; i++) {
+                if (sv.get(i) === sv._cachedDownloadPage) {
+                    sv.pop(sv._cachedDownloadPage)
+                    syncDownloadPlaylist(preselect)
+                    return
+                }
+            }
+            sv.push(sv._cachedDownloadPage)
+            syncDownloadPlaylist(preselect)
+            return
+        }
+
+        // First time: create and cache on the stackView
+        var component = Qt.createComponent("DownloadPage.qml")
+        if (component.status === Component.Ready) {
+            sv._cachedDownloadPage = component.createObject(null, {
+                stackView: sv,
+                mainWindow: mediaPlayer.mainWindow
+            })
+            if (sv._cachedDownloadPage) {
+                sv.push(sv._cachedDownloadPage)
+                syncDownloadPlaylist(preselect)
+            }
+        }
+    }
+
+    function syncDownloadPlaylist(name) {
+        if (!name) return
+        var dp = stackView._cachedDownloadPage
+        if (dp) {
+            dp.selectedPlaylist = name
+            downloadManager.set_download_playlist(name)
+        }
+    }
 
     // Core properties
     property var mediaFiles: []
@@ -220,327 +271,441 @@ Item {
                 right: parent.right
                 top: parent.top
             }
-            height: App.Spacing.mediaPlayerStatsBarHeight * 1.5
+            height: App.Spacing.bottomBarNavButtonHeight + App.Spacing.mediaRoomMargin * 2
             color: App.Style.headerBackgroundColor
             z: 2
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: App.Spacing.overallMargin * 4
-                anchors.rightMargin: App.Spacing.overallMargin * 4
-                spacing: App.Spacing.overallMargin * 4
+            // Stats (left side, vertically centered)
+            Row {
+                id: statsRow
+                anchors {
+                    left: parent.left
+                    leftMargin: App.Spacing.overallMargin * 4
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: App.Spacing.overallMargin * 2
 
-                // Spacer to push dropdown to the right
-                Item {
-                    Layout.fillWidth: true
+                Text {
+                    text: (isSpotifyPlaylist ? spotifyTrackNames.length : mediaFiles.length) + " songs"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // Custom playlist dropdown (avoids native style issues)
-                Item {
-                    id: playlistDropdownContainer
-                    Layout.preferredWidth: Math.min(App.Spacing.dp(300), parent.width * 0.4)
-                    Layout.preferredHeight: App.Spacing.formElementHeight
+                Text {
+                    visible: !isSpotifyPlaylist
+                    text: "\u00B7"
+                    color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.4)
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.4
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
 
+                Text {
+                    id: albumCountText
+                    visible: !isSpotifyPlaylist
+                    text: (mediaManager ? mediaManager.get_album_count() : "-") + " albums"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    visible: !isSpotifyPlaylist
+                    text: "\u00B7"
+                    color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.4)
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.4
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    id: artistCountText
+                    visible: !isSpotifyPlaylist
+                    text: (mediaManager ? mediaManager.get_artist_count() : "-") + " artists"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    visible: !isSpotifyPlaylist
+                    text: "\u00B7"
+                    color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.4)
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.4
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    id: totalDurationText
+                    visible: !isSpotifyPlaylist
+                    text: mediaManager ? mediaManager.get_total_duration() : "--:--:--"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
+                    font.family: mediaPlayer.globalFont
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // Spotify indicator
+                Row {
+                    visible: isSpotifyPlaylist
+                    spacing: App.Spacing.overallMargin
+                    anchors.verticalCenter: parent.verticalCenter
                     Rectangle {
-                        id: playlistDropdown
+                        width: App.Spacing.dp(8)
+                        height: App.Spacing.dp(8)
+                        radius: App.Spacing.dp(4)
+                        color: "#1DB954"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: "Spotify"
+                        color: "#1DB954"
+                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.1
+                        font.family: mediaPlayer.globalFont
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            // New playlist button (left of dropdown)
+            Rectangle {
+                id: newPlaylistButton
+                width: App.Spacing.bottomBarNavButtonHeight
+                height: App.Spacing.bottomBarNavButtonHeight
+                anchors {
+                    right: playlistDropdownContainer.left
+                    rightMargin: App.Spacing.overallMargin * 2
+                    verticalCenter: parent.verticalCenter
+                }
+                color: newPlaylistMouse.pressed
+                    ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                    : "transparent"
+                radius: App.Spacing.dpMin(8, 2)
+                border.width: 1
+                border.color: App.Style.accent
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "+"
+                    color: App.Style.accent
+                    font.pixelSize: App.Spacing.dp(22)
+                    font.weight: Font.Bold
+                    font.family: mediaPlayer.globalFont
+                }
+
+                MouseArea {
+                    id: newPlaylistMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: newPlaylistDialog.open()
+                }
+            }
+
+            // Playlist dropdown (right side, next to download button)
+            Item {
+                id: playlistDropdownContainer
+                width: Math.min(App.Spacing.dp(280), parent.width * 0.3)
+                height: App.Spacing.bottomBarNavButtonHeight
+                anchors {
+                    right: parent.right
+                    rightMargin: App.Spacing.mediaRoomMargin + App.Spacing.bottomBarNavButtonWidth + App.Spacing.overallMargin * 3
+                    verticalCenter: parent.verticalCenter
+                }
+
+                // Cooldown to prevent CloseOnPressOutside from immediately re-opening
+                property bool dropdownCooldown: false
+                Timer {
+                    id: dropdownCooldownTimer
+                    interval: 100
+                    onTriggered: playlistDropdownContainer.dropdownCooldown = false
+                }
+
+                Rectangle {
+                    id: playlistDropdown
+                    anchors.fill: parent
+                    color: dropdownMouseArea.containsMouse ? Qt.lighter(App.Style.hoverColor, 1.2) : "transparent"
+                    radius: App.Spacing.dpMin(8, 2)
+                    border.width: 1
+                    border.color: App.Style.accent
+
+                    Behavior on color {
+                        ColorAnimation { duration: 150 }
+                    }
+
+                    // Playlist label
+                    Text {
+                        id: dropdownLabel
+                        anchors.top: parent.top
+                        anchors.topMargin: App.Spacing.dp(4)
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: "PLAYLIST"
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 0.85
+                        font.bold: true
+                        font.family: mediaPlayer.globalFont
+                        font.letterSpacing: App.Spacing.dp(1)
+                    }
+
+                    // Display text
+                    Text {
+                        id: dropdownText
+                        anchors.left: parent.left
+                        anchors.right: dropdownArrow.left
+                        anchors.top: dropdownLabel.bottom
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: App.Spacing.overallMargin * 2
+                        verticalAlignment: Text.AlignVCenter
+                        text: displayPlaylistName || "Select Playlist"
+                        color: isSpotifyPlaylist ? "#1DB954" : App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.4
+                        font.bold: true
+                        font.family: mediaPlayer.globalFont
+                        elide: Text.ElideRight
+                    }
+
+                    // Dropdown arrow
+                    Text {
+                        id: dropdownArrow
+                        anchors.right: parent.right
+                        anchors.rightMargin: App.Spacing.overallMargin * 2
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: playlistPopup.visible ? "\u25B2" : "\u25BC"
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.overallText
+                        font.family: mediaPlayer.globalFont
+                    }
+
+                    MouseArea {
+                        id: dropdownMouseArea
                         anchors.fill: parent
-                        color: dropdownMouseArea.containsMouse ? Qt.lighter(App.Style.hoverColor, 1.1) : App.Style.hoverColor
-                        radius: App.Spacing.dpMin(6, 2)
-                        border.width: 1
-                        border.color: Qt.rgba(App.Style.primaryTextColor.r,
-                                              App.Style.primaryTextColor.g,
-                                              App.Style.primaryTextColor.b, 0.2)
-
-                        // Display text
-                        Text {
-                            id: dropdownText
-                            anchors.left: parent.left
-                            anchors.right: dropdownArrow.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: App.Spacing.overallMargin * 2
-                            text: displayPlaylistName || "Select Playlist"
-                            color: isSpotifyPlaylist ? "#1DB954" : App.Style.primaryTextColor
-                            font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.3
-                            font.bold: true
-                            font.family: mediaPlayer.globalFont
-                            elide: Text.ElideRight
-                        }
-
-                        // Dropdown arrow
-                        Text {
-                            id: dropdownArrow
-                            anchors.right: parent.right
-                            anchors.rightMargin: App.Spacing.overallMargin * 2
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: playlistPopup.visible ? "\u25B2" : "\u25BC"
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText * 0.8
-                            font.family: mediaPlayer.globalFont
-                        }
-
-                        MouseArea {
-                            id: dropdownMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: {
-                                if (playlistPopup.visible) {
-                                    playlistPopup.close()
-                                } else {
-                                    playlistPopup.open()
-                                }
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            if (playlistDropdownContainer.dropdownCooldown) return
+                            if (playlistPopup.visible) {
+                                playlistPopup.close()
+                            } else {
+                                playlistPopup.open()
                             }
                         }
                     }
+                }
 
-                    // Popup menu - outside the Rectangle for proper layering
-                    Popup {
-                        id: playlistPopup
-                        parent: playlistDropdownContainer
-                        y: playlistDropdown.height + App.Spacing.dp(2)
-                        width: playlistDropdown.width
-                        height: Math.min(playlistColumn.implicitHeight + App.Spacing.dp(16), App.Spacing.dp(300))
-                        padding: App.Spacing.dp(8)
-                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                // Popup menu
+                Popup {
+                    id: playlistPopup
+                    parent: playlistDropdownContainer
+                    y: playlistDropdown.height + App.Spacing.dp(4)
+                    width: playlistDropdown.width
+                    height: Math.min(playlistColumn.implicitHeight + App.Spacing.dp(20), App.Spacing.dp(400))
+                    padding: App.Spacing.dp(10)
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                    onClosed: {
+                        playlistDropdownContainer.dropdownCooldown = true
+                        dropdownCooldownTimer.restart()
+                    }
 
-                        background: Rectangle {
-                            color: App.Style.backgroundColor
-                            border.color: Qt.rgba(App.Style.primaryTextColor.r,
-                                                  App.Style.primaryTextColor.g,
-                                                  App.Style.primaryTextColor.b, 0.3)
-                            border.width: 1
-                            radius: App.Spacing.dpMin(6, 2)
-                        }
+                    background: Rectangle {
+                        color: App.Style.backgroundColor
+                        border.color: App.Style.accent
+                        border.width: 1
+                        radius: App.Spacing.dpMin(8, 2)
+                    }
 
-                        contentItem: Flickable {
-                            clip: true
-                            contentHeight: playlistColumn.implicitHeight
-                            boundsBehavior: Flickable.StopAtBounds
+                    contentItem: Flickable {
+                        clip: true
+                        contentHeight: playlistColumn.implicitHeight
+                        boundsBehavior: Flickable.StopAtBounds
 
-                            Column {
-                                id: playlistColumn
-                                width: parent.width
-                                spacing: App.Spacing.dp(2)
+                        Column {
+                            id: playlistColumn
+                            width: parent.width
+                            spacing: App.Spacing.dp(4)
 
-                                Repeater {
-                                    model: combinedPlaylists
+                            Repeater {
+                                model: combinedPlaylists
 
-                                    Rectangle {
-                                        width: playlistColumn.width
-                                        height: App.Spacing.formElementHeight
-                                        color: itemMouseArea.containsMouse ?
-                                            (modelData.type === "spotify" ? "#1DB954" : App.Style.accent) :
-                                            "transparent"
-                                        radius: 4
+                                Rectangle {
+                                    width: playlistColumn.width
+                                    height: App.Spacing.bottomBarNavButtonHeight
+                                    color: {
+                                        var isActive = (modelData.type !== "spotify" && modelData.name === currentPlaylistName) ||
+                                                       (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
+                                        if (isActive) return Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
+                                        if (itemMouseArea.containsMouse) {
+                                            return modelData.type === "spotify" ? Qt.rgba(0.114, 0.725, 0.329, 0.3) : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+                                        }
+                                        return "transparent"
+                                    }
+                                    radius: App.Spacing.dpMin(6, 2)
+                                    border.width: {
+                                        var isActive = (modelData.type !== "spotify" && modelData.name === currentPlaylistName) ||
+                                                       (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
+                                        return isActive ? 1 : 0
+                                    }
+                                    border.color: App.Style.accent
 
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: App.Spacing.overallMargin
-                                            anchors.rightMargin: App.Spacing.overallMargin
-                                            spacing: App.Spacing.overallMargin
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: App.Spacing.overallMargin * 2
+                                        anchors.rightMargin: App.Spacing.overallMargin * 2
+                                        spacing: App.Spacing.overallMargin * 2
 
-                                            // Spotify indicator circle
-                                            Rectangle {
-                                                visible: modelData.type === "spotify"
-                                                width: App.Spacing.dp(8)
-                                                height: App.Spacing.dp(8)
-                                                radius: App.Spacing.dp(4)
-                                                color: itemMouseArea.containsMouse ? "white" : "#1DB954"
-                                            }
-
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: modelData.name
-                                                color: {
-                                                    if (itemMouseArea.containsMouse) {
-                                                        return "white"
-                                                    }
-                                                    if (modelData.type === "spotify") return "#1DB954"
-                                                    return App.Style.primaryTextColor
-                                                }
-                                                font.pixelSize: App.Spacing.overallText
-                                                font.bold: (modelData.type !== "spotify" && modelData.name === currentPlaylistName) ||
-                                                           (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
-                                                font.family: mediaPlayer.globalFont
-                                                elide: Text.ElideRight
-                                            }
+                                        // Spotify indicator circle
+                                        Rectangle {
+                                            visible: modelData.type === "spotify"
+                                            width: App.Spacing.dp(10)
+                                            height: App.Spacing.dp(10)
+                                            radius: App.Spacing.dp(5)
+                                            color: "#1DB954"
                                         }
 
-                                        MouseArea {
-                                            id: itemMouseArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            onClicked: {
-                                                console.log("Playlist selected: " + modelData.name + ", type: " + modelData.type)
-                                                if (modelData.type === "spotify") {
-                                                    // Set Spotify mode FIRST before loading tracks
-                                                    mediaPlayer.isSpotifyPlaylist = true
-                                                    mediaPlayer.currentSpotifyPlaylistName = modelData.name
-                                                    console.log("isSpotifyPlaylist set to: " + mediaPlayer.isSpotifyPlaylist)
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: modelData.name
+                                            color: {
+                                                if (modelData.type === "spotify") return "#1DB954"
+                                                return App.Style.primaryTextColor
+                                            }
+                                            font.pixelSize: App.Spacing.overallText * 1.1
+                                            font.bold: (modelData.type !== "spotify" && modelData.name === currentPlaylistName) ||
+                                                       (modelData.type === "spotify" && modelData.name === currentSpotifyPlaylistName)
+                                            font.family: mediaPlayer.globalFont
+                                            elide: Text.ElideRight
+                                        }
+                                    }
 
-                                                    // Switch media source
-                                                    if (settingsManager) {
-                                                        settingsManager.set_media_source("spotify")
-                                                    }
-                                                    // Get playlist ID and select it (this will load tracks and emit signal)
-                                                    if (spotifyManager) {
-                                                        var playlistId = spotifyManager.get_spotify_playlist_id(modelData.name)
-                                                        console.log("Spotify playlist ID: " + playlistId)
-                                                        if (playlistId) {
-                                                            spotifyManager.select_spotify_playlist(playlistId)
-                                                        }
-                                                    }
-                                                } else {
-                                                    // Switch to local mode FIRST
-                                                    mediaPlayer.isSpotifyPlaylist = false
-                                                    console.log("isSpotifyPlaylist set to: " + mediaPlayer.isSpotifyPlaylist)
-
-                                                    // Switch media source
-                                                    if (settingsManager) {
-                                                        settingsManager.set_media_source("local")
-                                                    }
-                                                    if (mediaManager && modelData.name) {
-                                                        mediaManager.select_playlist(modelData.name)
+                                    MouseArea {
+                                        id: itemMouseArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            console.log("Playlist selected: " + modelData.name + ", type: " + modelData.type)
+                                            if (modelData.type === "spotify") {
+                                                mediaPlayer.isSpotifyPlaylist = true
+                                                mediaPlayer.currentSpotifyPlaylistName = modelData.name
+                                                if (settingsManager) {
+                                                    settingsManager.set_media_source("spotify")
+                                                }
+                                                if (spotifyManager) {
+                                                    var playlistId = spotifyManager.get_spotify_playlist_id(modelData.name)
+                                                    if (playlistId) {
+                                                        spotifyManager.select_spotify_playlist(playlistId)
                                                     }
                                                 }
+                                            } else {
+                                                mediaPlayer.isSpotifyPlaylist = false
+                                                if (settingsManager) {
+                                                    settingsManager.set_media_source("local")
+                                                }
+                                                if (mediaManager && modelData.name) {
+                                                    mediaManager.select_playlist(modelData.name)
+                                                }
+                                            }
+                                            playlistPopup.close()
+                                        }
+                                        onPressAndHold: {
+                                            // Only allow deleting local, non-special playlists
+                                            if (modelData.type !== "spotify" && modelData.name !== "All Music" && modelData.name !== "Unsorted") {
+                                                deletePlaylistDialog.playlistToDelete = modelData.name
                                                 playlistPopup.close()
+                                                deletePlaylistDialog.open()
                                             }
                                         }
                                     }
                                 }
                             }
+                        }
 
-                            ScrollBar.vertical: ScrollBar {
-                                active: true
-                                policy: ScrollBar.AsNeeded
-                            }
+                        ScrollBar.vertical: ScrollBar {
+                            active: true
+                            policy: ScrollBar.AsNeeded
                         }
                     }
                 }
             }
         }
 
-        // Stats bar below title bar
-        Rectangle {
-            id: statsBar
+        // Download Button (top right corner, overlays title bar)
+        Control {
+            id: downloadButton
+            width: App.Spacing.bottomBarNavButtonWidth
+            height: App.Spacing.bottomBarNavButtonHeight
+            z: 3
             anchors {
-                left: parent.left
+                top: parent.top
                 right: parent.right
-                top: titleBar.bottom
+                topMargin: App.Spacing.mediaRoomMargin
+                rightMargin: App.Spacing.mediaRoomMargin
             }
-            height: App.Spacing.mediaPlayerStatsBarHeight * 1.2
-            color: App.Style.headerBackgroundColor
-            z: 1
 
-            RowLayout {
-                anchors {
-                    fill: parent
-                    leftMargin: App.Spacing.overallMargin * 4
-                    rightMargin: App.Spacing.overallMargin * 4
-                }
-                spacing: App.Spacing.overallMargin * 4
-
-                // Total Songs
-                RowLayout {
-                    spacing: App.Spacing.overallMargin
-                    Text {
-                        text: "Songs:"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.family: mediaPlayer.globalFont
-                    }
-                    Text {
-                        text: isSpotifyPlaylist ? spotifyTrackNames.length : mediaFiles.length
-                        color: isSpotifyPlaylist ? "#1DB954" : App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.bold: true
-                        font.family: mediaPlayer.globalFont
+            background: Rectangle {
+                color: "transparent"
+                radius: App.Spacing.dpMin(8, 2)
+                border.color: App.Style.accent
+                border.width: 1
+                scale: downloadMouseArea.pressed ? 0.8 : 1.0
+                opacity: downloadMouseArea.pressed ? 0.7 : 1.0
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 1.1
                     }
                 }
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
+            }
 
-                // Number of Albums
-                RowLayout {
-                    visible: !isSpotifyPlaylist
-                    spacing: App.Spacing.overallMargin
-                    Text {
-                        text: "Albums:"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.family: mediaPlayer.globalFont
+            contentItem: Item {
+                scale: downloadMouseArea.pressed ? 0.8 : 1.0
+                opacity: downloadMouseArea.pressed ? 0.7 : 1.0
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 1.1
                     }
-                    Text {
-                        id: albumCountText
-                        text: mediaManager ? mediaManager.get_album_count() : "-"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.bold: true
-                        font.family: mediaPlayer.globalFont
-                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
+                Image {
+                    id: downloadButtonImage
+                    anchors.centerIn: parent
+                    width: parent.width * 0.7
+                    height: parent.height * 0.7
+                    source: "./assets/download_button.svg"
+                    sourceSize: Qt.size(width * 2, height * 2)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    antialiasing: true
+                    mipmap: true
+                    visible: false
                 }
 
-                // Number of Artists
-                RowLayout {
-                    visible: !isSpotifyPlaylist
-                    spacing: App.Spacing.overallMargin
-                    Text {
-                        text: "Artists:"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.family: mediaPlayer.globalFont
-                    }
-                    Text {
-                        id: artistCountText
-                        text: mediaManager ? mediaManager.get_artist_count() : "-"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.bold: true
-                        font.family: mediaPlayer.globalFont
-                    }
+                ColorOverlay {
+                    anchors.fill: downloadButtonImage
+                    source: downloadButtonImage
+                    color: App.Style.accent
                 }
+            }
 
-                // Total Duration
-                RowLayout {
-                    visible: !isSpotifyPlaylist
-                    spacing: App.Spacing.overallMargin
-                    Text {
-                        text: "Total:"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.family: mediaPlayer.globalFont
-                    }
-                    Text {
-                        id: totalDurationText
-                        text: mediaManager ? mediaManager.get_total_duration() : "--:--:--"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.bold: true
-                        font.family: mediaPlayer.globalFont
-                    }
-                }
-
-                // Spotify indicator when viewing Spotify playlist
-                RowLayout {
-                    visible: isSpotifyPlaylist
-                    spacing: App.Spacing.overallMargin
-                    Rectangle {
-                        width: App.Spacing.dp(10)
-                        height: App.Spacing.dp(10)
-                        radius: App.Spacing.dp(5)
-                        color: "#1DB954"
-                    }
-                    Text {
-                        text: "Spotify Playlist"
-                        color: "#1DB954"
-                        font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.2
-                        font.family: mediaPlayer.globalFont
-                        font.bold: true
-                    }
-                }
-                
-                // Spacer
-                Item {
-                    Layout.fillWidth: true
-                }
-                
+            MouseArea {
+                id: downloadMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mediaPlayer.openDownloadPage()
             }
         }
 
@@ -550,7 +715,7 @@ Item {
             anchors {
                 fill: parent
                 margins: App.Spacing.overallMargin
-                topMargin: titleBar.height + statsBar.height + App.Spacing.overallMargin
+                topMargin: titleBar.height + App.Spacing.overallMargin
             }
             color: App.Style.backgroundColor
 
@@ -790,7 +955,7 @@ Item {
                                     anchors.fill: parent
                                     source: delegate.albumArtSource
                                     fillMode: Image.PreserveAspectCrop
-                                    opacity: delegate.isCurrentSong ? 0.15 : 0.08
+                                    opacity: delegate.isCurrentSong ? 0.10 : 0.03
                                     
                                     // Create a small random offset for visual interest
                                     transform: Translate {
@@ -1027,13 +1192,13 @@ Item {
                                     }
                                 }
                                 onPressAndHold: {
-                                    // Only allow delete for local files
+                                    // Only allow actions for local files
                                     if (!mediaPlayer.isSpotifyPlaylist) {
-                                        deleteDialog.songFilename = modelData
-                                        deleteDialog.songDisplayName = mediaManager
+                                        songActionMenu.songFilename = modelData
+                                        songActionMenu.songDisplayName = mediaManager
                                             ? (mediaManager.get_display_name(modelData) || modelData)
                                             : modelData
-                                        deleteDialog.open()
+                                        songActionMenu.open()
                                     }
                                 }
                             }
@@ -1116,11 +1281,11 @@ Item {
         }
 
         function onAlbumCountChanged(count) {
-            albumCountText.text = count
+            albumCountText.text = count + " albums"
         }
 
         function onArtistCountChanged(count) {
-            artistCountText.text = count
+            artistCountText.text = count + " artists"
         }
 
         // Playlist updates
@@ -1193,10 +1358,253 @@ Item {
         }
     }
 
+    // ─── Song Action Menu (long-press) ─────────────────────────────
+
+    Popup {
+        id: songActionMenu
+        anchors.centerIn: parent
+        width: App.Spacing.dp(320)
+        height: actionMenuContent.implicitHeight + App.Spacing.dp(32)
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string songFilename: ""
+        property string songDisplayName: ""
+
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.5)
+        }
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        ColumnLayout {
+            id: actionMenuContent
+            anchors.fill: parent
+            anchors.margins: App.Spacing.dp(16)
+            spacing: App.Spacing.dp(12)
+
+            // Song name header
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: actionSongLabel.implicitHeight + App.Spacing.dp(16)
+                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                radius: App.Spacing.dp(6)
+
+                Text {
+                    id: actionSongLabel
+                    anchors.centerIn: parent
+                    width: parent.width - App.Spacing.dp(16)
+                    text: songActionMenu.songDisplayName
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(13)
+                    font.weight: Font.DemiBold
+                    color: App.Style.primaryTextColor
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            // Move to Playlist button
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
+                color: moveToMouse.pressed
+                    ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                    : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                border.width: 1
+                radius: App.Spacing.dp(8)
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Move to Playlist"
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(14)
+                    font.weight: Font.DemiBold
+                    color: App.Style.accent
+                }
+
+                MouseArea {
+                    id: moveToMouse
+                    anchors.fill: parent
+                    onClicked: {
+                        songActionMenu.close()
+                        // Fetch available playlists, excluding current and "All Music"
+                        var all = mediaManager.get_movable_playlist_names()
+                        var filtered = []
+                        for (var i = 0; i < all.length; i++) {
+                            if (all[i] !== mediaPlayer.currentPlaylistName) {
+                                filtered.push(all[i])
+                            }
+                        }
+                        moveToPlaylistMenu.targetPlaylists = filtered
+                        moveToPlaylistMenu.songFilename = songActionMenu.songFilename
+                        moveToPlaylistMenu.songDisplayName = songActionMenu.songDisplayName
+                        moveToPlaylistMenu.open()
+                    }
+                }
+            }
+
+            // Delete button
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
+                color: deleteActionMouse.pressed ? Qt.darker("#e53935", 1.3) : Qt.rgba(1, 0.227, 0.208, 0.12)
+                border.color: Qt.rgba(1, 0.227, 0.208, 0.3)
+                border.width: 1
+                radius: App.Spacing.dp(8)
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Delete"
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(14)
+                    font.weight: Font.DemiBold
+                    color: "#e53935"
+                }
+
+                MouseArea {
+                    id: deleteActionMouse
+                    anchors.fill: parent
+                    onClicked: {
+                        songActionMenu.close()
+                        deleteConfirmDialog.songFilename = songActionMenu.songFilename
+                        deleteConfirmDialog.songDisplayName = songActionMenu.songDisplayName
+                        deleteConfirmDialog.open()
+                    }
+                }
+            }
+        }
+    }
+
+    // ─── Move to Playlist Menu ─────────────────────────────────────
+
+    Popup {
+        id: moveToPlaylistMenu
+        anchors.centerIn: parent
+        width: App.Spacing.dp(320)
+        height: Math.min(moveMenuContent.implicitHeight + App.Spacing.dp(32), App.Spacing.dp(400))
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string songFilename: ""
+        property string songDisplayName: ""
+        property var targetPlaylists: []
+
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.5)
+        }
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        contentItem: Flickable {
+            clip: true
+            contentHeight: moveMenuContent.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+
+            ColumnLayout {
+                id: moveMenuContent
+                width: parent.width
+                spacing: App.Spacing.dp(6)
+
+                Text {
+                    text: "Move to..."
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(16)
+                    font.weight: Font.Bold
+                    color: App.Style.primaryTextColor
+                    Layout.fillWidth: true
+                    Layout.leftMargin: App.Spacing.dp(4)
+                }
+
+                // Song name
+                Text {
+                    text: moveToPlaylistMenu.songDisplayName
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(11)
+                    color: App.Style.secondaryTextColor
+                    Layout.fillWidth: true
+                    Layout.leftMargin: App.Spacing.dp(4)
+                    elide: Text.ElideRight
+                }
+
+                Repeater {
+                    model: moveToPlaylistMenu.targetPlaylists
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
+                        color: moveItemMouse.pressed
+                            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                            : moveItemMouse.containsMouse
+                                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.1)
+                                : "transparent"
+                        radius: App.Spacing.dp(6)
+                        border.width: moveItemMouse.containsMouse ? 1 : 0
+                        border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: App.Spacing.overallMargin * 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData
+                            font.family: mediaPlayer.globalFont
+                            font.pixelSize: App.Spacing.dp(13)
+                            font.weight: Font.DemiBold
+                            color: App.Style.primaryTextColor
+                            elide: Text.ElideRight
+                        }
+
+                        MouseArea {
+                            id: moveItemMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                mediaManager.move_song_to_playlist(moveToPlaylistMenu.songFilename, modelData)
+                                moveToPlaylistMenu.close()
+                            }
+                        }
+                    }
+                }
+
+                // Empty state
+                Text {
+                    visible: moveToPlaylistMenu.targetPlaylists.length === 0
+                    text: "No other playlists available.\nCreate one with the + button."
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(12)
+                    color: App.Style.secondaryTextColor
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    Layout.topMargin: App.Spacing.dp(8)
+                }
+            }
+
+            ScrollBar.vertical: ScrollBar {
+                active: true
+                policy: ScrollBar.AsNeeded
+            }
+        }
+    }
+
     // ─── Delete Confirmation Dialog ─────────────────────────────
 
     Popup {
-        id: deleteDialog
+        id: deleteConfirmDialog
         anchors.centerIn: parent
         width: App.Spacing.dp(320)
         height: deleteDialogContent.implicitHeight + App.Spacing.dp(32)
@@ -1253,7 +1661,7 @@ Item {
                     id: songNameLabel
                     anchors.centerIn: parent
                     width: parent.width - App.Spacing.dp(16)
-                    text: deleteDialog.songDisplayName
+                    text: deleteConfirmDialog.songDisplayName
                     font.family: mediaPlayer.globalFont
                     font.pixelSize: App.Spacing.dp(13)
                     font.weight: Font.DemiBold
@@ -1300,7 +1708,7 @@ Item {
                     MouseArea {
                         id: cancelMouse
                         anchors.fill: parent
-                        onClicked: deleteDialog.close()
+                        onClicked: deleteConfirmDialog.close()
                     }
                 }
 
@@ -1324,10 +1732,487 @@ Item {
                         id: deleteMouse
                         anchors.fill: parent
                         onClicked: {
-                            if (mediaManager && deleteDialog.songFilename) {
-                                mediaManager.delete_song(deleteDialog.songFilename)
+                            if (mediaManager && deleteConfirmDialog.songFilename) {
+                                mediaManager.delete_song(deleteConfirmDialog.songFilename)
                             }
-                            deleteDialog.close()
+                            deleteConfirmDialog.close()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ─── Delete Playlist Confirmation Dialog ─────────────────────
+
+    Popup {
+        id: deletePlaylistDialog
+        anchors.centerIn: parent
+        width: App.Spacing.dp(320)
+        height: deletePlaylistContent.implicitHeight + App.Spacing.dp(32)
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string playlistToDelete: ""
+
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.5)
+        }
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        ColumnLayout {
+            id: deletePlaylistContent
+            anchors.fill: parent
+            anchors.margins: App.Spacing.dp(16)
+            spacing: App.Spacing.dp(12)
+
+            Text {
+                text: "Delete Playlist"
+                font.family: mediaPlayer.globalFont
+                font.pixelSize: App.Spacing.dp(18)
+                font.weight: Font.Bold
+                color: "#e53935"
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: "Delete \"" + deletePlaylistDialog.playlistToDelete + "\" and all songs in it?"
+                font.family: mediaPlayer.globalFont
+                font.pixelSize: App.Spacing.dp(13)
+                color: App.Style.secondaryTextColor
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.dp(10)
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: App.Spacing.dp(36)
+                    color: delPlCancelMouse.pressed
+                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+                        : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                    border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                    border.width: 1
+                    radius: App.Spacing.dp(6)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Cancel"
+                        font.family: mediaPlayer.globalFont
+                        font.pixelSize: App.Spacing.dp(13)
+                        font.weight: Font.DemiBold
+                        color: App.Style.primaryTextColor
+                    }
+
+                    MouseArea {
+                        id: delPlCancelMouse
+                        anchors.fill: parent
+                        onClicked: deletePlaylistDialog.close()
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: App.Spacing.dp(36)
+                    color: delPlConfirmMouse.pressed ? Qt.darker("#e53935", 1.3) : "#e53935"
+                    radius: App.Spacing.dp(6)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Delete"
+                        font.family: mediaPlayer.globalFont
+                        font.pixelSize: App.Spacing.dp(13)
+                        font.weight: Font.DemiBold
+                        color: "#ffffff"
+                    }
+
+                    MouseArea {
+                        id: delPlConfirmMouse
+                        anchors.fill: parent
+                        onClicked: {
+                            if (deletePlaylistDialog.playlistToDelete) {
+                                mediaManager.delete_playlist(deletePlaylistDialog.playlistToDelete)
+                            }
+                            deletePlaylistDialog.close()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ─── New Playlist Dialog ─────────────────────────────────────
+
+    Popup {
+        id: newPlaylistDialog
+        property bool npShowKeyboard: false
+
+        // Compact: small centered dialog.  Keyboard open: wide + tall, still centered.
+        property real npCompactW: App.Spacing.dp(320)
+        property real npCompactH: newPlaylistContent.implicitHeight + App.Spacing.dp(32)
+        property real npExpandedW: Math.min(mediaPlayer.width * 0.92, App.Spacing.dp(700))
+        property real npExpandedH: mediaPlayer.height * 0.82
+
+        width:  npShowKeyboard ? npExpandedW  : npCompactW
+        height: npShowKeyboard ? npExpandedH  : npCompactH
+        x: (parent.width  - width)  / 2
+        y: (parent.height - height) / 2
+
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        onOpened: newPlaylistInput.forceActiveFocus()
+        onClosed: { npShowKeyboard = false; newPlaylistInput.text = "" }
+
+        Behavior on width  { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.5)
+        }
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        ColumnLayout {
+            id: newPlaylistContent
+            anchors.fill: parent
+            anchors.margins: App.Spacing.dp(16)
+            spacing: App.Spacing.dp(10)
+
+            // Top portion (title + input + buttons)
+            ColumnLayout {
+                id: npTopContent
+                Layout.fillWidth: true
+                spacing: App.Spacing.dp(10)
+
+                Text {
+                    text: "New Playlist"
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(18)
+                    font.weight: Font.Bold
+                    color: App.Style.primaryTextColor
+                    Layout.fillWidth: true
+                }
+
+                Text {
+                    text: "Enter a name for the new playlist folder."
+                    font.family: mediaPlayer.globalFont
+                    font.pixelSize: App.Spacing.dp(13)
+                    color: App.Style.secondaryTextColor
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    visible: !newPlaylistDialog.npShowKeyboard
+                }
+
+                // Input row with keyboard toggle
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.dp(8)
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: App.Spacing.dp(40)
+                        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                        border.color: newPlaylistInput.activeFocus ? App.Style.accent : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                        border.width: 1
+                        radius: App.Spacing.dp(6)
+
+                        TextField {
+                            id: newPlaylistInput
+                            anchors.fill: parent
+                            anchors.leftMargin: App.Spacing.dp(8)
+                            anchors.rightMargin: App.Spacing.dp(8)
+                            placeholderText: "Playlist name..."
+                            placeholderTextColor: App.Style.secondaryTextColor
+                            font.family: mediaPlayer.globalFont
+                            font.pixelSize: App.Spacing.dp(14)
+                            color: App.Style.primaryTextColor
+                            background: Item {}
+                            selectByMouse: true
+                            onAccepted: {
+                                if (text.trim().length > 0) {
+                                    var pName = text.trim()
+                                    mediaManager.create_playlist(pName)
+                                    mediaManager.select_playlist(pName)
+                                    newPlaylistDialog.close()
+                                }
+                            }
+                        }
+                    }
+
+                    // Keyboard toggle
+                    Rectangle {
+                        Layout.preferredWidth: App.Spacing.dp(40)
+                        Layout.preferredHeight: App.Spacing.dp(40)
+                        color: newPlaylistDialog.npShowKeyboard
+                            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
+                            : npKbToggleMouse.containsMouse
+                                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.12)
+                                : "transparent"
+                        radius: App.Spacing.dp(6)
+                        border.width: 1
+                        border.color: newPlaylistDialog.npShowKeyboard ? App.Style.accent : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\u2328"
+                            font.pixelSize: App.Spacing.dp(20)
+                            color: newPlaylistDialog.npShowKeyboard ? App.Style.accent : App.Style.secondaryTextColor
+                        }
+
+                        MouseArea {
+                            id: npKbToggleMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                newPlaylistDialog.npShowKeyboard = !newPlaylistDialog.npShowKeyboard
+                                newPlaylistInput.forceActiveFocus()
+                            }
+                        }
+                    }
+                }
+
+                // Cancel / Create buttons
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.dp(10)
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: App.Spacing.dp(36)
+                        color: cancelNewMouse.pressed
+                            ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+                            : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                        border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                        border.width: 1
+                        radius: App.Spacing.dp(6)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Cancel"
+                            font.family: mediaPlayer.globalFont
+                            font.pixelSize: App.Spacing.dp(13)
+                            font.weight: Font.DemiBold
+                            color: App.Style.primaryTextColor
+                        }
+
+                        MouseArea {
+                            id: cancelNewMouse
+                            anchors.fill: parent
+                            onClicked: newPlaylistDialog.close()
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: App.Spacing.dp(36)
+                        color: createMouse.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
+                        radius: App.Spacing.dp(6)
+                        opacity: newPlaylistInput.text.trim().length > 0 ? 1.0 : 0.4
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Create"
+                            font.family: mediaPlayer.globalFont
+                            font.pixelSize: App.Spacing.dp(13)
+                            font.weight: Font.DemiBold
+                            color: "#000000"
+                        }
+
+                        MouseArea {
+                            id: createMouse
+                            anchors.fill: parent
+                            enabled: newPlaylistInput.text.trim().length > 0
+                            onClicked: {
+                                var pName = newPlaylistInput.text.trim()
+                                mediaManager.create_playlist(pName)
+                                mediaManager.select_playlist(pName)
+                                newPlaylistDialog.close()
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─── Inline On-Screen Keyboard ─────────────────────
+            Rectangle {
+                id: npKeyboard
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: newPlaylistDialog.npShowKeyboard
+                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.04)
+                border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+                border.width: 1
+                radius: App.Spacing.dp(8)
+
+                property var rows: [
+                    ["Q","W","E","R","T","Y","U","I","O","P"],
+                    ["A","S","D","F","G","H","J","K","L"],
+                    ["Z","X","C","V","B","N","M"]
+                ]
+
+                // Dynamic sizing: 4 rows (3 letter + 1 bottom), 10 keys wide
+                property real kbMargin: App.Spacing.dp(6)
+                property real kbSpacing: App.Spacing.dp(3)
+                property real kbRowCount: 4
+                property real kbColCount: 10
+                property real keyW: Math.floor((width - kbMargin * 2 - kbSpacing * (kbColCount - 1)) / kbColCount)
+                property real keyH: Math.floor((height - kbMargin * 2 - kbSpacing * (kbRowCount - 1)) / kbRowCount)
+                property real keyFont: Math.max(App.Spacing.dp(11), Math.min(keyH * 0.45, App.Spacing.dp(28)))
+
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: npKeyboard.kbMargin
+                    spacing: npKeyboard.kbSpacing
+
+                    Repeater {
+                        model: npKeyboard.rows
+
+                        Row {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: npKeyboard.kbSpacing
+
+                            Repeater {
+                                model: modelData
+
+                                Rectangle {
+                                    width: npKeyboard.keyW
+                                    height: npKeyboard.keyH
+                                    radius: App.Spacing.dp(5)
+                                    color: npKeyMouse.pressed
+                                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                                        : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                                    border.width: 1
+                                    border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        font.family: mediaPlayer.globalFont
+                                        font.pixelSize: npKeyboard.keyFont
+                                        font.weight: Font.DemiBold
+                                        color: App.Style.primaryTextColor
+                                    }
+
+                                    MouseArea {
+                                        id: npKeyMouse
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            newPlaylistInput.text += modelData.toLowerCase()
+                                            newPlaylistInput.forceActiveFocus()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom row: backspace, space, clear
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: npKeyboard.kbSpacing
+
+                        Rectangle {
+                            width: npKeyboard.keyW * 2 + npKeyboard.kbSpacing
+                            height: npKeyboard.keyH
+                            radius: App.Spacing.dp(5)
+                            color: npBkspMouse.pressed
+                                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                                : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u232B"
+                                font.pixelSize: npKeyboard.keyFont * 1.1
+                                color: App.Style.primaryTextColor
+                            }
+
+                            MouseArea {
+                                id: npBkspMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (newPlaylistInput.text.length > 0)
+                                        newPlaylistInput.text = newPlaylistInput.text.slice(0, -1)
+                                    newPlaylistInput.forceActiveFocus()
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: npKeyboard.keyW * 5 + npKeyboard.kbSpacing * 4
+                            height: npKeyboard.keyH
+                            radius: App.Spacing.dp(5)
+                            color: npSpaceMouse.pressed
+                                ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
+                                : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "SPACE"
+                                font.family: mediaPlayer.globalFont
+                                font.pixelSize: npKeyboard.keyFont * 0.85
+                                font.weight: Font.DemiBold
+                                color: App.Style.secondaryTextColor
+                            }
+
+                            MouseArea {
+                                id: npSpaceMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    newPlaylistInput.text += " "
+                                    newPlaylistInput.forceActiveFocus()
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            width: npKeyboard.keyW * 2 + npKeyboard.kbSpacing
+                            height: npKeyboard.keyH
+                            radius: App.Spacing.dp(5)
+                            color: npClearMouse.pressed
+                                ? Qt.rgba(1, 0.227, 0.208, 0.2)
+                                : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "CLR"
+                                font.family: mediaPlayer.globalFont
+                                font.pixelSize: npKeyboard.keyFont * 0.85
+                                font.weight: Font.DemiBold
+                                color: "#e53935"
+                            }
+
+                            MouseArea {
+                                id: npClearMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    newPlaylistInput.text = ""
+                                    newPlaylistInput.forceActiveFocus()
+                                }
+                            }
                         }
                     }
                 }

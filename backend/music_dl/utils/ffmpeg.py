@@ -3,6 +3,7 @@ Module for converting audio files to different formats
 and checking for ffmpeg binary, and downloading it if not found.
 """
 
+import hashlib
 import os
 import platform
 import re
@@ -49,6 +50,18 @@ FFMPEG_URLS = {
         "x86_64": "https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/darwin-x64",
         "arm64": "https://github.com/eugeneware/ffmpeg-static/releases/download/b4.4/darwin-arm64",
     },
+}
+
+# SHA-256 checksums for ffmpeg-static b4.4 binaries (from eugeneware/ffmpeg-static)
+FFMPEG_CHECKSUMS = {
+    "win32-x64": "8d7e6cf86ba7e0462643d3cc3745455adca6c9af5795574d67d125ae238296b2",
+    "win32-ia32": "46e7530143206ed1983e29672268fbf9a22528a9fdacf7368c5a74b33ae1e345",
+    "linux-x64": "f406a5eb9cd03ed776fb215096dc52a1a401798b75ab72627ae82f367c9e714e",
+    "linux-ia32": "f57db3db2bcfffdde1c1e17f8072ec84ad6c149accf4842ab8685397cfbec287",
+    "linux-arm": "d80cdbcc64241600bf4f2656a94ef166d4a94b0e157e8701f17edb28df91c234",
+    "linux-arm64": "1d339661c6c5b8a4a728f731a66203211832fd7f49bcd4768ea2dd54ad4499f6",
+    "darwin-x64": "d4e40ea2735470a44aca6e350544532d6c1e5ca69178693ecfcee6e4e1f05d9a",
+    "darwin-arm64": "a2ad6f0fc42a3c8f5183ef1d53e906d6bb35478d14a6b67175c30ce6c17e9214",
 }
 
 FFMPEG_FORMATS = {
@@ -236,8 +249,20 @@ def download_ffmpeg() -> Path:
         )
     )
 
-    # Download binary and save it to a file in spotdl directory
+    # Download binary and verify checksum before writing to disk
     ffmpeg_binary = requests.get(ffmpeg_url, allow_redirects=True, timeout=10).content
+
+    # Verify SHA-256 checksum to prevent tampered binaries
+    binary_key = ffmpeg_url.rsplit("/", 1)[-1]  # e.g. "linux-x64"
+    expected_hash = FFMPEG_CHECKSUMS.get(binary_key)
+    if expected_hash:
+        actual_hash = hashlib.sha256(ffmpeg_binary).hexdigest()
+        if actual_hash != expected_hash:
+            raise FFmpegError(
+                f"FFmpeg binary checksum mismatch (expected {expected_hash[:16]}..., "
+                f"got {actual_hash[:16]}...). Download may be corrupted or tampered."
+            )
+
     with open(ffmpeg_path, "wb") as ffmpeg_file:
         ffmpeg_file.write(ffmpeg_binary)
 

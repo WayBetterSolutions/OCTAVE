@@ -34,6 +34,14 @@ dev/
 test_*.py
 clear_dtc.py
 
+# Old/extra virtual environments
+venv_old_linux/
+
+# Android Auto SSL certificates (generated locally)
+backend/android_auto/certs/*.key
+backend/android_auto/certs/*.crt
+backend/android_auto/certs/*.pem
+
 # Temp files (editor swap files, crash recovery, etc.)
 *.tmp
 *.tmp.*

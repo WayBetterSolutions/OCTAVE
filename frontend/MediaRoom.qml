@@ -11,6 +11,34 @@ Item {
     property StackView stackView
     property ApplicationWindow mainWindow
 
+    // Navigate to cached DownloadPage
+    function openDownloadPage() {
+        var sv = mediaRoom.stackView
+        if (sv.currentItem && sv.currentItem.objectName === "downloadPage") return
+
+        if (sv._cachedDownloadPage) {
+            for (var i = 0; i < sv.depth; i++) {
+                if (sv.get(i) === sv._cachedDownloadPage) {
+                    sv.pop(sv._cachedDownloadPage)
+                    return
+                }
+            }
+            sv.push(sv._cachedDownloadPage)
+            return
+        }
+
+        var component = Qt.createComponent("DownloadPage.qml")
+        if (component.status === Component.Ready) {
+            sv._cachedDownloadPage = component.createObject(null, {
+                stackView: sv,
+                mainWindow: mediaRoom.mainWindow
+            })
+            if (sv._cachedDownloadPage) {
+                sv.push(sv._cachedDownloadPage)
+            }
+        }
+    }
+
     // Global font binding for all text in this component
     // fontFamily always returns a valid font (systemDefaultFont or custom font)
     property string globalFont: App.Style.fontFamily
@@ -504,6 +532,81 @@ Item {
                     }
                     topVolumeControl.updateVolumeIcon()
                 }
+            }
+        }
+
+        // Download Button (top right corner)
+        Control {
+            id: downloadButton
+            width: App.Spacing.bottomBarNavButtonWidth
+            height: App.Spacing.bottomBarNavButtonHeight
+            z: 3
+            anchors {
+                top: parent.top
+                right: parent.right
+                topMargin: App.Spacing.mediaRoomMargin
+                rightMargin: App.Spacing.mediaRoomMargin
+            }
+
+            background: Rectangle {
+                color: "transparent"
+                radius: App.Spacing.dpMin(8, 2)
+                border.color: App.Style.accent
+                border.width: 1
+                scale: dlMouseArea.pressed ? 0.8 : 1.0
+                opacity: dlMouseArea.pressed ? 0.7 : 1.0
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 1.1
+                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
+            }
+
+            contentItem: Item {
+                scale: dlMouseArea.pressed ? 0.8 : 1.0
+                opacity: dlMouseArea.pressed ? 0.7 : 1.0
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutBack
+                        easing.overshoot: 1.1
+                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation { duration: 150 }
+                }
+                Image {
+                    id: dlButtonImage
+                    anchors.centerIn: parent
+                    width: parent.width * 0.7
+                    height: parent.height * 0.7
+                    source: "./assets/download_button.svg"
+                    sourceSize: Qt.size(width * 2, height * 2)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    antialiasing: true
+                    mipmap: true
+                    visible: false
+                }
+
+                ColorOverlay {
+                    anchors.fill: dlButtonImage
+                    source: dlButtonImage
+                    color: App.Style.accent
+                }
+            }
+
+            MouseArea {
+                id: dlMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mediaRoom.openDownloadPage()
             }
         }
 

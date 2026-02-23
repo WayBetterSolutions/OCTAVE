@@ -481,9 +481,9 @@ class NetworkManager(QObject):
         # Schedule OS shutdown with a brief delay so app cleanup can finish
         try:
             if system == "Linux":
-                subprocess.Popen(['sh', '-c', 'sleep 3 && systemctl poweroff'])
+                subprocess.Popen(['systemctl', '--no-block', 'poweroff'])
             elif system == "Darwin":
-                subprocess.Popen(['sh', '-c', 'sleep 3 && sudo shutdown -h now'])
+                subprocess.Popen(['sudo', 'shutdown', '-h', '+0'])
             elif system == "Windows":
                 subprocess.Popen(['shutdown', '/s', '/t', '5'])
         except Exception as e:

@@ -22,14 +22,39 @@ Item {
     property color cardBorderColor: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
     property color successColor: "#4CAF50"
 
+    // On-screen keyboard state
+    property bool showKeyboard: false
+
     // Search state
     property var searchResults: []
     property bool isSearching: false
     property string statusText: "Search for songs to download"
     property bool hasMoreResults: false
 
-    // Download state
-    property var activeDownloads: ({})  // songName -> progress (0.0-1.0)
+    // Download state — keyed by song_id for uniqueness
+    property var activeDownloads: ({})    // song_id -> progress (0.0-1.0)
+    property var downloadNames: ({})      // song_id -> display name
+
+    // Playlist selector state
+    property var downloadPlaylists: []
+    property string selectedPlaylist: ""
+
+    Component.onCompleted: {
+        // Load available playlists for the download target selector
+        if (mediaManager) {
+            downloadPlaylists = mediaManager.get_movable_playlist_names()
+        }
+        if (downloadManager) {
+            selectedPlaylist = downloadManager.get_download_playlist()
+        }
+    }
+
+    Connections {
+        target: mediaManager
+        function onPlaylistsChanged() {
+            downloadPlaylists = mediaManager.get_movable_playlist_names()
+        }
+    }
 
     // ─── Connections to DownloadManager ──────────────────────────────
 
@@ -56,30 +81,41 @@ Item {
             downloadPage.statusText = "Search error: " + msg
         }
 
-        function onDownloadStarted(songName) {
+        function onDownloadStarted(songId, songName) {
             var downloads = Object.assign({}, downloadPage.activeDownloads)
-            downloads[songName] = 0.0
+            downloads[songId] = 0.0
+            downloadPage.activeDownloads = downloads
+            var names = Object.assign({}, downloadPage.downloadNames)
+            names[songId] = songName
+            downloadPage.downloadNames = names
+        }
+
+        function onDownloadProgress(songId, progress) {
+            var downloads = Object.assign({}, downloadPage.activeDownloads)
+            downloads[songId] = progress
             downloadPage.activeDownloads = downloads
         }
 
-        function onDownloadProgress(songName, progress) {
+        function onDownloadComplete(songId, filePath) {
+            var displayName = downloadPage.downloadNames[songId] || ""
             var downloads = Object.assign({}, downloadPage.activeDownloads)
-            downloads[songName] = progress
+            delete downloads[songId]
             downloadPage.activeDownloads = downloads
+            var names = Object.assign({}, downloadPage.downloadNames)
+            delete names[songId]
+            downloadPage.downloadNames = names
+            downloadPage.statusText = displayName ? ("Downloaded: " + displayName) : "Download complete"
         }
 
-        function onDownloadComplete(songName, filePath) {
+        function onDownloadError(songId, songName, errorMsg) {
+            var displayName = downloadPage.downloadNames[songId] || songName || "download"
             var downloads = Object.assign({}, downloadPage.activeDownloads)
-            delete downloads[songName]
+            delete downloads[songId]
             downloadPage.activeDownloads = downloads
-            downloadPage.statusText = "Downloaded: " + songName
-        }
-
-        function onDownloadError(songName, errorMsg) {
-            var downloads = Object.assign({}, downloadPage.activeDownloads)
-            delete downloads[songName]
-            downloadPage.activeDownloads = downloads
-            downloadPage.statusText = "Error: " + songName + " - " + errorMsg
+            var names = Object.assign({}, downloadPage.downloadNames)
+            delete names[songId]
+            downloadPage.downloadNames = names
+            downloadPage.statusText = "Error: " + displayName + " - " + errorMsg
         }
 
         function onStatusMessage(msg) {
@@ -102,7 +138,7 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: App.Spacing.dp(40)
+                Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight + App.Spacing.dp(8)
                 spacing: App.Spacing.dp(12)
 
                 Text {
@@ -123,6 +159,176 @@ Item {
                     color: dimTextColor
                     elide: Text.ElideRight
                     Layout.maximumWidth: App.Spacing.dp(300)
+                }
+
+                // Playlist target selector (styled to match MediaPlayer dropdown)
+                Item {
+                    id: dlPlaylistDropdownContainer
+                    Layout.preferredWidth: Math.min(App.Spacing.dp(220), downloadPage.width * 0.25)
+                    Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
+
+                    property bool dlDropdownCooldown: false
+                    Timer {
+                        id: dlDropdownCooldownTimer
+                        interval: 100
+                        onTriggered: dlPlaylistDropdownContainer.dlDropdownCooldown = false
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: dlDropdownMouse.containsMouse
+                            ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
+                            : "transparent"
+                        radius: App.Spacing.dpMin(8, 2)
+                        border.width: 1
+                        border.color: accentColor
+
+                        Behavior on color {
+                            ColorAnimation { duration: 150 }
+                        }
+
+                        // Label
+                        Text {
+                            id: dlDropdownLabel
+                            anchors.top: parent.top
+                            anchors.topMargin: App.Spacing.dp(4)
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            text: "SAVE TO"
+                            color: accentColor
+                            font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 0.85
+                            font.bold: true
+                            font.family: downloadPage.globalFont
+                            font.letterSpacing: App.Spacing.dp(1)
+                        }
+
+                        // Selected playlist name
+                        Text {
+                            anchors.left: parent.left
+                            anchors.right: dlDropdownArrow.left
+                            anchors.top: dlDropdownLabel.bottom
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: App.Spacing.overallMargin * 2
+                            verticalAlignment: Text.AlignVCenter
+                            text: downloadPage.selectedPlaylist || "Downloads"
+                            color: textColor
+                            font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 1.4
+                            font.bold: true
+                            font.family: downloadPage.globalFont
+                            elide: Text.ElideRight
+                        }
+
+                        // Arrow
+                        Text {
+                            id: dlDropdownArrow
+                            anchors.right: parent.right
+                            anchors.rightMargin: App.Spacing.overallMargin * 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: dlPlaylistPopup.visible ? "\u25B2" : "\u25BC"
+                            color: accentColor
+                            font.pixelSize: App.Spacing.overallText
+                            font.family: downloadPage.globalFont
+                        }
+
+                        MouseArea {
+                            id: dlDropdownMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (dlPlaylistDropdownContainer.dlDropdownCooldown) return
+                                if (dlPlaylistPopup.visible) {
+                                    dlPlaylistPopup.close()
+                                } else {
+                                    dlPlaylistPopup.open()
+                                }
+                            }
+                        }
+                    }
+
+                    Popup {
+                        id: dlPlaylistPopup
+                        parent: dlPlaylistDropdownContainer
+                        y: dlPlaylistDropdownContainer.height + App.Spacing.dp(4)
+                        width: dlPlaylistDropdownContainer.width
+                        height: Math.min(dlPlaylistColumn.implicitHeight + App.Spacing.dp(20), App.Spacing.dp(400))
+                        padding: App.Spacing.dp(10)
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                        onClosed: {
+                            dlPlaylistDropdownContainer.dlDropdownCooldown = true
+                            dlDropdownCooldownTimer.restart()
+                        }
+
+                        background: Rectangle {
+                            color: bgColor
+                            border.color: accentColor
+                            border.width: 1
+                            radius: App.Spacing.dpMin(8, 2)
+                        }
+
+                        contentItem: Flickable {
+                            clip: true
+                            contentHeight: dlPlaylistColumn.implicitHeight
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            Column {
+                                id: dlPlaylistColumn
+                                width: parent.width
+                                spacing: App.Spacing.dp(4)
+
+                                Repeater {
+                                    model: downloadPage.downloadPlaylists
+
+                                    Rectangle {
+                                        width: dlPlaylistColumn.width
+                                        height: App.Spacing.bottomBarNavButtonHeight
+                                        color: {
+                                            var isActive = modelData === downloadPage.selectedPlaylist
+                                            if (isActive) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
+                                            if (dlItemMouse.containsMouse) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+                                            return "transparent"
+                                        }
+                                        radius: App.Spacing.dpMin(6, 2)
+                                        border.width: modelData === downloadPage.selectedPlaylist ? 1 : 0
+                                        border.color: accentColor
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: App.Spacing.overallMargin * 2
+                                            anchors.rightMargin: App.Spacing.overallMargin * 2
+                                            spacing: App.Spacing.overallMargin * 2
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: modelData
+                                                color: textColor
+                                                font.pixelSize: App.Spacing.overallText * 1.1
+                                                font.bold: modelData === downloadPage.selectedPlaylist
+                                                font.family: downloadPage.globalFont
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: dlItemMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                downloadPage.selectedPlaylist = modelData
+                                                downloadManager.set_download_playlist(modelData)
+                                                dlPlaylistPopup.close()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                active: true
+                                policy: ScrollBar.AsNeeded
+                            }
+                        }
+                    }
                 }
             }
 
@@ -174,6 +380,39 @@ Item {
                         onAccepted: {
                             if (text.trim().length > 0) {
                                 downloadManager.search(text.trim())
+                                downloadPage.showKeyboard = false
+                            }
+                        }
+                    }
+
+                    // Keyboard toggle button
+                    Rectangle {
+                        Layout.preferredWidth: App.Spacing.dp(32)
+                        Layout.preferredHeight: App.Spacing.dp(32)
+                        color: downloadPage.showKeyboard
+                            ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
+                            : kbToggleMouse.containsMouse
+                                ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
+                                : "transparent"
+                        radius: App.Spacing.dp(6)
+                        border.width: 1
+                        border.color: downloadPage.showKeyboard ? accentColor : cardBorderColor
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\u2328"
+                            font.pixelSize: App.Spacing.dp(18)
+                            color: downloadPage.showKeyboard ? accentColor : dimTextColor
+                        }
+
+                        MouseArea {
+                            id: kbToggleMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                downloadPage.showKeyboard = !downloadPage.showKeyboard
+                                if (downloadPage.showKeyboard) searchInput.forceActiveFocus()
                             }
                         }
                     }
@@ -202,6 +441,208 @@ Item {
                             onClicked: {
                                 if (searchInput.text.trim().length > 0) {
                                     downloadManager.search(searchInput.text.trim())
+                                    downloadPage.showKeyboard = false
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ─── On-Screen Keyboard ───────────────────────────────
+            Rectangle {
+                id: onScreenKeyboard
+                Layout.fillWidth: true
+                Layout.fillHeight: downloadPage.showKeyboard
+                visible: downloadPage.showKeyboard
+                color: cardColor
+                border.color: cardBorderColor
+                border.width: 1
+                radius: App.Spacing.dp(8)
+
+                property var rows: [
+                    ["1","2","3","4","5","6","7","8","9","0"],
+                    ["Q","W","E","R","T","Y","U","I","O","P"],
+                    ["A","S","D","F","G","H","J","K","L"],
+                    ["Z","X","C","V","B","N","M"]
+                ]
+
+                // Dynamic key sizing: 5 rows (4 letter + 1 bottom), 10 keys wide
+                property real kbMargin: App.Spacing.dp(8)
+                property real kbSpacing: App.Spacing.dp(4)
+                property real kbRowCount: 5
+                property real kbColCount: 10
+                property real keyWidth: Math.floor((width - kbMargin * 2 - kbSpacing * (kbColCount - 1)) / kbColCount)
+                property real keyHeight: Math.floor((height - kbMargin * 2 - kbSpacing * (kbRowCount - 1)) / kbRowCount)
+                property real keyFontSize: Math.max(App.Spacing.dp(12), Math.min(keyHeight * 0.45, App.Spacing.dp(32)))
+
+                Column {
+                    id: kbGrid
+                    anchors.fill: parent
+                    anchors.margins: onScreenKeyboard.kbMargin
+                    spacing: onScreenKeyboard.kbSpacing
+
+                    Repeater {
+                        model: onScreenKeyboard.rows
+
+                        Row {
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            spacing: onScreenKeyboard.kbSpacing
+
+                            Repeater {
+                                model: modelData
+
+                                Rectangle {
+                                    width: onScreenKeyboard.keyWidth
+                                    height: onScreenKeyboard.keyHeight
+                                    radius: App.Spacing.dp(6)
+                                    color: kbKeyMouse.pressed
+                                        ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
+                                        : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                                    border.width: 1
+                                    border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        font.family: downloadPage.globalFont
+                                        font.pixelSize: onScreenKeyboard.keyFontSize
+                                        font.weight: Font.DemiBold
+                                        color: textColor
+                                    }
+
+                                    MouseArea {
+                                        id: kbKeyMouse
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            searchInput.text += modelData.toLowerCase()
+                                            searchInput.forceActiveFocus()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom row: backspace, space, clear, search
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: onScreenKeyboard.kbSpacing
+
+                        // Backspace
+                        Rectangle {
+                            width: onScreenKeyboard.keyWidth * 1.5 + onScreenKeyboard.kbSpacing * 0.5
+                            height: onScreenKeyboard.keyHeight
+                            radius: App.Spacing.dp(6)
+                            color: bkspMouse.pressed
+                                ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
+                                : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\u232B"
+                                font.pixelSize: onScreenKeyboard.keyFontSize * 1.2
+                                color: textColor
+                            }
+
+                            MouseArea {
+                                id: bkspMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (searchInput.text.length > 0) {
+                                        searchInput.text = searchInput.text.slice(0, -1)
+                                    }
+                                    searchInput.forceActiveFocus()
+                                }
+                            }
+                        }
+
+                        // Space bar
+                        Rectangle {
+                            width: onScreenKeyboard.keyWidth * 4.5 + onScreenKeyboard.kbSpacing * 3.5
+                            height: onScreenKeyboard.keyHeight
+                            radius: App.Spacing.dp(6)
+                            color: spaceMouse.pressed
+                                ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
+                                : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "SPACE"
+                                font.family: downloadPage.globalFont
+                                font.pixelSize: onScreenKeyboard.keyFontSize * 0.85
+                                font.weight: Font.DemiBold
+                                color: dimTextColor
+                            }
+
+                            MouseArea {
+                                id: spaceMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    searchInput.text += " "
+                                    searchInput.forceActiveFocus()
+                                }
+                            }
+                        }
+
+                        // Clear
+                        Rectangle {
+                            width: onScreenKeyboard.keyWidth * 1.5 + onScreenKeyboard.kbSpacing * 0.5
+                            height: onScreenKeyboard.keyHeight
+                            radius: App.Spacing.dp(6)
+                            color: clearMouse.pressed
+                                ? Qt.rgba(1, 0.227, 0.208, 0.2)
+                                : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                            border.width: 1
+                            border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "CLR"
+                                font.family: downloadPage.globalFont
+                                font.pixelSize: onScreenKeyboard.keyFontSize * 0.85
+                                font.weight: Font.DemiBold
+                                color: "#e53935"
+                            }
+
+                            MouseArea {
+                                id: clearMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    searchInput.text = ""
+                                    searchInput.forceActiveFocus()
+                                }
+                            }
+                        }
+
+                        // Search from keyboard
+                        Rectangle {
+                            width: onScreenKeyboard.keyWidth * 2 + onScreenKeyboard.kbSpacing
+                            height: onScreenKeyboard.keyHeight
+                            radius: App.Spacing.dp(6)
+                            color: kbSearchMouse.pressed ? Qt.darker(accentColor, 1.3) : accentColor
+                            opacity: searchInput.text.trim().length > 0 ? 1.0 : 0.4
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "SEARCH"
+                                font.family: downloadPage.globalFont
+                                font.pixelSize: onScreenKeyboard.keyFontSize * 0.85
+                                font.weight: Font.Bold
+                                color: "#000000"
+                            }
+
+                            MouseArea {
+                                id: kbSearchMouse
+                                anchors.fill: parent
+                                enabled: searchInput.text.trim().length > 0 && !downloadPage.isSearching
+                                onClicked: {
+                                    downloadManager.search(searchInput.text.trim())
+                                    downloadPage.showKeyboard = false
                                 }
                             }
                         }
@@ -214,7 +655,8 @@ Item {
             ListView {
                 id: resultsListView
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.fillHeight: !downloadPage.showKeyboard
+                visible: !downloadPage.showKeyboard
                 clip: true
                 spacing: App.Spacing.dp(6)
                 model: downloadPage.searchResults
@@ -227,9 +669,9 @@ Item {
                 delegate: Rectangle {
                     id: songDelegate
                     property color failedColor: "#e53935"
-                    property string songKey: (modelData.artist || "") + " - " + (modelData.name || "")
-                    property bool isDownloading: downloadPage.activeDownloads.hasOwnProperty(songKey)
-                    property real dlProgress: isDownloading ? (downloadPage.activeDownloads[songKey] || 0) : 0
+                    property string songId: modelData.song_id || ""
+                    property bool isDownloading: songId !== "" && downloadPage.activeDownloads.hasOwnProperty(songId)
+                    property real dlProgress: isDownloading ? (downloadPage.activeDownloads[songId] || 0) : 0
                     onDlProgressChanged: if (progressRing.visible) progressRing.requestPaint()
 
                     width: resultsListView.width
@@ -340,6 +782,27 @@ Item {
                                         color: "#000"
                                     }
                                 }
+
+                                // Playlist badge for downloaded songs
+                                Rectangle {
+                                    visible: modelData.is_downloaded === true && (modelData.downloaded_playlist || "") !== ""
+                                    width: playlistBadgeText.implicitWidth + App.Spacing.dp(10)
+                                    height: playlistBadgeText.implicitHeight + App.Spacing.dp(4)
+                                    color: Qt.rgba(successColor.r, successColor.g, successColor.b, 0.15)
+                                    border.width: 1
+                                    border.color: Qt.rgba(successColor.r, successColor.g, successColor.b, 0.3)
+                                    radius: App.Spacing.dp(3)
+
+                                    Text {
+                                        id: playlistBadgeText
+                                        anchors.centerIn: parent
+                                        text: modelData.downloaded_playlist || ""
+                                        font.family: downloadPage.globalFont
+                                        font.pixelSize: App.Spacing.dp(9)
+                                        font.weight: Font.DemiBold
+                                        color: successColor
+                                    }
+                                }
                             }
                         }
 
@@ -446,10 +909,35 @@ Item {
                             MouseArea {
                                 id: dlBtnMouse
                                 anchors.fill: parent
-                                enabled: !modelData.is_downloaded && !modelData.is_failed && !isDownloading
-                                cursorShape: (modelData.is_downloaded || modelData.is_failed || isDownloading) ? Qt.ArrowCursor : Qt.PointingHandCursor
+                                enabled: !isDownloading
+                                cursorShape: isDownloading ? Qt.ArrowCursor : Qt.PointingHandCursor
                                 onClicked: {
-                                    downloadManager.download_song(JSON.stringify(modelData))
+                                    if (modelData.is_downloaded) {
+                                        // Play the downloaded song and navigate to MediaRoom
+                                        var artist = modelData.artist || ""
+                                        var name = modelData.name || ""
+                                        var playlist = modelData.downloaded_playlist || ""
+                                        if (mediaManager && artist && name && playlist) {
+                                            if (spotifyManager && spotifyManager.is_connected() && spotifyManager.is_playing()) {
+                                                spotifyManager.pause()
+                                            }
+                                            if (settingsManager && settingsManager.mediaSource !== "local") {
+                                                settingsManager.set_media_source("local")
+                                            }
+                                            mediaManager.play_downloaded_song(artist, name, playlist)
+                                            if (downloadPage.stackView) {
+                                                downloadPage.stackView.push("MediaRoom.qml", {
+                                                    stackView: downloadPage.stackView
+                                                })
+                                            }
+                                        }
+                                    } else if (modelData.is_failed) {
+                                        errorPopup.errorMsg = modelData.error_message || "Download failed — no audio source found"
+                                        errorPopup.songName = (modelData.artist || "") + " - " + (modelData.name || "")
+                                        errorPopup.open()
+                                    } else {
+                                        downloadManager.download_song(JSON.stringify(modelData))
+                                    }
                                 }
                             }
                         }
@@ -600,12 +1088,109 @@ Item {
     onActiveDownloadsChanged: {
         activeDownloadsModel.clear()
         var downloads = downloadPage.activeDownloads
-        for (var songName in downloads) {
-            if (downloads.hasOwnProperty(songName)) {
+        for (var songId in downloads) {
+            if (downloads.hasOwnProperty(songId)) {
                 activeDownloadsModel.append({
-                    songName: songName,
-                    progress: downloads[songName]
+                    songName: downloadPage.downloadNames[songId] || songId,
+                    progress: downloads[songId]
                 })
+            }
+        }
+    }
+
+    // ─── Error Detail Popup ───────────────────────────────────────
+
+    Popup {
+        id: errorPopup
+        anchors.centerIn: parent
+        width: App.Spacing.dp(320)
+        height: errorPopupContent.implicitHeight + App.Spacing.dp(32)
+        modal: true
+        dim: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        property string songName: ""
+        property string errorMsg: ""
+
+        Overlay.modal: Rectangle {
+            color: Qt.rgba(0, 0, 0, 0.5)
+        }
+
+        background: Rectangle {
+            color: bgColor
+            border.color: Qt.rgba(errorPopup.parent ? downloadPage.accentColor.r : 0, errorPopup.parent ? downloadPage.accentColor.g : 0, errorPopup.parent ? downloadPage.accentColor.b : 0, 0.3)
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        ColumnLayout {
+            id: errorPopupContent
+            anchors.fill: parent
+            anchors.margins: App.Spacing.dp(16)
+            spacing: App.Spacing.dp(12)
+
+            Text {
+                text: "Download Failed"
+                font.family: downloadPage.globalFont
+                font.pixelSize: App.Spacing.dp(18)
+                font.weight: Font.Bold
+                color: "#e53935"
+                Layout.fillWidth: true
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: errorSongLabel.implicitHeight + App.Spacing.dp(12)
+                color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                radius: App.Spacing.dp(6)
+
+                Text {
+                    id: errorSongLabel
+                    anchors.centerIn: parent
+                    width: parent.width - App.Spacing.dp(16)
+                    text: errorPopup.songName
+                    font.family: downloadPage.globalFont
+                    font.pixelSize: App.Spacing.dp(13)
+                    font.weight: Font.DemiBold
+                    color: textColor
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            Text {
+                text: errorPopup.errorMsg
+                font.family: downloadPage.globalFont
+                font.pixelSize: App.Spacing.dp(12)
+                color: dimTextColor
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: App.Spacing.dp(36)
+                color: errorDismissMouse.pressed
+                    ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+                    : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
+                border.width: 1
+                radius: App.Spacing.dp(6)
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "OK"
+                    font.family: downloadPage.globalFont
+                    font.pixelSize: App.Spacing.dp(13)
+                    font.weight: Font.DemiBold
+                    color: textColor
+                }
+
+                MouseArea {
+                    id: errorDismissMouse
+                    anchors.fill: parent
+                    onClicked: errorPopup.close()
+                }
             }
         }
     }

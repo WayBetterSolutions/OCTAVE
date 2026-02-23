@@ -9,6 +9,7 @@ import random
 import re
 import hashlib
 import colorsys
+import shutil
 import threading
 from PIL import Image
 import numpy as np
@@ -1485,11 +1486,12 @@ class MediaManager(QObject):
         )
         self._current_index = 0
 
-        # Clear stats cache for new playlist
-        self.invalidate_stats_cache()
-
         # Clear metadata cache if switching playlists (different folder)
         self._metadata_cache = {}
+
+        # Recalculate stats for the new playlist so signals fire
+        self.invalidate_stats_cache()
+        self._calculate_all_stats()
 
         # Emit signals
         self.currentPlaylistChanged.emit(name)
@@ -1594,6 +1596,239 @@ class MediaManager(QObject):
         # Rescan library to rebuild playlists
         self.scan_library(reset_display_names=False)
         self.songDeleted.emit(filename)
+        return True
+
+    # ─── Playlist creation & song move ─────────────────────────────
+
+    @Slot(str, result=bool)
+    def create_playlist(self, name):
+        """Create a new playlist subfolder in the library root."""
+        if not name or not name.strip():
+            logger.warning("create_playlist called with empty name")
+            return False
+
+        name = name.strip()
+
+        # Reject path separators and traversal attempts
+        if os.sep in name or '/' in name or '\\' in name or '..' in name:
+            logger.warning("create_playlist: rejected unsafe name '%s'", name)
+            return False
+
+        if not self._library_root or not os.path.exists(self._library_root):
+            logger.warning("create_playlist: library root not set")
+            return False
+
+        folder_path = os.path.join(self._library_root, name)
+
+        if not is_safe_path(self._library_root, folder_path):
+            logger.warning("create_playlist: path escapes library root")
+            return False
+
+        if os.path.exists(folder_path):
+            # If the folder exists but is empty (leftover from a previous session),
+            # treat it as a fresh creation rather than rejecting it.
+            if os.path.isdir(folder_path) and not os.listdir(folder_path):
+                logger.info("create_playlist: reusing empty folder '%s'", name)
+            else:
+                logger.info("create_playlist: folder '%s' already exists with content", name)
+                return False
+        else:
+            try:
+                os.makedirs(folder_path, exist_ok=True)
+                logger.info("Created playlist folder: %s", folder_path)
+            except OSError as e:
+                logger.error("Failed to create playlist folder '%s': %s", name, e)
+                return False
+
+        # Rescan; scan_library skips empty folders, so add manually if needed
+        self.scan_library(reset_display_names=False)
+
+        if name not in self._playlists:
+            self._playlists[name] = {
+                "name": name,
+                "path": folder_path,
+                "files": [],
+                "song_count": 0,
+            }
+            self._playlist_names.append(name)
+            # Re-sort keeping All Music and Unsorted at front
+            special = []
+            for s in ("All Music", "Unsorted"):
+                if s in self._playlist_names:
+                    self._playlist_names.remove(s)
+                    special.append(s)
+            self._playlist_names.sort(key=str.lower)
+            for s in reversed(special):
+                self._playlist_names.insert(0, s)
+            self.playlistsChanged.emit()
+
+        return True
+
+    @Slot(str, str, result=bool)
+    def move_song_to_playlist(self, filename, target_playlist):
+        """Move a song file to a different playlist folder."""
+        if not filename or not target_playlist:
+            logger.warning("move_song_to_playlist: empty argument")
+            return False
+
+        source_path = self._get_file_path(filename)
+        if not source_path or not os.path.isfile(source_path):
+            logger.warning("move_song_to_playlist: source not found for '%s'", filename)
+            return False
+
+        if target_playlist not in self._playlists:
+            logger.warning("move_song_to_playlist: unknown playlist '%s'", target_playlist)
+            return False
+
+        target_dir = self._playlists[target_playlist]["path"]
+        if not os.path.isdir(target_dir):
+            logger.warning("move_song_to_playlist: target dir missing for '%s'", target_playlist)
+            return False
+
+        if not is_safe_path(self._library_root, source_path):
+            logger.warning("move_song_to_playlist: source path not safe")
+            return False
+
+        # Use the original filename (strip All Music prefix if present)
+        original_name = self._get_original_filename(filename)
+        dest_path = os.path.join(target_dir, original_name)
+
+        if not is_safe_path(self._library_root, dest_path):
+            logger.warning("move_song_to_playlist: dest path not safe")
+            return False
+
+        # Handle filename collision
+        if os.path.exists(dest_path):
+            base, ext = os.path.splitext(original_name)
+            counter = 1
+            while os.path.exists(dest_path):
+                dest_path = os.path.join(target_dir, f"{base} ({counter}){ext}")
+                counter += 1
+
+        # Stop playback if this is the current song
+        is_current = (
+            self._current_playlist
+            and 0 <= self._current_index < len(self._current_playlist)
+            and self._current_playlist[self._current_index] == filename
+            and self._is_playing
+        )
+        if is_current:
+            self._player.stop()
+            self._is_playing = False
+            self.playStateChanged.emit(False)
+
+        try:
+            shutil.move(source_path, dest_path)
+            logger.info("Moved '%s' -> '%s'", source_path, dest_path)
+        except OSError as e:
+            logger.error("Failed to move '%s': %s", filename, e)
+            return False
+
+        self.scan_library(reset_display_names=False)
+        return True
+
+    @Slot(result=list)
+    def get_movable_playlist_names(self):
+        """Return playlist names excluding 'All Music' (valid move targets)."""
+        return [n for n in self._playlist_names if n != "All Music"]
+
+    @Slot(str, result=bool)
+    def delete_playlist(self, name):
+        """Delete a playlist folder and all its contents."""
+        if not name or not name.strip():
+            return False
+
+        name = name.strip()
+
+        # Protect special playlists
+        if name in ("All Music", "Unsorted"):
+            logger.warning("delete_playlist: cannot delete special playlist '%s'", name)
+            return False
+
+        if name not in self._playlists:
+            logger.warning("delete_playlist: playlist '%s' not found", name)
+            return False
+
+        folder_path = self._playlists[name].get("path", "")
+        if not folder_path or not os.path.isdir(folder_path):
+            logger.warning("delete_playlist: folder missing for '%s'", name)
+            return False
+
+        if not is_safe_path(self._library_root, folder_path):
+            logger.warning("delete_playlist: path not safe for '%s'", name)
+            return False
+
+        # Stop playback if currently playing from this playlist
+        if self._current_playlist_name == name and self._is_playing:
+            self._player.stop()
+            self._is_playing = False
+            self.playStateChanged.emit(False)
+
+        try:
+            shutil.rmtree(folder_path)
+            logger.info("Deleted playlist folder: %s", folder_path)
+        except OSError as e:
+            logger.error("Failed to delete playlist '%s': %s", name, e)
+            return False
+
+        # Switch away if this was the active playlist
+        was_active = self._current_playlist_name == name
+
+        self.scan_library(reset_display_names=False)
+
+        if was_active and self._playlist_names:
+            self.select_playlist(self._playlist_names[0])
+
+        return True
+
+    @Slot(str, str, str, result=bool)
+    def play_downloaded_song(self, artist, name, playlist):
+        """
+        Find and play a downloaded song by artist, name, and playlist folder.
+        Rescans library first so the file is recognized, then selects the
+        playlist and plays the matching file.  Returns True on success.
+        """
+        if not artist or not name or not playlist:
+            return False
+
+        # Rescan so the newly-downloaded file appears in the library
+        self.scan_library(reset_display_names=False)
+
+        if playlist not in self._playlists:
+            logger.warning("play_downloaded_song: playlist '%s' not found", playlist)
+            return False
+
+        # Build the expected filename stem the same way music_dl does
+        expected_stem = f"{artist} - {name}".lower()
+        # Sanitize like music_dl: remove /?\\*|<>, replace ": with -/'
+        expected_stem = "".join(c for c in expected_stem if c not in "/?\\*|<>")
+        expected_stem = expected_stem.replace('"', "'").replace(":", "-")
+
+        # Search the playlist for a matching file
+        playlist_data = self._playlists[playlist]
+        matched_file = None
+        for f in playlist_data.get("files", []):
+            stem = os.path.splitext(f)[0].lower()
+            if stem == expected_stem:
+                matched_file = f
+                break
+
+        if not matched_file:
+            # Fuzzy: check if file stem starts with expected
+            for f in playlist_data.get("files", []):
+                stem = os.path.splitext(f)[0].lower()
+                if expected_stem in stem or stem in expected_stem:
+                    matched_file = f
+                    break
+
+        if not matched_file:
+            logger.warning("play_downloaded_song: no match for '%s - %s' in '%s'", artist, name, playlist)
+            return False
+
+        # Select the playlist and play the file
+        self.select_playlist(playlist)
+        self.play_file(matched_file)
+        logger.info("play_downloaded_song: playing '%s' from '%s'", matched_file, playlist)
         return True
 
     @Slot(str, result=str)

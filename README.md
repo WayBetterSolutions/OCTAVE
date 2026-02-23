@@ -24,18 +24,13 @@ Please feel free to reach out if you think this is cool or if you think its lame
 ```bash
 git clone https://github.com/waybettersolutions/octave.git
 cd octave
-python3 setup.py        # Windows: use 'python' instead of 'python3'
+python setup.py
 ```
 
 **Run the app:**
 ```bash
 source venv/bin/activate    # Windows: venv\Scripts\activate
-python3 main.py             # Windows: python main.py
-```
-
-**Or do both in one command:**
-```bash
-python3 setup.py --run
+python main.py
 ```
 
 The setup script automatically:
