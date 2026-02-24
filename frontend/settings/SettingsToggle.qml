@@ -5,19 +5,92 @@ import ".." as App
 
 Item {
     id: control
-    height: App.Spacing.dp(46)
-    Layout.preferredHeight: App.Spacing.dp(46)
+    height: compact ? implicitHeight : App.Spacing.dp(46)
+    Layout.preferredHeight: compact ? implicitHeight : App.Spacing.dp(46)
     Layout.fillWidth: true
+    implicitHeight: compact ? compactSwitch.implicitHeight : App.Spacing.dp(46)
+    implicitWidth: compact ? compactSwitch.implicitWidth : 200
 
     property bool checked: false
+    property bool compact: false
     property string text: ""
     property color activeColor: App.Style.accent
     property color inactiveColor: App.Style.hoverColor
+    property font font
     signal toggled(bool checked)
 
+    // ─── Compact mode (inline switch) ───
+    Item {
+        id: compactSwitch
+        anchors.fill: parent
+        visible: control.compact
+        implicitWidth: compactIndicator.width + compactLabel.implicitWidth + App.Spacing.overallSpacing * 0.5
+        implicitHeight: App.Spacing.dp(26)
+
+        Item {
+            id: compactIndicator
+            width: App.Spacing.dp(48)
+            height: App.Spacing.dp(26)
+            anchors.verticalCenter: parent.verticalCenter
+
+            // Glow behind track (spacecraft, when checked)
+            Rectangle {
+                anchors.centerIn: parent
+                width: parent.width + 6
+                height: parent.height + 6
+                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchRadius + 3, 2)
+                color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
+                visible: App.EnvironmentTheme.active.accentBorder && control.checked
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchRadius, 2)
+                color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
+                border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
+                border.color: control.checked
+                    ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.8)
+                    : Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.5)
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+
+                Rectangle {
+                    x: control.checked ? parent.width - width - App.Spacing.dp(3) : App.Spacing.dp(3)
+                    width: App.Spacing.dp(20)
+                    height: App.Spacing.dp(20)
+                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchKnobRadius, 2)
+                    anchors.verticalCenter: parent.verticalCenter
+                    color: "white"
+
+                    Behavior on x { NumberAnimation { duration: 150 } }
+                }
+            }
+        }
+
+        Text {
+            id: compactLabel
+            anchors.left: compactIndicator.right
+            anchors.leftMargin: App.Spacing.overallSpacing * 0.4
+            anchors.verticalCenter: parent.verticalCenter
+            text: control.text
+            color: App.Style.primaryTextColor
+            font: control.font
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                control.checked = !control.checked
+                control.toggled(control.checked)
+            }
+        }
+    }
+
+    // ─── Full mode (wide toggle with label) ───
     RowLayout {
         anchors.fill: parent
         spacing: App.Spacing.overallSpacing * 2
+        visible: !control.compact
 
         Text {
             text: control.text

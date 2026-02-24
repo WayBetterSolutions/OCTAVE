@@ -21,6 +21,7 @@ Item {
         anchors.fill: parent
         contentWidth: width
         contentHeight: settingsContent.implicitHeight
+        flickableDirection: Flickable.VerticalFlick
         clip: true
         interactive: true  // Card MouseAreas disable this on press to prevent steal
         boundsBehavior: Flickable.DragAndOvershootBounds

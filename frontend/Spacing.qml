@@ -125,6 +125,13 @@ QtObject {
     property int settingsHubCardHeight: scaledSize(applicationHeight * settingsHubCardHeightPercent)
     property int settingsBreadcrumbHeight: scaledSize(applicationHeight * settingsBreadcrumbHeightPercent)
 
+    // ===== Settings Hub Carousel Properties =====
+    property real settingsCarouselCardHeightPercent: 0.82
+    property real settingsCarouselCardWidthPercent: 0.78
+
+    property int settingsCarouselCardHeight: Math.round(applicationHeight * settingsCarouselCardHeightPercent)
+    property int settingsCarouselCardWidth: Math.round(applicationWidth * settingsCarouselCardWidthPercent)
+
     // ===== Settings Properties =====
     property real settingsNavMarginPercent: .01
     property real settingsContentMarginPercent: .05

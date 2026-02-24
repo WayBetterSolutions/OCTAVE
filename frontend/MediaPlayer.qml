@@ -28,6 +28,9 @@ Item {
 
         // Reuse cached page if it exists
         if (sv._cachedDownloadPage) {
+            // Always refresh playlist list (may have changed while cached)
+            if (mediaManager)
+                sv._cachedDownloadPage.downloadPlaylists = mediaManager.get_movable_playlist_names()
             // Check if it's already in the stack
             for (var i = 0; i < sv.depth; i++) {
                 if (sv.get(i) === sv._cachedDownloadPage) {
@@ -401,7 +404,9 @@ Item {
 
                 MouseArea {
                     id: newPlaylistMouse
-                    anchors.fill: parent
+                    width: parent.width * 2
+                    height: parent.height * 2
+                    anchors.centerIn: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
                     onClicked: newPlaylistDialog.open()
@@ -635,8 +640,10 @@ Item {
         }
 
         // Download Button (top right corner, overlays title bar)
+        // Hidden when playlist is empty — MediaRoom shows a large download button instead
         Control {
             id: downloadButton
+            visible: (mediaFiles.length > 0) || isSpotifyPlaylist
             width: App.Spacing.bottomBarNavButtonWidth
             height: App.Spacing.bottomBarNavButtonHeight
             z: 3
@@ -702,7 +709,9 @@ Item {
 
             MouseArea {
                 id: downloadMouseArea
-                anchors.fill: parent
+                width: parent.width * 2
+                height: parent.height * 2
+                anchors.centerIn: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: mediaPlayer.openDownloadPage()
@@ -726,7 +735,7 @@ Item {
                 // Table header
                 Rectangle {
                     Layout.fillWidth: true
-                    height: App.Spacing.mediaPlayerHeaderHeight * 1.3
+                    height: App.Spacing.mediaPlayerHeaderHeight * 2.0
                     color: App.Style.headerBackgroundColor
                     
                     Rectangle {
@@ -1688,7 +1697,7 @@ Item {
                 // Cancel
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(36)
+                    Layout.preferredHeight: App.Spacing.dp(48)
                     color: cancelMouse.pressed
                         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
                         : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
@@ -1715,7 +1724,7 @@ Item {
                 // Delete
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(36)
+                    Layout.preferredHeight: App.Spacing.dp(48)
                     color: deleteMouse.pressed ? Qt.darker("#e53935", 1.3) : "#e53935"
                     radius: App.Spacing.dp(6)
 
@@ -1797,7 +1806,7 @@ Item {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(36)
+                    Layout.preferredHeight: App.Spacing.dp(48)
                     color: delPlCancelMouse.pressed
                         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
                         : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
@@ -1823,7 +1832,7 @@ Item {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(36)
+                    Layout.preferredHeight: App.Spacing.dp(48)
                     color: delPlConfirmMouse.pressed ? Qt.darker("#e53935", 1.3) : "#e53935"
                     radius: App.Spacing.dp(6)
 
@@ -1857,9 +1866,9 @@ Item {
         id: newPlaylistDialog
         property bool npShowKeyboard: false
 
-        // Compact: small centered dialog.  Keyboard open: wide + tall, still centered.
-        property real npCompactW: App.Spacing.dp(320)
-        property real npCompactH: newPlaylistContent.implicitHeight + App.Spacing.dp(32)
+        // Compact: centered dialog.  Keyboard open: wide + tall, still centered.
+        property real npCompactW: App.Spacing.dp(420)
+        property real npCompactH: newPlaylistContent.implicitHeight + App.Spacing.dp(48)
         property real npExpandedW: Math.min(mediaPlayer.width * 0.92, App.Spacing.dp(700))
         property real npExpandedH: mediaPlayer.height * 0.82
 
@@ -1892,19 +1901,19 @@ Item {
         ColumnLayout {
             id: newPlaylistContent
             anchors.fill: parent
-            anchors.margins: App.Spacing.dp(16)
-            spacing: App.Spacing.dp(10)
+            anchors.margins: App.Spacing.dp(24)
+            spacing: App.Spacing.dp(14)
 
             // Top portion (title + input + buttons)
             ColumnLayout {
                 id: npTopContent
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(10)
+                spacing: App.Spacing.dp(14)
 
                 Text {
                     text: "New Playlist"
                     font.family: mediaPlayer.globalFont
-                    font.pixelSize: App.Spacing.dp(18)
+                    font.pixelSize: App.Spacing.dp(22)
                     font.weight: Font.Bold
                     color: App.Style.primaryTextColor
                     Layout.fillWidth: true
@@ -1913,7 +1922,7 @@ Item {
                 Text {
                     text: "Enter a name for the new playlist folder."
                     font.family: mediaPlayer.globalFont
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: App.Spacing.dp(14)
                     color: App.Style.secondaryTextColor
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -1927,21 +1936,21 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(40)
+                        Layout.preferredHeight: App.Spacing.dp(48)
                         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
                         border.color: newPlaylistInput.activeFocus ? App.Style.accent : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
                         border.width: 1
-                        radius: App.Spacing.dp(6)
+                        radius: App.Spacing.dp(8)
 
                         TextField {
                             id: newPlaylistInput
                             anchors.fill: parent
-                            anchors.leftMargin: App.Spacing.dp(8)
-                            anchors.rightMargin: App.Spacing.dp(8)
+                            anchors.leftMargin: App.Spacing.dp(12)
+                            anchors.rightMargin: App.Spacing.dp(12)
                             placeholderText: "Playlist name..."
                             placeholderTextColor: App.Style.secondaryTextColor
                             font.family: mediaPlayer.globalFont
-                            font.pixelSize: App.Spacing.dp(14)
+                            font.pixelSize: App.Spacing.dp(16)
                             color: App.Style.primaryTextColor
                             background: Item {}
                             selectByMouse: true
@@ -1958,8 +1967,8 @@ Item {
 
                     // Keyboard toggle
                     Rectangle {
-                        Layout.preferredWidth: App.Spacing.dp(40)
-                        Layout.preferredHeight: App.Spacing.dp(40)
+                        Layout.preferredWidth: App.Spacing.dp(48)
+                        Layout.preferredHeight: App.Spacing.dp(48)
                         color: newPlaylistDialog.npShowKeyboard
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
                             : npKbToggleMouse.containsMouse
@@ -1992,23 +2001,24 @@ Item {
                 // Cancel / Create buttons
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(10)
+                    Layout.topMargin: App.Spacing.dp(4)
+                    spacing: App.Spacing.dp(12)
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(36)
+                        Layout.preferredHeight: App.Spacing.dp(52)
                         color: cancelNewMouse.pressed
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
                             : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
                         border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
                         border.width: 1
-                        radius: App.Spacing.dp(6)
+                        radius: App.Spacing.dp(8)
 
                         Text {
                             anchors.centerIn: parent
                             text: "Cancel"
                             font.family: mediaPlayer.globalFont
-                            font.pixelSize: App.Spacing.dp(13)
+                            font.pixelSize: App.Spacing.dp(15)
                             font.weight: Font.DemiBold
                             color: App.Style.primaryTextColor
                         }
@@ -2022,16 +2032,16 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(36)
+                        Layout.preferredHeight: App.Spacing.dp(52)
                         color: createMouse.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
-                        radius: App.Spacing.dp(6)
+                        radius: App.Spacing.dp(8)
                         opacity: newPlaylistInput.text.trim().length > 0 ? 1.0 : 0.4
 
                         Text {
                             anchors.centerIn: parent
                             text: "Create"
                             font.family: mediaPlayer.globalFont
-                            font.pixelSize: App.Spacing.dp(13)
+                            font.pixelSize: App.Spacing.dp(15)
                             font.weight: Font.DemiBold
                             color: "#000000"
                         }

@@ -40,76 +40,7 @@ Rectangle {
     implicitHeight: App.Spacing.dp(150)
     implicitWidth: App.Spacing.dp(300)
 
-    // Pulsing bracket opacity (spacecraft)
-    property real bracketPulse: 0.4
-    SequentialAnimation on bracketPulse {
-        running: App.EnvironmentTheme.active.terminalCornerBrackets
-        loops: Animation.Infinite
-        NumberAnimation { to: 0.7; duration: 2500; easing.type: Easing.InOutSine }
-        NumberAnimation { to: 0.3; duration: 2500; easing.type: Easing.InOutSine }
-    }
-
-    // Corner brackets — Top Left
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left
-        anchors.topMargin: -1; anchors.leftMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left
-        anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-
-    // Corner brackets — Top Right
-    Rectangle {
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.topMargin: -1; anchors.rightMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-    Rectangle {
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-
-    // Corner brackets — Bottom Left
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.left: parent.left
-        anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.left: parent.left
-        anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-
-    // Corner brackets — Bottom Right
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
-        visible: App.EnvironmentTheme.active.terminalCornerBrackets
-    }
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, terminalFeedback.bracketPulse)
+    CornerBrackets {
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
     }
 

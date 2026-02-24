@@ -52,7 +52,12 @@ Item {
     Connections {
         target: mediaManager
         function onPlaylistsChanged() {
-            downloadPlaylists = mediaManager.get_movable_playlist_names()
+            var newList = mediaManager.get_movable_playlist_names()
+            downloadPlaylists = newList
+            // Clear stale selection if the playlist was deleted or renamed
+            if (selectedPlaylist && newList.indexOf(selectedPlaylist) === -1) {
+                selectedPlaylist = downloadManager ? downloadManager.get_download_playlist() : ""
+            }
         }
     }
 

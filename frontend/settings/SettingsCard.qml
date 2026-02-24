@@ -18,15 +18,6 @@ Rectangle {
         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b,
                   App.EnvironmentTheme.active.accentBorderOpacity) : "transparent"
 
-    // Pulsing opacity for corner brackets (spacecraft)
-    property real bracketPulse: 0.5
-    SequentialAnimation on bracketPulse {
-        running: App.EnvironmentTheme.active.pulsingElements
-        loops: Animation.Infinite
-        NumberAnimation { to: 0.8; duration: 2000; easing.type: Easing.InOutSine }
-        NumberAnimation { to: 0.3; duration: 2000; easing.type: Easing.InOutSine }
-    }
-
     // Top-edge accent highlight (spacecraft)
     Rectangle {
         anchors.top: parent.top
@@ -61,71 +52,12 @@ Rectangle {
         anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius * 0.5)
         height: 1
         radius: 0.5
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse * 0.3)
+        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
         visible: App.EnvironmentTheme.active.cardGlassEffect
     }
 
-    // Corner brackets — Top Left
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left
-        anchors.topMargin: -1; anchors.leftMargin: -1
-        width: App.Spacing.dp(15); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left
-        anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 1; height: App.Spacing.dp(15)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-
-    // Corner brackets — Top Right
-    Rectangle {
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.topMargin: -1; anchors.rightMargin: -1
-        width: App.Spacing.dp(15); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 1; height: App.Spacing.dp(15)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-
-    // Corner brackets — Bottom Left
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.left: parent.left
-        anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: App.Spacing.dp(15); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.left: parent.left
-        anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 1; height: App.Spacing.dp(15)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-
-    // Corner brackets — Bottom Right
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: App.Spacing.dp(15); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 1; height: App.Spacing.dp(15)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, card.bracketPulse)
+    App.CornerBrackets {
+        bracketLength: App.Spacing.dp(15)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
 

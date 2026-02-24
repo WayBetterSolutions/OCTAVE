@@ -34,6 +34,7 @@ Flickable {
 
     contentWidth: width
     contentHeight: settingsContent.implicitHeight
+    flickableDirection: Flickable.VerticalFlick
     clip: true
     boundsBehavior: Flickable.DragAndOvershootBounds
     flickDeceleration: 1200
@@ -107,25 +108,8 @@ Flickable {
                     options: ["bottom", "side"]
 
                     onSelected: function(value) {
-                        if (settingsManager) {
+                        if (settingsManager)
                             settingsManager.save_bottom_bar_orientation(value)
-
-                            if (stackView) {
-                                // Create a timer for a short delay
-                                var timer = Qt.createQmlObject('import QtQuick 2.15; Timer {}', bottomBarOrientation);
-                                timer.interval = 5;
-                                timer.repeat = false;
-                                timer.triggered.connect(function() {
-                                    stackView.replace(stackView.currentItem, "../SettingsMenu.qml", {
-                                        stackView: stackView,
-                                        mainWindow: mainWindow,
-                                        initialSection: currentSection
-                                    });
-                                    timer.destroy();
-                                });
-                                timer.start();
-                            }
-                        }
                     }
                 }
 
@@ -191,7 +175,7 @@ Flickable {
                     SettingsTextField {
                         id: screenWidth
                         Layout.preferredWidth: App.Spacing.dp(120)
-                        text: mainWindow.width
+                        text: mainWindow ? mainWindow.width : ""
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
                             bottom: 400
@@ -234,7 +218,7 @@ Flickable {
                     SettingsTextField {
                         id: screenHeight
                         Layout.preferredWidth: App.Spacing.dp(120)
-                        text: mainWindow.height
+                        text: mainWindow ? mainWindow.height : ""
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
                             bottom: 300
@@ -268,11 +252,12 @@ Flickable {
                     }
 
                     SettingsButton {
-                        text: mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
+                        text: mainWindow && mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
                         Layout.preferredHeight: screenHeight.height
                         Layout.minimumWidth: App.Spacing.dp(80)
-                        tooltipText: mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
+                        tooltipText: mainWindow && mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
                         onClicked: {
+                            if (!mainWindow) return
                             if (mainWindow.visibility === Window.FullScreen) {
                                 mainWindow.visibility = Window.Windowed
                                 if (settingsManager) settingsManager.save_window_state("windowed")
@@ -289,6 +274,7 @@ Flickable {
                         Layout.minimumWidth: App.Spacing.dp(80)
                         tooltipText: "Maximize window to fill screen"
                         onClicked: {
+                            if (!mainWindow) return
                             mainWindow.visibility = Window.Maximized
                             if (settingsManager) settingsManager.save_window_state("maximized")
                         }
@@ -336,7 +322,8 @@ Flickable {
 
                     onSelected: function(value) {
                         if (settingsManager) {
-                            mainWindow.updateTheme(value)
+                            settingsManager.save_theme_setting(value)
+                            App.Style.setTheme(value)
                         }
                     }
 
@@ -344,7 +331,8 @@ Flickable {
                         if (settingsManager) {
                             // If deleting the active theme, switch to default first
                             if (settingsManager.themeSetting === value) {
-                                mainWindow.updateTheme("CosmicVoyager")
+                                settingsManager.save_theme_setting("CosmicVoyager")
+                                App.Style.setTheme("CosmicVoyager")
                             }
                             settingsManager.delete_custom_theme(value)
                         }
@@ -420,7 +408,8 @@ Flickable {
 
                     onSelected: function(value) {
                         if (settingsManager) {
-                            mainWindow.updateFont(value)
+                            settingsManager.save_font_setting(value)
+                            App.Style.setFont(value)
                         }
                     }
                 }

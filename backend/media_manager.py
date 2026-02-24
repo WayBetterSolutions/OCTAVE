@@ -1290,11 +1290,22 @@ class MediaManager(QObject):
     @Slot()
     def scan_library(self, reset_display_names=True):
         """Scan the library root for subfolders (playlists) and their MP3s"""
+        if getattr(self, '_scan_in_progress', False):
+            logger.info("scan_library: already in progress, skipping")
+            return
+
         if not self._library_root or not os.path.exists(self._library_root):
             self.scanProgress.emit(f"[ERROR] Library path not set or doesn't exist")
             logger.info(f"Library root not set or doesn't exist: {self._library_root}")
             return
 
+        self._scan_in_progress = True
+        try:
+            self._scan_library_inner(reset_display_names)
+        finally:
+            self._scan_in_progress = False
+
+    def _scan_library_inner(self, reset_display_names):
         self.scanProgress.emit(f"[SCAN] Starting library scan...")
         self.scanProgress.emit(f"[PATH] {self._library_root}")
         logger.info(f"Scanning library at: {self._library_root}")
@@ -1349,7 +1360,8 @@ class MediaManager(QObject):
         self.scanProgress.emit(f"[SCAN] Scanning subfolders...")
         try:
             subfolders = [item for item in os.listdir(self._library_root)
-                         if os.path.isdir(os.path.join(self._library_root, item))]
+                         if os.path.isdir(os.path.join(self._library_root, item))
+                         and not item.startswith('.')]  # Skip hidden/system dirs
             self.scanProgress.emit(f"[INFO] Found {len(subfolders)} subfolders to scan")
 
             for item in subfolders:
@@ -1371,19 +1383,21 @@ class MediaManager(QObject):
                     logger.error(f"Error scanning subfolder {item}: {e}")
                     continue
 
-                if mp3_files:  # Only create playlist if it has MP3s
-                    self._playlists[item] = {
-                        "name": item,
-                        "path": subfolder_path,
-                        "files": mp3_files,
-                        "song_count": len(mp3_files)
-                    }
-                    self._playlist_names.append(item)
+                # Include every subfolder — even empty ones — so user-created
+                # playlists survive a rescan (e.g. after moving the last song out).
+                self._playlists[item] = {
+                    "name": item,
+                    "path": subfolder_path,
+                    "files": mp3_files,
+                    "song_count": len(mp3_files)
+                }
+                self._playlist_names.append(item)
+                if mp3_files:
                     self.scanProgress.emit(f"[FOUND] '{item}' - {len(mp3_files)} songs")
                     logger.info(f"Found playlist '{item}' with {len(mp3_files)} songs")
                 else:
-                    self.scanProgress.emit(f"[WARN] '{item}' - 0 songs (skipped)")
-                    logger.info(f"Skipped folder '{item}' - no MP3s found")
+                    self.scanProgress.emit(f"[FOUND] '{item}' - empty playlist")
+                    logger.info(f"Found empty playlist folder '{item}'")
         except Exception as e:
             self.scanProgress.emit(f"[ERROR] Failed to scan subfolders: {e}")
             logger.error(f"Error scanning library subfolders: {e}")
@@ -1414,9 +1428,6 @@ class MediaManager(QObject):
         self.scanProgress.emit(f"[DONE] Scan complete: {len(self._playlist_names)} playlists, {len(all_music_files)} total songs")
         logger.info(f"Library scan complete. Found {len(self._playlist_names)} playlists")
 
-        # Emit signal
-        self.playlistsChanged.emit()
-
         # If a playlist was active before the rescan, re-select it to refresh
         # the song list in QML (emits mediaListChanged). Preserve current
         # playback position so the playing song is not disrupted.
@@ -1429,6 +1440,9 @@ class MediaManager(QObject):
             if previous_file and previous_file in self._current_playlist:
                 self._current_index = self._current_playlist.index(previous_file)
             logger.info("Re-selected playlist '%s' after rescan", previous_playlist)
+
+        # Emit AFTER all state is settled — QML sees the final, consistent state
+        self.playlistsChanged.emit()
 
     @Slot(str)
     def set_library_root(self, path):
@@ -1501,6 +1515,11 @@ class MediaManager(QObject):
     def get_current_playlist_name(self):
         """Return current playlist name"""
         return self._current_playlist_name
+
+    @Slot(result=list)
+    def get_current_song_list(self):
+        """Return the file list for the active playlist."""
+        return self._current_playlist.copy() if self._current_playlist else []
 
     def _get_file_path(self, filename):
         """Get the full file path for a filename, handling All Music multi-folder playlist"""
@@ -1609,9 +1628,13 @@ class MediaManager(QObject):
 
         name = name.strip()
 
-        # Reject path separators and traversal attempts
+        # Reject path separators, traversal attempts, and hidden/system names
         if os.sep in name or '/' in name or '\\' in name or '..' in name:
             logger.warning("create_playlist: rejected unsafe name '%s'", name)
+            return False
+
+        if name.startswith('.'):
+            logger.warning("create_playlist: rejected hidden folder name '%s'", name)
             return False
 
         if not self._library_root or not os.path.exists(self._library_root):
@@ -1640,28 +1663,9 @@ class MediaManager(QObject):
                 logger.error("Failed to create playlist folder '%s': %s", name, e)
                 return False
 
-        # Rescan; scan_library skips empty folders, so add manually if needed
+        # Rescan — scan_library now includes empty folders, so the new
+        # playlist will appear automatically.  Single playlistsChanged emission.
         self.scan_library(reset_display_names=False)
-
-        if name not in self._playlists:
-            self._playlists[name] = {
-                "name": name,
-                "path": folder_path,
-                "files": [],
-                "song_count": 0,
-            }
-            self._playlist_names.append(name)
-            # Re-sort keeping All Music and Unsorted at front
-            special = []
-            for s in ("All Music", "Unsorted"):
-                if s in self._playlist_names:
-                    self._playlist_names.remove(s)
-                    special.append(s)
-            self._playlist_names.sort(key=str.lower)
-            for s in reversed(special):
-                self._playlist_names.insert(0, s)
-            self.playlistsChanged.emit()
-
         return True
 
     @Slot(str, str, result=bool)

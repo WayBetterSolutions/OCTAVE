@@ -240,8 +240,16 @@ ApplicationWindow {
         
         function onThemeSettingChanged() {
             if (settingsManager) {
-                App.Style.setTheme(settingsManager.themeSetting)
-                theme = settingsManager.themeSetting
+                var newTheme = settingsManager.themeSetting
+                App.Style.setTheme(newTheme)
+                theme = newTheme
+
+                // If Album Art Capture is selected, extract colors from current song
+                if (newTheme === "Album Art Capture" && mediaManager) {
+                    var currentFile = mediaManager.get_current_file()
+                    if (currentFile)
+                        mediaManager.extract_colors_from_album_art(currentFile)
+                }
             }
         }
 
@@ -274,6 +282,13 @@ ApplicationWindow {
                 // Force recalculation of z-order
                 stackView.z = 1
                 bottomBar.z = 0
+
+                // If on settings page, reload it after layout settles
+                if (stackView.currentItem && stackView.currentItem.objectName === "settingsMenu") {
+                    var section = stackView.currentItem.currentSection || ""
+                    navReloadTimer.pendingSection = section
+                    navReloadTimer.restart()
+                }
             }
         }
 
@@ -359,6 +374,24 @@ ApplicationWindow {
             popExit: null
             replaceEnter: null
             replaceExit: null
+        }
+
+        // Reload settings page after nav bar orientation change
+        Timer {
+            id: navReloadTimer
+            interval: 150
+            repeat: false
+            property string pendingSection: ""
+            onTriggered: {
+                if (stackView.currentItem && stackView.currentItem.objectName === "settingsMenu") {
+                    var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                        stackView: stackView,
+                        mainWindow: mainWindow,
+                        initialSection: pendingSection
+                    })
+                    stackView.replace(stackView.currentItem, page)
+                }
+            }
         }
 
         // Drop shadow for the bottom bar

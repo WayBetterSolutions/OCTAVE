@@ -86,17 +86,21 @@ Slider {
         }
     }
 
+    // Block track clicks — only allow dragging the handle.
+    // Sits as a direct child of the Slider so it intercepts before the
+    // Slider's own input handling. Passes through clicks on the handle area.
     MouseArea {
         anchors.fill: parent
+        z: 10
         onPressed: function(mouse) {
-            var newPos = Math.max(0, Math.min(1, (mouseX - control.leftPadding) / control.availableWidth))
-            control.value = control.from + newPos * (control.to - control.from)
-            control.pressed = true
-            mouse.accepted = false
-        }
-        onReleased: function(mouse) {
-            control.pressed = false
-            mouse.accepted = false
+            var hx = control.leftPadding + control.visualPosition * (control.availableWidth - control.handle.width)
+            var hy = control.topPadding + control.availableHeight / 2 - control.handle.height / 2
+            if (mouse.x >= hx && mouse.x <= hx + control.handle.width &&
+                mouse.y >= hy && mouse.y <= hy + control.handle.height) {
+                mouse.accepted = false  // On handle — let Slider process it
+            } else {
+                mouse.accepted = true   // On track — absorb it
+            }
         }
     }
 }

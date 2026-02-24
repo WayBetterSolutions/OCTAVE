@@ -7,6 +7,7 @@ import ".." as App
 Flickable {
     contentWidth: width
     contentHeight: volumeKnobSettingsColumn.implicitHeight
+    flickableDirection: Flickable.VerticalFlick
     clip: true
     boundsBehavior: Flickable.DragAndOvershootBounds
     flickDeceleration: 1200

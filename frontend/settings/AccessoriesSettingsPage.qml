@@ -7,6 +7,7 @@ import ".." as App
 Flickable {
     contentWidth: width
     contentHeight: accessoriesColumn.implicitHeight
+    flickableDirection: Flickable.VerticalFlick
     clip: true
     boundsBehavior: Flickable.DragAndOvershootBounds
     flickDeceleration: 1200
@@ -977,6 +978,21 @@ Flickable {
 
                         Behavior on color { ColorAnimation { duration: 100 } }
                     }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        z: 10
+                        onPressed: function(mouse) {
+                            var hx = gsVolumeStepSlider.leftPadding + gsVolumeStepSlider.visualPosition * (gsVolumeStepSlider.availableWidth - gsVolumeStepSlider.handle.width)
+                            var hy = gsVolumeStepSlider.topPadding + gsVolumeStepSlider.availableHeight / 2 - gsVolumeStepSlider.handle.height / 2
+                            if (mouse.x >= hx && mouse.x <= hx + gsVolumeStepSlider.handle.width &&
+                                mouse.y >= hy && mouse.y <= hy + gsVolumeStepSlider.handle.height) {
+                                mouse.accepted = false
+                            } else {
+                                mouse.accepted = true
+                            }
+                        }
+                    }
                 }
 
                 SettingsChips {
@@ -1070,6 +1086,21 @@ Flickable {
                         border.width: 2
 
                         Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        z: 10
+                        onPressed: function(mouse) {
+                            var hx = cooldownSlider.leftPadding + cooldownSlider.visualPosition * (cooldownSlider.availableWidth - cooldownSlider.handle.width)
+                            var hy = cooldownSlider.topPadding + cooldownSlider.availableHeight / 2 - cooldownSlider.handle.height / 2
+                            if (mouse.x >= hx && mouse.x <= hx + cooldownSlider.handle.width &&
+                                mouse.y >= hy && mouse.y <= hy + cooldownSlider.handle.height) {
+                                mouse.accepted = false
+                            } else {
+                                mouse.accepted = true
+                            }
+                        }
                     }
                 }
 

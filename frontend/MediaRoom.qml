@@ -11,12 +11,20 @@ Item {
     property StackView stackView
     property ApplicationWindow mainWindow
 
-    // Navigate to cached DownloadPage
-    function openDownloadPage() {
+    // Navigate to cached DownloadPage, optionally pre-selecting a playlist
+    function openDownloadPage(targetPlaylist) {
         var sv = mediaRoom.stackView
         if (sv.currentItem && sv.currentItem.objectName === "downloadPage") return
 
         if (sv._cachedDownloadPage) {
+            // Always refresh playlist list from backend (may have changed
+            // while the page was cached — new playlists, deletions, etc.)
+            if (mediaManager)
+                sv._cachedDownloadPage.downloadPlaylists = mediaManager.get_movable_playlist_names()
+            if (targetPlaylist) {
+                sv._cachedDownloadPage.selectedPlaylist = targetPlaylist
+                downloadManager.set_download_playlist(targetPlaylist)
+            }
             for (var i = 0; i < sv.depth; i++) {
                 if (sv.get(i) === sv._cachedDownloadPage) {
                     sv.pop(sv._cachedDownloadPage)
@@ -34,6 +42,10 @@ Item {
                 mainWindow: mediaRoom.mainWindow
             })
             if (sv._cachedDownloadPage) {
+                if (targetPlaylist) {
+                    sv._cachedDownloadPage.selectedPlaylist = targetPlaylist
+                    downloadManager.set_download_playlist(targetPlaylist)
+                }
                 sv.push(sv._cachedDownloadPage)
             }
         }
@@ -63,6 +75,10 @@ Item {
     property color accent: "#a11212"
     
     property bool isShuffleEnabled: false
+
+    // Empty playlist detection — drives download button vs controls swap
+    property int localSongCount: 0
+    property bool playlistEmpty: !useSpotify && localSongCount === 0
 
     // Spotify integration - use Spotify when user chooses it AND it's connected
     property bool useSpotify: settingsManager && settingsManager.mediaSource === "spotify" &&
@@ -200,6 +216,15 @@ Item {
     }
 
     function animateTrackChange() {
+        // Immediately kill the visualizer — snap bars to zero before the
+        // card animation begins so the waveform doesn't hang at stale levels.
+        // _cardAnimBusy disables bar Behaviors AND the opacity Behavior,
+        // so both the bar drop and the opacity drop are instant.
+        vizFadeInTimer.stop()
+        _cardAnimBusy = true
+        waveformContainer._vizFadedOut = true
+        waveformContainer.dropBars()
+
         if (settingsManager && settingsManager.show3DAlbumPreview) {
             albumArtStack.triggerSlide()
             // Heavy work deferred — cardAnimSettleTimer handles it
@@ -207,6 +232,7 @@ Item {
             // No animation, auto/external change — do heavy work immediately.
             // (User-initiated changes defer heavy work to onCurrentMediaChanged
             //  since the Python backend hasn't processed the track switch yet.)
+            _cardAnimBusy = false
             _doTrackChangeWork()
         }
     }
@@ -312,6 +338,11 @@ Item {
             // Force initial evaluation of side card art
             sideCardRefreshTimer.restart()
 
+            // Initialize local song count from the active playlist (not raw
+            // directory scan, which misses "All Music" and other combined lists)
+            if (mediaManager) {
+                localSongCount = mediaManager.get_current_song_list().length
+            }
         }
 
         Rectangle { // Volume control at top
@@ -535,9 +566,10 @@ Item {
             }
         }
 
-        // Download Button (top right corner)
+        // Download Button (top right corner) — hidden when the big center button is showing
         Control {
             id: downloadButton
+            visible: !playlistEmpty
             width: App.Spacing.bottomBarNavButtonWidth
             height: App.Spacing.bottomBarNavButtonHeight
             z: 3
@@ -612,6 +644,7 @@ Item {
 
         Rectangle { //media controls container
             id: mediaControlsContainer
+            visible: !playlistEmpty
             width: App.Spacing.applicationWidth * App.Spacing.mediaRoomControlsContainerWidth
             height: App.Spacing.applicationHeight * App.Spacing.mediaRoomControlsContainerHeight
             anchors {
@@ -631,8 +664,8 @@ Item {
                 // Left side - Controls and Metadata
                 ColumnLayout {
                     Layout.fillHeight: true
-                    Layout.preferredWidth: parent.width * 0.5  // 50% for left side
-                    Layout.maximumWidth: parent.width * 0.5
+                    Layout.preferredWidth: parent.width * 0.6  // 60% for left side
+                    Layout.maximumWidth: parent.width * 0.6
                     Layout.leftMargin: App.Spacing.dp(20)
                     spacing: App.Spacing.mediaRoomSpacing * 2
 
@@ -698,6 +731,7 @@ Item {
                             MouseArea {
                                 id: prevMouseArea
                                 anchors.fill: parent
+                                anchors.margins: -App.Spacing.mediaRoomBetweenButton / 2
                                 onClicked: {
                                     mediaRoom._slideDirection = -1
                                     // Fire animation BEFORE the Python call — enter card
@@ -772,6 +806,7 @@ Item {
                             MouseArea {
                                 id: playMouseArea
                                 anchors.fill: parent
+                                anchors.margins: -App.Spacing.mediaRoomBetweenButton / 2
                                 onClicked: {
                                     if (useSpotify) {
                                         spotifyManager.toggle_play()
@@ -835,6 +870,7 @@ Item {
                             MouseArea {
                                 id: nextMouseArea
                                 anchors.fill: parent
+                                anchors.margins: -App.Spacing.mediaRoomBetweenButton / 2
                                 onClicked: {
                                     mediaRoom._slideDirection = 1
                                     mediaRoom._userInitiatedChange = true
@@ -940,7 +976,7 @@ Item {
                                         opacity: 0.7
                                     }
                                     Text {
-                                        text: "•"
+                                        text: "\u2022"
                                         color: App.Style.metadataColor
                                         font.pixelSize: App.Spacing.mediaRoomMetaDataAlbumText
                                         font.family: mediaRoom.globalFont
@@ -1000,8 +1036,8 @@ Item {
                 Item { // Right side - Album Art Card Stack
                     id: albumArtStack
                     Layout.fillHeight: true
-                    Layout.preferredWidth: parent.width * 0.5  // 50% for right side
-                    Layout.maximumWidth: parent.width * 0.5
+                    Layout.preferredWidth: parent.width * 0.4  // 40% for right side
+                    Layout.maximumWidth: parent.width * 0.4
                     Layout.alignment: Qt.AlignVCenter
                     clip: false
 
@@ -1396,6 +1432,103 @@ Item {
                     }
                 }
             }
+
+        }
+
+        // Empty playlist — large download button (replaces controls + album art)
+        Item {
+            id: emptyPlaylistOverlay
+            visible: playlistEmpty
+            anchors {
+                top: topVolumeControl.bottom
+                bottom: parent.bottom
+                left: parent.left
+                right: parent.right
+                margins: App.Spacing.mediaRoomMargin
+            }
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: App.Spacing.dp(20)
+
+                // Download icon + button
+                Rectangle {
+                    id: bigDownloadButton
+                    Layout.alignment: Qt.AlignHCenter
+                    width: App.Spacing.dp(200)
+                    height: App.Spacing.dp(200)
+                    radius: App.Spacing.dp(24)
+                    color: bigDownloadMouse.pressed
+                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
+                        : "transparent"
+                    border.width: 2
+                    border.color: App.Style.accent
+
+                    scale: bigDownloadMouse.pressed ? 0.92 : 1.0
+                    Behavior on scale {
+                        NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                    }
+
+                    ColumnLayout {
+                        anchors.centerIn: parent
+                        spacing: App.Spacing.dp(12)
+
+                        Item {
+                            Layout.alignment: Qt.AlignHCenter
+                            width: App.Spacing.dp(64)
+                            height: App.Spacing.dp(64)
+
+                            Image {
+                                id: bigDownloadIcon
+                                anchors.fill: parent
+                                source: "./assets/download_button.svg"
+                                sourceSize: Qt.size(width * 2, height * 2)
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                                antialiasing: true
+                                mipmap: true
+                                visible: false
+                            }
+
+                            ColorOverlay {
+                                anchors.fill: bigDownloadIcon
+                                source: bigDownloadIcon
+                                color: App.Style.accent
+                            }
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: "Download Music"
+                            color: App.Style.accent
+                            font.pixelSize: App.Spacing.dp(18)
+                            font.weight: Font.Bold
+                            font.family: mediaRoom.globalFont
+                        }
+                    }
+
+                    MouseArea {
+                        id: bigDownloadMouse
+                        width: parent.width * 1.5
+                        height: parent.height * 1.5
+                        anchors.centerIn: parent
+                        onClicked: {
+                            var playlist = mediaManager ? mediaManager.get_current_playlist_name() : ""
+                            mediaRoom.openDownloadPage(playlist)
+                        }
+                    }
+                }
+
+                // Subtitle
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "No songs in this playlist yet"
+                    color: App.Style.metadataColor
+                    font.pixelSize: App.Spacing.dp(14)
+                    font.family: mediaRoom.globalFont
+                    opacity: 0.6
+                }
+            }
         }
 
         // Waveform Visualizer
@@ -1408,8 +1541,10 @@ Item {
                 horizontalCenter: parent.horizontalCenter
                 bottomMargin: App.Spacing.dp(10)
             }
-            visible: settingsManager && settingsManager.showWaveformVisualizer && !mediaRoom.useSpotify
-            opacity: visible ? 1.0 : 0.0
+            visible: settingsManager && settingsManager.showWaveformVisualizer && !mediaRoom.useSpotify && !playlistEmpty
+            // Faded out during track transitions; fades back in once analysis is ready
+            property bool _vizFadedOut: false
+            opacity: (visible && !_vizFadedOut) ? 1.0 : 0.0
 
             // Track playback state reactively (method calls aren't reactive in bindings)
             property bool isPlaying: false
@@ -1424,7 +1559,19 @@ Item {
             property bool fancyBars: quality === "Extreme" || quality === "Insane"
 
             Behavior on opacity {
-                NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
+                // Disabled during _cardAnimBusy so the drop is instant;
+                // enabled for the smooth fade-in after analysis completes.
+                enabled: !mediaRoom._cardAnimBusy
+                NumberAnimation { duration: 500; easing.type: Easing.InOutQuad }
+            }
+
+            // Tiny delay so the backend's initial zero-frame emission clears
+            // before we start showing anything — then the opacity fade and
+            // bar-height growth animate together on the very next data tick.
+            Timer {
+                id: vizFadeInTimer
+                interval: 50
+                onTriggered: waveformContainer._vizFadedOut = false
             }
 
             // Rebuild bars when quality (and thus bar count) changes
@@ -1520,6 +1667,22 @@ Item {
                 }
             }
 
+            // Fade the visualizer back in once the new track's analysis lands.
+            // Separate block so it isn't gated by _cardAnimBusy (analysis
+            // finishes after the card animation has already settled).
+            Connections {
+                target: audioAnalyzer
+                enabled: waveformContainer.visible
+
+                function onAnalysisComplete() {
+                    // Only arm the fade-in if we're actually waiting for it
+                    // (guards against stale signals from a superseded analysis)
+                    if (waveformContainer._vizFadedOut && !mediaRoom._cardAnimBusy) {
+                        vizFadeInTimer.restart()
+                    }
+                }
+            }
+
             // Update position periodically — interval driven by quality tier
             Timer {
                 id: waveformUpdateTimer
@@ -1548,6 +1711,14 @@ Item {
                     if (audioAnalyzer) {
                         audioAnalyzer.set_active(playing)
                     }
+                }
+            }
+
+            // Immediately zero all bars (snaps because Behaviors are disabled when _cardAnimBusy)
+            function dropBars() {
+                for (var i = 0; i < waveformRepeater.count; i++) {
+                    var item = waveformRepeater.itemAt(i)
+                    if (item) item.barLevel = 0
                 }
             }
 
@@ -1585,6 +1756,7 @@ Item {
 
         Rectangle { //duration bar
             id: durationBar
+            visible: !playlistEmpty
             width: parent.width * 0.75
             height: App.Spacing.mediaRoomDurationBarHeight
             anchors {
@@ -1625,35 +1797,53 @@ Item {
                         width: progressSlider.availableWidth
                         height: App.Spacing.mediaRoomProgressSliderHeight
                         radius: height / 2
-                        color: App.Style.secondaryTextColor
+                        color: Qt.rgba(App.Style.mediaRoomSeekColor.r, App.Style.mediaRoomSeekColor.g, App.Style.mediaRoomSeekColor.b, 0.15)
 
                         Rectangle {
                             width: progressSlider.visualPosition * parent.width
                             height: parent.height
                             radius: height / 2
-                            color: App.Style.primaryTextColor
+                            color: App.Style.mediaRoomSeekColor
                         }
                     }
 
                     // Fixed handle visibility
-                    handle: Rectangle {
+                    handle: Item {
                         x: progressSlider.leftPadding + progressSlider.visualPosition * (progressSlider.availableWidth - width)
                         y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
                         width: App.Spacing.mediaRoomSliderButtonWidth
                         height: App.Spacing.mediaRoomSliderButtonHeight
-                        radius: App.Spacing.mediaRoomSliderButtonRadius
-                        color: progressSlider.pressed ? sliderHandlePressed : sliderHandleNormal
-                        visible: true  // Explicitly set to visible
-                        
-                        // Optional: Add drop shadow for better visibility
-                        layer.enabled: true
-                        layer.effect: DropShadow {
-                            transparentBorder: true
-                            horizontalOffset: 1
-                            verticalOffset: 1
-                            radius: 3.0
-                            samples: 5
-                            color: "#80000000"
+
+                        // Glow rectangle behind handle (environment-gated)
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: parent.width + 6
+                            height: parent.height + 6
+                            radius: App.EnvironmentTheme.active.sliderHandleRadius === -1
+                                ? (width / 2) : App.Spacing.dpMin(App.EnvironmentTheme.active.sliderHandleRadius + 3, 2)
+                            color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
+                            visible: App.EnvironmentTheme.active.sliderHandleGlow
+                        }
+
+                        // Actual handle
+                        Rectangle {
+                            id: seekHandle
+                            anchors.fill: parent
+                            radius: App.EnvironmentTheme.active.sliderHandleRadius === -1
+                                ? (width / 2) : App.Spacing.dpMin(App.EnvironmentTheme.active.sliderHandleRadius, 2)
+                            color: progressSlider.pressed ? Qt.darker(App.Style.accent, 1.15) : App.Style.accent
+
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            layer.enabled: true
+                            layer.effect: DropShadow {
+                                transparentBorder: true
+                                horizontalOffset: 2
+                                verticalOffset: 2
+                                radius: 6.0
+                                samples: 13
+                                color: "#80000000"
+                            }
                         }
                     }
 
@@ -1805,6 +1995,7 @@ Item {
         // Shuffle Button — bottom left corner, centered between edge and duration bar
         Control {
             id: shuffleButton
+            visible: !playlistEmpty
             width: durationBar.height * 1.96875
             height: durationBar.height * 1.96875
             anchors.verticalCenter: durationBar.verticalCenter
@@ -1850,6 +2041,20 @@ Item {
         }
     }
 
+    // Track local song count for empty-state detection (always active).
+    // When a playlist transitions from empty → has songs (first download
+    // landed), auto-play the first track so the room comes alive.
+    Connections {
+        target: mediaManager
+        function onMediaListChanged(files) {
+            var wasEmpty = mediaRoom.localSongCount === 0
+            mediaRoom.localSongCount = files.length
+            if (wasEmpty && files.length > 0 && !mediaRoom.useSpotify) {
+                mediaManager.play_file(files[0])
+            }
+        }
+    }
+
     // Local media manager connections (only apply when not using Spotify)
     Connections {
         target: mediaManager
@@ -1888,8 +2093,11 @@ Item {
                 // and albumArtImage.source is loading it asynchronously while the
                 // enter card is still near-transparent.
                 mediaRoom._userInitiatedChange = false
-    
+
                 if (!settingsManager || !settingsManager.show3DAlbumPreview) {
+                    // No card animation running — release the busy flag so the
+                    // visualizer timer + bar Behaviors re-enable.
+                    mediaRoom._cardAnimBusy = false
                     mediaRoom._doTrackChangeWork()
                 }
             } else {
@@ -1969,8 +2177,9 @@ Item {
 
                 if (mediaRoom._userInitiatedChange) {
                     mediaRoom._userInitiatedChange = false
-        
+
                     if (!settingsManager || !settingsManager.show3DAlbumPreview) {
+                        mediaRoom._cardAnimBusy = false
                         mediaRoom._doTrackChangeWork()
                     }
                 } else {

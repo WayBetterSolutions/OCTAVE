@@ -1,19 +1,20 @@
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import ".." as App
+import "ScrollMemory.js" as ScrollMemory
 
 Rectangle {
     id: hubCard
 
     property string categoryName: ""
     property string section: ""
-    property var widgetItems: []
     property string categoryIcon: ""
-    property int cardSpan: 1
-    property string widgetSource: ""
+    property string groupName: ""
+    property string pageSource: ""
+    property bool isCenter: false
 
-    signal categorySelected(string section)
-    signal subSectionSelected(string section, string subSection)
+    // Passed through from SettingsMenu so loaded pages can access them
+    property var settingsMenu: null
 
     color: "transparent"
     radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
@@ -25,26 +26,24 @@ Rectangle {
         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b,
                   App.EnvironmentTheme.active.accentBorderOpacity) : "transparent"
 
-    // Pulsing opacity for corner brackets (spacecraft)
-    property real bracketPulse: 0.5
-    SequentialAnimation on bracketPulse {
-        running: App.EnvironmentTheme.active.pulsingElements
-        loops: Animation.Infinite
-        NumberAnimation { to: 0.8; duration: 2000; easing.type: Easing.InOutSine }
-        NumberAnimation { to: 0.3; duration: 2000; easing.type: Easing.InOutSine }
-    }
-
-    // Glassy translucent card background
+    // Card background — elevated surface
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
         color: {
             var base = App.Style.contentColor
-            return Qt.rgba(base.r, base.g, base.b, 0.55)
+            return Qt.rgba(base.r, base.g, base.b, 0.92)
         }
     }
 
-    // Frosted highlight gradient — lighter at top edge, fading down
+    // Subtle white lift
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        color: Qt.rgba(1, 1, 1, 0.05)
+    }
+
+    // Frosted highlight gradient
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
@@ -66,67 +65,7 @@ Rectangle {
         color: Qt.rgba(1, 1, 1, 0.08)
     }
 
-    // Corner brackets — Top Left (spacecraft)
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left
-        anchors.topMargin: -1; anchors.leftMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.top: parent.top; anchors.left: parent.left
-        anchors.topMargin: -1; anchors.leftMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-
-    // Corner brackets — Top Right (spacecraft)
-    Rectangle {
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.topMargin: -1; anchors.rightMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.top: parent.top; anchors.right: parent.right
-        anchors.topMargin: -1; anchors.rightMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-
-    // Corner brackets — Bottom Left (spacecraft)
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.left: parent.left
-        anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.left: parent.left
-        anchors.bottomMargin: -1; anchors.leftMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-
-    // Corner brackets — Bottom Right (spacecraft)
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: App.Spacing.dp(12); height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
-        visible: App.EnvironmentTheme.active.cornerBrackets
-    }
-    Rectangle {
-        anchors.bottom: parent.bottom; anchors.right: parent.right
-        anchors.bottomMargin: -1; anchors.rightMargin: -1
-        width: 1; height: App.Spacing.dp(12)
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, hubCard.bracketPulse)
+    App.CornerBrackets {
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
 
@@ -145,177 +84,67 @@ Rectangle {
         opacity: 0.6
     }
 
-    // Hover glow overlay
-    Rectangle {
+
+    // ─── Card content: settings page fills entire card ───
+    Item {
+        id: cardContent
         anchors.fill: parent
-        radius: parent.radius
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 1.0)
-        opacity: cardMouseArea.containsMouse ? 0.06 : 0
-        Behavior on opacity { NumberAnimation { duration: 200 } }
-    }
+        anchors.leftMargin: App.Spacing.overallSpacing * 0.3
+        anchors.rightMargin: App.Spacing.overallSpacing * 0.3
+        anchors.topMargin: App.Spacing.dp(2)
+        anchors.bottomMargin: App.Spacing.dp(2)
 
-    // Card content
-    ColumnLayout {
-        anchors {
-            fill: parent
-            leftMargin: App.Spacing.overallSpacing * 1.2
-            rightMargin: App.Spacing.overallSpacing * 1.2
-            topMargin: App.Spacing.overallSpacing * 0.8
-            bottomMargin: App.Spacing.overallSpacing * 0.8
-        }
-        spacing: App.Spacing.rowSpacing * 0.3
-
-        // Category name row with indicator
-        RowLayout {
-            id: titleRow
-            Layout.fillWidth: true
-            spacing: App.Spacing.overallSpacing * 0.5
-            z: 2
-
-            Text {
-                text: hubCard.categoryName
-                color: titleMouseArea.containsMouse ? App.Style.accent : App.Style.primaryTextColor
-                font.pixelSize: App.Spacing.overallText * 1.3
-                font.bold: true
-                font.family: App.Style.fontFamily
-                font.letterSpacing: App.EnvironmentTheme.active.labelLetterSpacing
-                font.capitalization: App.EnvironmentTheme.active.labelUppercase ? Font.AllUppercase : Font.MixedCase
-                Layout.fillWidth: true
-                elide: Text.ElideRight
-
-                Behavior on color { ColorAnimation { duration: 150 } }
-            }
-
-            Text {
-                text: "\u203A"
-                color: titleMouseArea.containsMouse ? App.Style.accent : App.Style.secondaryTextColor
-                font.pixelSize: App.Spacing.overallText * 1.1
-                font.family: App.Style.fontFamily
-
-                Behavior on color { ColorAnimation { duration: 150 } }
-            }
-
-            // Title row mouse area — always goes to detail page
-            MouseArea {
-                id: titleMouseArea
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: hubCard.categorySelected(hubCard.section)
-            }
-        }
-
-        // Widget Loader — loads per-category interactive widget
         Loader {
-            id: widgetLoader
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            source: hubCard.widgetSource
-            active: hubCard.widgetSource !== ""
-            z: 1
+            id: pageLoader
+            anchors.fill: parent
+            source: hubCard.pageSource ? ("../" + hubCard.pageSource) : ""
+            active: hubCard.isCenter
+
             onLoaded: {
                 if (item) {
-                    item.cardSpan = Qt.binding(function() { return hubCard.cardSpan })
-                    // Wire sub-section navigation if the widget supports it
-                    if (typeof item.navigateToSubSection !== "undefined") {
-                        item.navigateToSubSection.connect(function(subSection) {
-                            hubCard.subSectionSelected(hubCard.section, subSection)
-                        })
+                    if (typeof item.mainWindow !== "undefined")
+                        item.mainWindow = hubCard.settingsMenu ? hubCard.settingsMenu.mainWindow : null
+                    if (typeof item.stackView !== "undefined")
+                        item.stackView = hubCard.settingsMenu ? hubCard.settingsMenu.stackView : null
+                    if (typeof item.currentSection !== "undefined")
+                        item.currentSection = Qt.binding(function() { return hubCard.section })
+                }
+
+                // Restore saved scroll position
+                if (hubCard.section !== "") {
+                    var savedY = ScrollMemory.positions[hubCard.section]
+                    if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
+                        scrollRestoreTimer.savedY = savedY
+                        scrollRestoreTimer.restart()
                     }
                 }
             }
         }
 
-        // Fallback: passive widget info rows (used when no widgetSource)
-        GridLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            columns: hubCard.cardSpan >= 2 ? 2 : 1
-            columnSpacing: App.Spacing.overallSpacing * 0.4
-            rowSpacing: App.Spacing.overallSpacing * 0.25
-            visible: hubCard.widgetSource === "" && hubCard.widgetItems.length > 0
-
-            Repeater {
-                model: hubCard.widgetItems.length
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: dataRow.height + App.Spacing.overallSpacing * 0.5
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius * 0.5, 2)
-                    color: Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.7)
-
-                    Row {
-                        id: dataRow
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.leftMargin: App.Spacing.overallSpacing * 0.5
-                        anchors.right: parent.right
-                        anchors.rightMargin: App.Spacing.overallSpacing * 0.5
-                        spacing: App.Spacing.overallSpacing * 0.3
-
-                        // Status dot with pulse
-                        Item {
-                            width: App.Spacing.dp(7)
-                            height: App.Spacing.dp(7)
-                            visible: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
-                            anchors.verticalCenter: parent.verticalCenter
-
-                            Rectangle {
-                                width: App.Spacing.dp(11)
-                                height: App.Spacing.dp(11)
-                                radius: width / 2
-                                anchors.centerIn: parent
-                                color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
-                                       ? hubCard.widgetItems[index].statusColor : "transparent"
-                                property real pulseOpacity: 0.3
-                                opacity: pulseOpacity
-                                SequentialAnimation on pulseOpacity {
-                                    running: hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor !== ""
-                                    loops: Animation.Infinite
-                                    NumberAnimation { to: 0.5; duration: 1500; easing.type: Easing.InOutSine }
-                                    NumberAnimation { to: 0.1; duration: 1500; easing.type: Easing.InOutSine }
-                                }
-                            }
-
-                            Rectangle {
-                                width: App.Spacing.dp(7)
-                                height: App.Spacing.dp(7)
-                                radius: width / 2
-                                anchors.centerIn: parent
-                                color: (hubCard.widgetItems[index] && hubCard.widgetItems[index].statusColor)
-                                       ? hubCard.widgetItems[index].statusColor : "transparent"
-                            }
-                        }
-
-                        Text {
-                            text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].label + ":" : ""
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText * 0.85
-                            font.family: App.Style.fontFamily
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        Text {
-                            text: hubCard.widgetItems[index] ? hubCard.widgetItems[index].value : ""
-                            color: App.Style.accent
-                            font.pixelSize: App.Spacing.overallText * 0.85
-                            font.bold: true
-                            font.family: App.Style.fontFamily
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
+        // Polls until the Flickable has valid dimensions, then restores scroll
+        Timer {
+            id: scrollRestoreTimer
+            interval: 16
+            repeat: true
+            property real savedY: -1
+            onTriggered: {
+                var fl = pageLoader.item
+                if (fl && fl.contentHeight > 0 && fl.height > 0 && savedY >= 0) {
+                    fl.contentY = Math.min(savedY, Math.max(0, fl.contentHeight - fl.height))
+                    savedY = -1
+                    stop()
                 }
+            }
+        }
+
+        // Save scroll position continuously as the user scrolls
+        Connections {
+            target: pageLoader.item
+            function onContentYChanged() {
+                if (pageLoader.item && hubCard.section !== "")
+                    ScrollMemory.positions[hubCard.section] = pageLoader.item.contentY
             }
         }
     }
 
-    // Card background mouse area — below widget controls (z: -1)
-    MouseArea {
-        id: cardMouseArea
-        anchors.fill: parent
-        hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
-        z: -1
-        onClicked: hubCard.categorySelected(hubCard.section)
-    }
 }

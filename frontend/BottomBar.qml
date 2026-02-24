@@ -190,8 +190,8 @@ Rectangle {
                             Item {
                                 id: previousButtonClickArea
                                 anchors.centerIn: parent
-                                width: parent.width * 1.5
-                                height: parent.height * 2.5   
+                                width: parent.width * 2.5
+                                height: parent.height * 3.0
 
                                 MouseArea {
                                     id: mouseAreaPrev
@@ -313,9 +313,9 @@ Rectangle {
                             Item {
                                 id: nextButtonClickArea
                                 anchors.centerIn: parent
-                                width: parent.width * 1.5
-                                height: parent.height * 2.5
-                            
+                                width: parent.width * 2.5
+                                height: parent.height * 3.0
+
                                 MouseArea {
                                     id: mouseAreaNext
                                     anchors.fill: parent
@@ -759,7 +759,9 @@ Rectangle {
                             
                             MouseArea {
                                 id: mouseAreaHome
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     // Pop to root/main menu
@@ -831,7 +833,9 @@ Rectangle {
                             
                             MouseArea {
                                 id: mouseAreaOBD
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
@@ -938,7 +942,9 @@ Rectangle {
                             
                             MouseArea {
                                 id: mouseAreaMedia
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
@@ -1041,16 +1047,14 @@ Rectangle {
 
                             MouseArea {
                                 id: mouseAreaSettings
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
-                                        if (currentItem.viewState === "detail") {
-                                            currentItem.navigateToHub()
-                                        } else {
-                                            settingsVisibilityPopup.open()
-                                        }
+                                        settingsVisibilityPopup.open()
                                     } else {
                                         var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
                                             stackView: bottomBar.stackView,
@@ -1125,7 +1129,9 @@ Rectangle {
 
                             MouseArea {
                                 id: mouseAreaAndroidAuto
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     // Navigate to AndroidAutoView and launch seamless DHU
@@ -1205,7 +1211,9 @@ Rectangle {
 
                             MouseArea {
                                 id: mouseAreaPhoneMirror
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     // Check if PhoneMirrorView is already on the stack - if so, pop back to it
@@ -1466,8 +1474,8 @@ Rectangle {
                                 
                                 Item {
                                     anchors.centerIn: parent
-                                    width: parent.width 
-                                    height: parent.height * 2
+                                    width: parent.width * 2
+                                    height: parent.height * 2.5
 
                                     MouseArea {
                                         id: mouseAreaPrevVertical
@@ -1525,9 +1533,9 @@ Rectangle {
                                 
                                 Item {
                                     anchors.centerIn: parent
-                                    width: parent.width
-                                    height: parent.height * 2
-                                
+                                    width: parent.width * 2
+                                    height: parent.height * 2.5
+
                                     MouseArea {
                                         id: mouseAreaNextVertical
                                         anchors.fill: parent
@@ -2021,7 +2029,9 @@ Rectangle {
                             
                             MouseArea {
                                 id: mouseAreaHomeVertical
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     while (stackView.depth > 1) {
@@ -2092,7 +2102,9 @@ Rectangle {
                             
                             MouseArea {
                                 id: mouseAreaOBDVertical
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
@@ -2200,7 +2212,9 @@ Rectangle {
                             
                             MouseArea {
                                 id: mouseAreaMediaVertical
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
@@ -2304,16 +2318,14 @@ Rectangle {
 
                             MouseArea {
                                 id: mouseAreaSettingsVertical
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
-                                        if (currentItem.viewState === "detail") {
-                                            currentItem.navigateToHub()
-                                        } else {
-                                            settingsVisibilityPopup.open()
-                                        }
+                                        settingsVisibilityPopup.open()
                                     } else {
                                         var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
                                             stackView: bottomBar.stackView,
@@ -2389,7 +2401,9 @@ Rectangle {
 
                             MouseArea {
                                 id: mouseAreaAndroidAutoVertical
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     // Navigate to AndroidAutoView and launch seamless DHU
@@ -2470,7 +2484,9 @@ Rectangle {
 
                             MouseArea {
                                 id: mouseAreaPhoneMirrorVertical
-                                anchors.fill: parent
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
                                 hoverEnabled: true
                                 onClicked: {
                                     // Check if PhoneMirrorView is already on the stack - if so, pop back to it

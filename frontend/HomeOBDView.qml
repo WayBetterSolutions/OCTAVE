@@ -248,9 +248,30 @@ Item {
                     }
                 }
 
+                // Progress bar strip at bottom of card
+                Rectangle {
+                    anchors.bottom: parent.bottom
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    height: App.Spacing.dp(4)
+                    color: App.Style.backgroundColor
+                    radius: parent.radius
+
+                    Rectangle {
+                        width: Math.max(App.Spacing.dp(4), parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
+                        height: parent.height
+                        color: App.Style.accent
+                        radius: parent.radius
+                        Behavior on width { NumberAnimation { duration: 200 } }
+                    }
+                }
+
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: App.Spacing.dp(5)
+                    anchors.leftMargin: App.Spacing.dp(5)
+                    anchors.rightMargin: App.Spacing.dp(5)
+                    anchors.topMargin: App.Spacing.dp(5)
+                    anchors.bottomMargin: App.Spacing.dp(4) + App.Spacing.dp(4)
                     spacing: App.Spacing.dp(5)
 
                     Text {
@@ -268,22 +289,6 @@ Item {
                         font.family: homeOBDView.globalFont
                         color: App.Style.primaryTextColor
                         Layout.alignment: Qt.AlignLeft
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: App.Spacing.dp(8)
-                        color: App.Style.backgroundColor
-                        radius: 4
-                        Layout.topMargin: App.Spacing.dp(2)
-
-                        Rectangle {
-                            width: Math.max(App.Spacing.dp(4), parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
-                            height: parent.height
-                            color: App.Style.accent
-                            radius: 4
-                            Behavior on width { NumberAnimation { duration: 200 } }
-                        }
                     }
                 }
             }
