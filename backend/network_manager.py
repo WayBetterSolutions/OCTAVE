@@ -60,6 +60,7 @@ class NetworkManager(QObject):
         self._self_update_status = "idle"
         self._self_update_message = ""
         self._can_self_update = self._check_can_self_update()
+        self._progress_message = None  # Thread-safe intermediate progress text
 
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._pending_future = None
@@ -127,6 +128,13 @@ class NetworkManager(QObject):
 
     def _check_pending_result(self):
         """Poll for completed background work and emit signals on the main thread."""
+        # Relay intermediate progress messages from worker thread
+        msg = self._progress_message
+        if msg is not None:
+            self._progress_message = None
+            self._self_update_message = msg
+            self.selfUpdateMessageChanged.emit(msg)
+
         if not self._pending_future or not self._pending_future.done():
             return
         self._result_poll_timer.stop()
@@ -407,7 +415,28 @@ class NetworkManager(QObject):
                     "message": f"Apply failed: {result.stderr.strip() or 'unknown error'}"
                 }
 
-            # Step 3: Get new commit info for confirmation
+            # Step 3: Install/update dependencies from the new requirements.txt
+            self._progress_message = "Installing dependencies..."
+            pip_path = self._get_venv_pip_path(repo_dir)
+            requirements_path = os.path.join(repo_dir, "requirements.txt")
+            if pip_path and os.path.exists(requirements_path):
+                logger.info("Installing dependencies after update...")
+                result = subprocess.run(
+                    [pip_path, "install", "-r", requirements_path],
+                    cwd=repo_dir,
+                    capture_output=True, text=True, timeout=300
+                )
+                if result.returncode != 0:
+                    logger.warning(f"Dependency install had issues: {result.stderr.strip()}")
+                    return {
+                        "status": "error",
+                        "message": f"Dependencies failed to install: {result.stderr.strip()[:120]}"
+                    }
+                logger.info("Dependencies installed successfully")
+            else:
+                logger.warning("Could not locate venv pip or requirements.txt — skipping dependency install")
+
+            # Step 4: Get new commit info for confirmation
             result = subprocess.run(
                 ['git', 'log', '-1', '--format=%h %s'],
                 cwd=repo_dir,
@@ -426,6 +455,20 @@ class NetworkManager(QObject):
         except Exception as e:
             logger.warning(f"Self-update failed: {e}")
             return {"status": "error", "message": f"Update failed: {str(e)}"}
+
+    @staticmethod
+    def _get_venv_pip_path(repo_dir):
+        """Locate the pip executable inside the project's venv."""
+        venv_dir = os.path.join(repo_dir, "venv")
+        if platform.system() == "Windows":
+            pip_path = os.path.join(venv_dir, "Scripts", "pip.exe")
+        else:
+            pip_path = os.path.join(venv_dir, "bin", "pip")
+        if os.path.exists(pip_path):
+            return pip_path
+        # Fallback: use whatever pip is on the current sys.executable's venv
+        # (handles cases where the venv folder has a non-standard name)
+        return None
 
     def _apply_self_update_result(self, result):
         """Apply self-update result on main thread."""
