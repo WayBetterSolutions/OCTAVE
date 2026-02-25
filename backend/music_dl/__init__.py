@@ -45,7 +45,6 @@ class MusicDL:
         downloader_settings: Optional[
             Union[DownloaderOptionalOptions, DownloaderOptions]
         ] = None,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
     ):
         if downloader_settings is None:
             downloader_settings = {}
@@ -63,7 +62,6 @@ class MusicDL:
         # Initialize downloader
         self.downloader = Downloader(
             settings=downloader_settings,
-            loop=loop,
         )
 
     def search(self, query: List[str]) -> List[Song]:

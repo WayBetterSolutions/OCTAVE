@@ -566,10 +566,10 @@ Item {
             }
         }
 
-        // Download Button (top right corner) — hidden when the big center button is showing
+        // Download Button (top right corner)
         Control {
             id: downloadButton
-            visible: !playlistEmpty
+            visible: true
             width: App.Spacing.bottomBarNavButtonWidth
             height: App.Spacing.bottomBarNavButtonHeight
             z: 3
@@ -1435,100 +1435,15 @@ Item {
 
         }
 
-        // Empty playlist — large download button (replaces controls + album art)
-        Item {
-            id: emptyPlaylistOverlay
+        // Empty playlist message
+        Text {
             visible: playlistEmpty
-            anchors {
-                top: topVolumeControl.bottom
-                bottom: parent.bottom
-                left: parent.left
-                right: parent.right
-                margins: App.Spacing.mediaRoomMargin
-            }
-
-            ColumnLayout {
-                anchors.centerIn: parent
-                spacing: App.Spacing.dp(20)
-
-                // Download icon + button
-                Rectangle {
-                    id: bigDownloadButton
-                    Layout.alignment: Qt.AlignHCenter
-                    width: App.Spacing.dp(200)
-                    height: App.Spacing.dp(200)
-                    radius: App.Spacing.dp(24)
-                    color: bigDownloadMouse.pressed
-                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
-                        : "transparent"
-                    border.width: 2
-                    border.color: App.Style.accent
-
-                    scale: bigDownloadMouse.pressed ? 0.92 : 1.0
-                    Behavior on scale {
-                        NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
-                    }
-
-                    ColumnLayout {
-                        anchors.centerIn: parent
-                        spacing: App.Spacing.dp(12)
-
-                        Item {
-                            Layout.alignment: Qt.AlignHCenter
-                            width: App.Spacing.dp(64)
-                            height: App.Spacing.dp(64)
-
-                            Image {
-                                id: bigDownloadIcon
-                                anchors.fill: parent
-                                source: "./assets/download_button.svg"
-                                sourceSize: Qt.size(width * 2, height * 2)
-                                fillMode: Image.PreserveAspectFit
-                                smooth: true
-                                antialiasing: true
-                                mipmap: true
-                                visible: false
-                            }
-
-                            ColorOverlay {
-                                anchors.fill: bigDownloadIcon
-                                source: bigDownloadIcon
-                                color: App.Style.accent
-                            }
-                        }
-
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: "Download Music"
-                            color: App.Style.accent
-                            font.pixelSize: App.Spacing.dp(18)
-                            font.weight: Font.Bold
-                            font.family: mediaRoom.globalFont
-                        }
-                    }
-
-                    MouseArea {
-                        id: bigDownloadMouse
-                        width: parent.width * 1.5
-                        height: parent.height * 1.5
-                        anchors.centerIn: parent
-                        onClicked: {
-                            var playlist = mediaManager ? mediaManager.get_current_playlist_name() : ""
-                            mediaRoom.openDownloadPage(playlist)
-                        }
-                    }
-                }
-
-                // Subtitle
-                Text {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "No songs in this playlist yet"
-                    color: App.Style.metadataColor
-                    font.pixelSize: App.Spacing.dp(14)
-                    font.family: mediaRoom.globalFont
-                    opacity: 0.6
-                }
-            }
+            anchors.centerIn: parent
+            text: "No songs in this playlist yet"
+            color: App.Style.metadataColor
+            font.pixelSize: App.Spacing.dp(16)
+            font.family: mediaRoom.globalFont
+            opacity: 0.6
         }
 
         // Waveform Visualizer

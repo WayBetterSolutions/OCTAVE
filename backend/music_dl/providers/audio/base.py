@@ -250,18 +250,33 @@ class AudioProvider:
 
             # Check if any of the search results is in the
             # first isrc results, since they are not hashable we have to check
-            # by name
+            # by name.  Validate through scoring instead of returning blindly —
+            # ISRC data on YouTube can be stale or wrong.
             isrc_result = next(
                 (result for result in search_results if result.url in isrc_urls),
                 None,
             )
 
             if isrc_result:
-                logger.debug(
-                    "[%s] Best ISRC result is %s", song.song_id, isrc_result.url
-                )
-
-                return isrc_result.url
+                isrc_scored = order_results([isrc_result], song, self.search_query)
+                if isrc_scored:
+                    isrc_score = list(isrc_scored.values())[0]
+                    if isrc_score >= 55:
+                        logger.debug(
+                            "[%s] Validated ISRC result %s (score %.1f)",
+                            song.song_id, isrc_result.url, isrc_score,
+                        )
+                        return isrc_result.url
+                    else:
+                        logger.warning(
+                            "[%s] ISRC cross-match %s rejected (score %.1f < 55)",
+                            song.song_id, isrc_result.url, isrc_score,
+                        )
+                else:
+                    logger.warning(
+                        "[%s] ISRC cross-match %s rejected by matching filters",
+                        song.song_id, isrc_result.url,
+                    )
 
             logger.debug(
                 "[%s] Have to filter results: %s", song.song_id, self.filter_results
@@ -310,6 +325,18 @@ class AudioProvider:
 
         # get the result with highest score
         best_result, best_score = self.get_best_result(results)
+
+        # Reject matches that scored too low — downloading a wrong song
+        # with correct metadata is worse than failing gracefully
+        if best_score < 55:
+            logger.warning(
+                "[%s] Best match %s rejected (score %.1f < 55), skipping download",
+                song.song_id,
+                best_result.url,
+                best_score,
+            )
+            return None
+
         logger.debug(
             "[%s] Returning best result %s with score %s",
             song.song_id,

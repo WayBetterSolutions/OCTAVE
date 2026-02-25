@@ -63,7 +63,6 @@ class Downloader:
     def __init__(
         self,
         settings: Optional[Union[DownloaderOptionalOptions, DownloaderOptions]] = None,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
     ):
         if settings is None:
             settings = {}
@@ -97,11 +96,8 @@ class Downloader:
 
         logger.debug("FFmpeg path: %s", self.ffmpeg)
 
-        # Python 3.14 compatible event loop setup
-        self.loop = loop or asyncio.new_event_loop()
-
-        # Semaphore for limiting concurrent downloads
-        self.semaphore = asyncio.Semaphore(self.settings["threads"])
+        # Semaphore limit for concurrent downloads (applied per-call)
+        self._thread_limit = self.settings["threads"]
 
         self.progress_handler = ProgressHandler(
             simple_tui=True,
@@ -178,11 +174,25 @@ class Downloader:
 
         self.progress_handler.set_song_count(len(songs))
 
+        # Create a fresh event loop per call so concurrent calls from
+        # different threads don't collide on the same loop
+        loop = asyncio.new_event_loop()
+        semaphore = asyncio.Semaphore(self._thread_limit)
+
+        async def _pool_download(song: Song) -> Tuple[Song, Optional[Path]]:
+            async with semaphore:
+                return await loop.run_in_executor(
+                    None, self.search_and_download, song
+                )
+
         async def _download_all():
-            tasks = [self.pool_download(song) for song in songs]
+            tasks = [_pool_download(song) for song in songs]
             return await asyncio.gather(*tasks)
 
-        results = list(self.loop.run_until_complete(_download_all()))
+        try:
+            results = list(loop.run_until_complete(_download_all()))
+        finally:
+            loop.close()
 
         if self.settings["print_errors"]:
             for error in self.errors:
@@ -205,11 +215,6 @@ class Downloader:
                 json.dump([song.json for song, _ in results], save_file, indent=4)
 
         return results
-
-    async def pool_download(self, song: Song) -> Tuple[Song, Optional[Path]]:
-        """Run download in the executor pool with semaphore limiting."""
-        async with self.semaphore:
-            return await self.loop.run_in_executor(None, self.search_and_download, song)
 
     def search(self, song: Song) -> str:
         """Search for a song using all available providers."""

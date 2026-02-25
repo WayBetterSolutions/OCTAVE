@@ -740,7 +740,7 @@ def order_results(
         contains_fwords, found_fwords = check_forbidden_words(song, result)
         if contains_fwords:
             for _ in found_fwords:
-                name_match -= 15
+                name_match -= 30
 
         debug(
             song.song_id,

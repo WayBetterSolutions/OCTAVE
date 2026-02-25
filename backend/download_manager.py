@@ -36,6 +36,7 @@ class DownloadManager(QObject):
     downloadComplete = Signal(str, str)        # song_id, file path
     downloadError = Signal(str, str, str)      # song_id, display name, error message
     downloadQueueChanged = Signal()            # Queue updated
+    downloadStatusChanged = Signal(str, str, str)  # song_id, field, value_json (patch without full re-emit)
 
     # Status
     statusMessage = Signal(str)        # General status messages
@@ -613,17 +614,18 @@ class DownloadManager(QObject):
         self._last_search_results = self._all_results
 
     def _mark_result_status_by_id(self, song_id: str, field: str, value: Any):
-        """Set a field on the matching search result by song_id and re-emit to QML."""
+        """Set a field on the matching search result by song_id and notify QML."""
         if not self._all_results or not song_id:
             return
         for r in self._all_results:
             if r.get("song_id") == song_id:
                 r[field] = value
                 break
-        self.searchResults.emit(json.dumps(self._all_results))
+        # Emit targeted patch so QML can update in-place without rebuilding the ListView
+        self.downloadStatusChanged.emit(song_id, field, json.dumps(value))
 
     def _mark_result_status(self, song_name: str, field: str, value: Any):
-        """Set a field on the matching search result by name and re-emit to QML."""
+        """Set a field on the matching search result by name and notify QML."""
         if not self._all_results:
             return
         sanitized_name = self._sanitize_for_match(song_name)
@@ -633,8 +635,10 @@ class DownloadManager(QObject):
             )
             if expected == sanitized_name:
                 r[field] = value
+                song_id = r.get("song_id", "")
+                if song_id:
+                    self.downloadStatusChanged.emit(song_id, field, json.dumps(value))
                 break
-        self.searchResults.emit(json.dumps(self._all_results))
 
     def _handle_download_result(self, result: Dict[str, Any]):
         """Handle completed download."""
