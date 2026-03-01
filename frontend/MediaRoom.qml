@@ -170,13 +170,13 @@ Item {
     Image {
         id: prevArtPreloader
         visible: false; width: 1; height: 1
-        sourceSize: Qt.size(albumArtStack ? albumArtStack.artSize : 400, albumArtStack ? albumArtStack.artSize : 400)
+        sourceSize: Qt.size(albumArtStack ? albumArtStack.artSize * 2 : 800, albumArtStack ? albumArtStack.artSize * 2 : 800)
         asynchronous: true; cache: true
     }
     Image {
         id: nextArtPreloader
         visible: false; width: 1; height: 1
-        sourceSize: Qt.size(albumArtStack ? albumArtStack.artSize : 400, albumArtStack ? albumArtStack.artSize : 400)
+        sourceSize: Qt.size(albumArtStack ? albumArtStack.artSize * 2 : 800, albumArtStack ? albumArtStack.artSize * 2 : 800)
         asynchronous: true; cache: true
     }
 
@@ -1279,7 +1279,7 @@ Item {
                             id: prevArtImage
                             anchors.fill: parent
                             // source set imperatively by sideCardRefreshTimer
-                            sourceSize: Qt.size(albumArtStack.artSize * 0.45, albumArtStack.artSize * 0.45)
+                            sourceSize: Qt.size(albumArtStack.artSize * 0.9, albumArtStack.artSize * 0.9)
                             fillMode: Image.PreserveAspectFit
                             smooth: true; asynchronous: true
                             cache: true
@@ -1325,7 +1325,7 @@ Item {
                             id: nextArtImage
                             anchors.fill: parent
                             // source set imperatively by sideCardRefreshTimer
-                            sourceSize: Qt.size(albumArtStack.artSize * 0.45, albumArtStack.artSize * 0.45)
+                            sourceSize: Qt.size(albumArtStack.artSize * 0.9, albumArtStack.artSize * 0.9)
                             fillMode: Image.PreserveAspectFit
                             smooth: true; asynchronous: true
                             cache: true
@@ -1397,7 +1397,7 @@ Item {
                             id: albumArtImage
                             anchors.fill: parent
                             source: mediaRoom._displayAlbumArt
-                            sourceSize: Qt.size(albumArtStack.artSize, albumArtStack.artSize)
+                            sourceSize: Qt.size(albumArtStack.artSize * 2, albumArtStack.artSize * 2)
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             antialiasing: true

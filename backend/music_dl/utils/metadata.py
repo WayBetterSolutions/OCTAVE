@@ -200,13 +200,17 @@ def embed_metadata(
         raise MetadataError("Unable to load file.") from exc
 
     # Embed basic metadata
-    audio_file[tag_preset["artist"]] = song.artists
+    if song.artists:
+        audio_file[tag_preset["artist"]] = song.artists
     audio_file[tag_preset["albumartist"]] = (
-        song.album_artist if song.album_artist else song.artist
+        song.album_artist if song.album_artist else (song.artist or "")
     )
-    audio_file[tag_preset["title"]] = song.name
-    audio_file[tag_preset["date"]] = song.date
-    audio_file[tag_preset["encodedby"]] = song.publisher
+    if song.name:
+        audio_file[tag_preset["title"]] = song.name
+    if song.date is not None:
+        audio_file[tag_preset["date"]] = song.date
+    if song.publisher is not None:
+        audio_file[tag_preset["encodedby"]] = song.publisher
 
     # Embed metadata that isn't always present
     album_name = song.album_name
@@ -224,21 +228,33 @@ def embed_metadata(
 
     # Embed some metadata in format specific ways
     if encoding in ["flac", "ogg", "opus"]:
-        audio_file["discnumber"] = str(song.disc_number)
-        audio_file["disctotal"] = str(song.disc_count)
-        audio_file["tracktotal"] = str(song.tracks_count)
-        audio_file["tracknumber"] = str(song.track_number)
-        audio_file["woas"] = song.url
-        audio_file["isrc"] = song.isrc
+        if song.disc_number is not None:
+            audio_file["discnumber"] = str(song.disc_number)
+        if song.disc_count is not None:
+            audio_file["disctotal"] = str(song.disc_count)
+        if song.tracks_count is not None:
+            audio_file["tracktotal"] = str(song.tracks_count)
+        if song.track_number is not None:
+            audio_file["tracknumber"] = str(song.track_number)
+        if song.url is not None:
+            audio_file["woas"] = song.url
+        if song.isrc is not None:
+            audio_file["isrc"] = song.isrc
     elif encoding == "m4a":
-        audio_file[tag_preset["discnumber"]] = [(song.disc_number, song.disc_count)]
-        audio_file[tag_preset["tracknumber"]] = [(song.track_number, song.tracks_count)]
+        if song.disc_number is not None and song.disc_count is not None:
+            audio_file[tag_preset["discnumber"]] = [(song.disc_number, song.disc_count)]
+        if song.track_number is not None and song.tracks_count is not None:
+            audio_file[tag_preset["tracknumber"]] = [(song.track_number, song.tracks_count)]
         audio_file[tag_preset["explicit"]] = (4 if song.explicit is True else 2,)
-        audio_file[tag_preset["woas"]] = song.url.encode("utf-8")
+        if song.url is not None:
+            audio_file[tag_preset["woas"]] = song.url.encode("utf-8")
     elif encoding == "mp3":
-        audio_file["tracknumber"] = f"{str(song.track_number)}/{str(song.tracks_count)}"
-        audio_file["discnumber"] = f"{str(song.disc_number)}/{str(song.disc_count)}"
-        audio_file["isrc"] = song.isrc
+        if song.track_number is not None and song.tracks_count is not None:
+            audio_file["tracknumber"] = f"{str(song.track_number)}/{str(song.tracks_count)}"
+        if song.disc_number is not None and song.disc_count is not None:
+            audio_file["discnumber"] = f"{str(song.disc_number)}/{str(song.disc_count)}"
+        if song.isrc is not None:
+            audio_file["isrc"] = song.isrc
 
     # Mp3 specific encoding
     if encoding == "mp3":
@@ -249,7 +265,8 @@ def embed_metadata(
 
         audio_file = ID3(str(output_file.resolve()))
 
-        audio_file.add(WOAS(encoding=3, url=song.url))
+        if song.url is not None:
+            audio_file.add(WOAS(encoding=3, url=song.url))
 
         if song.download_url:
             audio_file.add(COMM(encoding=3, text=song.download_url))
@@ -590,18 +607,26 @@ def embed_wav_file(output_file: Path, song: Song):
 
     audio.add_tags()
 
-    audio.tags.add(TIT2(encoding=3, text=song.name))  # type: ignore
-    audio.tags.add(TPE1(encoding=3, text=song.artists))  # type: ignore
-    audio.tags.add(TALB(encoding=3, text=song.album_name))  # type: ignore
-    audio.tags.add(TCOM(encoding=3, text=song.publisher))  # type: ignore
-    audio.tags.add(TCON(encoding=3, text=song.genres))  # type: ignore
-    audio.tags.add(TDRC(encoding=3, text=song.date))  # type: ignore
-    audio.tags.add(  # type: ignore
-        TRCK(encoding=3, text=f"{song.track_number}/{song.tracks_count}")  # type: ignore
-    )
-    audio.tags.add(TDRC(encoding=3, text=song.date))  # type: ignore
-    audio.tags.add(WOAS(encoding=3, text=song.url))  # type: ignore
-    audio.tags.add(TSRC(encoding=3, text=song.isrc))  # type: ignore
+    if song.name:
+        audio.tags.add(TIT2(encoding=3, text=song.name))  # type: ignore
+    if song.artists:
+        audio.tags.add(TPE1(encoding=3, text=song.artists))  # type: ignore
+    if song.album_name:
+        audio.tags.add(TALB(encoding=3, text=song.album_name))  # type: ignore
+    if song.publisher is not None:
+        audio.tags.add(TCOM(encoding=3, text=song.publisher))  # type: ignore
+    if song.genres:
+        audio.tags.add(TCON(encoding=3, text=song.genres))  # type: ignore
+    if song.date is not None:
+        audio.tags.add(TDRC(encoding=3, text=song.date))  # type: ignore
+    if song.track_number is not None and song.tracks_count is not None:
+        audio.tags.add(  # type: ignore
+            TRCK(encoding=3, text=f"{song.track_number}/{song.tracks_count}")  # type: ignore
+        )
+    if song.url is not None:
+        audio.tags.add(WOAS(encoding=3, text=song.url))  # type: ignore
+    if song.isrc is not None:
+        audio.tags.add(TSRC(encoding=3, text=song.isrc))  # type: ignore
 
     if song.download_url:
         audio.tags.add(COMM(encoding=3, text=song.download_url))  # type: ignore

@@ -237,23 +237,25 @@ class Downloader:
             self.errors.append(f"Song is missing required fields: {song.display_name}")
             return song, None
 
-        # Reinitialize the song if missing metadata
-        if (
-            (song.name is None and song.url)
-            or self.settings["fetch_albums"]
-            or any(
-                x is None
-                for x in [
-                    song.genres,
-                    song.disc_count,
-                    song.tracks_count,
-                    song.track_number,
-                    song.album_id,
-                    song.album_artist,
-                ]
-            )
-        ):
-            song = reinit_song(song)
+        # Reinitialize the song if missing metadata (requires Spotify)
+        from backend.music_dl.utils.spotify import SpotifyClient
+        if SpotifyClient._initialized:
+            if (
+                (song.name is None and song.url)
+                or self.settings["fetch_albums"]
+                or any(
+                    x is None
+                    for x in [
+                        song.genres,
+                        song.disc_count,
+                        song.tracks_count,
+                        song.track_number,
+                        song.album_id,
+                        song.album_artist,
+                    ]
+                )
+            ):
+                song = reinit_song(song)
 
         # Create the output file path
         output_file = create_file_name(

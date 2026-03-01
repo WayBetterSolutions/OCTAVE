@@ -6,6 +6,7 @@ Follows the standard OCTAVE manager pattern with ThreadPoolExecutor + QTimer pol
 
 import json
 import os
+import re
 import threading
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -124,7 +125,8 @@ class DownloadManager(QObject):
     def _ensure_music_dl(self) -> bool:
         """
         Lazily initialize the music_dl engine.
-        Returns True if ready, False if credentials are missing.
+        Returns True if ready, False if settings manager is missing.
+        Spotify credentials are optional — search uses YouTube Music.
         """
         if self._music_dl is not None:
             return True
@@ -134,25 +136,11 @@ class DownloadManager(QObject):
             self.statusMessage.emit("Download engine not configured")
             return False
 
-        client_id = self._settings_manager.get_spotify_client_id()
-        client_secret = self._settings_manager.get_spotify_client_secret()
-
-        if not client_id or not client_secret:
-            logger.warning("DownloadManager: Spotify credentials not configured")
-            self.statusMessage.emit(
-                "Spotify credentials required. Set them in Settings > Spotify."
-            )
-            return False
+        client_id = self._settings_manager.get_spotify_client_id() or ""
+        client_secret = self._settings_manager.get_spotify_client_secret() or ""
 
         try:
             from backend.music_dl import MusicDL
-            from backend.music_dl.utils.spotify import SpotifyClient
-
-            # Reset any stale client instance
-            try:
-                SpotifyClient.reset()
-            except Exception:
-                pass
 
             download_path = self._get_download_path()
             dl_format = self._get_download_format()
@@ -171,7 +159,8 @@ class DownloadManager(QObject):
                     "_progress_callback": self._on_download_progress,
                 },
             )
-            logger.info("MusicDL engine initialized (format=%s, path=%s)", dl_format, download_path)
+            has_spotify = "with" if self._music_dl.has_spotify else "without"
+            logger.info("MusicDL engine initialized %s Spotify (format=%s, path=%s)", has_spotify, dl_format, download_path)
             self.statusMessage.emit("Download engine ready")
             return True
 
@@ -268,26 +257,10 @@ class DownloadManager(QObject):
 
     @Slot()
     def search_more(self):
-        """Load more results for the current search query."""
-        if not self._last_query or not self._ensure_music_dl():
+        """Indicate that all results are already shown (ytmusicapi doesn't support offset pagination)."""
+        if not self._last_query:
             return
-
-        # Don't allow if already searching
-        if self._is_searching:
-            return
-
-        self._is_searching = True
-        self.isSearchingChanged.emit(True)
-        self.searchInProgress.emit(True)
-        self.statusMessage.emit("Loading more results...")
-
-        future = self._executor.submit(
-            self._do_search, self._last_query, self._search_offset
-        )
-        self._pending_futures["__search__"] = future
-
-        if not self._poll_timer.isActive():
-            self._poll_timer.start()
+        self.statusMessage.emit("All results shown")
 
     @Slot(str)
     def download_song(self, song_json: str):
@@ -419,12 +392,10 @@ class DownloadManager(QObject):
         return results
 
     def _do_search(self, query: str, offset: int = 0) -> List[Dict[str, Any]]:
-        """Perform search in background thread using Spotify API directly."""
-        from backend.music_dl.utils.spotify import SpotifyClient
+        """Perform search in background thread using YouTube Music (no credentials needed)."""
 
-        # If it's a Spotify URL, use the single-song pipeline (no pagination)
-        if "open.spotify.com" in query or "spotify.link" in query:
-            from backend.music_dl.types.song import Song
+        # If it's a Spotify URL and we have Spotify, use the song pipeline
+        if ("open.spotify.com" in query or "spotify.link" in query) and self._music_dl.has_spotify:
             songs = self._music_dl.search([query])
             results = []
             for song in songs:
@@ -432,36 +403,62 @@ class DownloadManager(QObject):
                 results.append(self._song_dict_to_result(song_dict))
             return self._mark_downloaded(results)
 
-        # For text queries, search Spotify API directly for multiple results
-        spotify_client = SpotifyClient()
-        raw = spotify_client.search(query, limit=20, offset=offset, type="track")
+        # For text queries (or Spotify URLs without credentials), use YouTube Music
+        from backend.music_dl.utils.search import get_ytm_client
 
-        if not raw or "tracks" not in raw or not raw["tracks"]["items"]:
+        ytm = get_ytm_client()
+        raw = ytm.search(query, filter="songs", limit=20)
+
+        if not raw:
             return []
 
         results = []
-        for track in raw["tracks"]["items"]:
-            album = track.get("album", {})
-            images = album.get("images", [])
-            cover_url = ""
-            if images:
-                # Pick largest image
-                cover_url = max(images, key=lambda i: i.get("width", 0) * i.get("height", 0)).get("url", "")
+        for item in raw:
+            if item.get("resultType") != "song":
+                continue
 
-            artists = [a["name"] for a in track.get("artists", [])]
+            video_id = item.get("videoId", "")
+            artists = [a.get("name", "") for a in item.get("artists", [])]
+            album = item.get("album") or {}
+            thumbnails = item.get("thumbnails", [])
+            cover_url = thumbnails[-1].get("url", "") if thumbnails else ""
+            # YTMusic thumbnails max out at 120x120; request high-res from Google's CDN
+            if cover_url and "lh3.googleusercontent.com" in cover_url:
+                cover_url = re.sub(r"=w\d+-h\d+.*$", "=w800-h800-l90-rj", cover_url)
+
+            # Parse duration string "M:SS" or "H:MM:SS" to seconds
+            duration_str = item.get("duration", "")
+            duration_secs = 0
+            if duration_str:
+                parts = duration_str.split(":")
+                try:
+                    if len(parts) == 2:
+                        duration_secs = int(parts[0]) * 60 + int(parts[1])
+                    elif len(parts) == 3:
+                        duration_secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                except (ValueError, IndexError):
+                    pass
+
+            year = 0
+            if item.get("year"):
+                try:
+                    year = int(item["year"])
+                except (ValueError, TypeError):
+                    pass
+
             result = {
-                "name": track.get("name", ""),
+                "name": item.get("title", ""),
                 "artist": artists[0] if artists else "",
                 "artists": artists,
                 "album_name": album.get("name", ""),
-                "duration": int(track.get("duration_ms", 0) / 1000),
-                "year": int(album.get("release_date", "0")[:4]) if album.get("release_date") else 0,
+                "duration": duration_secs,
+                "year": year,
                 "cover_url": cover_url,
-                "url": track.get("external_urls", {}).get("spotify", ""),
-                "song_id": track.get("id", ""),
-                "explicit": track.get("explicit", False),
-                "track_number": track.get("track_number", 0),
-                "disc_number": track.get("disc_number", 0),
+                "url": f"https://music.youtube.com/watch?v={video_id}" if video_id else "",
+                "song_id": video_id,
+                "explicit": item.get("isExplicit", False),
+                "track_number": 0,
+                "disc_number": 0,
             }
             results.append(result)
 
@@ -493,10 +490,14 @@ class DownloadManager(QObject):
 
         # Build Song from Spotify URL (fetches full metadata) or from dict
         url = song_data.get("url", "")
-        if url and "open.spotify.com" in url:
+        if url and "open.spotify.com" in url and self._music_dl.has_spotify:
             song = Song.from_url(url)
         elif all(k in song_data for k in ["name", "artists", "artist"]):
             song = Song.from_missing_data(**song_data)
+            # If the URL is a YouTube Music URL, set it as download_url
+            # so yt-dlp uses it directly instead of searching
+            if url and ("music.youtube.com" in url or "youtube.com" in url):
+                song.download_url = url
         else:
             raise ValueError(f"Cannot build song from data: {song_data}")
 

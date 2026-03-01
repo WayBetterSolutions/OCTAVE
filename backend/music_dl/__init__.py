@@ -49,15 +49,17 @@ class MusicDL:
         if downloader_settings is None:
             downloader_settings = {}
 
-        # Initialize spotify client
-        SpotifyClient.init(
-            client_id=client_id,
-            client_secret=client_secret,
-            user_auth=user_auth,
-            cache_path=cache_path,
-            no_cache=no_cache,
-            headless=headless,
-        )
+        # Initialize spotify client only if credentials are provided
+        self.has_spotify = bool(client_id and client_secret)
+        if self.has_spotify:
+            SpotifyClient.init(
+                client_id=client_id,
+                client_secret=client_secret,
+                user_auth=user_auth,
+                cache_path=cache_path,
+                no_cache=no_cache,
+                headless=headless,
+            )
 
         # Initialize downloader
         self.downloader = Downloader(
@@ -118,7 +120,8 @@ class MusicDL:
 
     def cleanup(self):
         """Clean up resources."""
-        try:
-            SpotifyClient.reset()
-        except Exception:
-            pass
+        if self.has_spotify:
+            try:
+                SpotifyClient.reset()
+            except Exception:
+                pass
