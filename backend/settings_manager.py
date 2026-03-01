@@ -227,6 +227,9 @@ class SettingsManager(QObject):
     # Environment theme signal
     environmentThemeChanged = Signal(str)
 
+    # Settings layout style signal
+    settingsLayoutStyleChanged = Signal(str)
+
     # Gesture sensor signals
     gestureSensorEnabledChanged = Signal(bool)
     gestureMappingChanged = Signal()
@@ -419,6 +422,7 @@ class SettingsManager(QObject):
             "buttonTiltDuration": 200,   # Button tilt animation duration in ms (50-500)
             "textScrollSpeed": 5000,     # Text scroll animation duration in ms (1000-10000)
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
+            "settingsLayoutStyle": "Sidebar",  # Settings menu layout: "Carousel", "Sidebar", "Hub", "Dashboard"
             # Gesture sensor settings
             "gestureSensorEnabled": True,
             "gestureMapping": {
@@ -548,6 +552,9 @@ class SettingsManager(QObject):
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
+
+        # Settings layout style
+        self._settings_layout_style = self._settings.get("settingsLayoutStyle", self._default_settings["settingsLayoutStyle"])
 
         # Gesture sensor settings
         self._gesture_sensor_enabled = self._settings.get("gestureSensorEnabled", self._default_settings["gestureSensorEnabled"])
@@ -1746,6 +1753,20 @@ class SettingsManager(QObject):
         self._environment_theme = theme
         self.update_setting("environmentTheme", theme, self.environmentThemeChanged)
 
+    # ==================== Settings Layout Style ====================
+
+    @Property(str, notify=settingsLayoutStyleChanged)
+    def settingsLayoutStyle(self):
+        return self._settings_layout_style
+
+    @Slot(str)
+    def save_settings_layout_style(self, style):
+        if style not in ("Carousel", "Sidebar", "Hub", "Dashboard"):
+            return
+        logger.debug(f"Saving settings layout style: {style}")
+        self._settings_layout_style = style
+        self.update_setting("settingsLayoutStyle", style, self.settingsLayoutStyleChanged)
+
     # ==================== Gesture Sensor Settings ====================
 
     @Property(bool, notify=gestureSensorEnabledChanged)
@@ -1878,6 +1899,7 @@ class SettingsManager(QObject):
             "colorTransitionMs": "color_transition_ms",
             "obdFastMode": "obd_fast_mode",
             "gestureSensorEnabled": "gesture_sensor_enabled",
+            "settingsLayoutStyle": "settings_layout_style",
         }
         return attr_map.get(key, key)
 

@@ -25,6 +25,27 @@ Flickable {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
 
+                SettingsSectionHeader {
+                    title: "Settings Layout"
+                    description: "Choose how the settings menu is organized"
+                }
+
+                SettingsChips {
+                    options: ["Carousel", "Sidebar", "Hub", "Dashboard"]
+                    currentValue: settingsManager ? settingsManager.settingsLayoutStyle : "Carousel"
+                    onSelected: function(value) {
+                        if (settingsManager)
+                            settingsManager.save_settings_layout_style(value)
+                    }
+                }
+            }
+        }
+
+        SettingsCard {
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
                 SettingLabel {
                     text: "Device Name"
                 }

@@ -14,26 +14,28 @@ Item {
     property string currentSection: ""
 
     // Central page model — single source of truth for all pages
+    // NOTE: `source` paths are relative to frontend/ (consumed by layout Loaders in frontend/)
+    //       `widget` paths are relative to frontend/settings/ (consumed by SettingsDashboardCard Loader)
     readonly property var pageModel: [
-        { name: "Display",     section: "displaySettings",     source: "settings/DisplaySettingsPage.qml",     icon: "\u263C",
+        { name: "Display",     section: "displaySettings",     source: "settings/DisplaySettingsPage.qml",     widget: "widgets/DisplayWidget.qml",     icon: "\u263C",
           group: "Appearance",
           subSections: ["Layout", "Window", "Appearance", "Clock"] },
-        { name: "Media",       section: "mediaSettings",       source: "settings/MediaSettingsPage.qml",       icon: "\u266B",
+        { name: "Media",       section: "mediaSettings",       source: "settings/MediaSettingsPage.qml",       widget: "widgets/MediaWidget.qml",       icon: "\u266B",
           group: "Appearance",
           subSections: ["Library", "Playback", "Album Art", "Background", "Effects", "Spotify"] },
-        { name: "Phone Dock",  section: "phoneDockSettings",   source: "settings/PhoneDockSettingsPage.qml",   icon: "\u260E",
+        { name: "Phone Dock",  section: "phoneDockSettings",   source: "settings/PhoneDockSettingsPage.qml",   widget: "widgets/PhoneDockWidget.qml",   icon: "\u260E",
           group: "Connectivity",
           subSections: ["Android Auto", "Phone Mirror"] },
-        { name: "OBD",         section: "obdSettings",         source: "settings/OBDSettingsPage.qml",         icon: "\u26A1",
+        { name: "OBD",         section: "obdSettings",         source: "settings/OBDSettingsPage.qml",         widget: "widgets/OBDWidget.qml",         icon: "\u26A1",
           group: "Connectivity",
           subSections: ["Connection", "Parameters"] },
-        { name: "Accessories", section: "accessoriesSettings", source: "settings/AccessoriesSettingsPage.qml", icon: "\u2388",
+        { name: "Accessories", section: "accessoriesSettings", source: "settings/AccessoriesSettingsPage.qml", widget: "widgets/AccessoriesWidget.qml", icon: "\u2388",
           group: "Connectivity",
           subSections: ["Volume Knob", "Gesture Sensor"] },
-        { name: "Device",      section: "deviceSettings",      source: "settings/DeviceSettingsPage.qml",      icon: "\u2699",
+        { name: "Device",      section: "deviceSettings",      source: "settings/DeviceSettingsPage.qml",      widget: "widgets/DeviceWidget.qml",      icon: "\u2699",
           group: "System",
           subSections: [] },
-        { name: "About",       section: "about",               source: "settings/AboutPage.qml",               icon: "\u2139",
+        { name: "About",       section: "about",               source: "settings/AboutPage.qml",               widget: "widgets/AboutWidget.qml",       icon: "\u2139",
           group: "System",
           subSections: [] }
     ]
@@ -49,14 +51,19 @@ Item {
     // Visible pages model
     property var hubModel: []
 
+    // Current layout style
+    property string layoutStyle: settingsManager ? settingsManager.settingsLayoutStyle : "Carousel"
+
+    // True only on the very first layout load (app launch); false after a mid-session switch
+    property bool isInitialLoad: true
+
     Component.onCompleted: {
         buildHubModel()
 
-        // If we have an initial section, jump to that page
-        if (initialSection && initialSection !== "") {
+        // For Carousel layout, if we have an initial section, handle it here
+        if (layoutStyle === "Carousel" && initialSection && initialSection !== "") {
             var idx = indexForSection(initialSection)
             if (idx >= 0) {
-                swipeView.currentIndex = idx
                 currentSection = initialSection
             }
         }
@@ -100,25 +107,35 @@ Item {
                 section: page.section,
                 source: page.source,
                 icon: page.icon,
-                group: page.group || ""
+                group: page.group || "",
+                widget: page.widget || ""
             })
         }
         hubModel = model
     }
 
     function navigateToCategory(section) {
-        var idx = indexForSection(section)
-        if (idx >= 0)
-            swipeView.currentIndex = idx
         currentSection = section
         if (settingsManager)
             settingsManager.set_last_settings_section(section)
+
+        // Delegate to layout
+        if (layoutLoader.item) {
+            if (layoutStyle === "Carousel" && typeof layoutLoader.item.currentIndex !== "undefined") {
+                var idx = indexForSection(section)
+                if (idx >= 0) layoutLoader.item.currentIndex = idx
+            } else if (typeof layoutLoader.item.navigateToCategory === "function") {
+                layoutLoader.item.navigateToCategory(section)
+            }
+        }
     }
 
     function navigateToSubSection(section, subSection) {
-        navigateToCategory(section)
-        pendingScrollTarget = subSection
-        scrollToSectionTimer.restart()
+        if (layoutLoader.item && typeof layoutLoader.item.navigateToSubSection === "function") {
+            layoutLoader.item.navigateToSubSection(section, subSection)
+        } else {
+            navigateToCategory(section)
+        }
     }
 
     property string pendingScrollTarget: ""
@@ -131,163 +148,122 @@ Item {
         }
     }
 
+    // When layout style changes, update and reload
+    Connections {
+        target: settingsManager
+        function onSettingsLayoutStyleChanged(style) {
+            isInitialLoad = false
+            layoutStyle = style
+        }
+    }
+
+    // Layout source mapping
+    function layoutSourceForStyle(style) {
+        switch (style) {
+            case "Carousel":  return "SettingsCarouselLayout.qml"
+            case "Sidebar":   return "SettingsSidebarLayout.qml"
+            case "Hub":       return "SettingsHubLayout.qml"
+            case "Dashboard": return "SettingsDashboardLayout.qml"
+            default:          return "SettingsCarouselLayout.qml"
+        }
+    }
 
     // MAIN LAYOUT
     Rectangle {
         anchors.fill: parent
         color: App.Style.backgroundColor
 
-        // Environment backgrounds
-        ContentSonar {}
-        ContentSolarSystem {}
+        // Environment backgrounds (for Carousel; other layouts have their own)
+        ContentSonar {
+            visible: layoutStyle === "Carousel"
+        }
+        ContentSolarSystem {
+            visible: layoutStyle === "Carousel"
+        }
 
-        // ─── Category tab strip (top) ───
-        Row {
-            id: tabStrip
-            anchors.top: parent.top
-            anchors.topMargin: App.Spacing.dp(2)
-            anchors.horizontalCenter: parent.horizontalCenter
-            spacing: App.Spacing.dp(4)
-            z: 20
+        Loader {
+            id: layoutLoader
+            anchors.fill: parent
+            source: layoutSourceForStyle(layoutStyle)
 
-            // Uniform tab width: divide available space equally
-            property real tabWidth: hubModel.length > 0
-                ? (parent.width - App.Spacing.dp(4) * (hubModel.length - 1)) / hubModel.length
-                : App.Spacing.dp(80)
+            onLoaded: {
+                if (item) {
+                    item.settingsMenu = settingsMenu
+                    item.hubModel = Qt.binding(function() { return settingsMenu.hubModel })
 
-            Repeater {
-                model: hubModel.length
-
-                Rectangle {
-                    property bool isCurrent: index === swipeView.currentIndex
-
-                    width: tabStrip.tabWidth
-                    height: App.Spacing.dp(28)
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius === -1
-                        ? 6 : App.EnvironmentTheme.active.chipRadius, 2)
-
-                    color: isCurrent
-                        ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
-                        : tabArea.containsMouse
-                            ? Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.08)
-                            : "transparent"
-
-                    border.width: isCurrent ? 1 : 0
-                    border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
-
-                    Behavior on color { ColorAnimation { duration: 150 } }
-
-                    Text {
-                        id: tabLabel
-                        anchors.centerIn: parent
-                        text: (hubModel[index] ? hubModel[index].icon + "  " + hubModel[index].name : "")
-                        color: isCurrent ? App.Style.accent : App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.overallText * 0.8
-                        font.family: App.Style.fontFamily
-                        font.bold: isCurrent
-                        font.letterSpacing: App.EnvironmentTheme.active.labelLetterSpacing
-                        font.capitalization: App.EnvironmentTheme.active.labelUppercase ? Font.AllUppercase : Font.MixedCase
-                        opacity: isCurrent ? 1.0 : 0.6
-
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on opacity { NumberAnimation { duration: 150 } }
-                    }
-
-                    MouseArea {
-                        id: tabArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: swipeView.currentIndex = index
+                    // For Carousel, set initial index
+                    if (layoutStyle === "Carousel" && initialSection && initialSection !== "") {
+                        var idx = indexForSection(initialSection)
+                        if (idx >= 0 && typeof item.currentIndex !== "undefined") {
+                            item.currentIndex = idx
+                            currentSection = initialSection
+                        }
                     }
                 }
             }
         }
+    }
 
-        // ─── SwipeView: swipe left/right between settings pages ───
-        SwipeView {
-            id: swipeView
-            anchors.top: tabStrip.bottom
-            anchors.topMargin: App.Spacing.dp(2)
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            clip: true
+    // ─── Sub-section scroll targeting (for Carousel layout) ───
+    Timer {
+        id: scrollToSectionTimer
+        interval: 16
+        repeat: true
+        onTriggered: {
+            if (pendingScrollTarget === "") { stop(); return }
 
-            // Track current section and persist it
-            onCurrentIndexChanged: {
-                if (hubModel[currentIndex]) {
-                    settingsMenu.currentSection = hubModel[currentIndex].section
-                    if (settingsManager)
-                        settingsManager.set_last_settings_section(hubModel[currentIndex].section)
+            // Only applies to Carousel layout's SwipeView
+            if (layoutStyle !== "Carousel" || !layoutLoader.item) return
+
+            // Find the SwipeView's current item
+            var swipeView = null
+            for (var i = 0; i < layoutLoader.item.children.length; i++) {
+                var child = layoutLoader.item.children[i]
+                if (child.toString().indexOf("SwipeView") !== -1) {
+                    swipeView = child
+                    break
                 }
             }
+            if (!swipeView) return
 
-            Repeater {
-                model: hubModel.length
+            var card = swipeView.currentItem
+            if (!card) return
+            var loader = findLoader(card)
+            if (!loader || !loader.item) return
 
-                SettingsHubCard {
-                    property var itemData: hubModel[index] || {}
+            var fl = loader.item
+            if (fl.contentHeight <= 0 || fl.height <= 0) return
 
-                    categoryName: itemData.name || ""
-                    section: itemData.section || ""
-                    pageSource: itemData.source || ""
-                    categoryIcon: itemData.icon || ""
-                    groupName: itemData.group || ""
-                    isCenter: SwipeView.isCurrentItem
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
-                    settingsMenu: settingsMenu
-                }
+            var content = fl.contentItem ? fl.contentItem : fl
+            var targetCard = findChildByObjectName(content, pendingScrollTarget)
+            if (targetCard) {
+                var pos = targetCard.mapToItem(fl.contentItem, 0, 0)
+                var scrollMax = Math.max(0, fl.contentHeight - fl.height)
+                fl.contentY = Math.min(pos.y, scrollMax)
+                pendingScrollTarget = ""
+                stop()
             }
         }
 
-        // ─── Sub-section scroll targeting ───
-        Timer {
-            id: scrollToSectionTimer
-            interval: 16
-            repeat: true
-            onTriggered: {
-                if (pendingScrollTarget === "") { stop(); return }
-
-                var card = swipeView.currentItem
-                if (!card) return
-                var loader = findLoader(card)
-                if (!loader || !loader.item) return
-
-                var fl = loader.item
-                if (fl.contentHeight <= 0 || fl.height <= 0) return
-
-                var content = fl.contentItem ? fl.contentItem : fl
-                var targetCard = findChildByObjectName(content, pendingScrollTarget)
-                if (targetCard) {
-                    var pos = targetCard.mapToItem(fl.contentItem, 0, 0)
-                    var scrollMax = Math.max(0, fl.contentHeight - fl.height)
-                    fl.contentY = Math.min(pos.y, scrollMax)
-                    pendingScrollTarget = ""
-                    stop()
-                }
+        function findLoader(item) {
+            for (var i = 0; i < item.children.length; i++) {
+                var child = item.children[i]
+                if (child.toString().indexOf("QQuickLoader") !== -1 && child.item)
+                    return child
+                var found = findLoader(child)
+                if (found) return found
             }
+            return null
+        }
 
-            function findLoader(item) {
-                for (var i = 0; i < item.children.length; i++) {
-                    var child = item.children[i]
-                    if (child.toString().indexOf("QQuickLoader") !== -1 && child.item)
-                        return child
-                    var found = findLoader(child)
-                    if (found) return found
-                }
-                return null
+        function findChildByObjectName(parent, name) {
+            for (var i = 0; i < parent.children.length; i++) {
+                var child = parent.children[i]
+                if (child.objectName === name) return child
+                var found = findChildByObjectName(child, name)
+                if (found) return found
             }
-
-            function findChildByObjectName(parent, name) {
-                for (var i = 0; i < parent.children.length; i++) {
-                    var child = parent.children[i]
-                    if (child.objectName === name) return child
-                    var found = findChildByObjectName(child, name)
-                    if (found) return found
-                }
-                return null
-            }
+            return null
         }
     }
 }
