@@ -1428,6 +1428,9 @@ class MediaManager(QObject):
         self.scanProgress.emit(f"[DONE] Scan complete: {len(self._playlist_names)} playlists, {len(all_music_files)} total songs")
         logger.info(f"Library scan complete. Found {len(self._playlist_names)} playlists")
 
+        # Auto-strip display names so filenames are always cleaned up
+        self._auto_strip_display_names()
+
         # If a playlist was active before the rescan, re-select it to refresh
         # the song list in QML (emits mediaListChanged). Preserve current
         # playback position so the playing song is not disrupted.
@@ -1861,6 +1864,106 @@ class MediaManager(QObject):
         except Exception as e:
             logger.error(f"Error saving display names: {e}")
 
+    # ─── Filename stripping (shared logic) ───────────────────────────
+
+    # Junk patterns to remove from display names
+    _JUNK_PATTERNS = [
+        r'\(Official\s+Audio\)',
+        r'\(Official\s+Video\)',
+        r'\(Official\s+Music\s+Video\)',
+        r'\(Official\s+Lyric\s+Video\)',
+        r'\(Lyrics?\)',
+        r'\(Audio\)',
+        r'\(Visuali[sz]er\)',
+        r'\(Music\s+Video\)',
+        r'\(Live\)',
+        r'\[Official\]',
+        r'\[Official\s+Audio\]',
+        r'\[Official\s+Video\]',
+        r'\[HD\]',
+        r'\[HQ\]',
+        r'\[4K\]',
+        r'\[Lyrics?\]',
+        r'\(feat\.\s*[^)]*\)',
+        r'\(ft\.\s*[^)]*\)',
+        r'\[feat\.\s*[^\]]*\]',
+        r'\[ft\.\s*[^\]]*\]',
+    ]
+    _JUNK_RE = re.compile('|'.join(_JUNK_PATTERNS), re.IGNORECASE)
+    _TRACK_NUM_RE = re.compile(r'^\d{1,3}\s*[-._)\s]\s*')
+
+    def _strip_single_filename(self, filename):
+        """Strip a single filename and return the cleaned name, or None if unchanged."""
+        name = filename
+        if name.lower().endswith('.mp3'):
+            name = name[:-4]
+
+        original_name = name
+
+        # Get artist from ID3 tag to remove from filename
+        try:
+            self._cache_metadata(filename)
+            artist = self._metadata_cache.get(filename, {}).get("artist", "")
+            if artist and artist != "Unknown Artist":
+                artist_names = re.split(r'[/;]', artist)
+                for a in artist_names:
+                    a = a.strip()
+                    if a:
+                        name = re.sub(re.escape(a), '', name, flags=re.IGNORECASE)
+        except Exception:
+            pass
+
+        name = name.replace('_', ' ')
+        name = self._TRACK_NUM_RE.sub('', name)
+        name = self._JUNK_RE.sub('', name)
+
+        # Clean up leftover separator sequences
+        name = re.sub(r'[,\s]+-[,\s]+', ' - ', name)
+        name = re.sub(r',\s*,', ',', name)
+        name = re.sub(r'\s{2,}', ' ', name)
+        name = re.sub(r'-{2,}', '-', name)
+        name = re.sub(r'\.{2,}', '.', name)
+        name = name.strip(' -.,')
+        name = re.sub(r'\(\s*\)', '', name)
+        name = re.sub(r'\[\s*\]', '', name)
+        name = name.strip()
+
+        if name and name != original_name:
+            return name
+        return None
+
+    def _auto_strip_display_names(self):
+        """Automatically strip display names for all files not yet stripped.
+        Called at the end of every library scan."""
+        if not self._library_root or not os.path.exists(self._library_root):
+            return
+
+        all_files = []
+        for playlist_data in self._playlists.values():
+            if playlist_data.get("is_combined"):
+                continue
+            for filename in playlist_data["files"]:
+                if filename not in all_files:
+                    all_files.append(filename)
+
+        if not all_files:
+            return
+
+        changed = 0
+        for filename in all_files:
+            # Skip files that already have a display name
+            if filename in self._display_names:
+                continue
+
+            cleaned = self._strip_single_filename(filename)
+            if cleaned:
+                self._display_names[filename] = cleaned
+                changed += 1
+
+        if changed:
+            self._save_display_names()
+            logger.info("Auto-stripped %d of %d filenames", changed, len(all_files))
+
     @Slot()
     def strip_filenames(self):
         """Clean up display names for all MP3s in the library"""
@@ -1869,32 +1972,6 @@ class MediaManager(QObject):
             return
 
         self.scanProgress.emit("[STRIP] Starting filename cleanup...")
-
-        # Junk patterns to remove
-        junk_patterns = [
-            r'\(Official\s+Audio\)',
-            r'\(Official\s+Video\)',
-            r'\(Official\s+Music\s+Video\)',
-            r'\(Official\s+Lyric\s+Video\)',
-            r'\(Lyrics?\)',
-            r'\(Audio\)',
-            r'\(Visuali[sz]er\)',
-            r'\(Music\s+Video\)',
-            r'\(Live\)',
-            r'\[Official\]',
-            r'\[Official\s+Audio\]',
-            r'\[Official\s+Video\]',
-            r'\[HD\]',
-            r'\[HQ\]',
-            r'\[4K\]',
-            r'\[Lyrics?\]',
-            r'\(feat\.\s*[^)]*\)',
-            r'\(ft\.\s*[^)]*\)',
-            r'\[feat\.\s*[^\]]*\]',
-            r'\[ft\.\s*[^\]]*\]',
-        ]
-        junk_re = re.compile('|'.join(junk_patterns), re.IGNORECASE)
-        track_num_re = re.compile(r'^\d{1,3}\s*[-._)\s]\s*')
 
         changed = 0
         all_files = []
@@ -1912,55 +1989,11 @@ class MediaManager(QObject):
             return
 
         for filename in all_files:
-            # Start from the filename without extension
-            name = filename
-            if name.lower().endswith('.mp3'):
-                name = name[:-4]
-
-            original_name = name
-
-            # Get artist from ID3 tag to remove from filename
-            try:
-                self._cache_metadata(filename)
-                artist = self._metadata_cache.get(filename, {}).get("artist", "")
-                if artist and artist != "Unknown Artist":
-                    # Split multi-artist tags (e.g. "Kid Cudi/Father John Misty")
-                    # and remove each artist individually
-                    artist_names = re.split(r'[/;]', artist)
-                    for a in artist_names:
-                        a = a.strip()
-                        if a:
-                            name = re.sub(re.escape(a), '', name, flags=re.IGNORECASE)
-            except Exception:
-                pass
-
-            # Replace underscores with spaces
-            name = name.replace('_', ' ')
-
-            # Remove track numbers at the start
-            name = track_num_re.sub('', name)
-
-            # Remove junk patterns
-            name = junk_re.sub('', name)
-
-            # Clean up leftover separator sequences (, - , , etc.)
-            name = re.sub(r'[,\s]+-[,\s]+', ' - ', name)  # ", - " or " , , - " → " - "
-            name = re.sub(r',\s*,', ',', name)              # ",," → ","
-            name = re.sub(r'\s{2,}', ' ', name)
-            name = re.sub(r'-{2,}', '-', name)
-            name = re.sub(r'\.{2,}', '.', name)
-
-            # Strip leading/trailing whitespace, dashes, dots, commas
-            name = name.strip(' -.,')
-
-            # Remove empty parentheses/brackets left behind
-            name = re.sub(r'\(\s*\)', '', name)
-            name = re.sub(r'\[\s*\]', '', name)
-            name = name.strip()
-
-            if name and name != original_name:
-                self._display_names[filename] = name
-                self.scanProgress.emit(f'[STRIP] "{original_name}" → "{name}"')
+            cleaned = self._strip_single_filename(filename)
+            if cleaned:
+                self._display_names[filename] = cleaned
+                original = filename[:-4] if filename.lower().endswith('.mp3') else filename
+                self.scanProgress.emit(f'[STRIP] "{original}" → "{cleaned}"')
                 changed += 1
 
         # Save to disk
