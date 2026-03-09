@@ -204,33 +204,35 @@ Rectangle {
                         // Play/Pause button
                         Control {
                             id: playButtonControl
-                            implicitWidth: App.Spacing.bottomBarPlayButtonWidth
-                            implicitHeight: App.Spacing.bottomBarPlayButtonHeight
+                            implicitWidth: App.Spacing.bottomBarPreviousButtonWidth
+                            implicitHeight: App.Spacing.bottomBarPreviousButtonHeight
                             Layout.alignment: Qt.AlignVCenter
+                            clip: false
 
                             scale: mouseAreaPlay.pressed ? 0.8 : 1.0
                             opacity: mouseAreaPlay.pressed ? 0.7 : 1.0
-                            
+
                             Behavior on scale {
                                 NumberAnimation {
                                     duration: 200
-                                    easing.type: Easing.OutBack  
+                                    easing.type: Easing.OutBack
                                     easing.overshoot: 1.1
                                 }
                             }
-                            
+
                             Behavior on opacity {
                                 NumberAnimation { duration: 150 }
                             }
 
                             background: Rectangle { color: "transparent" }
-                            
+
                             contentItem: Item {
+                                clip: false
                                 Image {
                                     id: playButtonImage
                                     anchors.centerIn: parent
-                                    width: parent.height
-                                    height: parent.height
+                                    width: App.Spacing.bottomBarPlayButtonWidth
+                                    height: App.Spacing.bottomBarPlayButtonHeight
                                     source: {
                                         var isPlaying = useSpotify ?
                                             (spotifyManager && spotifyManager.is_playing()) :
@@ -244,7 +246,7 @@ Rectangle {
                                     mipmap: true
                                     visible: false
                                 }
-                                
+
                                 ColorOverlay {
                                     anchors.fill: playButtonImage
                                     source: playButtonImage
@@ -254,8 +256,8 @@ Rectangle {
                             Item {
                                 id: playButtonClickArea
                                 anchors.centerIn: parent
-                                width: parent.width * 1.5
-                                height: parent.height * 2.5   
+                                width: App.Spacing.bottomBarPlayButtonWidth * 1.5
+                                height: App.Spacing.bottomBarPlayButtonHeight * 2.5
 
                                 MouseArea {
                                     id: mouseAreaPlay
@@ -1416,7 +1418,7 @@ Rectangle {
                         anchors.centerIn: parent
                         spacing: App.Spacing.bottomBarBetweenButtonMargin * 4
                         
-                        // ROW 1: Previous and Next buttons
+                        // Previous, Play/Pause, and Next buttons
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignHCenter
@@ -1425,31 +1427,31 @@ Rectangle {
                             Item {
                                 Layout.fillWidth: true
                             }
-                            
+
                             // Previous button
                             Control {
                                 id: previousButtonControlVertical
                                 Layout.preferredWidth: App.Spacing.bottomBarPreviousButtonWidth
                                 Layout.preferredHeight: App.Spacing.bottomBarPreviousButtonHeight
                                 Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
-                                
+
                                 scale: mouseAreaPrevVertical.pressed ? 0.8 : 1.0
                                 opacity: mouseAreaPrevVertical.pressed ? 0.7 : 1.0
-                                
+
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: 200
-                                        easing.type: Easing.OutBack  
+                                        easing.type: Easing.OutBack
                                         easing.overshoot: 1.1
                                     }
                                 }
-                                
+
                                 Behavior on opacity {
                                     NumberAnimation { duration: 150 }
                                 }
 
                                 background: Rectangle { color: "transparent" }
-                                
+
                                 contentItem: Item {
                                     Image {
                                         id: previousButtonImageVertical
@@ -1464,14 +1466,14 @@ Rectangle {
                                         mipmap: true
                                         visible: false
                                     }
-                                    
+
                                     ColorOverlay {
                                         anchors.fill: previousButtonImageVertical
                                         source: previousButtonImageVertical
                                         color: App.Style.bottomBarPreviousButton
                                     }
                                 }
-                                
+
                                 Item {
                                     anchors.centerIn: parent
                                     width: parent.width * 2
@@ -1484,7 +1486,71 @@ Rectangle {
                                     }
                                 }
                             }
-                            
+
+                            // Play/Pause button
+                            Control {
+                                id: playButtonControlVertical
+                                Layout.preferredWidth: App.Spacing.bottomBarPlayButtonWidth
+                                Layout.preferredHeight: App.Spacing.bottomBarPlayButtonHeight
+                                Layout.alignment: Qt.AlignVCenter | Qt.AlignHCenter
+
+                                scale: mouseAreaPlayVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaPlayVertical.pressed ? 0.7 : 1.0
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+
+                                background: Rectangle { color: "transparent" }
+
+                                contentItem: Item {
+                                    Image {
+                                        id: playButtonImageVertical
+                                        anchors.centerIn: parent
+                                        width: parent.height
+                                        height: parent.height
+                                        source: {
+                                            var isPlaying = useSpotify ?
+                                                (spotifyManager && spotifyManager.is_playing()) :
+                                                (mediaManager && mediaManager.is_playing())
+                                            return isPlaying ? "./assets/pause_button.svg" : "./assets/play_button.svg"
+                                        }
+                                        sourceSize: Qt.size(width * 2, height * 2)
+                                        fillMode: Image.PreserveAspectFit
+                                        smooth: true
+                                        antialiasing: true
+                                        mipmap: true
+                                        visible: false
+                                    }
+
+                                    ColorOverlay {
+                                        anchors.fill: playButtonImageVertical
+                                        source: playButtonImageVertical
+                                        color: App.Style.bottomBarPlayButton
+                                    }
+                                }
+
+                                Item {
+                                    anchors.centerIn: parent
+                                    width: parent.width * 1.5
+                                    height: parent.height * 2.5
+
+                                    MouseArea {
+                                        id: mouseAreaPlayVertical
+                                        anchors.fill: parent
+                                        onClicked: useSpotify ? spotifyManager.toggle_play() : mediaManager.toggle_play()
+                                    }
+                                }
+                            }
+
                             // Next button
                             Control {
                                 id: nextButtonControlVertical
@@ -1494,21 +1560,21 @@ Rectangle {
 
                                 scale: mouseAreaNextVertical.pressed ? 0.8 : 1.0
                                 opacity: mouseAreaNextVertical.pressed ? 0.7 : 1.0
-                                
+
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: 200
-                                        easing.type: Easing.OutBack  
+                                        easing.type: Easing.OutBack
                                         easing.overshoot: 1.1
                                     }
                                 }
-                                
+
                                 Behavior on opacity {
                                     NumberAnimation { duration: 150 }
                                 }
-                                
+
                                 background: Rectangle { color: "transparent" }
-                                
+
                                 contentItem: Item {
                                     Image {
                                         id: nextButtonImageVertical
@@ -1523,14 +1589,14 @@ Rectangle {
                                         mipmap: true
                                         visible: false
                                     }
-                                    
+
                                     ColorOverlay {
                                         anchors.fill: nextButtonImageVertical
                                         source: nextButtonImageVertical
                                         color: App.Style.bottomBarNextButton
                                     }
                                 }
-                                
+
                                 Item {
                                     anchors.centerIn: parent
                                     width: parent.width * 2
@@ -1543,73 +1609,9 @@ Rectangle {
                                     }
                                 }
                             }
-                            
+
                             Item {
                                 Layout.fillWidth: true
-                            }
-                        }
-                        
-                        // Play/Pause button
-                        Control {
-                            id: playButtonControlVertical
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredWidth: App.Spacing.bottomBarPlayButtonWidth
-                            Layout.preferredHeight: App.Spacing.bottomBarPlayButtonHeight
-
-                            scale: mouseAreaPlayVertical.pressed ? 0.8 : 1.0
-                            opacity: mouseAreaPlayVertical.pressed ? 0.7 : 1.0
-                            
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: 200
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.1
-                                }
-                            }
-                            
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150 }
-                            }
-
-                            background: Rectangle { color: "transparent" }
-                            
-                            contentItem: Item {
-                                Image {
-                                    id: playButtonImageVertical
-                                    anchors.centerIn: parent
-                                    width: parent.height
-                                    height: parent.height
-                                    source: {
-                                        var isPlaying = useSpotify ?
-                                            (spotifyManager && spotifyManager.is_playing()) :
-                                            (mediaManager && mediaManager.is_playing())
-                                        return isPlaying ? "./assets/pause_button.svg" : "./assets/play_button.svg"
-                                    }
-                                    sourceSize: Qt.size(width * 2, height * 2)
-                                    fillMode: Image.PreserveAspectFit
-                                    smooth: true
-                                    antialiasing: true
-                                    mipmap: true
-                                    visible: false
-                                }
-                                
-                                ColorOverlay {
-                                    anchors.fill: playButtonImageVertical
-                                    source: playButtonImageVertical
-                                    color: App.Style.bottomBarPlayButton
-                                }
-                            }
-                            
-                            Item {
-                                anchors.centerIn: parent
-                                width: parent.width * 3
-                                height: parent.height 
-
-                                MouseArea {
-                                    id: mouseAreaPlayVertical
-                                    anchors.fill: parent
-                                    onClicked: useSpotify ? spotifyManager.toggle_play() : mediaManager.toggle_play()
-                                }
                             }
                         }
                         
