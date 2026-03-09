@@ -740,6 +740,9 @@ Item {
                                     mediaRoom._userInitiatedChange = true
                                     mediaRoom.animateTrackChange()
                                     if (useSpotify) {
+                                        // Optimistically swap art to the previous track's image
+                                        if (prevArtImage.source != "")
+                                            mediaRoom._displayAlbumArt = prevArtImage.source.toString()
                                         spotifyManager.previous_track()
                                     } else {
                                         mediaManager.previous_track()
@@ -876,6 +879,10 @@ Item {
                                     mediaRoom._userInitiatedChange = true
                                     mediaRoom.animateTrackChange()
                                     if (useSpotify) {
+                                        // Optimistically swap art to the next track's image
+                                        // so it's ready when the coverflow animation lands
+                                        if (nextArtImage.source != "")
+                                            mediaRoom._displayAlbumArt = nextArtImage.source.toString()
                                         spotifyManager.next_track()
                                     } else {
                                         mediaManager.next_track()
@@ -1055,6 +1062,25 @@ Item {
                         radius: albumArtStack._roundedArt ? albumArtStack._artRadius : 0
                         visible: false
                         layer.enabled: true
+                    }
+
+                    // Vinyl record circular mask with center hole — shared by all cards
+                    property bool _vinylMode: settingsManager && settingsManager.vinylRecordMode
+                    Rectangle {
+                        id: vinylMask
+                        width: albumArtStack.artSize
+                        height: width
+                        radius: width / 2
+                        visible: false
+                        color: "white"
+                        layer.enabled: true
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: parent.width * 0.12
+                            height: width
+                            radius: width / 2
+                            color: "black"
+                        }
                     }
 
                     // Restore all card properties to their idle state.
@@ -1283,10 +1309,10 @@ Item {
                             fillMode: Image.PreserveAspectFit
                             smooth: true; asynchronous: true
                             cache: true
-                            layer.enabled: albumArtStack._roundedArt || mediaRoom._cardAnimBusy
+                            layer.enabled: albumArtStack._roundedArt || albumArtStack._vinylMode || mediaRoom._cardAnimBusy
                             layer.live: !mediaRoom._cardAnimBusy
                             layer.effect: OpacityMask {
-                                maskSource: artRoundedMask
+                                maskSource: albumArtStack._vinylMode ? vinylMask : artRoundedMask
                             }
                         }
                     }
@@ -1329,10 +1355,10 @@ Item {
                             fillMode: Image.PreserveAspectFit
                             smooth: true; asynchronous: true
                             cache: true
-                            layer.enabled: albumArtStack._roundedArt || mediaRoom._cardAnimBusy
+                            layer.enabled: albumArtStack._roundedArt || albumArtStack._vinylMode || mediaRoom._cardAnimBusy
                             layer.live: !mediaRoom._cardAnimBusy
                             layer.effect: OpacityMask {
-                                maskSource: artRoundedMask
+                                maskSource: albumArtStack._vinylMode ? vinylMask : artRoundedMask
                             }
                         }
                     }
@@ -1393,6 +1419,37 @@ Item {
                         height: width
                         z: 1
 
+                        property bool _isPlaying: {
+                            return mediaRoom.useSpotify ?
+                                (spotifyManager && spotifyManager.is_playing()) :
+                                (mediaManager && mediaManager.is_playing())
+                        }
+
+                        // Vinyl spin — one full revolution over the song duration
+                        property real _vinylAngle: 0
+
+                        // Drive spin angle from song position — maps 0..duration to 0..360
+                        // Updates reactively so pausing freezes the angle, seeking jumps it
+                        Binding {
+                            target: albumArtContainer
+                            property: "_vinylAngle"
+                            value: mediaRoom.duration > 0 ? (mediaRoom.position / mediaRoom.duration) * 360 : 0
+                            when: albumArtStack._vinylMode
+                            restoreMode: Binding.RestoreNone
+                        }
+
+                        Behavior on _vinylAngle {
+                            enabled: albumArtStack._vinylMode && !mediaRoom._cardAnimBusy
+                            NumberAnimation { duration: 200; easing.type: Easing.Linear }
+                        }
+
+                        // Reset rotation on track change
+                        Connections {
+                            target: mediaManager
+                            enabled: albumArtStack._vinylMode
+                            function onCurrentSongChanged() { albumArtContainer._vinylAngle = 0 }
+                        }
+
                         Image {
                             id: albumArtImage
                             anchors.fill: parent
@@ -1403,12 +1460,13 @@ Item {
                             antialiasing: true
                             mipmap: false
                             asynchronous: true
+                            rotation: albumArtStack._vinylMode ? albumArtContainer._vinylAngle : 0
                             onStatusChanged: {
                                 if (status === Image.Error) mediaRoom._displayAlbumArt = "./assets/missing_art.png"
                             }
-                            layer.enabled: albumArtStack._roundedArt
+                            layer.enabled: albumArtStack._roundedArt || albumArtStack._vinylMode
                             layer.effect: OpacityMask {
-                                maskSource: artRoundedMask
+                                maskSource: albumArtStack._vinylMode ? vinylMask : artRoundedMask
                             }
                         }
 
@@ -2131,6 +2189,13 @@ Item {
             if (useSpotify) {
                 isShuffleEnabled = enabled
                 // Shuffle reorders the playlist — neighbors changed
+                sideCardRefreshTimer.restart()
+            }
+        }
+
+        function onQueueUpdated() {
+            // Queue-based neighbor art is ready — refresh side cards
+            if (useSpotify) {
                 sideCardRefreshTimer.restart()
             }
         }

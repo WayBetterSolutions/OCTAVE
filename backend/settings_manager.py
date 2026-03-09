@@ -47,6 +47,10 @@ SETTINGS_REGISTRY = {
         "key": "showAlbumArtShadow", "label": "Album Art Shadow", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_album_art_shadow"
     },
+    "vinyl_record_mode": {
+        "key": "vinylRecordMode", "label": "Vinyl Record Mode", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_vinyl_record_mode"
+    },
     "background_overlay_opacity": {
         "key": "backgroundOverlayOpacity", "label": "Overlay Opacity", "category": "mediaSettings",
         "controlType": "slider", "saveSlot": "save_background_overlay_opacity",
@@ -218,6 +222,7 @@ class SettingsManager(QObject):
     roundedAlbumArtChanged = Signal(bool)
     albumArtCornerRadiusChanged = Signal(int)
     showAlbumArtShadowChanged = Signal(bool)
+    vinylRecordModeChanged = Signal(bool)
     backgroundOverlayOpacityChanged = Signal(int)
     sideCardOpacityChanged = Signal(float)
     sideCardAngleChanged = Signal(int)
@@ -416,6 +421,7 @@ class SettingsManager(QObject):
             "roundedAlbumArt": True,     # Rounded corners on album art
             "albumArtCornerRadius": 16,  # Corner radius in dp (2-32)
             "showAlbumArtShadow": True,  # Drop shadow on album art
+            "vinylRecordMode": False,    # Spin album art like a vinyl record
             "backgroundOverlayOpacity": 80,  # Dark overlay opacity percentage (0-100)
             "sideCardOpacity": 0.4,      # 3D preview side card opacity (0.1-1.0)
             "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
@@ -544,6 +550,7 @@ class SettingsManager(QObject):
         self._rounded_album_art = self._settings.get("roundedAlbumArt", self._default_settings["roundedAlbumArt"])
         self._album_art_corner_radius = self._settings.get("albumArtCornerRadius", self._default_settings["albumArtCornerRadius"])
         self._show_album_art_shadow = self._settings.get("showAlbumArtShadow", self._default_settings["showAlbumArtShadow"])
+        self._vinyl_record_mode = self._settings.get("vinylRecordMode", self._default_settings["vinylRecordMode"])
         self._background_overlay_opacity = self._settings.get("backgroundOverlayOpacity", self._default_settings["backgroundOverlayOpacity"])
         self._side_card_opacity = self._settings.get("sideCardOpacity", self._default_settings["sideCardOpacity"])
         self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
@@ -1133,15 +1140,16 @@ class SettingsManager(QObject):
             settings["customThemes"] = {}
         theme = json.loads(theme_json)
 
-        # Copy album art to permanent storage
-        if album_art_source:
+        art_dir = os.path.join(self.app_data_dir, "theme_art")
+        safe_name = re.sub(r'[^\w\-]', '_', name)
+
+        # Handle local files synchronously (fast, no network)
+        if album_art_source and not album_art_source.startswith("http://") and not album_art_source.startswith("https://"):
             try:
-                art_dir = os.path.join(self.app_data_dir, "theme_art")
                 os.makedirs(art_dir, exist_ok=True)
                 local_path = QUrl(album_art_source).toLocalFile() if album_art_source.startswith("file://") else album_art_source
                 if local_path and os.path.isfile(local_path):
                     ext = os.path.splitext(local_path)[1] or ".jpg"
-                    safe_name = re.sub(r'[^\w\-]', '_', name)
                     dest = os.path.join(art_dir, f"theme_{safe_name}{ext}")
                     shutil.copy2(local_path, dest)
                     theme["albumArt"] = QUrl.fromLocalFile(dest).toString()
@@ -1149,9 +1157,52 @@ class SettingsManager(QObject):
             except Exception as e:
                 logger.warning(f"Failed to save theme album art: {e}")
 
+        # Save theme immediately (colors are ready, art downloads in background)
         settings["customThemes"][name] = theme
         self.save_settings(settings)
         self.customThemesChanged.emit()
+
+        # Download remote album art in background thread (e.g. Spotify URLs)
+        if album_art_source and (album_art_source.startswith("http://") or album_art_source.startswith("https://")):
+            self._download_theme_art_async(name, album_art_source, art_dir, safe_name)
+
+    def _download_theme_art_async(self, theme_name, url, art_dir, safe_name):
+        """Download remote album art in a background thread, then update the saved theme."""
+        import threading
+
+        def do_download():
+            try:
+                import urllib.request
+                os.makedirs(art_dir, exist_ok=True)
+                dest = os.path.join(art_dir, f"theme_{safe_name}.jpg")
+                urllib.request.urlretrieve(url, dest)
+                local_url = QUrl.fromLocalFile(dest).toString()
+                logger.debug(f"Downloaded theme art to: {dest}")
+
+                # Store result for main-thread pickup
+                self._pending_theme_art = (theme_name, local_url)
+            except Exception as e:
+                logger.warning(f"Failed to download theme album art: {e}")
+
+        self._pending_theme_art = None
+        threading.Thread(target=do_download, daemon=True).start()
+
+        # Poll for completion on main thread (Windows-safe pattern)
+        timer = QTimer(self)
+        timer.setInterval(100)
+        def check_done():
+            if self._pending_theme_art is not None:
+                timer.stop()
+                timer.deleteLater()
+                name, local_url = self._pending_theme_art
+                self._pending_theme_art = None
+                settings = self.load_settings()
+                if "customThemes" in settings and name in settings["customThemes"]:
+                    settings["customThemes"][name]["albumArt"] = local_url
+                    self.save_settings(settings)
+                    self.customThemesChanged.emit()
+        timer.timeout.connect(check_done)
+        timer.start()
 
     @Slot(str)
     def delete_custom_theme(self, name):
@@ -1682,6 +1733,15 @@ class SettingsManager(QObject):
         self._show_album_art_shadow = enabled
         self.update_setting("showAlbumArtShadow", enabled, self.showAlbumArtShadowChanged)
 
+    @Property(bool, notify=vinylRecordModeChanged)
+    def vinylRecordMode(self):
+        return self._vinyl_record_mode
+
+    @Slot(bool)
+    def save_vinyl_record_mode(self, enabled):
+        self._vinyl_record_mode = enabled
+        self.update_setting("vinylRecordMode", enabled, self.vinylRecordModeChanged)
+
     @Property(int, notify=backgroundOverlayOpacityChanged)
     def backgroundOverlayOpacity(self):
         return self._background_overlay_opacity
@@ -2125,6 +2185,9 @@ class SettingsManager(QObject):
 
         self._show_album_art_shadow = self._default_settings["showAlbumArtShadow"]
         self.showAlbumArtShadowChanged.emit(self._show_album_art_shadow)
+
+        self._vinyl_record_mode = self._default_settings["vinylRecordMode"]
+        self.vinylRecordModeChanged.emit(self._vinyl_record_mode)
 
         self._background_overlay_opacity = self._default_settings["backgroundOverlayOpacity"]
         self.backgroundOverlayOpacityChanged.emit(self._background_overlay_opacity)

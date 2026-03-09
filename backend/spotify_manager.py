@@ -138,8 +138,13 @@ class SpotifyManager(QObject):
     # Internal signal for thread-safe initialization after auth
     _authCompleted = Signal()
 
+    # Queue neighbor signal — emitted when queue-based prev/next art is ready
+    queueUpdated = Signal()
+
     # Internal signals for async API results (thread-safe)
     _playbackStateReady = Signal(object)  # Playback data from API
+    _queueReady = Signal(list)            # Queue tracks from API
+    _colorsReady = Signal(str)            # Extracted theme JSON from worker
     _devicesReady = Signal(list)  # Devices from API
     _playlistsReady = Signal(list)  # Playlists from API
 
@@ -164,6 +169,10 @@ class SpotifyManager(QObject):
         self._spotify_tracks = []
         self._current_spotify_playlist_id = ""
         self._current_spotify_playlist_name = ""
+
+        # Cached queue for side-card art when no playlist is loaded
+        self._cached_queue = []  # list of {name, artist, album, image}
+        self._previous_track = {}  # last played track for "behind" side card
 
         # Credentials (loaded from settings)
         self._client_id = ""
@@ -197,6 +206,8 @@ class SpotifyManager(QObject):
         # Connect internal signals for thread-safe callbacks
         self._authCompleted.connect(self._on_auth_completed)
         self._playbackStateReady.connect(self._handle_playback_state)
+        self._queueReady.connect(self._handle_queue_result)
+        self._colorsReady.connect(self._handle_colors_result)
         self._devicesReady.connect(self._handle_devices_result)
         self._playlistsReady.connect(self._handle_playlists_result)
 
@@ -448,6 +459,8 @@ class SpotifyManager(QObject):
         self._is_connected = False
         self._devices = []
         self._current_track = {}
+        self._cached_queue = []
+        self._previous_track = {}
 
         # Remove cached token from OS keychain
         self._cache_handler.delete_cached_token()
@@ -994,6 +1007,14 @@ class SpotifyManager(QObject):
         if track:
             track_id = track.get('id')
             if track_id != self._current_track.get('id'):
+                # Save current as previous before overwriting
+                if self._current_track.get('name'):
+                    self._previous_track = {
+                        'name': self._current_track.get('name', ''),
+                        'artist': self._current_track.get('artist', ''),
+                        'album': self._current_track.get('album', ''),
+                        'image': self._current_track.get('image', '')
+                    }
                 # Track changed
                 self._current_track = {
                     'id': track_id,
@@ -1022,6 +1043,43 @@ class SpotifyManager(QObject):
                 # Extract album art colors if Album Art Capture is active
                 if self._current_track['image']:
                     self._on_track_changed_for_theme(self._current_track['image'])
+
+                # Fetch queue for side-card art when no playlist is loaded
+                if not self._spotify_tracks:
+                    self._fetch_queue()
+
+    def _fetch_queue(self):
+        """Async fetch Spotify playback queue for side-card neighbor art."""
+        def fetch():
+            try:
+                return self._sp.queue()
+            except Exception:
+                return None
+
+        def on_done(future):
+            if not self._sp:
+                return
+            try:
+                result = future.result()
+                if result:
+                    self._queueReady.emit(result.get('queue', []))
+            except Exception:
+                pass
+
+        self._executor.submit(fetch).add_done_callback(on_done)
+
+    def _handle_queue_result(self, queue_tracks):
+        """Cache queue tracks on main thread for side-card art lookups."""
+        self._cached_queue = []
+        for track in queue_tracks[:5]:  # Only need a few
+            images = track.get('album', {}).get('images', [])
+            self._cached_queue.append({
+                'name': track.get('name', ''),
+                'artist': ', '.join([a['name'] for a in track.get('artists', [])]),
+                'album': track.get('album', {}).get('name', ''),
+                'image': images[0]['url'] if images else ''
+            })
+        self.queueUpdated.emit()
 
     def _interpolate_position(self):
         """Interpolate position between API polls for smooth UI updates"""
@@ -1066,38 +1124,42 @@ class SpotifyManager(QObject):
 
     @Slot(result=str)
     def get_next_track_info(self):
-        """Peek at the next track in the loaded Spotify playlist. Returns JSON string."""
-        if not self._spotify_tracks or not self._current_track.get('name'):
-            return ""
-        current_name = self._current_track['name']
-        for i, track in enumerate(self._spotify_tracks):
-            if track.get('name') == current_name:
-                next_index = (i + 1) % len(self._spotify_tracks)
-                t = self._spotify_tracks[next_index]
-                return json.dumps({
-                    "name": t.get('name', ''),
-                    "artist": t.get('artist', ''),
-                    "album": t.get('album', ''),
-                    "image": t.get('image', '')
-                })
+        """Peek at the next track. Uses loaded playlist or Spotify queue as fallback."""
+        if self._spotify_tracks and self._current_track.get('name'):
+            current_name = self._current_track['name']
+            for i, track in enumerate(self._spotify_tracks):
+                if track.get('name') == current_name:
+                    next_index = (i + 1) % len(self._spotify_tracks)
+                    t = self._spotify_tracks[next_index]
+                    return json.dumps({
+                        "name": t.get('name', ''),
+                        "artist": t.get('artist', ''),
+                        "album": t.get('album', ''),
+                        "image": t.get('image', '')
+                    })
+        # Fallback: use cached queue (index 0 = next up)
+        if self._cached_queue:
+            return json.dumps(self._cached_queue[0])
         return ""
 
     @Slot(result=str)
     def get_previous_track_info(self):
-        """Peek at the previous track in the loaded Spotify playlist. Returns JSON string."""
-        if not self._spotify_tracks or not self._current_track.get('name'):
-            return ""
-        current_name = self._current_track['name']
-        for i, track in enumerate(self._spotify_tracks):
-            if track.get('name') == current_name:
-                prev_index = (i - 1) % len(self._spotify_tracks)
-                t = self._spotify_tracks[prev_index]
-                return json.dumps({
-                    "name": t.get('name', ''),
-                    "artist": t.get('artist', ''),
-                    "album": t.get('album', ''),
-                    "image": t.get('image', '')
-                })
+        """Peek at the previous track. Uses loaded playlist or last played track."""
+        if self._spotify_tracks and self._current_track.get('name'):
+            current_name = self._current_track['name']
+            for i, track in enumerate(self._spotify_tracks):
+                if track.get('name') == current_name:
+                    prev_index = (i - 1) % len(self._spotify_tracks)
+                    t = self._spotify_tracks[prev_index]
+                    return json.dumps({
+                        "name": t.get('name', ''),
+                        "artist": t.get('artist', ''),
+                        "album": t.get('album', ''),
+                        "image": t.get('image', '')
+                    })
+        # Fallback: use the last played track
+        if self._previous_track.get('name'):
+            return json.dumps(self._previous_track)
         return ""
 
     # ==================== Compatibility Methods (match MediaManager API) ====================
@@ -1147,12 +1209,7 @@ class SpotifyManager(QObject):
             self._extract_colors_from_url(image_url)
 
     def _extract_colors_from_url(self, image_url):
-        """Extract colors from a Spotify album art URL"""
-        import urllib.request
-        import tempfile
-        import colorsys
-        import json
-
+        """Extract colors from a Spotify album art URL (async, off main thread)"""
         if not image_url:
             return
 
@@ -1163,7 +1220,12 @@ class SpotifyManager(QObject):
 
         logger.debug(f"Extracting colors from: {image_url}")
 
-        try:
+        def do_extract():
+            import urllib.request
+            import colorsys
+            from PIL import Image
+            import numpy as np
+
             # Download image to temp file
             temp_dir = os.path.join(self.backend_dir, 'temp')
             os.makedirs(temp_dir, exist_ok=True)
@@ -1171,13 +1233,8 @@ class SpotifyManager(QObject):
 
             urllib.request.urlretrieve(image_url, temp_path)
 
-            # Now extract colors using same logic as MediaManager
-            from PIL import Image
-            import numpy as np
-
             img = Image.open(temp_path)
             img = img.convert('RGB')
-            # Use LANCZOS resampling - handle both old and new Pillow versions
             try:
                 resample = Image.Resampling.LANCZOS
             except AttributeError:
@@ -1186,10 +1243,8 @@ class SpotifyManager(QObject):
 
             pixels = np.array(img).reshape(-1, 3)
 
-            # Use simple k-means to find dominant colors
             colors = self._kmeans_colors(pixels, k=5)
 
-            # Sort by vibrancy
             def color_vibrancy(rgb):
                 r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
                 h, s, v = colorsys.rgb_to_hsv(r, g, b)
@@ -1197,7 +1252,6 @@ class SpotifyManager(QObject):
 
             colors = sorted(colors, key=color_vibrancy, reverse=True)
 
-            # Calculate luminance to determine light/dark theme
             def luminance(rgb):
                 r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
                 return 0.299 * r + 0.587 * g + 0.114 * b
@@ -1205,18 +1259,26 @@ class SpotifyManager(QObject):
             avg_luminance = np.mean([luminance(p) for p in pixels[:1000]])
             is_dark_image = avg_luminance < 0.5
 
-            # Generate theme
-            theme_json = self._generate_theme_from_colors(colors, is_dark_image)
+            return self._generate_theme_from_colors(colors, is_dark_image)
 
-            if theme_json:
-                logger.debug(f"Generated theme, length: {len(theme_json)}")
-                # Update settings manager and emit signal
-                if self._settings_manager:
-                    self._settings_manager.set_album_art_colors(theme_json)
-                self.albumColorsExtracted.emit(theme_json)
+        def on_done(future):
+            if not self._sp:
+                return
+            try:
+                theme_json = future.result()
+                if theme_json:
+                    self._colorsReady.emit(theme_json)
+            except Exception as e:
+                logger.error(f"Error extracting colors: {e}", exc_info=True)
 
-        except Exception as e:
-            logger.error(f"Error extracting colors: {e}", exc_info=True)
+        self._executor.submit(do_extract).add_done_callback(on_done)
+
+    def _handle_colors_result(self, theme_json):
+        """Apply extracted album art colors on the main thread."""
+        logger.debug(f"Generated theme, length: {len(theme_json)}")
+        if self._settings_manager:
+            self._settings_manager.set_album_art_colors(theme_json)
+        self.albumColorsExtracted.emit(theme_json)
 
     def _kmeans_colors(self, pixels, k=5, max_iterations=10):
         """Simple k-means clustering to find dominant colors"""

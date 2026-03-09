@@ -54,3 +54,4 @@ backend/android_auto/certs/*.pem
 profile_performance.py
 profile_data_*.csv
 PERFORMANCE_AUDIT.md
+BLE_OBD_BRIDGE_REPORT.md

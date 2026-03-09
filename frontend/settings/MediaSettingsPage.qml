@@ -418,6 +418,40 @@ Flickable {
 
             SettingsDivider {}
 
+            // Vinyl Record Mode
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: vinylRecordToggle
+                    Layout.fillWidth: true
+                    text: "Vinyl Record Mode"
+                    checked: settingsManager ? settingsManager.vinylRecordMode : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_vinyl_record_mode(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onVinylRecordModeChanged() {
+                            vinylRecordToggle.checked = settingsManager.vinylRecordMode
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Turn album art into a spinning vinyl record during playback."
+                }
+            }
+
+            SettingsDivider {}
+
             // Album Art Layout
             ColumnLayout {
                 Layout.fillWidth: true
