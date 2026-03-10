@@ -435,8 +435,8 @@ class OBDManager(QObject):
                 ports.extend(glob.glob('/dev/rfcomm*'))
                 ports.extend(glob.glob('/dev/ttyUSB*'))
                 ports.extend(glob.glob('/dev/ttyACM*'))
-                # Also check for any Bluetooth serial ports
-                ports.extend(glob.glob('/dev/ttyS*'))
+                # Note: /dev/ttyS* (hardware serial) excluded — almost never OBD devices
+                # and produces many false positives on Linux
 
             # Remove duplicates and sort
             ports = sorted(list(set(ports)))
@@ -605,7 +605,7 @@ class OBDManager(QObject):
             try:
                 self._last_successful_protocol = connection.protocol_name()
                 logger.info(f"[OBD] Caching successful protocol: {self._last_successful_protocol}")
-            except:
+            except Exception:
                 pass
 
             self.connectionStatusChanged.emit("Connected")
@@ -747,11 +747,19 @@ class OBDManager(QObject):
     def _monitor_connection(self):
         """Thread function to monitor connection status"""
         check_interval = 2.0
-        last_status = self._connection.status() if self._connection else None
+        conn = self._connection
+        if not conn:
+            return
+        last_status = conn.status()
 
-        while not self._stop_monitor and self._connection:
+        while not self._stop_monitor:
+            # Grab a local reference each iteration — main thread may set self._connection = None
+            conn = self._connection
+            if not conn:
+                break
+
             try:
-                current_status = self._connection.status()
+                current_status = conn.status()
 
                 if current_status != last_status:
                     if current_status != OBDStatus.CAR_CONNECTED and last_status == OBDStatus.CAR_CONNECTED:
@@ -781,6 +789,7 @@ class OBDManager(QObject):
 
             except Exception as e:
                 logger.info(f"[OBD] Monitor error: {e}")
+                break  # Connection likely dead, exit monitor loop
 
             time.sleep(check_interval)
 
@@ -1636,7 +1645,12 @@ class OBDManager(QObject):
             # Read the cached supported_commands set from the existing connection.
             # obd.Async inherits from obd.OBD; supported_commands is populated
             # during __init__ — it's a frozen set, safe to read from any thread.
-            supported = self._connection.supported_commands
+            conn = self._connection
+            if not conn:
+                self._emit_scan_output("[WARN] Connection lost before scan could start")
+                QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, "Connection lost"))
+                return
+            supported = conn.supported_commands
 
             if not supported:
                 self._emit_scan_output("[WARN] No supported commands returned from vehicle")
