@@ -685,6 +685,13 @@ class OBDManager(QObject):
         logger.error(f"[OBD] Connection error: {error_msg}")
         self._connected = False
 
+        # I/O error (errno 5) means the rfcomm socket is dead - cached protocol is useless
+        # Clear it so the next attempt does full protocol detection on a fresh connection
+        if "Input/output error" in error_msg or "Errno 5" in error_msg:
+            if self._last_successful_protocol:
+                logger.info("[OBD] Clearing cached protocol due to I/O error (rfcomm link dropped)")
+                self._last_successful_protocol = None
+
         self.connectionStatusChanged.emit("Error")
         self.connectionStatusDetailChanged.emit(f"Error: {error_msg}")
         self.connectionProgressChanged.emit(0)
@@ -976,7 +983,11 @@ class OBDManager(QObject):
                     else:
                         final_callback = callback
                         logger.debug(f"[OBD] Watching: {param}")
-                    self._connection.watch(command, callback=final_callback)
+                    # force=True bypasses the supported_commands check in watch().
+                    # This prevents silent skip if supported_commands wasn't yet populated
+                    # when called from _on_connection_complete (before scan runs).
+                    # The async run loop uses force=True internally anyway.
+                    self._connection.watch(command, callback=final_callback, force=True)
                     watcher_count += 1
                 except Exception as e:
                     logger.warning(f"[OBD] Could not watch {param}: {e}")
@@ -1674,6 +1685,11 @@ class OBDManager(QObject):
             QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(100, f"Found {len(supported_names)} supported parameters"))
             QTimer.singleShot(0, lambda: self.supportedCommandsChanged.emit(supported_names))
             QTimer.singleShot(0, lambda: self.scanCompleteChanged.emit(supported_names))
+
+            # Refresh watchers now that we know what's supported
+            # This ensures watchers are active even if _setup_watchers() was called before
+            # supported_commands was fully populated, or if async was running during setup
+            QTimer.singleShot(500, self._refresh_watchers)
 
             logger.info(f"[OBD] Vehicle scan complete: {len(supported_names)} supported parameters")
 
