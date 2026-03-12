@@ -254,6 +254,7 @@ Flickable {
                                 visible: networkManager && networkManager.canSelfUpdate
                                          && networkManager.selfUpdateStatus !== "fetching"
                                          && networkManager.selfUpdateStatus !== "restart-required"
+                                         && networkManager.selfUpdateStatus !== "error"
 
                                 property bool confirming: false
 
@@ -323,26 +324,41 @@ Flickable {
                                 }
                             }
 
-                            // Error state
-                            RowLayout {
+                            // Error state with retry
+                            ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.overallSpacing * 0.5
                                 visible: networkManager && networkManager.selfUpdateStatus === "error"
 
-                                Rectangle {
-                                    width: App.Spacing.dp(8)
-                                    height: App.Spacing.dp(8)
-                                    radius: width / 2
-                                    color: "#F44336"
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: App.Spacing.overallSpacing * 0.5
+
+                                    Rectangle {
+                                        width: App.Spacing.dp(8)
+                                        height: App.Spacing.dp(8)
+                                        radius: width / 2
+                                        color: "#F44336"
+                                    }
+
+                                    Text {
+                                        text: networkManager ? networkManager.selfUpdateMessage : "Update failed"
+                                        color: "#F44336"
+                                        font.pixelSize: App.Spacing.overallText * 0.8
+                                        font.family: App.Style.fontFamily
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WordWrap
+                                    }
                                 }
 
-                                Text {
-                                    text: networkManager ? networkManager.selfUpdateMessage : "Update failed"
-                                    color: "#F44336"
-                                    font.pixelSize: App.Spacing.overallText * 0.8
-                                    font.family: App.Style.fontFamily
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.WordWrap
+                                SettingsButton {
+                                    text: "Retry Update"
+                                    buttonColor: "#FF9800"
+                                    height: App.Spacing.dp(30)
+                                    onClicked: {
+                                        if (networkManager)
+                                            networkManager.applySelfUpdate()
+                                    }
                                 }
                             }
 

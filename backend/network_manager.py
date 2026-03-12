@@ -9,6 +9,7 @@ import subprocess
 import platform
 import urllib.request
 import json
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from PySide6.QtCore import QObject, Signal, Slot, QTimer, Property
@@ -60,7 +61,9 @@ class NetworkManager(QObject):
         self._self_update_status = "idle"
         self._self_update_message = ""
         self._can_self_update = self._check_can_self_update()
-        self._progress_message = None  # Thread-safe intermediate progress text
+        self._progress_lock = threading.Lock()
+        self._progress_message = None
+        self._updating = False  # Prevents double-tap
 
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._pending_future = None
@@ -129,9 +132,10 @@ class NetworkManager(QObject):
     def _check_pending_result(self):
         """Poll for completed background work and emit signals on the main thread."""
         # Relay intermediate progress messages from worker thread
-        msg = self._progress_message
-        if msg is not None:
+        with self._progress_lock:
+            msg = self._progress_message
             self._progress_message = None
+        if msg is not None:
             self._self_update_message = msg
             self.selfUpdateMessageChanged.emit(msg)
 
@@ -376,8 +380,12 @@ class NetworkManager(QObject):
         """Start the self-update process (callable from QML)."""
         if not self._can_self_update:
             return
+        # Hard lock — prevents double-tap even if UI is slow to update
+        if self._updating:
+            return
         if self._pending_future and not self._pending_future.done():
             return
+        self._updating = True
 
         self._self_update_status = "fetching"
         self.selfUpdateStatusChanged.emit("fetching")
@@ -385,13 +393,31 @@ class NetworkManager(QObject):
         self.selfUpdateMessageChanged.emit(self._self_update_message)
         self._submit_work(self._do_self_update_sync, "self_update")
 
+    def _set_progress(self, msg):
+        """Thread-safe progress message relay."""
+        with self._progress_lock:
+            self._progress_message = msg
+
     def _do_self_update_sync(self):
         """Blocking self-update — runs on worker thread. Returns a result dict."""
         backend_dir = os.path.dirname(os.path.abspath(__file__))
         repo_dir = os.path.dirname(backend_dir)
+        old_commit = None
 
         try:
+            # Step 0: Save current commit hash for rollback
+            self._set_progress("Saving rollback point...")
+            result = subprocess.run(
+                ['git', 'rev-parse', 'HEAD'],
+                cwd=repo_dir,
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                old_commit = result.stdout.strip()
+                logger.info(f"Rollback point saved: {old_commit[:7]}")
+
             # Step 1: git fetch origin main
+            self._set_progress("Fetching latest changes...")
             result = subprocess.run(
                 ['git', 'fetch', 'origin', 'main'],
                 cwd=repo_dir,
@@ -404,6 +430,7 @@ class NetworkManager(QObject):
                 }
 
             # Step 2: git reset --hard origin/main
+            self._set_progress("Applying update...")
             result = subprocess.run(
                 ['git', 'reset', '--hard', 'origin/main'],
                 cwd=repo_dir,
@@ -415,28 +442,54 @@ class NetworkManager(QObject):
                     "message": f"Apply failed: {result.stderr.strip() or 'unknown error'}"
                 }
 
-            # Step 3: Install/update dependencies from the new requirements.txt
-            self._progress_message = "Installing dependencies..."
+            # Step 3: Pre-flight check — verify the new code can at least be parsed
+            self._set_progress("Verifying new code...")
+            main_py = os.path.join(repo_dir, "main.py")
+            if os.path.exists(main_py):
+                check = subprocess.run(
+                    [sys.executable, '-m', 'py_compile', main_py],
+                    cwd=repo_dir,
+                    capture_output=True, text=True, timeout=15
+                )
+                if check.returncode != 0:
+                    logger.error(f"Pre-flight check failed: {check.stderr.strip()}")
+                    # Roll back — new code has syntax errors
+                    if old_commit:
+                        self._set_progress("New code has errors, rolling back...")
+                        subprocess.run(
+                            ['git', 'reset', '--hard', old_commit],
+                            cwd=repo_dir,
+                            capture_output=True, text=True, timeout=30
+                        )
+                        logger.info(f"Rolled back to {old_commit[:7]}")
+                    return {
+                        "status": "error",
+                        "message": "Update rolled back — new code failed syntax check"
+                    }
+
+            # Step 4: Install/update dependencies from the new requirements.txt
+            self._set_progress("Installing dependencies...")
             pip_path = self._get_venv_pip_path(repo_dir)
             requirements_path = os.path.join(repo_dir, "requirements.txt")
+            dep_warning = None
             if pip_path and os.path.exists(requirements_path):
                 logger.info("Installing dependencies after update...")
                 result = subprocess.run(
                     [pip_path, "install", "-r", requirements_path],
                     cwd=repo_dir,
-                    capture_output=True, text=True, timeout=300
+                    capture_output=True, text=True, timeout=600
                 )
                 if result.returncode != 0:
+                    # Log but don't block — the code update already succeeded,
+                    # and most deps are likely already installed from the prior version.
                     logger.warning(f"Dependency install had issues: {result.stderr.strip()}")
-                    return {
-                        "status": "error",
-                        "message": f"Dependencies failed to install: {result.stderr.strip()[:120]}"
-                    }
-                logger.info("Dependencies installed successfully")
+                    dep_warning = result.stderr.strip()[:120]
+                else:
+                    logger.info("Dependencies installed successfully")
             else:
                 logger.warning("Could not locate venv pip or requirements.txt — skipping dependency install")
 
-            # Step 4: Get new commit info for confirmation
+            # Step 5: Get new commit info for confirmation
             result = subprocess.run(
                 ['git', 'log', '-1', '--format=%h %s'],
                 cwd=repo_dir,
@@ -445,16 +498,41 @@ class NetworkManager(QObject):
             new_info = result.stdout.strip() if result.returncode == 0 else ""
 
             logger.info(f"Self-update applied successfully: {new_info}")
+            msg = f"Update applied. Now on: {new_info}"
+            if dep_warning:
+                msg += "\n(Some dependencies may need manual install)"
             return {
                 "status": "restart-required",
-                "message": f"Update applied. Now on: {new_info}"
+                "message": msg
             }
 
         except subprocess.TimeoutExpired:
-            return {"status": "error", "message": "Update timed out — check your connection"}
+            # Roll back on timeout — don't leave in a half-updated state
+            if old_commit:
+                try:
+                    subprocess.run(
+                        ['git', 'reset', '--hard', old_commit],
+                        cwd=repo_dir,
+                        capture_output=True, text=True, timeout=30
+                    )
+                    logger.info(f"Rolled back to {old_commit[:7]} after timeout")
+                except Exception:
+                    pass
+            return {"status": "error", "message": "Update timed out and was rolled back"}
         except Exception as e:
             logger.warning(f"Self-update failed: {e}")
-            return {"status": "error", "message": f"Update failed: {str(e)}"}
+            # Roll back on any unexpected error
+            if old_commit:
+                try:
+                    subprocess.run(
+                        ['git', 'reset', '--hard', old_commit],
+                        cwd=repo_dir,
+                        capture_output=True, text=True, timeout=30
+                    )
+                    logger.info(f"Rolled back to {old_commit[:7]} after error")
+                except Exception:
+                    pass
+            return {"status": "error", "message": f"Update failed and was rolled back: {str(e)}"}
 
     @staticmethod
     def _get_venv_pip_path(repo_dir):
@@ -466,8 +544,6 @@ class NetworkManager(QObject):
             pip_path = os.path.join(venv_dir, "bin", "pip")
         if os.path.exists(pip_path):
             return pip_path
-        # Fallback: use whatever pip is on the current sys.executable's venv
-        # (handles cases where the venv folder has a non-standard name)
         return None
 
     def _apply_self_update_result(self, result):
@@ -479,6 +555,9 @@ class NetworkManager(QObject):
         self.selfUpdateStatusChanged.emit(status)
         self._self_update_message = message
         self.selfUpdateMessageChanged.emit(message)
+
+        # Clear the update lock
+        self._updating = False
 
         # If successful, also update the main update status
         if status == "restart-required":
@@ -496,11 +575,25 @@ class NetworkManager(QObject):
         qapp = QApplication.instance()
 
         python_path = sys.executable
-        main_py = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "main.py"
-        )
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        main_py = os.path.join(repo_dir, "main.py")
         args = [python_path, main_py] + sys.argv[1:]
+
+        # Pre-flight: verify main.py can be parsed before restarting into it
+        try:
+            check = subprocess.run(
+                [python_path, '-m', 'py_compile', main_py],
+                capture_output=True, text=True, timeout=15
+            )
+            if check.returncode != 0:
+                logger.error(f"Restart aborted — main.py has errors: {check.stderr.strip()}")
+                self._self_update_status = "error"
+                self.selfUpdateStatusChanged.emit("error")
+                self._self_update_message = "Restart aborted — code has errors"
+                self.selfUpdateMessageChanged.emit(self._self_update_message)
+                return
+        except Exception as e:
+            logger.warning(f"Pre-flight check skipped: {e}")
 
         system = platform.system()
         logger.info(f"Restarting on {system}: {args}")
