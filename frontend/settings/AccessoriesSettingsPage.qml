@@ -55,8 +55,8 @@ Flickable {
         // ── Connection ──
         SettingsCard {
             objectName: "Volume Knob"
-
-            SettingsSectionHeader { title: "Volume Knob" }
+            cardId: "accessories_volume_knob"
+            title: "Volume Knob"
 
             // Connection Status Row
             RowLayout {
@@ -303,8 +303,8 @@ Flickable {
         // ── Configuration ──
         SettingsCard {
             objectName: "Configuration"
-
-            SettingsSectionHeader { title: "Configuration" }
+            cardId: "accessories_configuration"
+            title: "Configuration"
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -439,8 +439,9 @@ Flickable {
         // ── LED Indicator ──
         SettingsCard {
             objectName: "LED Indicator"
-
-            SettingsSectionHeader { title: "LED Indicator"; description: "RGB LED indicator on the ESP32-S3 receiver" }
+            cardId: "accessories_led_indicator"
+            title: "LED Indicator"
+            description: "RGB LED indicator on the ESP32-S3 receiver"
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -828,8 +829,8 @@ Flickable {
         // ── Connection + Enable ──
         SettingsCard {
             objectName: "Gesture Sensor"
-
-            SettingsSectionHeader { title: "Gesture Sensor" }
+            cardId: "accessories_gesture_sensor"
+            title: "Gesture Sensor"
 
             RowLayout {
                 Layout.fillWidth: true
@@ -899,8 +900,8 @@ Flickable {
         // ── Gesture Settings ──
         SettingsCard {
             objectName: "Gesture Settings"
-
-            SettingsSectionHeader { title: "Gesture Settings" }
+            cardId: "accessories_gesture_settings"
+            title: "Gesture Settings"
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -1123,9 +1124,8 @@ Flickable {
         // ── Gesture Mapping ──
         SettingsCard {
             objectName: "Gesture Mapping"
-
-            SettingsCollapsibleSection {
-                title: "Gesture Mapping"
+            cardId: "accessories_gesture_mapping"
+            title: "Gesture Mapping"
 
                 SettingDescription {
                     text: "Choose which action each gesture triggers"
@@ -1296,7 +1296,6 @@ Flickable {
                         }
                     }
                 }
-            }
         }
 
         // Bottom spacer

@@ -43,8 +43,8 @@ Flickable {
         // ── Android Auto ────────────────────────────────────────────
         SettingsCard {
             objectName: "Android Auto"
-
-            SettingsSectionHeader { title: "Android Auto" }
+            cardId: "phonedock_android_auto"
+            title: "Android Auto"
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -81,11 +81,9 @@ Flickable {
         // ── Phone Mirror ────────────────────────────────────────────
         SettingsCard {
             objectName: "Phone Mirror"
-
-            SettingsSectionHeader {
-                title: "Phone Mirror"
-                description: "Mirror your phone screen via scrcpy"
-            }
+            cardId: "phonedock_phone_mirror"
+            title: "Phone Mirror"
+            description: "Mirror your phone screen via scrcpy"
 
             ColumnLayout {
                 Layout.fillWidth: true

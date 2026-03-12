@@ -82,7 +82,8 @@ Flickable {
         // ── Card 1: Library ──
         SettingsCard {
             objectName: "Library"
-            SettingsSectionHeader { title: "Library" }
+            cardId: "media_library"
+            title: "Library"
 
             // Music Library Folder
             ColumnLayout {
@@ -168,7 +169,8 @@ Flickable {
         // ── Card 2: Playback ──
         SettingsCard {
             objectName: "Playback"
-            SettingsSectionHeader { title: "Playback" }
+            cardId: "media_playback"
+            title: "Playback"
 
             // Startup Volume
             ColumnLayout {
@@ -303,7 +305,8 @@ Flickable {
         // ── Card 3: Album Art ──
         SettingsCard {
             objectName: "Album Art"
-            SettingsSectionHeader { title: "Album Art" }
+            cardId: "media_album_art"
+            title: "Album Art"
 
             // Rounded Album Art
             ColumnLayout {
@@ -483,7 +486,8 @@ Flickable {
         // ── Card 4: Background ──
         SettingsCard {
             objectName: "Background"
-            SettingsSectionHeader { title: "Background" }
+            cardId: "media_background"
+            title: "Background"
 
             // Album Art Blur
             ColumnLayout {
@@ -609,7 +613,8 @@ Flickable {
         // ── Card 5: Effects ──
         SettingsCard {
             objectName: "Effects"
-            SettingsSectionHeader { title: "Effects" }
+            cardId: "media_effects"
+            title: "Effects"
 
             // Waveform Visualizer
             ColumnLayout {
@@ -942,7 +947,8 @@ Flickable {
         // ── Card 6: Spotify ──
         SettingsCard {
             objectName: "Spotify"
-            SettingsSectionHeader { title: "Spotify" }
+            cardId: "media_spotify"
+            title: "Spotify"
 
             // Spotify Connect Section
             ColumnLayout {

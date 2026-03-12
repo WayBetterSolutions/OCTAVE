@@ -37,7 +37,8 @@ Flickable {
 
         // ── Card 1: Connection ──
         SettingsCard {
-            SettingsSectionHeader { title: "Connection" }
+            cardId: "volumeknob_connection"
+            title: "Connection"
 
             // Connection Status Row
             RowLayout {
@@ -287,7 +288,8 @@ Flickable {
 
         // ── Card 2: Configuration ──
         SettingsCard {
-            SettingsSectionHeader { title: "Configuration" }
+            cardId: "volumeknob_configuration"
+            title: "Configuration"
 
             // Volume Step Size Slider
             ColumnLayout {
@@ -425,7 +427,9 @@ Flickable {
 
         // ── Card 3: LED Indicator ──
         SettingsCard {
-            SettingsSectionHeader { title: "LED Indicator"; description: "RGB LED indicator on the ESP32-S3 receiver" }
+            cardId: "volumeknob_led_indicator"
+            title: "LED Indicator"
+            description: "RGB LED indicator on the ESP32-S3 receiver"
 
             // LED Keep Alive Toggle
             ColumnLayout {

@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "." as App
 import "settings"
+import "settings/ScrollMemory.js" as ScrollMemory
 
 Item {
     id: hubLayout
@@ -13,9 +14,6 @@ Item {
 
     // State: "hub" = card grid landing, "detail" = full-width settings page
     property string viewState: ""
-
-    // Scroll memory
-    property var scrollPositions: ({})
 
     // Decide initial viewState once settingsMenu is wired up by the orchestrator's onLoaded
     onSettingsMenuChanged: {
@@ -126,10 +124,7 @@ Item {
     function navigateToHub() {
         // Save scroll position before leaving detail
         if (contentLoader.item && typeof contentLoader.item.contentY !== "undefined" && settingsMenu) {
-            var copy = ({})
-            for (var key in scrollPositions) copy[key] = scrollPositions[key]
-            copy[settingsMenu.currentSection] = contentLoader.item.contentY
-            scrollPositions = copy
+            ScrollMemory.positions[settingsMenu.currentSection] = contentLoader.item.contentY
         }
         cardModel = buildHubCards()
         viewState = "hub"
@@ -313,10 +308,7 @@ Item {
 
                 onSourceChanged: {
                     if (previousSection && item && typeof item.contentY !== "undefined") {
-                        var copy = ({})
-                        for (var key in scrollPositions) copy[key] = scrollPositions[key]
-                        copy[previousSection] = item.contentY
-                        scrollPositions = copy
+                        ScrollMemory.positions[previousSection] = item.contentY
                     }
                     previousSection = settingsMenu ? settingsMenu.currentSection : ""
                 }
@@ -329,9 +321,38 @@ Item {
                     if (item && typeof item.currentSection !== "undefined" && settingsMenu)
                         item.currentSection = Qt.binding(function() { return settingsMenu ? settingsMenu.currentSection : "" })
 
-                    // Restore scroll position
-                    if (settingsMenu && item && typeof item.contentY !== "undefined" && scrollPositions[settingsMenu.currentSection] !== undefined) {
-                        item.contentY = scrollPositions[settingsMenu.currentSection]
+                    // Restore scroll position (use timer to wait for content to layout)
+                    if (settingsMenu && settingsMenu.currentSection !== "") {
+                        var savedY = ScrollMemory.positions[settingsMenu.currentSection]
+                        if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
+                            scrollRestoreTimer.savedY = savedY
+                            scrollRestoreTimer.restart()
+                        }
+                    }
+                }
+
+                // Save scroll position continuously as user scrolls
+                Connections {
+                    target: contentLoader.item
+                    function onContentYChanged() {
+                        if (contentLoader.item && settingsMenu && settingsMenu.currentSection !== "")
+                            ScrollMemory.positions[settingsMenu.currentSection] = contentLoader.item.contentY
+                    }
+                }
+
+                // Polls until the Flickable has valid dimensions, then restores scroll
+                Timer {
+                    id: scrollRestoreTimer
+                    interval: 16
+                    repeat: true
+                    property real savedY: -1
+                    onTriggered: {
+                        var fl = contentLoader.item
+                        if (fl && fl.contentHeight > 0 && fl.height > 0 && savedY >= 0) {
+                            fl.contentY = Math.min(savedY, Math.max(0, fl.contentHeight - fl.height))
+                            savedY = -1
+                            stop()
+                        }
                     }
                 }
             }

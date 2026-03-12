@@ -21,14 +21,13 @@ Flickable {
         spacing: App.Spacing.sectionSpacing
 
         SettingsCard {
+            cardId: "device_settings_layout"
+            title: "Settings Layout"
+            description: "Choose how the settings menu is organized"
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
-
-                SettingsSectionHeader {
-                    title: "Settings Layout"
-                    description: "Choose how the settings menu is organized"
-                }
 
                 SettingsChips {
                     options: ["Carousel", "Sidebar", "Hub", "Dashboard"]
@@ -42,13 +41,12 @@ Flickable {
         }
 
         SettingsCard {
+            cardId: "device_name"
+            title: "Device Name"
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Device Name"
-                }
 
                 SettingsTextField {
                     id: deviceName
@@ -65,14 +63,13 @@ Flickable {
         }
 
         SettingsCard {
+            cardId: "device_network"
+            title: "Network"
+            description: "Current network connection status"
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
-
-                SettingsSectionHeader {
-                    title: "Network"
-                    description: "Current network connection status"
-                }
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -130,13 +127,12 @@ Flickable {
         }
 
         SettingsCard {
+            cardId: "device_power"
+            title: "Power"
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
-
-                SettingsSectionHeader {
-                    title: "Power"
-                }
 
                 SettingDescription {
                     text: "Shut down OCTAVE and power off the device."

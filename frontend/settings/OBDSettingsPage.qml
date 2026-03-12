@@ -37,8 +37,8 @@ Item {
         // ── Card 1: Connection ──────────────────────────────────
         SettingsCard {
             objectName: "Connection"
-
-            SettingsSectionHeader { title: "Connection" }
+            cardId: "obd_connection"
+            title: "Connection"
 
             // OBD Connection Status
             ColumnLayout {
@@ -453,6 +453,8 @@ Item {
         SettingsCard {
             id: parametersCard
             objectName: "Parameters"
+            cardId: "obd_parameters"
+            title: "Parameters"
 
             // Version counter to force re-evaluation when scan results change
             property int supportedParamsVersion: 0
@@ -484,7 +486,6 @@ Item {
                 return homeParams.indexOf(paramId) !== -1;
             }
 
-            SettingsSectionHeader { title: "Parameters" }
 
             // ── Controls row ─────────────────────────────────────
             RowLayout {
@@ -1377,7 +1378,7 @@ Item {
                     }
                 }
                 color: App.Style.secondaryTextColor
-                font.pixelSize: App.Spacing.smallText
+                font.pixelSize: App.Spacing.overallText * 0.85
                 font.family: App.Style.fontFamily
                 wrapMode: Text.WordWrap
             }
@@ -1386,7 +1387,7 @@ Item {
                 Layout.fillWidth: true
                 text: "Tap to enable/disable. Drag sideways to add to home grid. Reorder by dragging within the grid."
                 color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.7)
-                font.pixelSize: App.Spacing.smallText
+                font.pixelSize: App.Spacing.overallText * 0.85
                 font.family: App.Style.fontFamily
                 wrapMode: Text.WordWrap
             }

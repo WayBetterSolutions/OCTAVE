@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "." as App
 import "settings"
+import "settings/ExpandedCards.js" as ExpandedCards
 
 Item {
     id: settingsMenu
@@ -58,10 +59,13 @@ Item {
     property bool isInitialLoad: true
 
     Component.onCompleted: {
+        // Pre-load expanded card states cache before any cards are created
+        ExpandedCards.load(settingsManager)
+
         buildHubModel()
 
-        // For Carousel layout, if we have an initial section, handle it here
-        if (layoutStyle === "Carousel" && initialSection && initialSection !== "") {
+        // Restore last active section for all layouts
+        if (initialSection && initialSection !== "") {
             var idx = indexForSection(initialSection)
             if (idx >= 0) {
                 currentSection = initialSection

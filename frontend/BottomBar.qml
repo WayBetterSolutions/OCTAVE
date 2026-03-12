@@ -1058,12 +1058,14 @@ Rectangle {
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
                                         settingsVisibilityPopup.open()
                                     } else {
-                                        var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
-                                            stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window,
-                                            initialSection: lastSettingsSection
-                                        })
-                                        stackView.push(page)
+                                        if (!stackView._cachedSettingsPage) {
+                                            stackView._cachedSettingsPage = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window,
+                                                initialSection: lastSettingsSection
+                                            })
+                                        }
+                                        stackView.push(stackView._cachedSettingsPage)
                                     }
                                 }
                             }
@@ -2329,12 +2331,14 @@ Rectangle {
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
                                         settingsVisibilityPopup.open()
                                     } else {
-                                        var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
-                                            stackView: bottomBar.stackView,
-                                            mainWindow: stackView.parent.Window.window,
-                                            initialSection: lastSettingsSection
-                                        })
-                                        stackView.push(page)
+                                        if (!stackView._cachedSettingsPage) {
+                                            stackView._cachedSettingsPage = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window,
+                                                initialSection: lastSettingsSection
+                                            })
+                                        }
+                                        stackView.push(stackView._cachedSettingsPage)
                                     }
                                 }
                             }

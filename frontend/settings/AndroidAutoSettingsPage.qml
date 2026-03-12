@@ -19,6 +19,9 @@ Flickable {
         spacing: App.Spacing.sectionSpacing
 
         SettingsCard {
+            cardId: "androidauto_settings"
+            title: "Android Auto"
+
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing

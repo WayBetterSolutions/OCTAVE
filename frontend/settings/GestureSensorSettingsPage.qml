@@ -34,7 +34,8 @@ Flickable {
 
         // ── Card 1: Connection ────────────────────────────────────────
         SettingsCard {
-            SettingsSectionHeader { title: "Connection" }
+            cardId: "gesture_connection"
+            title: "Connection"
 
             // Connection Status Row
             RowLayout {
@@ -105,7 +106,8 @@ Flickable {
 
         // ── Card 2: Settings ──────────────────────────────────────────
         SettingsCard {
-            SettingsSectionHeader { title: "Settings" }
+            cardId: "gesture_settings"
+            title: "Settings"
 
             // Volume Step Size
             ColumnLayout {
@@ -329,8 +331,8 @@ Flickable {
 
         // ── Card 3: Gesture Mapping ───────────────────────────────────
         SettingsCard {
-            SettingsCollapsibleSection {
-                title: "Gesture Mapping"
+            cardId: "gesture_mapping"
+            title: "Gesture Mapping"
 
                 SettingDescription {
                     text: "Choose which action each gesture triggers"
@@ -504,7 +506,6 @@ Flickable {
                         }
                     }
                 }
-            }
         }
 
         // Bottom spacer

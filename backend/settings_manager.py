@@ -449,6 +449,8 @@ class SettingsManager(QObject):
             "downloadSubfolder": "Downloads",  # Subfolder within mediaFolder
             "downloadFormat": "mp3",           # mp3, flac, ogg, opus, m4a
             "downloadBitrate": "auto",         # auto, 128k, 192k, 320k
+            # Settings card expanded/collapsed state (default all collapsed)
+            "expandedCards": {},
         }
             
     
