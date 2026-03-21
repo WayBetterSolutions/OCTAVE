@@ -14,9 +14,7 @@ Item {
     // Expose swipeView for external navigation
     property alias currentIndex: swipeView.currentIndex
 
-    // Environment backgrounds
-    ContentSonar {}
-    ContentSolarSystem {}
+    // Environment backgrounds provided by SettingsMenu parent
 
     // ─── Category tab strip (top) ───
     Row {

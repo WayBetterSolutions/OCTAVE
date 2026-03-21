@@ -353,8 +353,6 @@ ApplicationWindow {
             // Cached DownloadPage — created once, reused across all navigations
             property var _cachedDownloadPage: null
 
-            // Cached SettingsMenu — created once, reused across all navigations
-            property var _cachedSettingsPage: null
 
             // Different anchoring based on orientation
             anchors {
@@ -387,14 +385,11 @@ ApplicationWindow {
             property string pendingSection: ""
             onTriggered: {
                 if (stackView.currentItem && stackView.currentItem.objectName === "settingsMenu") {
-                    // Invalidate cached page so it gets recreated with new layout
-                    stackView._cachedSettingsPage = null
                     var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
                         stackView: stackView,
                         mainWindow: mainWindow,
                         initialSection: pendingSection
                     })
-                    stackView._cachedSettingsPage = page
                     stackView.replace(stackView.currentItem, page)
                 }
             }
@@ -721,4 +716,5 @@ ApplicationWindow {
             loadShiftLightFlags()
         }
     }
+
 }

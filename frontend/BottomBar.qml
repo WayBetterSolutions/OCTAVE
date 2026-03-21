@@ -1058,14 +1058,15 @@ Rectangle {
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
                                         settingsVisibilityPopup.open()
                                     } else {
-                                        if (!stackView._cachedSettingsPage) {
-                                            stackView._cachedSettingsPage = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window,
-                                                initialSection: lastSettingsSection
-                                            })
-                                        }
-                                        stackView.push(stackView._cachedSettingsPage)
+                                        // Pop back to root first, then push fresh settings page
+                                        while (stackView.depth > 1)
+                                            stackView.pop()
+                                        var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window,
+                                            initialSection: lastSettingsSection
+                                        })
+                                        stackView.push(page)
                                     }
                                 }
                             }
@@ -2331,14 +2332,15 @@ Rectangle {
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
                                         settingsVisibilityPopup.open()
                                     } else {
-                                        if (!stackView._cachedSettingsPage) {
-                                            stackView._cachedSettingsPage = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window,
-                                                initialSection: lastSettingsSection
-                                            })
-                                        }
-                                        stackView.push(stackView._cachedSettingsPage)
+                                        // Pop back to root first, then push fresh settings page
+                                        while (stackView.depth > 1)
+                                            stackView.pop()
+                                        var page = Qt.createComponent("SettingsMenu.qml").createObject(stackView, {
+                                            stackView: bottomBar.stackView,
+                                            mainWindow: stackView.parent.Window.window,
+                                            initialSection: lastSettingsSection
+                                        })
+                                        stackView.push(page)
                                     }
                                 }
                             }

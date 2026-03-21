@@ -1310,7 +1310,7 @@ Item {
                             smooth: true; asynchronous: true
                             cache: true
                             layer.enabled: albumArtStack._roundedArt || albumArtStack._vinylMode || mediaRoom._cardAnimBusy
-                            layer.live: !mediaRoom._cardAnimBusy
+                            layer.live: albumArtStack._vinylMode || !mediaRoom._cardAnimBusy
                             layer.effect: OpacityMask {
                                 maskSource: albumArtStack._vinylMode ? vinylMask : artRoundedMask
                             }
@@ -1356,7 +1356,7 @@ Item {
                             smooth: true; asynchronous: true
                             cache: true
                             layer.enabled: albumArtStack._roundedArt || albumArtStack._vinylMode || mediaRoom._cardAnimBusy
-                            layer.live: !mediaRoom._cardAnimBusy
+                            layer.live: albumArtStack._vinylMode || !mediaRoom._cardAnimBusy
                             layer.effect: OpacityMask {
                                 maskSource: albumArtStack._vinylMode ? vinylMask : artRoundedMask
                             }
@@ -1365,9 +1365,8 @@ Item {
 
                     // Exit card — GPU texture snapshot of old art, slides away during transitions.
                     // Uses ShaderEffectSource instead of Image to eliminate the entire
-                    // image pipeline (URL resolution, cache lookup, decode, error handling)
-                    // and the OpacityMask layer.  The snapshot already includes rounded
-                    // corners from albumArtImage's layer, so zero shader work per frame.
+                    // image pipeline (URL resolution, cache lookup, decode, error handling).
+                    // Own OpacityMask applied to match vinyl/rounded art mode.
                     Item {
                         id: exitCardWrapper
                         anchors.verticalCenter: parent.verticalCenter
@@ -1406,6 +1405,13 @@ Item {
                             // regardless of async image timing.
                             live: !cardRotateAnimation.running && !cardQuickFadeIn.running
                             hideSource: false
+                            // ShaderEffectSource doesn't reliably capture the source
+                            // item's layer.effect, so apply our own mask to keep the
+                            // exit card circular in vinyl mode / rounded in rounded mode.
+                            layer.enabled: albumArtStack._roundedArt || albumArtStack._vinylMode
+                            layer.effect: OpacityMask {
+                                maskSource: albumArtStack._vinylMode ? vinylMask : artRoundedMask
+                            }
                         }
 
                     }
