@@ -455,6 +455,201 @@ Flickable {
 
             SettingsDivider {}
 
+            // Album Art Transition
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingLabel {
+                    text: "Track Transition"
+                }
+
+                SettingsSegmentedControl {
+                    id: albumArtTransitionControl
+                    Layout.fillWidth: true
+                    currentValue: settingsManager ? settingsManager.albumArtTransition : "Crossfade"
+                    options: ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"]
+
+                    onSelected: function(value) {
+                        if (settingsManager) {
+                            settingsManager.save_album_art_transition(value)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onAlbumArtTransitionChanged() {
+                            albumArtTransitionControl.currentValue = settingsManager.albumArtTransition
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Animation style when switching between tracks."
+                }
+            }
+
+            SettingsDivider {}
+
+            // 3D Album Preview
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: albumPreviewToggle
+                    Layout.fillWidth: true
+                    text: "3D Album Preview"
+                    checked: settingsManager ? settingsManager.show3DAlbumPreview : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_show_3d_album_preview(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onShow3DAlbumPreviewChanged() {
+                            albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Coverflow-style card stack showing next and previous album art with 3D rotation transitions."
+                }
+            }
+
+            // 3D Preview Transition (conditional on 3D Album Preview)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DAlbumPreview
+
+                SettingLabel {
+                    text: "3D Preview Transition"
+                }
+
+                SettingsSegmentedControl {
+                    id: albumArt3DTransitionControl
+                    Layout.fillWidth: true
+                    currentValue: settingsManager ? settingsManager.albumArt3DTransition : "Coverflow"
+                    options: ["Coverflow", "Conveyor", "Stack", "Depth", "Swing"]
+
+                    onSelected: function(value) {
+                        if (settingsManager) {
+                            settingsManager.save_album_art_3d_transition(value)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onAlbumArt3DTransitionChanged() {
+                            albumArt3DTransitionControl.currentValue = settingsManager.albumArt3DTransition
+                        }
+                    }
+                }
+
+                SettingDescription {
+                    text: "Animation style for the 3D album art card stack."
+                }
+            }
+
+            // Side Card Opacity (conditional on 3D Album Preview)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DAlbumPreview
+
+                SettingLabel {
+                    text: "Side Card Opacity"
+                }
+
+                SettingsSlider {
+                    id: sideCardOpacitySlider
+                    from: 0.1
+                    to: 1.0
+                    stepSize: 0.05
+                    value: settingsManager ? settingsManager.sideCardOpacity : 0.4
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: sideCardOpacityTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_side_card_opacity(sideCardOpacitySlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: sideCardOpacityTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onSideCardOpacityChanged() {
+                            sideCardOpacitySlider.value = settingsManager.sideCardOpacity
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: Math.round(sideCardOpacitySlider.value * 100) + "%"
+                }
+            }
+
+            // Side Card Angle (conditional on 3D Album Preview)
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+                visible: settingsManager && settingsManager.show3DAlbumPreview
+
+                SettingLabel {
+                    text: "Side Card Angle"
+                }
+
+                SettingsSlider {
+                    id: sideCardAngleSlider
+                    from: 5
+                    to: 60
+                    stepSize: 1
+                    value: settingsManager ? settingsManager.sideCardAngle : 30
+                    activeColor: App.Style.accent
+
+                    Timer {
+                        id: sideCardAngleTimer
+                        interval: 100
+                        running: false
+                        repeat: false
+                        onTriggered: {
+                            if (settingsManager) {
+                                settingsManager.save_side_card_angle(sideCardAngleSlider.value)
+                            }
+                        }
+                    }
+
+                    onMoved: sideCardAngleTimer.restart()
+
+                    Connections {
+                        target: settingsManager
+                        function onSideCardAngleChanged() {
+                            sideCardAngleSlider.value = settingsManager.sideCardAngle
+                        }
+                    }
+                }
+
+                ValueDisplay {
+                    text: sideCardAngleSlider.value.toFixed(0) + "°"
+                }
+            }
+
+            SettingsDivider {}
+
             // Album Art Layout
             ColumnLayout {
                 Layout.fillWidth: true
@@ -687,130 +882,6 @@ Flickable {
                         if (q === "Insane") return "96 bars at 60 FPS. God help your CPU."
                         return "32 bars, balanced performance."
                     }
-                }
-            }
-
-            SettingsDivider {}
-
-            // 3D Album Preview
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: albumPreviewToggle
-                    Layout.fillWidth: true
-                    text: "3D Album Preview"
-                    checked: settingsManager ? settingsManager.show3DAlbumPreview : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_3d_album_preview(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShow3DAlbumPreviewChanged() {
-                            albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Coverflow-style card stack showing next and previous album art with 3D rotation transitions."
-                }
-            }
-
-            // Side Card Opacity (conditional on 3D Album Preview)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DAlbumPreview
-
-                SettingLabel {
-                    text: "Side Card Opacity"
-                }
-
-                SettingsSlider {
-                    id: sideCardOpacitySlider
-                    from: 0.1
-                    to: 1.0
-                    stepSize: 0.05
-                    value: settingsManager ? settingsManager.sideCardOpacity : 0.4
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: sideCardOpacityTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_side_card_opacity(sideCardOpacitySlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: sideCardOpacityTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onSideCardOpacityChanged() {
-                            sideCardOpacitySlider.value = settingsManager.sideCardOpacity
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: Math.round(sideCardOpacitySlider.value * 100) + "%"
-                }
-            }
-
-            // Side Card Angle (conditional on 3D Album Preview)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DAlbumPreview
-
-                SettingLabel {
-                    text: "Side Card Angle"
-                }
-
-                SettingsSlider {
-                    id: sideCardAngleSlider
-                    from: 5
-                    to: 60
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.sideCardAngle : 30
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: sideCardAngleTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_side_card_angle(sideCardAngleSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: sideCardAngleTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onSideCardAngleChanged() {
-                            sideCardAngleSlider.value = settingsManager.sideCardAngle
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: sideCardAngleSlider.value.toFixed(0) + "°"
                 }
             }
 

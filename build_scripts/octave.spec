@@ -81,6 +81,8 @@ hidden_imports = [
     'scipy',
     'keyring',
     'keyring.backends',
+    'PIL',
+    'PIL.Image',
 ]
 
 # Platform-specific keyring backends
@@ -114,7 +116,6 @@ a = Analysis(
     excludes=[
         'tkinter',
         'matplotlib',
-        'PIL',
         'cv2',
         'pandas',
         'pytest',

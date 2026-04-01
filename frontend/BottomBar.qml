@@ -1293,7 +1293,7 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("CarMenu.qml").createObject(stackView, {
+                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
                                         stackView: bottomBar.stackView,
                                         mainWindow: bottomBar.mainWindow
                                     })
@@ -2569,7 +2569,7 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("CarMenu.qml").createObject(stackView, {
+                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
                                         stackView: bottomBar.stackView,
                                         mainWindow: bottomBar.mainWindow
                                     })

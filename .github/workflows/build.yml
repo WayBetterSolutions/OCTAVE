@@ -31,7 +31,7 @@ jobs:
         run: python scripts/download_scrcpy.py
 
       - name: Build with PyInstaller
-        run: python -m PyInstaller octave.spec --noconfirm
+        run: python -m PyInstaller build_scripts/octave.spec --noconfirm
 
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
@@ -64,11 +64,9 @@ jobs:
           mkdir -p tools/scrcpy
           cp $(which scrcpy) tools/scrcpy/
           cp $(which adb) tools/scrcpy/
-          # Copy the license
-          curl -L -o tools/scrcpy/LICENSE https://raw.githubusercontent.com/Genymobile/scrcpy/master/LICENSE
 
       - name: Build with PyInstaller
-        run: python -m PyInstaller octave.spec --noconfirm
+        run: python -m PyInstaller build_scripts/octave.spec --noconfirm
 
       - name: Create DMG
         run: |
@@ -126,7 +124,7 @@ jobs:
         run: python scripts/download_scrcpy.py
 
       - name: Build with PyInstaller
-        run: python -m PyInstaller octave.spec --noconfirm
+        run: python -m PyInstaller build_scripts/octave.spec --noconfirm
 
       - name: Create AppImage
         run: |
@@ -153,11 +151,12 @@ jobs:
           Categories=AudioVideo;Audio;Player;
           Terminal=false
           EOF
+          sed -i 's/^          //' OCTAVE.AppDir/octave.desktop
 
           cp OCTAVE.AppDir/octave.desktop OCTAVE.AppDir/usr/share/applications/
 
           # Create AppRun
-          cat > OCTAVE.AppDir/AppRun << 'EOF'
+          cat > OCTAVE.AppDir/AppRun << 'APPRUN'
           #!/bin/bash
           SELF=$(readlink -f "$0")
           HERE=${SELF%/*}
@@ -166,7 +165,8 @@ jobs:
           export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/bin/PySide6/Qt/plugins/platforms"
           export QML2_IMPORT_PATH="${HERE}/usr/bin/PySide6/Qt/qml"
           exec "${HERE}/usr/bin/octave" "$@"
-          EOF
+          APPRUN
+          sed -i 's/^          //' OCTAVE.AppDir/AppRun
           chmod +x OCTAVE.AppDir/AppRun
 
           # Create placeholder icon (SVG)
@@ -199,6 +199,8 @@ jobs:
     needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
 
     steps:
       - name: Download all artifacts
@@ -220,7 +222,7 @@ jobs:
           cd OCTAVE-Linux && zip -r ../OCTAVE-Linux.zip . && cd ..
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/OCTAVE-Windows.zip
@@ -229,5 +231,3 @@ jobs:
             artifacts/OCTAVE-Linux.zip
             artifacts/OCTAVE-Linux-AppImage/OCTAVE-x86_64.AppImage
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

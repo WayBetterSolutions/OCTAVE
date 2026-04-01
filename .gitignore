@@ -8,6 +8,8 @@ backend/temp/
 dist/
 build/
 *.spec.bak
+appimagetool-*.AppImage
+*.AppImage
 
 # Spotify credentials and cache
 backend/settingsConfigure.json

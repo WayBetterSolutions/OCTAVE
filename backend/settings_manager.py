@@ -51,6 +51,16 @@ SETTINGS_REGISTRY = {
         "key": "vinylRecordMode", "label": "Vinyl Record Mode", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_vinyl_record_mode"
     },
+    "album_art_transition": {
+        "key": "albumArtTransition", "label": "Album Art Transition", "category": "mediaSettings",
+        "controlType": "chips", "saveSlot": "save_album_art_transition",
+        "params": {"options": ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"]}
+    },
+    "album_art_3d_transition": {
+        "key": "albumArt3DTransition", "label": "3D Preview Transition", "category": "mediaSettings",
+        "controlType": "chips", "saveSlot": "save_album_art_3d_transition",
+        "params": {"options": ["Coverflow", "Conveyor", "Stack", "Depth", "Swing"]}
+    },
     "background_overlay_opacity": {
         "key": "backgroundOverlayOpacity", "label": "Overlay Opacity", "category": "mediaSettings",
         "controlType": "slider", "saveSlot": "save_background_overlay_opacity",
@@ -223,6 +233,8 @@ class SettingsManager(QObject):
     albumArtCornerRadiusChanged = Signal(int)
     showAlbumArtShadowChanged = Signal(bool)
     vinylRecordModeChanged = Signal(bool)
+    albumArtTransitionChanged = Signal(str)
+    albumArt3DTransitionChanged = Signal(str)
     backgroundOverlayOpacityChanged = Signal(int)
     sideCardOpacityChanged = Signal(float)
     sideCardAngleChanged = Signal(int)
@@ -422,6 +434,8 @@ class SettingsManager(QObject):
             "albumArtCornerRadius": 16,  # Corner radius in dp (2-32)
             "showAlbumArtShadow": True,  # Drop shadow on album art
             "vinylRecordMode": False,    # Spin album art like a vinyl record
+            "albumArtTransition": "Crossfade",  # "Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"
+            "albumArt3DTransition": "Coverflow",  # "Coverflow", "Conveyor", "Stack", "Depth", "Swing"
             "backgroundOverlayOpacity": 80,  # Dark overlay opacity percentage (0-100)
             "sideCardOpacity": 0.4,      # 3D preview side card opacity (0.1-1.0)
             "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
@@ -553,6 +567,8 @@ class SettingsManager(QObject):
         self._album_art_corner_radius = self._settings.get("albumArtCornerRadius", self._default_settings["albumArtCornerRadius"])
         self._show_album_art_shadow = self._settings.get("showAlbumArtShadow", self._default_settings["showAlbumArtShadow"])
         self._vinyl_record_mode = self._settings.get("vinylRecordMode", self._default_settings["vinylRecordMode"])
+        self._album_art_transition = self._settings.get("albumArtTransition", self._default_settings["albumArtTransition"])
+        self._album_art_3d_transition = self._settings.get("albumArt3DTransition", self._default_settings["albumArt3DTransition"])
         self._background_overlay_opacity = self._settings.get("backgroundOverlayOpacity", self._default_settings["backgroundOverlayOpacity"])
         self._side_card_opacity = self._settings.get("sideCardOpacity", self._default_settings["sideCardOpacity"])
         self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
@@ -1744,6 +1760,28 @@ class SettingsManager(QObject):
         self._vinyl_record_mode = enabled
         self.update_setting("vinylRecordMode", enabled, self.vinylRecordModeChanged)
 
+    @Property(str, notify=albumArtTransitionChanged)
+    def albumArtTransition(self):
+        return self._album_art_transition
+
+    @Slot(str)
+    def save_album_art_transition(self, transition):
+        if transition not in ("Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"):
+            return
+        self._album_art_transition = transition
+        self.update_setting("albumArtTransition", transition, self.albumArtTransitionChanged)
+
+    @Property(str, notify=albumArt3DTransitionChanged)
+    def albumArt3DTransition(self):
+        return self._album_art_3d_transition
+
+    @Slot(str)
+    def save_album_art_3d_transition(self, transition):
+        if transition not in ("Coverflow", "Conveyor", "Stack", "Depth", "Swing"):
+            return
+        self._album_art_3d_transition = transition
+        self.update_setting("albumArt3DTransition", transition, self.albumArt3DTransitionChanged)
+
     @Property(int, notify=backgroundOverlayOpacityChanged)
     def backgroundOverlayOpacity(self):
         return self._background_overlay_opacity
@@ -2190,6 +2228,12 @@ class SettingsManager(QObject):
 
         self._vinyl_record_mode = self._default_settings["vinylRecordMode"]
         self.vinylRecordModeChanged.emit(self._vinyl_record_mode)
+
+        self._album_art_transition = self._default_settings["albumArtTransition"]
+        self.albumArtTransitionChanged.emit(self._album_art_transition)
+
+        self._album_art_3d_transition = self._default_settings["albumArt3DTransition"]
+        self.albumArt3DTransitionChanged.emit(self._album_art_3d_transition)
 
         self._background_overlay_opacity = self._default_settings["backgroundOverlayOpacity"]
         self.backgroundOverlayOpacityChanged.emit(self._background_overlay_opacity)
