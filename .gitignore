@@ -29,12 +29,7 @@ tools/scrcpy/*.png
 backend/android_auto/proto/aap_protobuf/**/*_pb2.py
 
 # Developer mode tools (completely isolated from main codebase)
-# These files simulate OBD data for testing without a real car connection
 dev/
-
-# Test scripts
-test_*.py
-clear_dtc.py
 
 # Old/extra virtual environments
 venv_old_linux/
@@ -52,8 +47,10 @@ backend/android_auto/certs/*.pem
 *.swo
 *.bak
 
-# Performance profiling (dev tools)
-profile_performance.py
-profile_data_*.csv
-PERFORMANCE_AUDIT.md
-BLE_OBD_BRIDGE_REPORT.md
+# Performance profiling (lives in dev/perf/)
+backend/perf_monitor.py
+backend/perf_patches.py
+backend/command_server.py
+
+# MCP config
+.mcp.json

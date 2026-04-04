@@ -132,6 +132,10 @@ SETTINGS_REGISTRY = {
         "key": "gestureSensorEnabled", "label": "Gesture Sensor", "category": "gestureSensorSettings",
         "controlType": "toggle", "saveSlot": "save_gesture_sensor_enabled"
     },
+    "imu_enabled": {
+        "key": "imuEnabled", "label": "IMU Sensor", "category": "imuSettings",
+        "controlType": "toggle", "saveSlot": "save_imu_enabled"
+    },
 }
 
 # Platform-specific imports for file locking
@@ -246,6 +250,9 @@ class SettingsManager(QObject):
 
     # Settings layout style signal
     settingsLayoutStyleChanged = Signal(str)
+
+    # IMU sensor signals
+    imuEnabledChanged = Signal(bool)
 
     # Gesture sensor signals
     gestureSensorEnabledChanged = Signal(bool)
@@ -443,6 +450,18 @@ class SettingsManager(QObject):
             "textScrollSpeed": 5000,     # Text scroll animation duration in ms (1000-10000)
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             "settingsLayoutStyle": "Sidebar",  # Settings menu layout: "Carousel", "Sidebar", "Hub", "Dashboard"
+            # IMU sensor settings
+            "imuEnabled": True,
+            "sensorEmitRate": 60,
+            "sensorDecimalPlaces": 1,
+            "sensorTempUnit": "F",
+            "sensorAltitudeUnit": "m",
+            "sensorShowPitch": True,
+            "sensorShowRoll": True,
+            "sensorShowHeading": True,
+            "sensorShowGForce": True,
+            "sensorShowAltitude": True,
+            "sensorShowTemperature": True,
             # Gesture sensor settings
             "gestureSensorEnabled": True,
             "gestureMapping": {
@@ -580,6 +599,9 @@ class SettingsManager(QObject):
 
         # Settings layout style
         self._settings_layout_style = self._settings.get("settingsLayoutStyle", self._default_settings["settingsLayoutStyle"])
+
+        # IMU sensor settings
+        self._imu_enabled = self._settings.get("imuEnabled", self._default_settings["imuEnabled"])
 
         # Gesture sensor settings
         self._gesture_sensor_enabled = self._settings.get("gestureSensorEnabled", self._default_settings["gestureSensorEnabled"])
@@ -1867,6 +1889,22 @@ class SettingsManager(QObject):
         self._settings_layout_style = style
         self.update_setting("settingsLayoutStyle", style, self.settingsLayoutStyleChanged)
 
+    # ==================== IMU Sensor Settings ====================
+
+    @Property(bool, notify=imuEnabledChanged)
+    def imuEnabled(self):
+        return self._imu_enabled
+
+    @Slot(result=bool)
+    def get_imu_enabled(self):
+        return self._imu_enabled
+
+    @Slot(bool)
+    def save_imu_enabled(self, enabled):
+        logger.debug(f"Saving IMU enabled: {enabled}")
+        self._imu_enabled = enabled
+        self.update_setting("imuEnabled", enabled, self.imuEnabledChanged)
+
     # ==================== Gesture Sensor Settings ====================
 
     @Property(bool, notify=gestureSensorEnabledChanged)
@@ -1998,6 +2036,7 @@ class SettingsManager(QObject):
             "backgroundBlurRadius": "background_blur_radius",
             "colorTransitionMs": "color_transition_ms",
             "obdFastMode": "obd_fast_mode",
+            "imuEnabled": "imu_enabled",
             "gestureSensorEnabled": "gesture_sensor_enabled",
             "settingsLayoutStyle": "settings_layout_style",
         }
@@ -2204,6 +2243,9 @@ class SettingsManager(QObject):
 
         self._visualizer_quality = self._default_settings["visualizerQuality"]
         self.visualizerQualityChanged.emit(self._visualizer_quality)
+
+        self._imu_enabled = self._default_settings["imuEnabled"]
+        self.imuEnabledChanged.emit(self._imu_enabled)
 
         self._gesture_sensor_enabled = self._default_settings["gestureSensorEnabled"]
         self.gestureSensorEnabledChanged.emit(self._gesture_sensor_enabled)

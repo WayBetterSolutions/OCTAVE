@@ -823,6 +823,80 @@ Flickable {
         }
 
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // IMU SENSOR
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+        SettingsCard {
+            objectName: "IMU Sensor"
+            cardId: "accessories_imu_sensor"
+            title: "IMU Sensor"
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.overallSpacing
+
+                Rectangle {
+                    id: imuStatusDot
+                    width: App.Spacing.dp(14)
+                    height: App.Spacing.dp(14)
+                    radius: App.Spacing.dpMin(7, 2)
+
+                    property string currentStatus: (typeof berryIMU !== "undefined" && berryIMU) ? berryIMU.getConnectionStatus() : "Disconnected"
+                    color: currentStatus === "Connected" ? App.Style.statusConnected : App.Style.statusDisconnected
+
+                    Connections {
+                        target: typeof berryIMU !== "undefined" ? berryIMU : null
+                        function onConnectionStatusChanged(status) {
+                            imuStatusDot.currentStatus = status
+                            imuStatusDot.color = (status === "Connected") ? App.Style.statusConnected : App.Style.statusDisconnected
+                            imuStatusText.text = status
+                        }
+                    }
+                }
+
+                Text {
+                    id: imuStatusText
+                    text: imuStatusDot.currentStatus
+                    color: App.Style.primaryTextColor
+                    font.pixelSize: App.Spacing.overallText
+                    font.family: App.Style.fontFamily
+                    Layout.fillWidth: true
+                }
+            }
+
+            SettingsDivider {}
+
+            SettingsToggle {
+                id: imuEnabledToggle
+                Layout.fillWidth: true
+                text: "IMU Sensor"
+                checked: settingsManager ? settingsManager.imuEnabled : true
+                activeColor: App.Style.accent
+                inactiveColor: App.Style.hoverColor
+
+                onToggled: function(checked) {
+                    if (settingsManager) {
+                        settingsManager.save_imu_enabled(checked)
+                    }
+                    if (typeof berryIMU !== "undefined" && berryIMU) {
+                        berryIMU.setEnabled(checked)
+                    }
+                }
+
+                Connections {
+                    target: settingsManager
+                    function onImuEnabledChanged(enabled) {
+                        imuEnabledToggle.checked = enabled
+                    }
+                }
+            }
+
+            SettingDescription {
+                text: "BerryIMU v3 accelerometer, gyroscope, magnetometer, and barometer on I2C bus 2"
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // GESTURE SENSOR
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

@@ -28,6 +28,7 @@ Rectangle {
         // Label row
         RowLayout {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter
             spacing: App.Spacing.dp(6)
 
             Text {
@@ -50,6 +51,8 @@ Rectangle {
 
         // Value
         Text {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
             text: connected ? card.value : "--"
             color: App.Style.primaryTextColor
             font.pixelSize: App.Spacing.dp(36)
@@ -63,6 +66,8 @@ Rectangle {
 
         // Unit
         Text {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
             text: card.unit
             color: App.Style.secondaryTextColor
             font.pixelSize: App.Spacing.dp(14)

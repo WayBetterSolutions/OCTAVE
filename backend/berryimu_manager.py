@@ -195,6 +195,8 @@ class BerryIMUManager(QObject):
     headingChanged = Signal(float)
     altitudeChanged = Signal(float)
     accelMagnitudeChanged = Signal(float)
+    lateralGChanged = Signal(float)
+    longitudinalGChanged = Signal(float)
     baroTempChanged = Signal(float)
     connectionStatusChanged = Signal(str)
 
@@ -205,6 +207,7 @@ class BerryIMUManager(QObject):
         self._bus = None
         self._bmp_calib = {}
         self._shutting_down = False
+        self._enabled = True
 
         # Reconnection state
         self._retry_count = 0
@@ -219,11 +222,24 @@ class BerryIMUManager(QObject):
         # Tare offset quaternion — applied to zero out a reference orientation
         self._tare_q = [1.0, 0.0, 0.0, 0.0]  # identity = no offset
 
+        # Accel bias for G-force zeroing (captured at tare time)
+        self._accel_bias_x = 0.0
+        self._accel_bias_y = 0.0
+        self._last_ax = 0.0
+        self._last_ay = 0.0
+
         self._last_time = None
         self._ahrs = MadgwickAHRS(beta=MADGWICK_BETA)
+        self._emit_interval = EMIT_INTERVAL
+
+        self._settings_manager = None
 
         # Start connection attempt after a short delay
         QTimer.singleShot(1000, self._start)
+
+    def connect_settings_manager(self, settings_manager):
+        self._settings_manager = settings_manager
+        self._enabled = settings_manager.imuEnabled
 
     def _schedule_retry(self):
         """Schedule a reconnection attempt with linear backoff."""
@@ -249,6 +265,10 @@ class BerryIMUManager(QObject):
     def _start(self):
         """Initialize sensors and start the read thread."""
         if self._shutting_down:
+            return
+        if not self._enabled:
+            logger.info("BerryIMU: disabled in settings, skipping start")
+            self.connectionStatusChanged.emit("Disabled")
             return
 
         # Clean up previous state before (re)connecting
@@ -348,7 +368,7 @@ class BerryIMUManager(QObject):
         return x, y, z
 
     def _read_mag(self):
-        data = self._bus.read_i2c_block_data(LIS3MDL_ADDR, 0x28, 6)
+        data = self._bus.read_i2c_block_data(LIS3MDL_ADDR, 0x28 | 0x80, 6)
         x = struct.unpack('<h', bytes(data[0:2]))[0] / 3421.0
         y = struct.unpack('<h', bytes(data[2:4]))[0] / 3421.0
         z = struct.unpack('<h', bytes(data[4:6]))[0] / 3421.0
@@ -444,12 +464,14 @@ class BerryIMUManager(QObject):
                 if gx_corr != 0.0 or gy_corr != 0.0 or gz_corr != 0.0:
                     self._ahrs.update(gx_rad, gy_rad, gz_rad, ax, ay, az, 0.0, 0.0, 0.0, dt)
 
-                # G-force
+                # G-force — store latest for tare capture
+                self._last_ax = ax
+                self._last_ay = ay
                 accel_mag = math.sqrt(ax * ax + ay * ay + az * az)
 
                 # Emit at ~60Hz
                 read_count += 1
-                if now - last_emit >= EMIT_INTERVAL:
+                if now - last_emit >= self._emit_interval:
                     last_emit = now
 
                     # Strip yaw from quaternion — only keep pitch & roll
@@ -497,6 +519,8 @@ class BerryIMUManager(QObject):
                         heading += 360.0
                     self.headingChanged.emit(heading)
                     self.accelMagnitudeChanged.emit(accel_mag)
+                    self.lateralGChanged.emit(ay - self._accel_bias_y)
+                    self.longitudinalGChanged.emit(ax - self._accel_bias_x)
 
                     if read_count == 1:
                         logger.info(
@@ -540,19 +564,66 @@ class BerryIMUManager(QObject):
     def getConnectionStatus(self):
         return "Connected" if self._running else "Disconnected"
 
+    @Slot(bool)
+    def setEnabled(self, enabled):
+        if enabled == self._enabled:
+            return
+        self._enabled = enabled
+        if self._settings_manager:
+            self._settings_manager.save_imu_enabled(enabled)
+        if enabled and not self._running:
+            self._retry_count = 0
+            self._start()
+        elif not enabled and self._running:
+            self._running = False
+            if self._thread and self._thread.is_alive():
+                self._thread.join(timeout=2.0)
+            self._thread = None
+            self._cleanup_bus()
+            self.connectionStatusChanged.emit("Disabled")
+
+    @Slot(result=bool)
+    def isEnabled(self):
+        return self._enabled
+
+    @Slot(int)
+    def setEmitRate(self, hz):
+        """Set the signal emission rate in Hz (10-120)."""
+        hz = max(10, min(120, hz))
+        self._emit_interval = 1.0 / hz
+        logger.info(f"BerryIMU: emit rate set to {hz}Hz (interval={self._emit_interval:.4f}s)")
+
     @Slot()
     def calibrateTare(self):
         """Set current orientation as the zero reference (tare)."""
-        # Store the inverse of current orientation — when applied, it zeros out
+        # Strip yaw first (same decomposition as the read loop) so the tare
+        # operates in the same domain as the values it's applied to.
         qw, qx, qy, qz = self._ahrs.q
+        yaw_norm = math.sqrt(qw * qw + qz * qz)
+        if yaw_norm > 0.001:
+            yw = qw / yaw_norm
+            yz = qz / yaw_norm
+        else:
+            yw = 1.0
+            yz = 0.0
+        tw = yw * qw + yz * qz
+        tx = yw * qx + yz * qy
+        ty = yw * qy - yz * qx
+        tz = yw * qz - yz * qw
         # Inverse of a unit quaternion is its conjugate: (w, -x, -y, -z)
-        self._tare_q = [qw, -qx, -qy, -qz]
-        logger.info(f"BerryIMU: tare set — offset q=[{qw:.3f},{qx:.3f},{qy:.3f},{qz:.3f}]")
+        self._tare_q = [tw, -tx, -ty, -tz]
+        # Also capture current accel as G-force zero reference
+        self._accel_bias_x = self._last_ax
+        self._accel_bias_y = self._last_ay
+        logger.info(f"BerryIMU: tare set — q=[{tw:.3f},{tx:.3f},{ty:.3f},{tz:.3f}] "
+                    f"accel_bias=[{self._accel_bias_x:.4f},{self._accel_bias_y:.4f}]")
 
     @Slot()
     def resetTare(self):
         """Clear the tare offset."""
         self._tare_q = [1.0, 0.0, 0.0, 0.0]
+        self._accel_bias_x = 0.0
+        self._accel_bias_y = 0.0
         logger.info("BerryIMU: tare reset to identity")
 
     # ==================== Cleanup ====================

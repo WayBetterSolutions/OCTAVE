@@ -2,6 +2,7 @@ import sys
 import os
 import platform
 import argparse
+from datetime import datetime
 
 # Force Qt Quick Controls to use Basic style (allows Slider customization)
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
@@ -9,6 +10,7 @@ os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 # Parse command line arguments for debug mode
 parser = argparse.ArgumentParser(description='OCTAVE Infotainment System')
 parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+parser.add_argument('--profile', action='store_true', help='Enable performance monitor')
 args, _ = parser.parse_known_args()
 
 # Initialize logging FIRST (before other imports that might log)
@@ -134,6 +136,7 @@ engine.rootContext().setContextProperty("esp32VolumeManager", esp32_volume_manag
 
 # BerryIMU v3 Manager - live accelerometer/gyro/mag/baro for CarMenu
 berryimu_manager = BerryIMUManager()
+berryimu_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("berryIMU", berryimu_manager)
 
 # Gesture Sensor Manager - PAJ7620U2 gesture recognition
@@ -375,5 +378,59 @@ engine.load(QUrl.fromLocalFile(qml_file))
 
 if not engine.rootObjects():
     sys.exit(-1)
+
+# Performance monitor (--profile flag)
+perf_monitor = None
+if args.profile:
+    from backend.perf_monitor import PerfMonitor
+    perf_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    perf_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev", "perf", "logs")
+    os.makedirs(perf_dir, exist_ok=True)
+    csv_path = os.path.join(perf_dir, f"perf_{perf_stamp}.csv")
+    log_path = os.path.join(perf_dir, f"perf_{perf_stamp}.log")
+    perf_monitor = PerfMonitor(csv_path=csv_path, log_path=log_path)
+    engine.rootContext().setContextProperty("perfMonitor", perf_monitor)
+    perf_monitor.start()
+
+    # Command server for MCP/remote control
+    from backend.command_server import CommandServer
+    cmd_server = CommandServer()
+    cmd_server.start(
+        managers={
+            "media": media_manager,
+            "spotify": spotify_manager,
+            "obd": obd_manager,
+            "settings": settings_manager,
+        },
+        perf_monitor=perf_monitor,
+        engine=engine,
+    )
+
+    def stop_cmd_server():
+        cmd_server.stop()
+
+    app.aboutToQuit.connect(stop_cmd_server)
+
+    # Instrument hot paths
+    from backend.perf_patches import apply_patches
+    apply_patches(
+        media_manager=media_manager,
+        audio_analyzer=audio_analyzer,
+        spotify_manager=spotify_manager,
+        obd_manager=obd_manager,
+        berryimu_manager=berryimu_manager,
+        gesture_manager=gesture_manager,
+        scrcpy_capture=scrcpy_capture,
+        esp32_volume_manager=esp32_volume_manager,
+        settings_manager=settings_manager,
+    )
+
+    def stop_perf_monitor():
+        perf_monitor.stop()
+        print(f"\n\033[1;36m[PERF]\033[0m  Log saved to {log_path}")
+        print(f"\033[1;36m[PERF]\033[0m  CSV saved to {csv_path}")
+        print(perf_monitor.getDetailedReport())
+
+    app.aboutToQuit.connect(stop_perf_monitor)
 
 sys.exit(app.exec())

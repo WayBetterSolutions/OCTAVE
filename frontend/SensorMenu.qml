@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "." as App
+import "settings" as Settings
 
 Item {
     id: sensorMenu
@@ -18,8 +19,22 @@ Item {
     property real currentHeading: 0
     property real currentAltitude: 0
     property real currentGForce: 0
+    property real currentLateralG: 0
+    property real currentLongitudinalG: 0
     property real currentBaroTemp: 0
     property bool imuConnected: false
+
+    // Display settings
+    property int decimalPlaces: 1
+    property bool useFahrenheit: true
+    property bool useImperial: false
+    property int emitRate: 60
+    property bool showPitch: true
+    property bool showRoll: true
+    property bool showHeading: true
+    property bool showGForce: true
+    property bool showAltitude: true
+    property bool showTemperature: true
 
     function headingToCardinal(h) {
         var dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
@@ -27,8 +42,31 @@ Item {
         return dirs[idx]
     }
 
+    function tempDisplay(celsius) {
+        if (useFahrenheit)
+            return (celsius * 9 / 5 + 32).toFixed(decimalPlaces)
+        return celsius.toFixed(decimalPlaces)
+    }
+
+    function altDisplay(meters) {
+        if (useImperial)
+            return (meters * 3.28084).toFixed(decimalPlaces)
+        return meters.toFixed(decimalPlaces)
+    }
+
     Component.onCompleted: {
         imuConnected = berryIMU.connected
+        decimalPlaces = settingsManager.get_setting_with_default("sensorDecimalPlaces", 1)
+        useFahrenheit = settingsManager.get_setting_with_default("sensorTempUnit", "F") === "F"
+        useImperial = settingsManager.get_setting_with_default("sensorAltitudeUnit", "m") === "ft"
+        emitRate = settingsManager.get_setting_with_default("sensorEmitRate", 60)
+        showPitch = settingsManager.get_setting_with_default("sensorShowPitch", true)
+        showRoll = settingsManager.get_setting_with_default("sensorShowRoll", true)
+        showHeading = settingsManager.get_setting_with_default("sensorShowHeading", true)
+        showGForce = settingsManager.get_setting_with_default("sensorShowGForce", true)
+        showAltitude = settingsManager.get_setting_with_default("sensorShowAltitude", true)
+        showTemperature = settingsManager.get_setting_with_default("sensorShowTemperature", true)
+        berryIMU.setEmitRate(emitRate)
     }
 
     Connections {
@@ -38,6 +76,8 @@ Item {
         function onHeadingChanged(val) { currentHeading = val }
         function onAltitudeChanged(val) { currentAltitude = val }
         function onAccelMagnitudeChanged(val) { currentGForce = val }
+        function onLateralGChanged(val) { currentLateralG = val }
+        function onLongitudinalGChanged(val) { currentLongitudinalG = val }
         function onBaroTempChanged(val) { currentBaroTemp = val }
         function onConnectionStatusChanged(status) { imuConnected = (status === "Connected") }
     }
@@ -51,118 +91,127 @@ Item {
             anchors.margins: App.Spacing.overallMargin
             spacing: App.Spacing.dp(16)
 
-            // Header
+            // Header — heading, temperature, and gear
             RowLayout {
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(12)
+                spacing: App.Spacing.dp(16)
 
-                // Connection status indicator
-                Rectangle {
-                    width: App.Spacing.dp(12)
-                    height: App.Spacing.dp(12)
-                    radius: width / 2
-                    color: imuConnected ? App.Style.statusConnected : App.Style.statusDisconnected
+                // Heading readout
+                RowLayout {
+                    spacing: App.Spacing.dp(4)
+                    visible: showHeading
 
-                    SequentialAnimation on opacity {
-                        running: imuConnected
-                        loops: Animation.Infinite
-                        NumberAnimation { to: 0.4; duration: 800; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 1.0; duration: 800; easing.type: Easing.InOutSine }
+                    Text {
+                        text: "\u2316"
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.dp(16)
+                    }
+                    Text {
+                        text: imuConnected
+                              ? currentHeading.toFixed(decimalPlaces) + "\u00B0 " + headingToCardinal(currentHeading)
+                              : "--"
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.dp(16)
+                        font.bold: true
+                        font.family: sensorMenu.globalFont
                     }
                 }
 
-                Text {
-                    text: "Sensors"
-                    color: App.Style.primaryTextColor
-                    font.pixelSize: App.Spacing.dp(28)
-                    font.bold: true
-                    font.family: sensorMenu.globalFont
+                // Temperature readout
+                RowLayout {
+                    spacing: App.Spacing.dp(4)
+                    visible: showTemperature
+
+                    Text {
+                        text: "\u2600"
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.dp(16)
+                    }
+                    Text {
+                        text: imuConnected
+                              ? tempDisplay(currentBaroTemp) + (useFahrenheit ? "\u00B0F" : "\u00B0C")
+                              : "--"
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.dp(16)
+                        font.bold: true
+                        font.family: sensorMenu.globalFont
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
 
-                Text {
-                    text: imuConnected ? "LIVE" : "DISCONNECTED"
-                    color: imuConnected ? App.Style.statusConnected : App.Style.secondaryTextColor
-                    font.pixelSize: App.Spacing.dp(13)
-                    font.bold: true
-                    font.family: sensorMenu.globalFont
-                    font.letterSpacing: App.Spacing.dp(2)
+                // Settings gear button
+                Rectangle {
+                    width: App.Spacing.dp(34)
+                    height: App.Spacing.dp(34)
+                    radius: App.Spacing.dp(6)
+                    color: gearArea.containsMouse ? App.Style.hoverColor : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\u2699"
+                        font.pixelSize: App.Spacing.dp(20)
+                        color: App.Style.secondaryTextColor
+                    }
+
+                    MouseArea {
+                        id: gearArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: sensorSettingsPopup.open()
+                    }
                 }
             }
 
-            // Sensor cards grid
+            // Sensor cards — 2x2 grid
             GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                columns: parent.width > App.Spacing.dp(600) ? 3 : 2
+                columns: 2
                 rowSpacing: App.Spacing.dp(12)
                 columnSpacing: App.Spacing.dp(12)
 
-                // Pitch card
                 SensorCard {
                     label: "PITCH"
-                    value: currentPitch.toFixed(1)
+                    value: currentPitch.toFixed(decimalPlaces)
                     unit: "\u00B0"
                     icon: "\u2195"
                     barValue: (currentPitch + 90) / 180
                     globalFont: sensorMenu.globalFont
                     connected: imuConnected
+                    visible: showPitch
                 }
 
-                // Roll card
                 SensorCard {
                     label: "ROLL"
-                    value: currentRoll.toFixed(1)
+                    value: currentRoll.toFixed(decimalPlaces)
                     unit: "\u00B0"
                     icon: "\u21C4"
                     barValue: (currentRoll + 90) / 180
                     globalFont: sensorMenu.globalFont
                     connected: imuConnected
+                    visible: showRoll
                 }
 
-                // Heading card
-                SensorCard {
-                    label: "HEADING"
-                    value: currentHeading.toFixed(1)
-                    unit: "\u00B0 " + headingToCardinal(currentHeading)
-                    icon: "\u2316"
-                    barValue: currentHeading / 360
+                GForceDisplay {
+                    lateralG: currentLateralG
+                    longitudinalG: currentLongitudinalG
+                    magnitude: currentGForce
                     globalFont: sensorMenu.globalFont
                     connected: imuConnected
+                    decimalPlaces: sensorMenu.decimalPlaces
+                    visible: showGForce
                 }
 
-                // G-Force card
-                SensorCard {
-                    label: "G-FORCE"
-                    value: currentGForce.toFixed(2)
-                    unit: "g"
-                    icon: "\u2B07"
-                    barValue: Math.min(currentGForce / 3.0, 1.0)
-                    globalFont: sensorMenu.globalFont
-                    connected: imuConnected
-                }
-
-                // Altitude card
                 SensorCard {
                     label: "ALTITUDE"
-                    value: currentAltitude.toFixed(1)
-                    unit: "m"
+                    value: altDisplay(currentAltitude)
+                    unit: useImperial ? "ft" : "m"
                     icon: "\u25B2"
                     barValue: -1
                     globalFont: sensorMenu.globalFont
                     connected: imuConnected
-                }
-
-                // Temperature card
-                SensorCard {
-                    label: "TEMPERATURE"
-                    value: currentBaroTemp.toFixed(1)
-                    unit: "\u00B0C"
-                    icon: "\u2600"
-                    barValue: -1
-                    globalFont: sensorMenu.globalFont
-                    connected: imuConnected
+                    visible: showAltitude
                 }
             }
 
@@ -223,7 +272,7 @@ Item {
 
                 Item { Layout.fillWidth: true }
 
-                // 3D View button — navigate to CarMenu
+                // 3D View button
                 Rectangle {
                     width: App.Spacing.dp(100)
                     height: App.Spacing.dp(36)
@@ -252,6 +301,281 @@ Item {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // ==================== Settings Popup ====================
+
+    Popup {
+        id: sensorSettingsPopup
+        anchors.centerIn: Overlay.overlay
+        modal: true
+        width: App.Spacing.dp(380)
+        height: Math.min(popupFlickable.contentHeight + App.Spacing.dp(32), sensorMenu.height * 0.85)
+        padding: App.Spacing.dp(16)
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: App.Style.backgroundColor
+            border.color: App.Style.accent
+            border.width: 1
+            radius: App.Spacing.dp(12)
+        }
+
+        contentItem: Flickable {
+            id: popupFlickable
+            clip: true
+            contentHeight: popupContent.implicitHeight
+            flickableDirection: Flickable.VerticalFlick
+            boundsBehavior: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+            ColumnLayout {
+                id: popupContent
+                width: popupFlickable.width - App.Spacing.dp(12)
+                spacing: App.Spacing.dp(10)
+
+                // ── Header ──
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.dp(8)
+
+                    Text {
+                        text: "Sensor Settings"
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.dp(20)
+                        font.bold: true
+                        font.family: sensorMenu.globalFont
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Rectangle {
+                        width: App.Spacing.dp(28)
+                        height: App.Spacing.dp(28)
+                        radius: App.Spacing.dp(6)
+                        color: closeArea.containsMouse ? App.Style.hoverColor : "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "\u2715"
+                            font.pixelSize: App.Spacing.dp(14)
+                            color: App.Style.secondaryTextColor
+                        }
+
+                        MouseArea {
+                            id: closeArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: sensorSettingsPopup.close()
+                        }
+                    }
+                }
+
+                // ── Separator ──
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g,
+                                   App.Style.secondaryTextColor.b, 0.2)
+                }
+
+                // ── DISPLAY section ──
+                Text {
+                    text: "DISPLAY"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.dp(11)
+                    font.bold: true
+                    font.family: sensorMenu.globalFont
+                    font.letterSpacing: App.Spacing.dp(1.5)
+                }
+
+                // Decimal Places
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "Decimal Places"
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.dp(14)
+                        font.family: sensorMenu.globalFont
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: decimalPlaces
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.dp(14)
+                        font.bold: true
+                        font.family: sensorMenu.globalFont
+                    }
+                }
+
+                Settings.SettingsSlider {
+                    from: 0; to: 4; stepSize: 1
+                    value: decimalPlaces
+                    onMoved: {
+                        decimalPlaces = value
+                        settingsManager.save_setting("sensorDecimalPlaces", value)
+                    }
+                }
+
+                // Temperature unit
+                Settings.SettingsToggle {
+                    text: "Temperature in \u00B0F"
+                    checked: useFahrenheit
+                    compact: true
+                    onToggled: function(checked) {
+                        useFahrenheit = checked
+                        settingsManager.save_setting("sensorTempUnit", checked ? "F" : "C")
+                    }
+                }
+
+                // Altitude unit
+                Settings.SettingsToggle {
+                    text: "Altitude in Feet"
+                    checked: useImperial
+                    compact: true
+                    onToggled: function(checked) {
+                        useImperial = checked
+                        settingsManager.save_setting("sensorAltitudeUnit", checked ? "ft" : "m")
+                    }
+                }
+
+                // ── Separator ──
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g,
+                                   App.Style.secondaryTextColor.b, 0.2)
+                }
+
+                // ── PERFORMANCE section ──
+                Text {
+                    text: "PERFORMANCE"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.dp(11)
+                    font.bold: true
+                    font.family: sensorMenu.globalFont
+                    font.letterSpacing: App.Spacing.dp(1.5)
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text {
+                        text: "Update Rate"
+                        color: App.Style.primaryTextColor
+                        font.pixelSize: App.Spacing.dp(14)
+                        font.family: sensorMenu.globalFont
+                    }
+                    Item { Layout.fillWidth: true }
+                    Text {
+                        text: emitRate + " Hz"
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.dp(14)
+                        font.bold: true
+                        font.family: sensorMenu.globalFont
+                    }
+                }
+
+                Settings.SettingsSlider {
+                    from: 10; to: 120; stepSize: 5
+                    value: emitRate
+                    onMoved: {
+                        emitRate = value
+                        emitRateTimer.restart()
+                    }
+                }
+
+                Timer {
+                    id: emitRateTimer
+                    interval: 200
+                    onTriggered: {
+                        settingsManager.save_setting("sensorEmitRate", emitRate)
+                        berryIMU.setEmitRate(emitRate)
+                    }
+                }
+
+                // ── Separator ──
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g,
+                                   App.Style.secondaryTextColor.b, 0.2)
+                }
+
+                // ── VISIBLE CARDS section ──
+                Text {
+                    text: "VISIBLE CARDS"
+                    color: App.Style.secondaryTextColor
+                    font.pixelSize: App.Spacing.dp(11)
+                    font.bold: true
+                    font.family: sensorMenu.globalFont
+                    font.letterSpacing: App.Spacing.dp(1.5)
+                }
+
+                Settings.SettingsToggle {
+                    text: "Pitch"
+                    checked: showPitch
+                    compact: true
+                    onToggled: function(checked) {
+                        showPitch = checked
+                        settingsManager.save_setting("sensorShowPitch", checked)
+                    }
+                }
+
+                Settings.SettingsToggle {
+                    text: "Roll"
+                    checked: showRoll
+                    compact: true
+                    onToggled: function(checked) {
+                        showRoll = checked
+                        settingsManager.save_setting("sensorShowRoll", checked)
+                    }
+                }
+
+                Settings.SettingsToggle {
+                    text: "Heading"
+                    checked: showHeading
+                    compact: true
+                    onToggled: function(checked) {
+                        showHeading = checked
+                        settingsManager.save_setting("sensorShowHeading", checked)
+                    }
+                }
+
+                Settings.SettingsToggle {
+                    text: "G-Force"
+                    checked: showGForce
+                    compact: true
+                    onToggled: function(checked) {
+                        showGForce = checked
+                        settingsManager.save_setting("sensorShowGForce", checked)
+                    }
+                }
+
+                Settings.SettingsToggle {
+                    text: "Altitude"
+                    checked: showAltitude
+                    compact: true
+                    onToggled: function(checked) {
+                        showAltitude = checked
+                        settingsManager.save_setting("sensorShowAltitude", checked)
+                    }
+                }
+
+                Settings.SettingsToggle {
+                    text: "Temperature"
+                    checked: showTemperature
+                    compact: true
+                    onToggled: function(checked) {
+                        showTemperature = checked
+                        settingsManager.save_setting("sensorShowTemperature", checked)
+                    }
+                }
+
+                // Bottom spacer
+                Item { height: App.Spacing.dp(4) }
             }
         }
     }

@@ -340,6 +340,51 @@ ApplicationWindow {
         }
     }
 
+    // Remote navigation for perf testing (called from Python command server)
+    function navigateTo(pageName) {
+        var pageMap = {
+            "MainMenu.qml":         { file: "MainMenu.qml",         props: { stackView: stackView, windowWidth: mainWindow.width, windowHeight: mainWindow.height } },
+            "MediaRoom.qml":        { file: "MediaRoom.qml",        props: { stackView: stackView } },
+            "MediaPlayer.qml":      { file: "MediaPlayer.qml",      props: { stackView: stackView, mainWindow: mainWindow } },
+            "OBDMenu.qml":          { file: "OBDMenu.qml",          props: { stackView: stackView, mainWindow: mainWindow } },
+            "OBDDiagnostics.qml":   { file: "OBDDiagnostics.qml",   props: { stackView: stackView, mainWindow: mainWindow } },
+            "SettingsMenu.qml":     { file: "SettingsMenu.qml",     props: { stackView: stackView, mainWindow: mainWindow } },
+            "PhoneMirrorView.qml":  { file: "PhoneMirrorView.qml",  props: { stackView: stackView } },
+            "AndroidAutoView.qml":  { file: "AndroidAutoView.qml",  props: { stackView: stackView } },
+            "SensorMenu.qml":       { file: "SensorMenu.qml",       props: { stackView: stackView } },
+            "CarMenu.qml":          { file: "CarMenu.qml",          props: { stackView: stackView } },
+            "DownloadPage.qml":     { file: "DownloadPage.qml",     props: { stackView: stackView } },
+            "ClockMenu.qml":        { file: "ClockMenu.qml",        props: { stackView: stackView } },
+        }
+        var entry = pageMap[pageName]
+        if (!entry) {
+            console.warn("[NAV] Unknown page:", pageName)
+            return
+        }
+        var component = Qt.createComponent(entry.file)
+        if (component.status === Component.Ready) {
+            var page = component.createObject(stackView, entry.props)
+            if (page) {
+                stackView.push(page)
+                console.log("[NAV] Pushed", pageName)
+            }
+        } else {
+            console.warn("[NAV] Failed to load", pageName, component.errorString())
+        }
+    }
+
+    function navigateHome() {
+        stackView.pop(null)  // pop to the initial item
+        console.log("[NAV] Returned to home")
+    }
+
+    function navigateBack() {
+        if (stackView.depth > 1) {
+            stackView.pop()
+            console.log("[NAV] Popped one page")
+        }
+    }
+
     // Main layout container
     Item {
         id: mainContainer
@@ -348,6 +393,7 @@ ApplicationWindow {
         // Main stack view with adaptive anchoring
         StackView {
             id: stackView
+            objectName: "stackView"
             z: 1
 
             // Cached DownloadPage — created once, reused across all navigations

@@ -581,7 +581,7 @@ class MediaManager(QObject):
                 resample = Image.Resampling.LANCZOS
             except AttributeError:
                 resample = Image.LANCZOS
-            img = img.resize((100, 100), resample)
+            img = img.resize((50, 50), resample)
 
             # Convert to numpy array
             pixels = np.array(img).reshape(-1, 3)
@@ -624,7 +624,7 @@ class MediaManager(QObject):
 
         for _ in range(max_iterations):
             # Assign pixels to nearest centroid
-            distances = np.sqrt(((pixels[:, np.newaxis] - centroids) ** 2).sum(axis=2))
+            distances = ((pixels[:, np.newaxis] - centroids) ** 2).sum(axis=2)
             labels = np.argmin(distances, axis=1)
 
             # Update centroids
