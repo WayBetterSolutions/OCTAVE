@@ -1277,6 +1277,10 @@ class MediaManager(QObject):
         # Emit AFTER the playlist is reordered so QML reads the new order
         self.shuffleStateChanged.emit(self._shuffle)
 
+        # Save shuffle state for persistence
+        if self._settings_manager:
+            self._settings_manager.save_last_shuffle_state(self._shuffle)
+
         # Update UI
         self.mediaListChanged.emit(self._current_playlist)
         
@@ -2083,6 +2087,14 @@ class MediaManager(QObject):
         last_playlist = self._settings_manager.get_last_played_playlist()
         auto_play = self._settings_manager.get_auto_play_on_startup()
 
+        # Restore shuffle state if persist setting is enabled
+        if self._settings_manager.get_persist_shuffle_state():
+            restore_shuffle = self._settings_manager.get_last_shuffle_state()
+            if restore_shuffle and not self._shuffle:
+                self._shuffle = True
+                self.shuffleStateChanged.emit(True)
+                logger.info("Restored persistent shuffle state: ON")
+
         logger.info(f"Restoring playback state: song={last_song}, position={last_position}, playlist={last_playlist}, auto_play={auto_play}")
 
         if not last_song:
@@ -2096,6 +2108,18 @@ class MediaManager(QObject):
         if last_song not in self._current_playlist:
             logger.info(f"Last played song '{last_song}' not found in current playlist")
             return
+
+        # If shuffle was restored, shuffle the playlist with current song at front
+        if self._shuffle:
+            self._original_files = self._current_playlist.copy()
+            shuffled = self._current_playlist.copy()
+            random.shuffle(shuffled)
+            if last_song in shuffled:
+                idx = shuffled.index(last_song)
+                if idx > 0:
+                    shuffled[0], shuffled[idx] = shuffled[idx], shuffled[0]
+            self._current_playlist = shuffled
+            self.mediaListChanged.emit(self._current_playlist)
 
         # Set up the player with the last song - use helper for correct path
         file_path = self._get_file_path(last_song)

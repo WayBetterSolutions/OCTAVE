@@ -22,6 +22,10 @@ SETTINGS_REGISTRY = {
         "key": "autoPlayOnStartup", "label": "Autoplay on Startup", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_auto_play_on_startup"
     },
+    "persist_shuffle_state": {
+        "key": "persistShuffleState", "label": "Remember Shuffle State", "category": "mediaSettings",
+        "controlType": "toggle", "saveSlot": "save_persist_shuffle_state"
+    },
     "show_waveform_visualizer": {
         "key": "showWaveformVisualizer", "label": "Waveform Visualizer", "category": "mediaSettings",
         "controlType": "toggle", "saveSlot": "save_show_waveform_visualizer"
@@ -199,6 +203,8 @@ class SettingsManager(QObject):
     lastSettingsSectionChanged = Signal(str)
     currentVolumeChanged = Signal(int)  # Unified volume (0-100) for both local and Spotify
     autoPlayOnStartupChanged = Signal(bool)
+    persistShuffleStateChanged = Signal(bool)
+    lastShuffleStateChanged = Signal(bool)
     lastPlayedSongChanged = Signal(str)
     lastPlayedPositionChanged = Signal(int)
     lastPlayedPlaylistChanged = Signal(str)
@@ -401,6 +407,8 @@ class SettingsManager(QObject):
             "mediaFolder": "",
             "customThemes": {},
             "autoPlayOnStartup": False,
+            "persistShuffleState": False,
+            "lastShuffleState": False,
             "lastPlayedSong": "",
             "lastPlayedPosition": 0,
             "lastPlayedPlaylist": "",
@@ -537,6 +545,8 @@ class SettingsManager(QObject):
 
         # Auto-play and resume settings
         self._auto_play_on_startup = self._settings.get("autoPlayOnStartup", False)
+        self._persist_shuffle_state = self._settings.get("persistShuffleState", False)
+        self._last_shuffle_state = self._settings.get("lastShuffleState", False)
         self._last_played_song = self._settings.get("lastPlayedSong", "")
         self._last_played_position = self._settings.get("lastPlayedPosition", 0)
         self._last_played_playlist = self._settings.get("lastPlayedPlaylist", "")
@@ -1357,6 +1367,33 @@ class SettingsManager(QObject):
         logger.debug(f"Saving auto-play on startup: {enabled}")
         self._auto_play_on_startup = enabled
         self.update_setting("autoPlayOnStartup", enabled, self.autoPlayOnStartupChanged)
+
+    @Property(bool, notify=persistShuffleStateChanged)
+    def persistShuffleState(self):
+        return self._persist_shuffle_state
+
+    @Slot(result=bool)
+    def get_persist_shuffle_state(self):
+        return self._persist_shuffle_state
+
+    @Slot(bool)
+    def save_persist_shuffle_state(self, enabled):
+        logger.debug(f"Saving persist shuffle state: {enabled}")
+        self._persist_shuffle_state = enabled
+        self.update_setting("persistShuffleState", enabled, self.persistShuffleStateChanged)
+
+    @Property(bool, notify=lastShuffleStateChanged)
+    def lastShuffleState(self):
+        return self._last_shuffle_state
+
+    @Slot(result=bool)
+    def get_last_shuffle_state(self):
+        return self._last_shuffle_state
+
+    @Slot(bool)
+    def save_last_shuffle_state(self, enabled):
+        self._last_shuffle_state = enabled
+        self.update_setting("lastShuffleState", enabled, self.lastShuffleStateChanged)
 
     @Property(str, notify=lastPlayedSongChanged)
     def lastPlayedSong(self):

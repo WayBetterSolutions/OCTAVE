@@ -68,6 +68,29 @@ Item {
                     Behavior on opacity { NumberAnimation { duration: 150 } }
                 }
 
+                // Update notification dot
+                Rectangle {
+                    width: App.Spacing.dp(7)
+                    height: App.Spacing.dp(7)
+                    radius: width / 2
+                    color: "#FF9800"
+                    z: 10
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.topMargin: App.Spacing.dp(-2)
+                    anchors.rightMargin: App.Spacing.dp(-2)
+                    visible: hubModel[index] && hubModel[index].section === "about"
+                             && settingsMenu && settingsMenu.updateAvailable
+
+                    SequentialAnimation on opacity {
+                        running: hubModel[index] && hubModel[index].section === "about"
+                                 && settingsMenu && settingsMenu.updateAvailable
+                        loops: Animation.Infinite
+                        NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
+                        NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
+                    }
+                }
+
                 MouseArea {
                     id: tabArea
                     anchors.fill: parent

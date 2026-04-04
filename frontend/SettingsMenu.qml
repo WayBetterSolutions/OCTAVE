@@ -13,6 +13,7 @@ Item {
     required property string initialSection
 
     property string currentSection: ""
+    property bool updateAvailable: networkManager && networkManager.updateStatus === "update-available"
 
     // Central page model — single source of truth for all pages
     // NOTE: `source` paths are relative to frontend/ (consumed by layout Loaders in frontend/)

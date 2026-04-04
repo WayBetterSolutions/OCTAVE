@@ -247,6 +247,28 @@ Item {
                             elide: Text.ElideRight
                         }
 
+                        // Update notification dot
+                        Rectangle {
+                            width: App.Spacing.dp(7)
+                            height: App.Spacing.dp(7)
+                            radius: width / 2
+                            color: "#FF9800"
+                            z: 10
+                            anchors.right: parent.right
+                            anchors.rightMargin: 16
+                            anchors.verticalCenter: parent.verticalCenter
+                            visible: delegateRoot.itemSection === "about"
+                                     && settingsMenu && settingsMenu.updateAvailable
+
+                            SequentialAnimation on opacity {
+                                running: delegateRoot.itemSection === "about"
+                                         && settingsMenu && settingsMenu.updateAvailable
+                                loops: Animation.Infinite
+                                NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
+                                NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
+                            }
+                        }
+
                         // Entire area clickable
                         MouseArea {
                             id: navMouseArea

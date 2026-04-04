@@ -192,6 +192,29 @@ Item {
                     onSubSectionSelected: function(sec, sub) {
                         dashboardLayout.navigateToSubSection(sec, sub)
                     }
+
+                    // Update notification dot
+                    Rectangle {
+                        width: App.Spacing.dp(8)
+                        height: App.Spacing.dp(8)
+                        radius: width / 2
+                        color: "#FF9800"
+                        z: 10
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.topMargin: App.Spacing.dp(6)
+                        anchors.rightMargin: App.Spacing.dp(6)
+                        visible: dashModel[index] && dashModel[index].section === "about"
+                                 && settingsMenu && settingsMenu.updateAvailable
+
+                        SequentialAnimation on opacity {
+                            running: dashModel[index] && dashModel[index].section === "about"
+                                     && settingsMenu && settingsMenu.updateAvailable
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
+                            NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
+                        }
+                    }
                 }
             }
         }

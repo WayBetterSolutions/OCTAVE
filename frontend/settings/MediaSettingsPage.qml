@@ -243,6 +243,36 @@ Flickable {
 
             SettingsDivider {}
 
+            // Persistent Shuffle
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingsToggle {
+                    id: persistShuffleToggle
+                    Layout.fillWidth: true
+                    text: "Remember shuffle state"
+                    checked: settingsManager ? settingsManager.persistShuffleState : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_persist_shuffle_state(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onPersistShuffleStateChanged() {
+                            persistShuffleToggle.checked = settingsManager.persistShuffleState
+                        }
+                    }
+                }
+            }
+
+            SettingsDivider {}
+
             // Music Button Default Page
             ColumnLayout {
                 Layout.fillWidth: true

@@ -64,6 +64,7 @@ class NetworkManager(QObject):
         self._progress_lock = threading.Lock()
         self._progress_message = None
         self._updating = False  # Prevents double-tap
+        self._auto_update_checked = False  # One-shot auto-check on first connectivity
 
         self._executor = ThreadPoolExecutor(max_workers=1)
         self._pending_future = None
@@ -170,6 +171,10 @@ class NetworkManager(QObject):
             if connected != self._is_connected:
                 self._is_connected = connected
                 self.isConnectedChanged.emit(connected)
+            # Auto-check for updates once on first successful connectivity
+            if connected and not self._auto_update_checked:
+                self._auto_update_checked = True
+                QTimer.singleShot(500, self.checkForUpdates)
 
         elif result_type == "update_check":
             self._apply_update_result(result)

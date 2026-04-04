@@ -1047,6 +1047,27 @@ Rectangle {
                                 }
                             }
 
+                            // Update notification dot
+                            Rectangle {
+                                width: App.Spacing.dp(8)
+                                height: App.Spacing.dp(8)
+                                radius: width / 2
+                                color: "#FF9800"
+                                z: 10
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.topMargin: App.Spacing.dp(-1)
+                                anchors.rightMargin: App.Spacing.dp(-1)
+                                visible: networkManager && networkManager.updateStatus === "update-available"
+
+                                SequentialAnimation on opacity {
+                                    running: networkManager && networkManager.updateStatus === "update-available"
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
+                                    NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
+                                }
+                            }
+
                             MouseArea {
                                 id: mouseAreaSettings
                                 width: parent.width * 1.5
@@ -2318,6 +2339,27 @@ Rectangle {
                                     anchors.fill: settingsButtonImageVertical
                                     source: settingsButtonImageVertical
                                     color: App.Style.bottomBarSettingsButton
+                                }
+                            }
+
+                            // Update notification dot
+                            Rectangle {
+                                width: App.Spacing.dp(8)
+                                height: App.Spacing.dp(8)
+                                radius: width / 2
+                                color: "#FF9800"
+                                z: 10
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.topMargin: App.Spacing.dp(-1)
+                                anchors.rightMargin: App.Spacing.dp(-1)
+                                visible: networkManager && networkManager.updateStatus === "update-available"
+
+                                SequentialAnimation on opacity {
+                                    running: networkManager && networkManager.updateStatus === "update-available"
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
+                                    NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
                                 }
                             }
 
