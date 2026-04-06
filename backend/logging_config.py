@@ -24,9 +24,12 @@ _initialized = False
 
 def _get_log_dir():
     """Get the logs directory, creating it if needed."""
+    from backend.platform_config import IS_ANDROID
     app_name = "OCTAVE"
 
-    if sys.platform == 'win32':
+    if IS_ANDROID:
+        data_dir = os.path.join(os.getcwd(), app_name)
+    elif sys.platform == 'win32':
         base = os.environ.get('APPDATA', os.path.expanduser('~'))
         data_dir = os.path.join(base, app_name)
     elif sys.platform == 'darwin':

@@ -198,9 +198,27 @@ class NetworkManager(QObject):
     @staticmethod
     def _get_network_name_sync():
         """Get the name of the connected WiFi network (or wired indicator)."""
+        from backend.platform_config import IS_ANDROID
         system = platform.system()
         try:
-            if system == "Linux":
+            if IS_ANDROID:
+                # Android (rooted): try dumpsys wifi for SSID
+                try:
+                    result = subprocess.run(
+                        ['dumpsys', 'wifi'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        for line in result.stdout.split('\n'):
+                            if 'mWifiInfo' in line and 'SSID:' in line:
+                                ssid = line.split('SSID:')[1].split(',')[0].strip().strip('"')
+                                if ssid and ssid != '<unknown ssid>':
+                                    return ssid
+                except Exception:
+                    pass
+                return "WiFi"
+
+            elif system == "Linux":
                 result = subprocess.run(
                     ['nmcli', '-t', '-f', 'ACTIVE,SSID', 'dev', 'wifi'],
                     capture_output=True, text=True, timeout=5
@@ -369,7 +387,8 @@ class NetworkManager(QObject):
     @staticmethod
     def _check_can_self_update():
         """Check if self-update is possible (requires git, not a frozen PyInstaller build)."""
-        if getattr(sys, 'frozen', False):
+        from backend.platform_config import IS_ANDROID
+        if IS_ANDROID or getattr(sys, 'frozen', False):
             return False
         try:
             result = subprocess.run(

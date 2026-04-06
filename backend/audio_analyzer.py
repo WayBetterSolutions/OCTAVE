@@ -5,11 +5,18 @@ Analyzes audio files using FFT to generate real-time waveform visualization data
 
 from PySide6.QtCore import QObject, Signal, Slot, QTimer
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
 import os
 
 from backend.logging_config import get_logger
 logger = get_logger(__name__)
+
+# Try to import numpy for FFT computation
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    logger.warning("NumPy not available - waveform visualization will be disabled")
 
 # Try to import av for audio decoding
 try:
@@ -71,8 +78,8 @@ class AudioAnalyzer(QObject):
         """
         logger.info(f"analyze_file called with: {file_path}")
 
-        if not AV_AVAILABLE:
-            logger.warning("PyAV not available, skipping analysis")
+        if not AV_AVAILABLE or not NUMPY_AVAILABLE:
+            logger.warning("PyAV or NumPy not available, skipping analysis")
             return
 
         if not file_path or not os.path.exists(file_path):

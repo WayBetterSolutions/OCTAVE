@@ -151,9 +151,13 @@ else:
 
 def get_app_data_dir():
     """Get the appropriate directory for storing app data based on platform."""
+    from backend.platform_config import IS_ANDROID
     app_name = "OCTAVE"
 
-    if sys.platform == 'win32':
+    if IS_ANDROID:
+        # Android: use app-private internal storage
+        data_dir = os.path.join(os.getcwd(), app_name)
+    elif sys.platform == 'win32':
         # Windows: Use %APPDATA%/OCTAVE
         base = os.environ.get('APPDATA', os.path.expanduser('~'))
         data_dir = os.path.join(base, app_name)
@@ -528,7 +532,9 @@ class SettingsManager(QObject):
         self._obd_bluetooth_port = self._settings.get("obdBluetoothPort", self._default_settings["obdBluetoothPort"])
         self._obd_fast_mode = self._settings.get("obdFastMode", self._default_settings["obdFastMode"])
         self._obd_auto_reconnect_attempts = self._settings.get("obdAutoReconnectAttempts", self._default_settings["obdAutoReconnectAttempts"])
-        self._media_folder = self._settings.get("mediaFolder", "") or os.path.expanduser("~/Music")
+        from backend.platform_config import IS_ANDROID
+        default_music = "/sdcard/Music" if IS_ANDROID else os.path.expanduser("~/Music")
+        self._media_folder = self._settings.get("mediaFolder", "") or default_music
         os.makedirs(self._media_folder, exist_ok=True)
         self._show_background_overlay = self._settings.get("showBackgroundOverlay", self._default_settings["showBackgroundOverlay"])
         self._fuel_tank_capacity = self._settings.get("fuelTankCapacity", self._default_settings["fuelTankCapacity"])
@@ -2206,7 +2212,9 @@ class SettingsManager(QObject):
         self._obd_parameters = self._default_settings["obdParameters"]
         self.obdParametersChanged.emit()
         
-        self._media_folder = self._default_settings["mediaFolder"] or os.path.expanduser("~/Music")
+        from backend.platform_config import IS_ANDROID
+        default_music = "/sdcard/Music" if IS_ANDROID else os.path.expanduser("~/Music")
+        self._media_folder = self._default_settings["mediaFolder"] or default_music
         self.mediaFolderChanged.emit(self._media_folder)
 
         self._show_background_overlay = self._default_settings["showBackgroundOverlay"]

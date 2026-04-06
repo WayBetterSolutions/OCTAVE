@@ -1,0 +1,21 @@
+[project]
+name = "octave"
+version = "1.0.0"
+description = "OCTAVE - Open-source Cross-platform Telematics for Augmented Vehicle Experience"
+requires-python = ">=3.10,<3.12"
+
+dependencies = [
+    "PySide6>=6.8.0",
+    "mutagen==1.47.0",
+    "spotipy>=2.25.2",
+    "requests>=2.25.0",
+    "Pillow>=10.0.0",
+    "yt-dlp>=2026.2.21",
+    "ytmusicapi==1.11.5",
+    "rapidfuzz>=3.0.0",
+    "python-slugify>=8.0.0",
+    "typing_extensions>=4.0.0",
+]
+
+[tool.pyside6-android-deploy]
+input_file = "main.py"

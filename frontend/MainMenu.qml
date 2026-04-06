@@ -86,7 +86,7 @@ Item {
         // ========== LEFT SECTION: Media Controls (1/3 of width) ==========
         Rectangle {
             id: mediaSection
-            Layout.preferredWidth: parent.width * 0.33
+            Layout.preferredWidth: (typeof isAndroid !== "undefined" && isAndroid) ? parent.width : parent.width * 0.33
             Layout.fillHeight: true
             color: "transparent"
             radius: App.Spacing.dpMin(8, 2)
@@ -386,6 +386,7 @@ Item {
 
         // ========== RIGHT SECTION: OBD (2/3 of width) ==========
         Rectangle {
+            visible: typeof isAndroid === "undefined" || !isAndroid
             Layout.fillWidth: true
             Layout.fillHeight: true
             color: "transparent"

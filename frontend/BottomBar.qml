@@ -779,7 +779,8 @@ Rectangle {
                             id: obdButton
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
-                            
+                            visible: typeof isAndroid === "undefined" || !isAndroid
+
                             background: Rectangle {
                                 color: "transparent"
                                 radius: App.Spacing.dpMin(8, 2)
@@ -1098,7 +1099,7 @@ Rectangle {
                             id: androidAutoButton
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
-                            visible: settingsManager ? settingsManager.androidAutoEnabled : false
+                            visible: (typeof isAndroid === "undefined" || !isAndroid) && (settingsManager ? settingsManager.androidAutoEnabled : false)
 
                             background: Rectangle {
                                 color: "transparent"
@@ -1180,7 +1181,7 @@ Rectangle {
                             id: phoneMirrorButton
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
-                            visible: settingsManager ? settingsManager.phoneMirrorEnabled : false
+                            visible: (typeof isAndroid === "undefined" || !isAndroid) && (settingsManager ? settingsManager.phoneMirrorEnabled : false)
 
                             background: Rectangle {
                                 color: "transparent"
@@ -2071,8 +2072,9 @@ Rectangle {
                             id: obdButtonVertical
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            visible: typeof isAndroid === "undefined" || !isAndroid
                             Layout.alignment: Qt.AlignHCenter
-                            
+
                             background: Rectangle {
                                 color: "transparent"
                                 radius: App.Spacing.dpMin(8, 2)
@@ -2393,7 +2395,7 @@ Rectangle {
                             id: androidAutoButtonVertical
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
-                            visible: settingsManager ? settingsManager.androidAutoEnabled : false
+                            visible: (typeof isAndroid === "undefined" || !isAndroid) && (settingsManager ? settingsManager.androidAutoEnabled : false)
                             Layout.alignment: Qt.AlignHCenter
 
                             background: Rectangle {
@@ -2476,7 +2478,7 @@ Rectangle {
                             id: phoneMirrorButtonVertical
                             implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
                             implicitHeight: App.Spacing.bottomBarNavButtonHeight
-                            visible: settingsManager ? settingsManager.phoneMirrorEnabled : false
+                            visible: (typeof isAndroid === "undefined" || !isAndroid) && (settingsManager ? settingsManager.phoneMirrorEnabled : false)
                             Layout.alignment: Qt.AlignHCenter
 
                             background: Rectangle {

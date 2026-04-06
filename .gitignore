@@ -11,6 +11,12 @@ build/
 appimagetool-*.AppImage
 *.AppImage
 
+# Android build artifacts
+*.apk
+*.aab
+.buildozer/
+buildozer.spec
+
 # Spotify credentials and cache
 backend/settingsConfigure.json
 backend/.spotify_token_cache

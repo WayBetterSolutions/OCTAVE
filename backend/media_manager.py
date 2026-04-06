@@ -11,8 +11,12 @@ import hashlib
 import colorsys
 import shutil
 import threading
-from PIL import Image
-import numpy as np
+try:
+    from PIL import Image
+    import numpy as np
+    _COLOR_EXTRACTION_AVAILABLE = True
+except ImportError:
+    _COLOR_EXTRACTION_AVAILABLE = False
 
 from backend.logging_config import get_logger
 from backend.settings_manager import get_app_data_dir
@@ -572,6 +576,8 @@ class MediaManager(QObject):
 
     def _extract_album_colors(self, image_path):
         """Extract dominant colors from album art image using k-means clustering"""
+        if not _COLOR_EXTRACTION_AVAILABLE:
+            return None
         try:
             # Open and resize image for faster processing
             img = Image.open(image_path)
