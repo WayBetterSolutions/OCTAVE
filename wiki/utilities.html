@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Utility Modules - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Utility Modules</div>
+          <h1 class="page-title">Utility Modules</h1>
+          <p class="page-subtitle">Reference documentation for Clock, Logging, Platform Config, Performance Monitor, Command Server, and Stubs.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#clock">Clock</a></li>
+            <li><a href="#logging">Logging Configuration</a></li>
+            <li><a href="#platform-config">Platform Config</a></li>
+            <li><a href="#perf-monitor">Performance Monitor</a></li>
+            <li><a href="#command-server">Command Server</a></li>
+            <li><a href="#stubs">Android Stubs</a></li>
+          </ul>
+        </nav>
+
+        <!-- Clock -->
+        <h2 id="clock">Clock</h2>
+        <p><span class="file-path">backend/clock.py</span> &mdash; QML name: <code>clock</code></p>
+
+        <p>A simple QTimer-based clock that emits the formatted time string every second. Respects the user's clock visibility and format preferences from SettingsManager.</p>
+
+        <h3>Source Code</h3>
+        <pre><code><span class="kw">class</span> <span class="cls">Clock</span>(QObject):
+    timeChanged = Signal(str)
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, settings_manager):
+        <span class="fn">super</span>().__init__()
+        self._settings_manager = settings_manager
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_time)
+        self.timer.start(<span class="num">1000</span>)  <span class="cmt"># Update every second</span>
+
+    <span class="kw">def</span> <span class="fn">update_time</span>(self):
+        <span class="kw">if not</span> self._settings_manager.showClock:
+            self.timeChanged.emit(<span class="str">""</span>)
+            <span class="kw">return</span>
+
+        current_time = datetime.now()
+        <span class="kw">if</span> self._settings_manager.clockFormat24Hour:
+            time_str = current_time.strftime(<span class="str">"%H:%M"</span>)
+        <span class="kw">else</span>:
+            hour_min = current_time.strftime(<span class="str">"%I:%M"</span>)
+            am_pm = current_time.strftime(<span class="str">"%p"</span>).upper()
+            time_str = <span class="str">f"{hour_min} {am_pm}"</span>
+
+        self.timeChanged.emit(time_str)</code></pre>
+
+        <h3>Behavior</h3>
+        <ul>
+          <li><strong>Timer interval:</strong> 1000ms (1 second)</li>
+          <li><strong>Format:</strong> Reads <code>clockFormat24Hour</code> setting each tick. 24h: "14:30", 12h: "02:30 PM"</li>
+          <li><strong>Visibility:</strong> When <code>showClock</code> is false, emits empty string so QML hides the display</li>
+          <li><strong>QML binding:</strong> <code>clock.timeChanged</code> signal carries the formatted time string</li>
+        </ul>
+
+        <!-- Logging -->
+        <h2 id="logging">Logging Configuration</h2>
+        <p><span class="file-path">backend/logging_config.py</span></p>
+
+        <p>Centralized logging for the entire application. Provides two main functions:</p>
+
+        <h3><code>setup_logging(debug, console, file)</code></h3>
+        <p>Called once at startup in <code>main.py</code>. Initializes the Python logging system with rotating file handlers.</p>
+        <pre><code><span class="kw">from</span> backend.logging_config <span class="kw">import</span> setup_logging
+setup_logging(debug=<span class="kw">False</span>)  <span class="cmt"># Normal mode</span>
+setup_logging(debug=<span class="kw">True</span>)   <span class="cmt"># Debug mode (--debug flag)</span></code></pre>
+
+        <h3>Parameters</h3>
+        <table>
+          <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>debug</code></td><td>bool</td><td>False</td><td>Enable DEBUG level logging. Creates octave-debug.log (10MB, 2 backups).</td></tr>
+            <tr><td><code>console</code></td><td>bool</td><td>True</td><td>Enable console (stdout) output</td></tr>
+            <tr><td><code>file</code></td><td>bool</td><td>True</td><td>Enable file output with automatic rotation</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Log Rotation Policy</h3>
+        <table>
+          <thead><tr><th>File</th><th>Level</th><th>Max Size</th><th>Backups</th><th>Total Max</th></tr></thead>
+          <tbody>
+            <tr><td><code>octave.log</code></td><td>INFO+</td><td>5 MB</td><td>3</td><td>~20 MB</td></tr>
+            <tr><td><code>octave-error.log</code></td><td>ERROR+</td><td>2 MB</td><td>5</td><td>~12 MB</td></tr>
+            <tr><td><code>octave-debug.log</code></td><td>DEBUG+</td><td>10 MB</td><td>2</td><td>~30 MB</td></tr>
+          </tbody>
+        </table>
+        <p>Total max disk usage: ~62 MB with debug, ~32 MB without. Designed for embedded/vehicle use where disk space is limited.</p>
+
+        <h3>Formatters</h3>
+        <pre><code><span class="cmt"># Console (compact):</span>
+HH:MM:SS | LEVEL   | module_name               | message
+
+<span class="cmt"># File (detailed):</span>
+YYYY-MM-DD HH:MM:SS | LEVEL   | name | file.py:line | func() | message</code></pre>
+
+        <h3><code>get_logger(name)</code></h3>
+        <p>Gets a hierarchical logger for a module. Converts Python module paths to clean <code>octave.*</code> names.</p>
+        <pre><code><span class="kw">from</span> backend.logging_config <span class="kw">import</span> get_logger
+logger = get_logger(__name__)
+logger.info(<span class="str">"Application started"</span>)</code></pre>
+
+        <h3>Name Mapping</h3>
+        <table>
+          <thead><tr><th>Module <code>__name__</code></th><th>Logger Name</th></tr></thead>
+          <tbody>
+            <tr><td><code>backend.obd_manager</code></td><td><code>octave.obd</code></td></tr>
+            <tr><td><code>backend.media_manager</code></td><td><code>octave.media</code></td></tr>
+            <tr><td><code>backend.spotify_manager</code></td><td><code>octave.spotify</code></td></tr>
+            <tr><td><code>backend.settings_manager</code></td><td><code>octave.settings</code></td></tr>
+            <tr><td><code>backend.clock</code></td><td><code>octave.clock</code></td></tr>
+            <tr><td><code>backend.android_auto.manager</code></td><td><code>octave.android_auto</code></td></tr>
+            <tr><td><code>backend.phone_mirror.manager</code></td><td><code>octave.phone_mirror</code></td></tr>
+            <tr><td><code>backend.phone_mirror.scrcpy_host</code></td><td><code>octave.phone_mirror.host</code></td></tr>
+            <tr><td><code>__main__</code></td><td><code>octave.app</code></td></tr>
+            <tr><td>Other <code>backend.*</code></td><td><code>octave.&lt;rest&gt;</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Implementation Notes</h3>
+        <ul>
+          <li>Logger instances are cached in a module-level <code>_loggers</code> dict for fast repeat access</li>
+          <li><code>_initialized</code> flag prevents double-initialization</li>
+          <li>Log directory is created automatically at the platform-specific config path + <code>/logs/</code></li>
+        </ul>
+
+        <!-- Platform Config -->
+        <h2 id="platform-config">Platform Config</h2>
+        <p><span class="file-path">backend/platform_config.py</span></p>
+
+        <p>Single source of truth for Android platform detection. All platform-conditional code should import from here rather than doing its own detection.</p>
+
+        <h3>Source Code</h3>
+        <pre><code><span class="kw">import</span> sys
+<span class="kw">import</span> os
+
+IS_ANDROID = <span class="fn">hasattr</span>(sys, <span class="str">'getandroidapilevel'</span>) <span class="kw">or</span> <span class="str">'ANDROID_ROOT'</span> <span class="kw">in</span> os.environ</code></pre>
+
+        <h3>Functions</h3>
+        <table>
+          <thead><tr><th>Function</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>IS_ANDROID</code></td><td>bool (constant)</td><td>True if running on Android (checks <code>sys.getandroidapilevel</code> or <code>ANDROID_ROOT</code> env var)</td></tr>
+            <tr><td><code>get_android_data_dir()</code></td><td>str</td><td>Returns <code>&lt;cwd&gt;/OCTAVE/</code>, creates directory if needed</td></tr>
+            <tr><td><code>get_android_media_dir()</code></td><td>str</td><td>Returns <code>/sdcard/Music/</code>, creates directory if needed</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Usage Pattern</h3>
+        <pre><code><span class="kw">from</span> backend.platform_config <span class="kw">import</span> IS_ANDROID
+
+<span class="kw">if</span> IS_ANDROID:
+    <span class="cmt"># Use stub managers, Android paths, etc.</span>
+    <span class="kw">from</span> backend.stubs <span class="kw">import</span> StubOBDManager <span class="kw">as</span> OBDManager
+<span class="kw">else</span>:
+    <span class="kw">from</span> backend.obd_manager <span class="kw">import</span> OBDManager</code></pre>
+
+        <p>Used by: <code>settings_manager.py</code> (config directory), <code>logging_config.py</code> (log directory), <code>main.py</code> (manager selection), <code>media_manager.py</code> (default music folder).</p>
+
+        <!-- Performance Monitor -->
+        <h2 id="perf-monitor">Performance Monitor</h2>
+        <p><span class="file-path">backend/perf_monitor.py</span></p>
+        <p>Comprehensive performance monitoring exposed as a QObject with QML-bindable properties. Only active when <code>--profile</code> flag is passed.</p>
+
+        <h3>Internal Components</h3>
+
+        <h4>_RingBuffer</h4>
+        <p>Fixed-size ring buffer (deque-based) for numeric samples with cheap percentile calculation. Used for both event-loop latency and GIL jitter measurements. Capacity: 300 samples for GIL, 600 for loop (about 10 seconds at 60Hz).</p>
+
+        <h4>_GILProbe</h4>
+        <p>A daemon background thread that sleeps for 10ms intervals and measures the actual sleep duration. The jitter (actual - expected) approximates GIL contention time. Runs continuously until stopped.</p>
+
+        <h4>Event-Loop Probe</h4>
+        <p>A QTimer with interval 0 (fires on next event-loop iteration). Measures the delta between successive firings. High deltas indicate the event loop is blocked (UI stutter).</p>
+
+        <h3>Reporting Cycle (Every 1 Second)</h3>
+        <ol class="steps">
+          <li>Calculate loop latency statistics (avg, p50, p95, p99, max) from ring buffer</li>
+          <li>Calculate GIL jitter statistics (avg, p99)</li>
+          <li>Read CPU and memory usage via psutil (if available)</li>
+          <li>Count active threads</li>
+          <li>Write to terminal (color-coded), CSV file, and perf log file</li>
+          <li>Report slow slots (p95 > 2ms) every 5 seconds</li>
+          <li>Clear buffers and emit <code>metricsUpdated</code> signal</li>
+        </ol>
+
+        <h3>timed_slot Decorator</h3>
+        <pre><code><span class="kw">from</span> backend.perf_monitor <span class="kw">import</span> timed_slot
+
+<span class="kw">@timed_slot</span>
+<span class="kw">def</span> <span class="fn">my_slot</span>(self):
+    <span class="cmt"># This slot's execution time is automatically tracked</span>
+    <span class="cmt"># under the key "ClassName.my_slot"</span>
+    ...</code></pre>
+        <p>Records per-call duration in a _RingBuffer keyed by <code>fn.__qualname__</code>. Reported when p95 exceeds 2ms.</p>
+
+        <h3>Manual Instrumentation</h3>
+        <pre><code><span class="cmt"># Time any code section</span>
+t = PerfMonitor.begin()
+<span class="cmt"># ... expensive operation ...</span>
+PerfMonitor.end(t, <span class="str">"operation_name"</span>)</code></pre>
+
+        <h3>Detailed Report</h3>
+        <p>The <code>getDetailedReport()</code> slot returns a multi-line string summarizing all tracked metrics and slot timings. Written to the perf log file on shutdown.</p>
+
+        <!-- Command Server -->
+        <h2 id="command-server">Command Server</h2>
+        <p><span class="file-path">backend/command_server.py</span></p>
+        <p>TCP server for remote control of OCTAVE. Only active with <code>--profile</code> flag. Listens on <code>127.0.0.1:9876</code>.</p>
+
+        <h3>Architecture</h3>
+        <div class="diagram">
+<pre>
+  CommandServer
+    |
+    +-- _ThreadedTCPServer (socketserver.ThreadingMixIn)
+    |     |
+    |     +-- _Handler (one per client connection)
+    |     |     reads JSON lines, calls dispatch()
+    |     |
+    |     +-- dispatch(action, args)
+    |           routes to appropriate manager method
+    |
+    +-- NavigationBridge
+          QObject on main thread
+          thread-safe QML navigation via QMetaObject.invokeMethod
+</pre>
+        </div>
+
+        <h3>NavigationBridge</h3>
+        <p>Provides thread-safe navigation by executing QML method calls on the GUI thread:</p>
+        <pre><code><span class="kw">class</span> <span class="cls">NavigationBridge</span>(QObject):
+    <span class="kw">@Slot</span>(str)
+    <span class="kw">def</span> <span class="fn">navigate_to</span>(self, page: str):
+        <span class="cmt"># Calls mainWindow.navigateTo(page) in QML</span>
+        QMetaObject.invokeMethod(root, <span class="str">"navigateTo"</span>, Q_ARG(str, page))
+
+    <span class="kw">@Slot</span>()
+    <span class="kw">def</span> <span class="fn">go_home</span>(self): ...
+    <span class="kw">@Slot</span>()
+    <span class="kw">def</span> <span class="fn">go_back</span>(self): ...</code></pre>
+
+        <h3>Action Dispatch</h3>
+        <p>The dispatch method handles 40+ actions across 7 categories. It accesses managers via a dict passed at startup:</p>
+        <pre><code>server.start(
+    managers={
+        <span class="str">"settings"</span>: settings_manager,
+        <span class="str">"media"</span>: media_manager,
+        <span class="str">"spotify"</span>: spotify_manager,
+        <span class="str">"obd"</span>: obd_manager,
+    },
+    perf_monitor=perf_monitor,
+    engine=engine
+)</code></pre>
+
+        <h3>Settings Actions</h3>
+        <p>The command server exposes three types of settings manipulation:</p>
+        <ul>
+          <li><strong>Boolean toggles:</strong> 13 settings (show_clock, vinyl_mode, obd_fast_mode, etc.) via <code>toggle_setting</code> and <code>set_bool_setting</code></li>
+          <li><strong>Numeric sliders:</strong> 10 settings with min/max clamping (ui_scale, blur_radius, etc.) via <code>set_numeric_setting</code></li>
+          <li><strong>String/enum:</strong> 6 settings with validation (theme, font, album_art_transition, etc.) via <code>set_string_setting</code></li>
+        </ul>
+
+        <!-- Stubs -->
+        <h2 id="stubs">Android Stubs</h2>
+        <p><span class="file-path">backend/stubs.py</span></p>
+        <p>Provides no-op implementations of hardware-dependent managers for Android deployment. Every stub has the same Signal/Property/Slot interface as the real manager so QML bindings work without errors.</p>
+
+        <h3>Stub Classes</h3>
+        <table>
+          <thead><tr><th>Stub Class</th><th>Replaces</th><th>Signals</th><th>Behavior</th></tr></thead>
+          <tbody>
+            <tr><td><code>StubOBDManager</code></td><td>OBDManager</td><td>87 sensor + 13 status signals</td><td>All sensor slots return 0.0, connection returns False</td></tr>
+            <tr><td><code>StubBerryIMUManager</code></td><td>BerryIMUManager</td><td>9 sensor + 1 status signal</td><td>Connected = False, all values zeroed</td></tr>
+            <tr><td><code>StubGestureManager</code></td><td>GestureManager</td><td>3 signals</td><td>No gestures detected, status "Unavailable"</td></tr>
+            <tr><td><code>StubESP32VolumeManager</code></td><td>ESP32VolumeManager</td><td>5 signals</td><td>No serial connection, all properties empty</td></tr>
+            <tr><td><code>StubPhoneMirrorManager</code></td><td>PhoneMirrorManager</td><td>4 signals</td><td>scrcpy not installed, no device</td></tr>
+            <tr><td><code>StubAndroidAutoManager</code></td><td>AndroidAutoManager</td><td>4 signals</td><td>DHU not installed</td></tr>
+            <tr><td><code>StubScrcpyCapture</code></td><td>ScrcpyCapture</td><td>4 signals</td><td>Not capturing, 0x0 frame size</td></tr>
+            <tr><td><code>StubImageProvider</code></td><td>QQuickImageProvider</td><td>-</td><td>Returns 1x1 transparent ARGB32 image for any request</td></tr>
+          </tbody>
+        </table>
+
+        <h3>QQuickItem Stubs</h3>
+        <p>For QML types registered via <code>qmlRegisterType</code>, empty QQuickItem subclasses are provided:</p>
+        <ul>
+          <li><code>StubEmbeddedDhuItem</code> - Replaces EmbeddedDhuItem (Android Auto video)</li>
+          <li><code>StubEmbeddedScrcpyItem</code> - Replaces EmbeddedScrcpyItem (Phone Mirror embedded)</li>
+          <li><code>StubScrcpyCaptureItem</code> - Replaces ScrcpyCaptureItem (Phone Mirror capture). Has <code>frameCounter</code>, <code>frameWidth</code>, <code>frameHeight</code>, <code>isStreaming</code> properties and <code>connectToManager</code>, <code>detach</code>, <code>reattach</code> slots.</li>
+        </ul>
+
+        <h3>Usage in main.py</h3>
+        <pre><code><span class="kw">from</span> backend.platform_config <span class="kw">import</span> IS_ANDROID
+
+<span class="kw">if</span> IS_ANDROID:
+    <span class="kw">from</span> backend.stubs <span class="kw">import</span> (
+        StubOBDManager, StubBerryIMUManager,
+        StubGestureManager, StubESP32VolumeManager,
+        StubPhoneMirrorManager, StubAndroidAutoManager,
+        StubImageProvider, StubEmbeddedDhuItem,
+        StubEmbeddedScrcpyItem, StubScrcpyCaptureItem,
+    )
+    obd_manager = StubOBDManager(settings_manager)
+    <span class="cmt"># ... etc.</span>
+<span class="kw">else</span>:
+    <span class="kw">from</span> backend.obd_manager <span class="kw">import</span> OBDManager
+    obd_manager = OBDManager(settings_manager)
+    <span class="cmt"># ... etc.</span></code></pre>
+
+        <div class="info-box tip">
+          <strong>Stub Design Pattern:</strong> Each stub replicates the exact same signal/slot/property interface as the real manager. This means QML code never needs conditional checks for platform -- it always works, it just receives no-op data on Android.
+        </div>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="architecture.html" class="related-link">Architecture Overview</a>
+          <a href="signals-slots-reference.html" class="related-link">Signals &amp; Slots Reference</a>
+          <a href="development.html" class="related-link">Development Guide</a>
+          <a href="troubleshooting.html" class="related-link">Troubleshooting</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

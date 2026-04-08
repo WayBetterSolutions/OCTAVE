@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Analyzer - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Audio Analyzer</div>
+          <h1 class="page-title">Audio Analyzer</h1>
+          <p class="page-subtitle">FFT waveform visualization pipeline: audio decoding, frequency analysis, quality tiers, and the data flow from file to QML</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Pipeline Overview</a></li>
+            <li><a href="#quality-tiers">Quality Tiers</a></li>
+            <li><a href="#decoding">Audio Decoding</a></li>
+            <li><a href="#fft-pipeline">FFT Pipeline</a></li>
+            <li><a href="#data-flow">Data Flow</a></li>
+            <li><a href="#signals-slots">Signals and Slots</a></li>
+            <li><a href="#threading">Threading Model</a></li>
+            <li><a href="#performance">Performance Considerations</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <h2 id="overview">Pipeline Overview</h2>
+
+        <p><span class="file-path">backend/audio_analyzer.py</span> pre-computes FFT visualization data for an entire audio track, then provides time-indexed levels to QML based on playback position. This avoids real-time FFT computation during playback.</p>
+
+        <div class="diagram">
+<pre>
+ Audio File (.mp3/.flac/etc.)
+       |
+       v
+ +------------------+
+ | PyAV Decoder     |  Decode all frames to PCM samples
+ | (av library)     |  Convert stereo to mono
+ +------------------+
+       |
+       v
+ +------------------+
+ | Preprocessing    |  Normalize to [-1, 1]
+ |                  |  Downsample to ~8 kHz
+ +------------------+
+       |
+       v
+ +------------------+
+ | FFT Analysis     |  Split into 100ms chunks
+ | (NumPy)          |  Apply Hanning window
+ |                  |  Compute rfft per chunk
+ |                  |  Log-spaced frequency bands
+ +------------------+
+       |
+       v
+ +------------------+
+ | Normalization    |  95th percentile global max
+ | & Quantization   |  Power curve (^0.6)
+ |                  |  Map to 0-8 integer levels
+ +------------------+
+       |
+       v
+ +------------------+
+ | Stored as        |  List of lists: _fft_data[chunk][bar]
+ | _fft_data        |  ~10 chunks per second of audio
+ +------------------+
+       |
+       v (during playback)
+ +------------------+
+ | update_position  |  Look up chunk by timestamp
+ | (QML callback)   |  Emit fftDataChanged signal
+ +------------------+
+       |
+       v
+ +------------------+
+ | QML Visualizer   |  Bar heights from 0-8 levels
+ | (MediaRoom)      |  QML handles smoothing
+ +------------------+
+</pre>
+        </div>
+
+        <!-- Quality Tiers -->
+        <h2 id="quality-tiers">Quality Tiers</h2>
+
+        <p>The visualizer supports 5 quality tiers that control the number of frequency bars. More bars provide finer frequency resolution but require more QML rendering effort.</p>
+
+        <table>
+          <thead><tr><th>Tier</th><th>Bar Count</th><th>Frequency Detail</th><th>Rendering Cost</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Low</strong></td><td>16</td><td>Coarse &mdash; bass/mid/treble groups visible</td><td>Minimal &mdash; suitable for Raspberry Pi</td></tr>
+            <tr><td><strong>Medium</strong></td><td>32</td><td>Standard &mdash; good frequency separation</td><td>Low &mdash; default setting</td></tr>
+            <tr><td><strong>High</strong></td><td>48</td><td>Fine &mdash; individual frequency bands visible</td><td>Moderate</td></tr>
+            <tr><td><strong>Extreme</strong></td><td>64</td><td>Detailed &mdash; rich spectral visualization</td><td>Higher &mdash; desktop recommended</td></tr>
+            <tr><td><strong>Insane</strong></td><td>96</td><td>Maximum &mdash; near-spectrogram resolution</td><td>Highest &mdash; powerful GPU required</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Setting the Quality</h3>
+
+        <pre><code><span class="cmt"># Python</span>
+<span class="cls">@Slot</span>(str)
+<span class="kw">def</span> <span class="fn">set_quality</span>(self, quality: <span class="cls">str</span>):
+    new_bars = self._quality_bars.<span class="fn">get</span>(quality, <span class="num">32</span>)
+    <span class="kw">if</span> new_bars == self._num_bars:
+        <span class="kw">return</span>
+    self._num_bars = new_bars
+    self._current_levels = [<span class="num">0</span>] * self._num_bars
+    <span class="cmt"># Clear cache so next track uses new bar count</span>
+    self._fft_data = []
+    self._current_file = <span class="str">""</span></code></pre>
+
+        <div class="info-box warning">
+          <strong>Cache Invalidation:</strong> Changing quality clears the cached FFT data. The current track will need to be re-analyzed with the new bar count. The <code>_current_file</code> is also cleared to force re-analysis on the next <code>analyze_file()</code> call.
+        </div>
+
+        <p>The quality setting is connected from the settings UI. When a user changes the visualizer quality in settings, <code>set_quality()</code> is called, which updates the bar count and clears the cache.</p>
+
+        <!-- Decoding -->
+        <h2 id="decoding">Audio Decoding</h2>
+
+        <p>Audio files are decoded using the <strong>PyAV</strong> library (Python bindings for FFmpeg). This supports virtually any audio format: MP3, FLAC, AAC, OGG, WAV, etc.</p>
+
+        <pre><code><span class="kw">import</span> av
+
+container = av.<span class="fn">open</span>(file_path)
+audio_stream = <span class="fn">next</span>(
+    (s <span class="kw">for</span> s <span class="kw">in</span> container.streams <span class="kw">if</span> s.type == <span class="str">'audio'</span>), <span class="kw">None</span>)
+
+samples = []
+sample_rate = audio_stream.rate <span class="kw">or</span> <span class="num">44100</span>
+
+<span class="kw">for</span> frame <span class="kw">in</span> container.<span class="fn">decode</span>(audio_stream):
+    frame_data = frame.<span class="fn">to_ndarray</span>()
+
+    <span class="cmt"># Stereo to mono: average channels</span>
+    <span class="kw">if</span> <span class="fn">len</span>(frame_data.shape) > <span class="num">1</span>:
+        frame_data = frame_data.<span class="fn">mean</span>(axis=<span class="num">0</span>)
+
+    samples.<span class="fn">append</span>(frame_data)
+
+container.<span class="fn">close</span>()</code></pre>
+
+        <h3>Preprocessing Steps</h3>
+        <ol class="steps">
+          <li><strong>Concatenate</strong> &mdash; All decoded frames are joined into a single float32 array</li>
+          <li><strong>Normalize</strong> &mdash; Divide by the global maximum absolute value to get a [-1, 1] range</li>
+          <li><strong>Downsample</strong> &mdash; Reduce to approximately 8 kHz by taking every Nth sample (<code>N = sample_rate // 8000</code>). This dramatically reduces FFT computation while retaining sufficient frequency information for visualization.</li>
+        </ol>
+
+        <pre><code><span class="cmt"># Concatenate and normalize</span>
+all_samples = np.<span class="fn">concatenate</span>(samples).<span class="fn">astype</span>(np.float32)
+max_val = np.<span class="fn">max</span>(np.<span class="fn">abs</span>(all_samples))
+<span class="kw">if</span> max_val > <span class="num">0</span>:
+    all_samples = all_samples / max_val
+
+<span class="cmt"># Downsample to ~8kHz</span>
+downsample_factor = <span class="fn">max</span>(<span class="num">1</span>, sample_rate // <span class="num">8000</span>)
+all_samples = all_samples[::downsample_factor]
+effective_rate = sample_rate // downsample_factor</code></pre>
+
+        <!-- FFT Pipeline -->
+        <h2 id="fft-pipeline">FFT Pipeline</h2>
+
+        <p>The preprocessed audio is split into 100ms chunks (10 chunks per second). Each chunk is analyzed independently:</p>
+
+        <pre><code>chunk_size = <span class="fn">int</span>(effective_rate * <span class="num">0.1</span>)  <span class="cmt"># 100ms chunks</span>
+num_chunks = <span class="fn">len</span>(all_samples) // chunk_size
+window = np.<span class="fn">hanning</span>(chunk_size)  <span class="cmt"># Pre-compute once</span></code></pre>
+
+        <h3>Per-Chunk Processing</h3>
+
+        <ol class="steps">
+          <li><strong>Window function</strong> &mdash; A Hanning window is applied to reduce spectral leakage at chunk boundaries:
+            <pre><code>windowed = chunk * window</code></pre>
+          </li>
+          <li><strong>FFT computation</strong> &mdash; Real FFT via NumPy, taking the magnitude and discarding DC (index 0) and the mirror half:
+            <pre><code>fft = np.<span class="fn">abs</span>(np.fft.<span class="fn">rfft</span>(windowed))
+fft = fft[<span class="num">1</span>:<span class="fn">len</span>(fft)//<span class="num">2</span>]</code></pre>
+          </li>
+          <li><strong>Logarithmic frequency bands</strong> &mdash; The FFT bins are grouped into <code>num_bars</code> bands using logarithmic spacing. This gives more resolution to lower frequencies (which humans are more sensitive to) and groups higher frequencies together:
+            <pre><code>log_indices = np.<span class="fn">logspace</span>(
+    <span class="num">0</span>, np.<span class="fn">log10</span>(<span class="fn">len</span>(fft)),
+    self._num_bars + <span class="num">1</span>, dtype=<span class="fn">int</span>)</code></pre>
+          </li>
+          <li><strong>Band averaging</strong> &mdash; Each band's magnitude is the mean of its FFT bins</li>
+        </ol>
+
+        <h3>Global Normalization (Two-Pass)</h3>
+
+        <p>After computing raw FFT magnitudes for all chunks, a second pass normalizes and quantizes:</p>
+
+        <pre><code><span class="cmt"># Find 95th percentile to avoid outlier spikes</span>
+all_values = [v <span class="kw">for</span> chunk <span class="kw">in</span> raw_fft_data <span class="kw">for</span> v <span class="kw">in</span> chunk <span class="kw">if</span> v > <span class="num">0</span>]
+global_max = np.<span class="fn">percentile</span>(all_values, <span class="num">95</span>)
+
+<span class="cmt"># Normalize, apply power curve, quantize to 0-8</span>
+<span class="kw">for</span> levels <span class="kw">in</span> raw_fft_data:
+    <span class="kw">for</span> level <span class="kw">in</span> levels:
+        norm = level / global_max
+        norm = <span class="fn">min</span>(<span class="num">1.0</span>, norm) ** <span class="num">0.6</span>   <span class="cmt"># Power curve for visual balance</span>
+        quantized = <span class="fn">int</span>(norm * <span class="num">8</span>)      <span class="cmt"># 0-8 integer levels</span></code></pre>
+
+        <div class="info-box tip">
+          <strong>Why 95th percentile?</strong> Using the maximum value would compress the entire visualization to accommodate rare peaks. The 95th percentile allows occasional clipping at 8 but keeps the overall visualization dynamic and visually interesting.
+        </div>
+
+        <div class="info-box tip">
+          <strong>Why power curve 0.6?</strong> The <code>** 0.6</code> exponent compresses the dynamic range, boosting quiet passages and taming loud ones. Without it, most bars would hover near zero with occasional spikes. The 0.6 value was tuned for visual balance.
+        </div>
+
+        <!-- Data Flow -->
+        <h2 id="data-flow">Data Flow</h2>
+
+        <p>Once analysis is complete, playback position is mapped to FFT chunks in real time:</p>
+
+        <pre><code><span class="cls">@Slot</span>(<span class="cls">float</span>)
+<span class="kw">def</span> <span class="fn">update_position</span>(self, position_seconds: <span class="cls">float</span>):
+    <span class="kw">if not</span> self._fft_data <span class="kw">or not</span> self._is_active:
+        <span class="kw">return</span>
+
+    <span class="cmt"># 10 chunks per second (100ms chunk duration)</span>
+    chunk_index = <span class="fn">int</span>(position_seconds * <span class="num">10</span>)
+    chunk_index = <span class="fn">max</span>(<span class="num">0</span>, <span class="fn">min</span>(chunk_index, <span class="fn">len</span>(self._fft_data) - <span class="num">1</span>))
+
+    new_levels = self._fft_data[chunk_index]
+
+    <span class="cmt"># Only emit if levels actually changed</span>
+    <span class="kw">if</span> new_levels != self._current_levels:
+        self._current_levels = new_levels
+        self.fftDataChanged.<span class="fn">emit</span>(new_levels)</code></pre>
+
+        <p>The position-to-chunk mapping is simple: multiply seconds by 10 (since each chunk is 100ms). The change detection (<code>!= self._current_levels</code>) prevents unnecessary signal emissions when the playback position is within the same chunk.</p>
+
+        <!-- Signals and Slots -->
+        <h2 id="signals-slots">Signals and Slots</h2>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Emitted When</th></tr></thead>
+          <tbody>
+            <tr><td><code>fftDataChanged</code></td><td><code>list</code> (integers 0-8)</td><td>Playback position enters a new chunk with different levels</td></tr>
+            <tr><td><code>analysisComplete</code></td><td>None</td><td>Background analysis finishes successfully</td></tr>
+            <tr><td><code>analysisStarted</code></td><td>None</td><td>Analysis begins for a new file</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>analyze_file</code></td><td><code>str</code> (file path)</td><td>Start FFT analysis for a track</td></tr>
+            <tr><td><code>update_position</code></td><td><code>float</code> (seconds)</td><td>Look up and emit FFT levels for current playback position</td></tr>
+            <tr><td><code>set_active</code></td><td><code>bool</code></td><td>Enable/disable the visualizer (emits zeros when disabled)</td></tr>
+            <tr><td><code>set_quality</code></td><td><code>str</code></td><td>Change quality tier (clears cache)</td></tr>
+            <tr><td><code>clear</code></td><td>None</td><td>Clear all analysis data</td></tr>
+            <tr><td><code>get_current_levels</code></td><td>None &rarr; <code>list</code></td><td>Get current FFT levels synchronously</td></tr>
+            <tr><td><code>get_num_bars</code></td><td>None &rarr; <code>int</code></td><td>Get current bar count</td></tr>
+            <tr><td><code>is_analyzed</code></td><td>None &rarr; <code>bool</code></td><td>Check if current file has been analyzed</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Threading -->
+        <h2 id="threading">Threading Model</h2>
+
+        <p>Audio analysis is CPU-intensive and must not block the Qt event loop. The <code>AudioAnalyzer</code> uses a <code>ThreadPoolExecutor</code> with a single worker thread:</p>
+
+        <pre><code>self._executor = ThreadPoolExecutor(max_workers=<span class="num">1</span>)
+
+<span class="cmt"># Submit work to background thread</span>
+self._pending_future = self._executor.<span class="fn">submit</span>(
+    self._analyze_audio, file_path)
+
+<span class="cmt"># Poll for completion from the main thread</span>
+self._poll_timer.<span class="fn">start</span>()</code></pre>
+
+        <p>A <code>QTimer</code> polling at 100ms checks if the future is done. When complete, results are collected on the main thread where it is safe to emit Qt signals:</p>
+
+        <pre><code><span class="kw">def</span> <span class="fn">_check_analysis_done</span>(self):
+    <span class="kw">if</span> self._pending_future <span class="kw">is None or not</span> self._pending_future.<span class="fn">done</span>():
+        <span class="kw">return</span>
+
+    self._poll_timer.<span class="fn">stop</span>()
+    future = self._pending_future
+    self._pending_future = <span class="kw">None</span>
+
+    result = future.<span class="fn">result</span>()
+    <span class="kw">if</span> result <span class="kw">is not None</span>:
+        self._fft_data = result
+        self.analysisComplete.<span class="fn">emit</span>()</code></pre>
+
+        <div class="info-box warning">
+          <strong>Thread Safety:</strong> The <code>_analyze_audio()</code> method must NOT touch any Qt objects. It receives the file path as an argument and returns the computed FFT data as a plain Python list. All Qt signal emissions happen on the main thread in <code>_check_analysis_done()</code>.
+        </div>
+
+        <h3>Guard Conditions</h3>
+        <ul>
+          <li><strong>Skip if already analyzed:</strong> If the same file is requested, the cached data is reused</li>
+          <li><strong>Skip if analyzing:</strong> If analysis is already in progress, new requests are dropped</li>
+          <li><strong>Graceful degradation:</strong> If NumPy or PyAV are not installed, the analyzer silently disables itself</li>
+        </ul>
+
+        <!-- Performance -->
+        <h2 id="performance">Performance Considerations</h2>
+
+        <h3>Analysis Time</h3>
+        <p>The 8 kHz downsampling is the primary optimization. A 3-minute song at 44.1 kHz has ~8 million samples. At 8 kHz, this drops to ~1.4 million. FFT computation scales with <code>O(N log N)</code> per chunk, so this reduction is significant.</p>
+
+        <h3>Memory Usage per Tier</h3>
+        <table>
+          <thead><tr><th>Tier</th><th>Bars</th><th>3-min song (~1800 chunks)</th><th>Memory</th></tr></thead>
+          <tbody>
+            <tr><td>Low</td><td>16</td><td>1800 x 16 = 28,800 integers</td><td>~225 KB</td></tr>
+            <tr><td>Medium</td><td>32</td><td>1800 x 32 = 57,600 integers</td><td>~450 KB</td></tr>
+            <tr><td>High</td><td>48</td><td>1800 x 48 = 86,400 integers</td><td>~675 KB</td></tr>
+            <tr><td>Extreme</td><td>64</td><td>1800 x 64 = 115,200 integers</td><td>~900 KB</td></tr>
+            <tr><td>Insane</td><td>96</td><td>1800 x 96 = 172,800 integers</td><td>~1.35 MB</td></tr>
+          </tbody>
+        </table>
+
+        <h3>QML Rendering Impact</h3>
+        <p>The bar count directly affects QML rendering cost. Each bar is a separate visual element that must be positioned and sized every frame. At 96 bars (Insane), this can impact frame rate on low-powered devices. The "Low" tier at 16 bars is specifically designed for Raspberry Pi deployments.</p>
+
+        <h3>Signal Emission Throttling</h3>
+        <p>The change detection in <code>update_position()</code> prevents redundant signal emissions. Since chunks span 100ms, the visualizer emits at most 10 updates per second regardless of how frequently <code>update_position()</code> is called.</p>
+
+        <!-- QML Integration -->
+        <h2 id="qml-integration">QML Integration</h2>
+
+        <p>The <code>audioAnalyzer</code> is registered as a context property in <code>main.py</code> and consumed primarily by the MediaRoom waveform visualizer. The integration pattern:</p>
+
+        <pre><code><span class="cmt">// In MediaRoom.qml</span>
+
+<span class="cmt">// When a new track starts playing:</span>
+<span class="kw">if</span> (audioAnalyzer && mediaManager) {
+    <span class="kw">var</span> fullPath = mediaManager.<span class="fn">get_full_file_path</span>(currentFile)
+    audioAnalyzer.<span class="fn">analyze_file</span>(fullPath)
+}
+
+<span class="cmt">// Position updates (called from playback timer):</span>
+audioAnalyzer.<span class="fn">update_position</span>(positionSeconds)
+
+<span class="cmt">// Receive FFT data:</span>
+<span class="cls">Connections</span> {
+    <span class="prop">target</span>: audioAnalyzer
+    <span class="kw">function</span> <span class="fn">onFftDataChanged</span>(levels) {
+        <span class="cmt">// levels is a list of integers (0-8)</span>
+        <span class="cmt">// Update bar heights in the visualizer</span>
+        <span class="kw">for</span> (<span class="kw">var</span> i = <span class="num">0</span>; i < levels.length; i++) {
+            bars[i].height = levels[i] / <span class="num">8.0</span> * maxBarHeight
+        }
+    }
+}</code></pre>
+
+        <h3>Quality Setting Connection</h3>
+        <p>The visualizer quality is configured in the Media settings page and stored in <code>settingsConfigure.json</code>. When the user changes the quality tier:</p>
+
+        <pre><code><span class="cmt">// Settings page calls:</span>
+audioAnalyzer.<span class="fn">set_quality</span>(<span class="str">"High"</span>)  <span class="cmt">// Updates bar count to 48</span>
+
+<span class="cmt">// The visualizer component reads bar count:</span>
+<span class="kw">var</span> numBars = audioAnalyzer.<span class="fn">get_num_bars</span>()
+<span class="cmt">// Rebuilds its bar Repeater model accordingly</span></code></pre>
+
+        <h3>Active/Inactive State</h3>
+        <p>The visualizer can be toggled on/off. When disabled, it emits zero levels to clear the display:</p>
+
+        <pre><code><span class="cmt">// Disable: clears bars and stops emitting</span>
+audioAnalyzer.<span class="fn">set_active</span>(<span class="kw">false</span>)
+
+<span class="cmt">// Enable: resumes emitting levels on position updates</span>
+audioAnalyzer.<span class="fn">set_active</span>(<span class="kw">true</span>)</code></pre>
+
+        <!-- Frequency Band Distribution -->
+        <h2 id="frequency-bands">Frequency Band Distribution</h2>
+
+        <p>The logarithmic frequency band distribution is critical for natural-looking visualization. Linear spacing would dedicate most bars to high frequencies (which are less musically interesting), while logarithmic spacing mirrors how humans perceive pitch:</p>
+
+        <pre><code><span class="cmt"># Generate logarithmically-spaced band boundaries</span>
+log_indices = np.<span class="fn">logspace</span>(
+    <span class="num">0</span>,                         <span class="cmt"># Start: 10^0 = 1</span>
+    np.<span class="fn">log10</span>(<span class="fn">len</span>(fft)),        <span class="cmt"># End: highest FFT bin</span>
+    self._num_bars + <span class="num">1</span>,        <span class="cmt"># Number of boundaries</span>
+    dtype=<span class="fn">int</span>                   <span class="cmt"># Integer indices</span>
+)
+log_indices = np.<span class="fn">clip</span>(log_indices, <span class="num">0</span>, <span class="fn">len</span>(fft))</code></pre>
+
+        <p>With an 8 kHz effective sample rate, the FFT covers 0-4 kHz (Nyquist). For a 32-bar visualization, approximate band boundaries would be:</p>
+
+        <table>
+          <thead><tr><th>Bar Range</th><th>Frequency Range (approx)</th><th>Musical Content</th></tr></thead>
+          <tbody>
+            <tr><td>Bars 1-6</td><td>30-200 Hz</td><td>Bass, kick drums, bass guitar</td></tr>
+            <tr><td>Bars 7-14</td><td>200-800 Hz</td><td>Low-mid, vocals, guitar body</td></tr>
+            <tr><td>Bars 15-22</td><td>800-2000 Hz</td><td>Mid, vocal presence, snare</td></tr>
+            <tr><td>Bars 23-28</td><td>2000-3500 Hz</td><td>Upper-mid, cymbal attack</td></tr>
+            <tr><td>Bars 29-32</td><td>3500-4000 Hz</td><td>Treble, sibilance, air</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Dependencies -->
+        <h2 id="dependencies">Dependencies and Graceful Degradation</h2>
+
+        <p>The AudioAnalyzer requires two optional dependencies:</p>
+
+        <pre><code><span class="kw">try</span>:
+    <span class="kw">import</span> numpy <span class="kw">as</span> np
+    NUMPY_AVAILABLE = <span class="kw">True</span>
+<span class="kw">except</span> <span class="cls">ImportError</span>:
+    NUMPY_AVAILABLE = <span class="kw">False</span>
+
+<span class="kw">try</span>:
+    <span class="kw">import</span> av
+    AV_AVAILABLE = <span class="kw">True</span>
+<span class="kw">except</span> <span class="cls">ImportError</span>:
+    AV_AVAILABLE = <span class="kw">False</span></code></pre>
+
+        <p>If either library is missing, the analyzer silently disables itself. The <code>analyze_file()</code> slot returns immediately with a warning log. The QML visualizer receives no data and remains hidden. This means OCTAVE can run on systems without NumPy or FFmpeg without any errors or degraded experience (the visualizer simply doesn't appear).</p>
+
+        <div class="info-box info">
+          <strong>Installation:</strong> Both <code>numpy</code> and <code>av</code> (PyAV) are listed in <span class="file-path">requirements.txt</span> and installed automatically by <code>python setup.py</code>. PyAV bundles its own FFmpeg libraries, so no system FFmpeg installation is needed.
+        </div>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="components.html" class="related-link">Components</a>
+          <a href="pages.html" class="related-link">Pages</a>
+          <a href="architecture.html" class="related-link">Architecture</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

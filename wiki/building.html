@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Building &amp; Distribution - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Building &amp; Distribution</div>
+          <h1 class="page-title">Building &amp; Distribution</h1>
+          <p class="page-subtitle">PyInstaller build process, platform-specific packaging, CI/CD workflow, and distribution formats.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#quick-start">Quick Start</a></li>
+            <li><a href="#build-script">Unified Build Script</a></li>
+            <li><a href="#spec-file">PyInstaller Spec File</a></li>
+            <li><a href="#windows">Windows Build</a></li>
+            <li><a href="#macos">macOS Build</a></li>
+            <li><a href="#linux">Linux Build</a></li>
+            <li><a href="#ci-cd">GitHub Actions CI/CD</a></li>
+            <li><a href="#android">Android APK Build</a></li>
+            <li><a href="#troubleshooting">Build Troubleshooting</a></li>
+          </ul>
+        </nav>
+
+        <!-- Quick Start -->
+        <h2 id="quick-start">Quick Start</h2>
+        <pre><code><span class="cmt"># Build for current platform (creates venv, installs deps, builds)</span>
+<span class="fn">python</span> build_scripts/build.py
+
+<span class="cmt"># Clean build artifacts only</span>
+<span class="fn">python</span> build_scripts/build.py --clean
+
+<span class="cmt"># Clean then rebuild</span>
+<span class="fn">python</span> build_scripts/build.py --clean --build-after-clean</code></pre>
+
+        <div class="info-box info">
+          <strong>Build Location:</strong> The build script uses the system temp directory (<code>/tmp/OCTAVE_build</code> and <code>/tmp/OCTAVE_dist</code>) for intermediate files to avoid Dropbox sync issues. Final output is copied to <code>dist/</code> in the project root.
+        </div>
+
+        <!-- Build Script -->
+        <h2 id="build-script">Unified Build Script</h2>
+        <p><span class="file-path">build_scripts/build.py</span></p>
+        <p>The unified build script handles all platforms with a single entry point. It performs these steps:</p>
+        <ol class="steps">
+          <li><strong>Setup:</strong> Creates a virtual environment in <code>venv/</code> if not present, installs <code>requirements.txt</code> and PyInstaller</li>
+          <li><strong>Clean:</strong> Removes <code>build/</code>, <code>dist/</code>, <code>__pycache__/</code>, and <code>.pyc</code> files recursively</li>
+          <li><strong>Build:</strong> Runs PyInstaller with <span class="file-path">build_scripts/octave.spec</span></li>
+          <li><strong>Package:</strong> Creates platform-specific installer (Inno Setup / DMG / AppImage)</li>
+          <li><strong>Copy:</strong> Copies build output from temp dir to project <code>dist/</code> folder</li>
+        </ol>
+
+        <h3>Platform-Specific Build Scripts</h3>
+        <table>
+          <thead><tr><th>Script</th><th>Platform</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><span class="file-path">build_scripts/build_windows.bat</span></td><td><span class="platform-badge desktop">Windows</span></td><td>Windows batch file alternative to build.py</td></tr>
+            <tr><td><span class="file-path">build_scripts/build_macos.sh</span></td><td><span class="platform-badge desktop">macOS</span></td><td>Shell script for macOS builds</td></tr>
+            <tr><td><span class="file-path">build_scripts/build_linux.sh</span></td><td><span class="platform-badge linux">Linux</span></td><td>Shell script for Linux builds</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Spec File -->
+        <h2 id="spec-file">PyInstaller Spec File</h2>
+        <p><span class="file-path">build_scripts/octave.spec</span></p>
+        <p>The spec file defines exactly what gets bundled into the executable:</p>
+
+        <h3>Data Files Collected</h3>
+        <table>
+          <thead><tr><th>Source</th><th>Contents</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><code>frontend/</code></td><td>All QML files, assets, fonts</td><td>Excludes <code>-src</code> directories (source design files)</td></tr>
+            <tr><td><code>backend/</code></td><td>JSON and TXT data files</td><td>Excludes <code>__pycache__</code>, <code>temp</code>, <code>media</code>, dotfiles</td></tr>
+            <tr><td><code>tools/scrcpy/</code></td><td>Bundled scrcpy executable</td><td>For phone mirroring, if present</td></tr>
+            <tr><td>PySide6 QML</td><td>Qt Quick modules</td><td>Collected via <code>collect_data_files('PySide6')</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Hidden Imports</h3>
+        <p>The spec file declares hidden imports for all PySide6 modules, backend dependencies, and platform-specific keyring backends:</p>
+        <pre><code>hidden_imports = [
+    <span class="str">'PySide6.QtCore'</span>, <span class="str">'PySide6.QtGui'</span>, <span class="str">'PySide6.QtQml'</span>,
+    <span class="str">'PySide6.QtQuick'</span>, <span class="str">'PySide6.QtQuickControls2'</span>,
+    <span class="str">'PySide6.QtMultimedia'</span>, <span class="str">'PySide6.QtNetwork'</span>,
+    <span class="str">'mutagen'</span>, <span class="str">'spotipy'</span>, <span class="str">'obd'</span>,
+    <span class="str">'numpy'</span>, <span class="str">'scipy'</span>, <span class="str">'keyring'</span>, <span class="str">'PIL'</span>,
+    <span class="cmt"># + platform-specific keyring backends</span>
+    <span class="cmt"># + all PySide6 submodules via collect_submodules()</span>
+]</code></pre>
+
+        <h3>Excluded Modules</h3>
+        <p>To reduce bundle size, these are excluded: <code>tkinter</code>, <code>matplotlib</code>, <code>cv2</code>, <code>pandas</code>, <code>pytest</code>.</p>
+
+        <h3>Platform EXE Differences</h3>
+        <table>
+          <thead><tr><th>Setting</th><th>Windows</th><th>macOS</th><th>Linux</th></tr></thead>
+          <tbody>
+            <tr><td>Name</td><td>OCTAVE</td><td>OCTAVE</td><td>octave (lowercase)</td></tr>
+            <tr><td>Console</td><td>False (GUI)</td><td>False (GUI)</td><td>False (GUI)</td></tr>
+            <tr><td>UPX</td><td>True</td><td>True</td><td>True</td></tr>
+            <tr><td>argv_emulation</td><td>False</td><td>True</td><td>False</td></tr>
+            <tr><td>Icon</td><td>icon.ico</td><td>icon.icns</td><td>(none)</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Windows -->
+        <h2 id="windows">Windows Build</h2>
+        <span class="platform-badge desktop">Windows</span>
+
+        <h3>Requirements</h3>
+        <ul>
+          <li>Python 3.8+</li>
+          <li>(Optional) <a href="https://jrsoftware.org/isdl.php">Inno Setup 6</a> for creating the installer</li>
+        </ul>
+
+        <h3>Output</h3>
+        <ul>
+          <li><code>dist\OCTAVE\OCTAVE.exe</code> - Standalone executable (portable, distribute the whole folder)</li>
+          <li><code>dist\OCTAVE_Setup_1.0.0.exe</code> - Inno Setup installer (if Inno Setup is installed)</li>
+        </ul>
+
+        <h3>Inno Setup Installer</h3>
+        <p>The installer script at <span class="file-path">build_scripts/installer_windows.iss</span> creates a professional Windows installer with Start Menu shortcuts and uninstaller.</p>
+
+        <!-- macOS -->
+        <h2 id="macos">macOS Build</h2>
+        <span class="platform-badge desktop">macOS</span>
+
+        <h3>Requirements</h3>
+        <ul>
+          <li>Python 3.8+</li>
+          <li>Xcode Command Line Tools (<code>xcode-select --install</code>)</li>
+        </ul>
+
+        <h3>Output</h3>
+        <ul>
+          <li><code>dist/OCTAVE.app</code> - Application bundle</li>
+          <li><code>dist/OCTAVE_1.0.0.dmg</code> - DMG installer with Applications symlink</li>
+        </ul>
+
+        <h3>App Bundle Info.plist</h3>
+        <p>The spec file configures the macOS app bundle with:</p>
+        <pre><code>bundle_identifier: <span class="str">'com.waybettersolutions.octave'</span>
+NSHighResolutionCapable: <span class="kw">True</span>
+NSRequiresAquaSystemAppearance: <span class="kw">False</span>  <span class="cmt"># Dark mode support</span>
+LSMinimumSystemVersion: <span class="str">'10.14.0'</span>
+<span class="cmt"># Bluetooth and microphone usage descriptions included</span></code></pre>
+
+        <h3>DMG Creation</h3>
+        <p>The build script creates a DMG using <code>hdiutil create</code> in UDZO (compressed) format, with an Applications symlink for drag-to-install.</p>
+
+        <div class="info-box warning">
+          <strong>Code Signing:</strong> Unsigned macOS apps trigger Gatekeeper warnings. Users can bypass with <code>xattr -cr /Applications/OCTAVE.app</code>. For distribution, sign with a Developer ID certificate.
+        </div>
+
+        <!-- Linux -->
+        <h2 id="linux">Linux Build</h2>
+        <span class="platform-badge linux">Linux</span>
+
+        <h3>Requirements</h3>
+        <ul>
+          <li>Python 3.8+</li>
+          <li>Build essentials: <code>sudo apt install build-essential</code></li>
+          <li><code>wget</code> (for automatic appimagetool download)</li>
+        </ul>
+
+        <h3>Output</h3>
+        <ul>
+          <li><code>dist/OCTAVE/octave</code> - Standalone executable</li>
+          <li><code>dist/OCTAVE-x86_64.AppImage</code> - Portable single-file AppImage</li>
+        </ul>
+
+        <h3>AppImage Structure</h3>
+        <p>The build script creates an AppDir with proper structure:</p>
+        <pre><code>OCTAVE.AppDir/
+  AppRun                    <span class="cmt"># Shell script entry point</span>
+  octave.desktop            <span class="cmt"># Desktop entry file</span>
+  usr/bin/                  <span class="cmt"># All PyInstaller output</span>
+  usr/share/applications/   <span class="cmt"># Desktop entry copy</span>
+  usr/share/icons/          <span class="cmt"># App icon</span></code></pre>
+
+        <p>The AppRun script sets critical environment variables:</p>
+        <pre><code><span class="kw">export</span> QT_QPA_PLATFORM_PLUGIN_PATH=<span class="str">"${HERE}/usr/bin/PySide6/Qt/plugins/platforms"</span>
+<span class="kw">export</span> QML2_IMPORT_PATH=<span class="str">"${HERE}/usr/bin/PySide6/Qt/qml"</span></code></pre>
+
+        <!-- CI/CD -->
+        <h2 id="ci-cd">GitHub Actions CI/CD</h2>
+        <p><span class="file-path">.github/workflows/build.yml</span></p>
+
+        <h3>Triggers</h3>
+        <ul>
+          <li><strong>Manual:</strong> <code>workflow_dispatch</code> (trigger from GitHub UI)</li>
+          <li><strong>Version tags:</strong> Push tags matching <code>v*</code> (e.g., <code>v1.0.0</code>)</li>
+        </ul>
+
+        <h3>Jobs</h3>
+        <table>
+          <thead><tr><th>Job</th><th>Runner</th><th>Artifacts</th><th>Retention</th></tr></thead>
+          <tbody>
+            <tr><td>build-windows</td><td>windows-latest</td><td>OCTAVE-Windows (folder zip)</td><td>30 days</td></tr>
+            <tr><td>build-macos</td><td>macos-latest</td><td>OCTAVE-macOS-App, OCTAVE-macOS-DMG</td><td>30 days</td></tr>
+            <tr><td>build-linux</td><td>ubuntu-22.04</td><td>OCTAVE-Linux (folder), OCTAVE-Linux-AppImage</td><td>30 days</td></tr>
+            <tr><td>release</td><td>ubuntu-latest</td><td>GitHub Release with all artifacts</td><td>Permanent</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Linux System Dependencies</h3>
+        <p>The CI workflow installs these system packages for Linux builds:</p>
+        <pre><code>sudo apt-get install -y \
+  libxcb-xinerama0 libxcb-cursor0 libxkbcommon0 \
+  libgl1-mesa-glx libegl1 libfuse2</code></pre>
+
+        <h3>Release Job</h3>
+        <p>The release job runs only on version tags. It downloads all artifacts, zips them, and creates a GitHub Release with auto-generated release notes using <code>softprops/action-gh-release@v2</code>.</p>
+
+        <h3>scrcpy Bundling</h3>
+        <ul>
+          <li><strong>Windows/Linux:</strong> Downloads via <code>scripts/download_scrcpy.py</code></li>
+          <li><strong>macOS:</strong> Installs via Homebrew and copies binaries to <code>tools/scrcpy/</code></li>
+        </ul>
+
+        <!-- Android -->
+        <h2 id="android">Android APK Build</h2>
+        <span class="platform-badge android">Android</span>
+        <p>Android builds use Buildozer with a <code>buildozer.spec</code> configuration. The Android port uses stub managers from <span class="file-path">backend/stubs.py</span> to replace hardware-dependent features (OBD, IMU, gesture sensor, ESP32) with no-op implementations.</p>
+
+        <div class="info-box info">
+          <strong>Platform Detection:</strong> <span class="file-path">backend/platform_config.py</span> detects Android via <code>hasattr(sys, 'getandroidapilevel')</code> or the <code>ANDROID_ROOT</code> environment variable. Android-specific data paths use the app's working directory.
+        </div>
+
+        <!-- Troubleshooting -->
+        <h2 id="troubleshooting">Build Troubleshooting</h2>
+
+        <h3>"DLL not found" on Windows</h3>
+        <p>Install the Visual C++ Redistributable: <a href="https://aka.ms/vs/17/release/vc_redist.x64.exe">Download link</a></p>
+
+        <h3>"App is damaged" on macOS</h3>
+        <pre><code>xattr -cr /Applications/OCTAVE.app</code></pre>
+
+        <h3>Missing Qt Plugins</h3>
+        <p>Ensure PySide6 version matches between <code>requirements.txt</code> and the build environment. Version mismatches cause missing plugin errors at runtime.</p>
+
+        <h3>AppImage Won't Run</h3>
+        <pre><code><span class="cmt"># Make executable</span>
+chmod +x OCTAVE-x86_64.AppImage
+
+<span class="cmt"># If FUSE unavailable, extract and run</span>
+./OCTAVE-x86_64.AppImage --appimage-extract
+./squashfs-root/AppRun</code></pre>
+
+        <h3>Dropbox Sync Interference</h3>
+        <p>The build script uses temp directories to avoid Dropbox trying to sync intermediate build files. If you see file locking errors during build, close Dropbox or move the project outside the synced folder.</p>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="getting-started.html" class="related-link">Getting Started</a>
+          <a href="development.html" class="related-link">Development Guide</a>
+          <a href="troubleshooting.html" class="related-link">Troubleshooting</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Manager - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Download Manager</div>
+          <h1 class="page-title">Download Manager</h1>
+          <p class="page-subtitle">Music search and download system using Spotify metadata and YouTube audio</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#architecture">System Architecture</a></li>
+            <li><a href="#music-dl-engine">The music_dl Engine</a></li>
+            <li><a href="#search-flow">Search Flow</a></li>
+            <li><a href="#download-pipeline">Download Pipeline</a></li>
+            <li><a href="#progress-reporting">Progress Reporting</a></li>
+            <li><a href="#download-path">Download Path &amp; Playlist Targeting</a></li>
+            <li><a href="#duplicate-detection">Duplicate Detection</a></li>
+            <li><a href="#format-options">Format &amp; Bitrate Options</a></li>
+            <li><a href="#signals">Signals Reference</a></li>
+            <li><a href="#properties">Properties Reference</a></li>
+            <li><a href="#slots">Slots Reference</a></li>
+            <li><a href="#dependencies">Dependencies</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <section id="overview">
+          <h2>Overview</h2>
+          <p>
+            The <strong>DownloadManager</strong> provides music search and download functionality within OCTAVE.
+            It combines Spotify metadata with YouTube audio sources to download high-quality music files.
+            Defined in <span class="file-path">backend/download_manager.py</span>, it wraps the internal
+            <code>music_dl</code> engine (a fork of spotdl) and exposes search/download operations to QML
+            via the standard OCTAVE manager pattern.
+          </p>
+
+          <div class="info-box tip">
+            <div class="info-box-title">No Spotify Credentials Required</div>
+            The search system uses YouTube Music (<code>ytmusicapi</code>) by default, so Spotify
+            credentials are optional. When provided, they enable Spotify URL resolution (track, album,
+            playlist URLs) for richer metadata.
+          </div>
+        </section>
+
+        <!-- Architecture -->
+        <section id="architecture">
+          <h2>System Architecture</h2>
+          <div class="diagram">
+DownloadManager (QObject)
+  |
+  |-- MusicDL engine (lazy init)
+  |     |-- SpotifyClient (optional, via spotipy)
+  |     |-- Downloader
+  |     |     |-- yt-dlp (audio extraction)
+  |     |     |-- ffmpeg (transcoding)
+  |     |     |-- progress_handler.py (callbacks)
+  |     |
+  |     |-- utils/
+  |     |     |-- search.py      ytmusicapi + Spotify URL parsing
+  |     |     |-- matching.py    fuzzy title matching (rapidfuzz)
+  |     |     |-- metadata.py    ID3/M4A tag writing
+  |     |     |-- formatter.py   filename sanitization
+  |     |     |-- ffmpeg.py      audio conversion
+  |     |     |-- spotify.py     Spotify API client
+  |     |
+  |     |-- types/
+  |     |     |-- song.py        Song data class
+  |     |     |-- album.py       Album container
+  |     |     |-- playlist.py    Playlist container
+  |     |     |-- options.py     Downloader settings TypedDict
+  |     |
+  |     |-- providers/audio/     Audio source providers
+  |
+  |-- ThreadPoolExecutor (2 workers)
+  |-- QTimer (200ms polling)
+  |-- Thread-safe progress queue
+          </div>
+        </section>
+
+        <!-- music_dl Engine -->
+        <section id="music-dl-engine">
+          <h2>The music_dl Engine</h2>
+          <p>
+            The <code>music_dl</code> package lives in <span class="file-path">backend/music_dl/</span>
+            and is a forked and trimmed version of <code>spotdl</code>. It provides the core download
+            pipeline independent of the Qt/QML layer.
+          </p>
+
+          <h3>Entry Point: MusicDL Class</h3>
+          <p>
+            The <code>MusicDL</code> class in <span class="file-path">backend/music_dl/__init__.py</span>
+            is the main API:
+          </p>
+          <pre><code><span class="kw">class</span> <span class="cls">MusicDL</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="prop">self</span>, client_id, client_secret, headless=<span class="num">False</span>,
+                 downloader_settings=<span class="num">None</span>):
+        <span class="prop">self</span>.has_spotify = <span class="fn">bool</span>(client_id <span class="kw">and</span> client_secret)
+        <span class="kw">if</span> <span class="prop">self</span>.has_spotify:
+            <span class="cls">SpotifyClient</span>.init(client_id=client_id, ...)
+        <span class="prop">self</span>.downloader = <span class="cls">Downloader</span>(settings=downloader_settings)
+
+    <span class="kw">def</span> <span class="fn">search</span>(<span class="prop">self</span>, query):     <span class="cmt"># -> List[Song]</span>
+    <span class="kw">def</span> <span class="fn">download</span>(<span class="prop">self</span>, song):    <span class="cmt"># -> Tuple[Song, Optional[Path]]</span>
+    <span class="kw">def</span> <span class="fn">download_songs</span>(<span class="prop">self</span>, songs):  <span class="cmt"># -> List[Tuple[Song, Optional[Path]]]</span></code></pre>
+
+          <h3>Sub-Module Reference</h3>
+          <table>
+            <thead>
+              <tr><th>Module</th><th>Path</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>download/downloader.py</code></td>
+                <td><span class="file-path">backend/music_dl/download/downloader.py</span></td>
+                <td>Core download + convert logic, yt-dlp integration, multi-threaded batch downloads</td>
+              </tr>
+              <tr>
+                <td><code>download/progress_handler.py</code></td>
+                <td><span class="file-path">backend/music_dl/download/progress_handler.py</span></td>
+                <td>Download progress tracking with callback support</td>
+              </tr>
+              <tr>
+                <td><code>types/song.py</code></td>
+                <td><span class="file-path">backend/music_dl/types/song.py</span></td>
+                <td>Song data class with <code>from_url()</code> and <code>from_missing_data()</code> constructors</td>
+              </tr>
+              <tr>
+                <td><code>types/album.py</code></td>
+                <td><span class="file-path">backend/music_dl/types/album.py</span></td>
+                <td>Album container -- resolves to list of Songs</td>
+              </tr>
+              <tr>
+                <td><code>types/playlist.py</code></td>
+                <td><span class="file-path">backend/music_dl/types/playlist.py</span></td>
+                <td>Playlist container -- resolves to list of Songs</td>
+              </tr>
+              <tr>
+                <td><code>types/options.py</code></td>
+                <td><span class="file-path">backend/music_dl/types/options.py</span></td>
+                <td>TypedDict definitions for downloader settings</td>
+              </tr>
+              <tr>
+                <td><code>utils/search.py</code></td>
+                <td><span class="file-path">backend/music_dl/utils/search.py</span></td>
+                <td>YouTube Music search, Spotify URL parsing, query routing</td>
+              </tr>
+              <tr>
+                <td><code>utils/matching.py</code></td>
+                <td><span class="file-path">backend/music_dl/utils/matching.py</span></td>
+                <td>Fuzzy string matching for finding best YouTube matches (uses <code>rapidfuzz</code>)</td>
+              </tr>
+              <tr>
+                <td><code>utils/metadata.py</code></td>
+                <td><span class="file-path">backend/music_dl/utils/metadata.py</span></td>
+                <td>ID3/M4A tag embedding (title, artist, album art, etc.)</td>
+              </tr>
+              <tr>
+                <td><code>utils/formatter.py</code></td>
+                <td><span class="file-path">backend/music_dl/utils/formatter.py</span></td>
+                <td>Filename sanitization and output path template formatting</td>
+              </tr>
+              <tr>
+                <td><code>utils/ffmpeg.py</code></td>
+                <td><span class="file-path">backend/music_dl/utils/ffmpeg.py</span></td>
+                <td>FFmpeg wrapper for audio conversion (MP3, FLAC, OGG, OPUS, M4A)</td>
+              </tr>
+              <tr>
+                <td><code>utils/spotify.py</code></td>
+                <td><span class="file-path">backend/music_dl/utils/spotify.py</span></td>
+                <td>Spotify API client singleton (wraps <code>spotipy</code>)</td>
+              </tr>
+              <tr>
+                <td><code>providers/audio/</code></td>
+                <td><span class="file-path">backend/music_dl/providers/audio/</span></td>
+                <td>Audio source provider plugins for YouTube</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Search Flow -->
+        <section id="search-flow">
+          <h2>Search Flow</h2>
+          <p>
+            When the user types a query in the QML search bar and calls <code>downloadManager.search(query)</code>,
+            the following flow executes:
+          </p>
+
+          <h3>Text Queries (Default Path)</h3>
+          <ol class="steps">
+            <li>
+              <strong>Lazy-init engine</strong> -- <code>_ensure_music_dl()</code> creates the <code>MusicDL</code>
+              instance if not already initialized, loading Spotify credentials from the settings manager keychain.
+            </li>
+            <li>
+              <strong>YouTube Music search</strong> -- Calls <code>ytmusicapi.search(query, filter="songs", limit=20)</code>
+              via the <code>get_ytm_client()</code> singleton from <span class="file-path">backend/music_dl/utils/search.py</span>.
+            </li>
+            <li>
+              <strong>Parse results</strong> -- Each YTMusic result is transformed into a standardized result dict
+              containing: name, artist, artists, album_name, duration (seconds), year, cover_url, song_id (YouTube video ID),
+              and a YouTube Music URL.
+            </li>
+            <li>
+              <strong>Enhance cover art URLs</strong> -- Google CDN thumbnail URLs are rewritten to request
+              800x800 high-resolution versions:
+              <pre><code><span class="kw">if</span> <span class="str">"lh3.googleusercontent.com"</span> <span class="kw">in</span> cover_url:
+    cover_url = re.sub(<span class="str">r"=w\d+-h\d+.*$"</span>, <span class="str">"=w800-h800-l90-rj"</span>, cover_url)</code></pre>
+            </li>
+            <li>
+              <strong>Mark downloaded</strong> -- The <code>_mark_downloaded()</code> method scans the media library
+              to tag results that already exist on disk (sets <code>is_downloaded: true</code> and
+              <code>downloaded_playlist</code> name).
+            </li>
+            <li>
+              <strong>Emit to QML</strong> -- Results are JSON-serialized and emitted via <code>searchResults</code> signal.
+            </li>
+          </ol>
+
+          <h3>Spotify URL Queries</h3>
+          <p>
+            When the query contains <code>open.spotify.com</code> or <code>spotify.link</code> and Spotify
+            credentials are available, the engine uses <code>MusicDL.search([url])</code> which resolves
+            the Spotify URL into Song objects with full metadata (including ISRC codes for better matching).
+          </p>
+
+          <div class="info-box info">
+            <div class="info-box-title">Pagination</div>
+            The <code>ytmusicapi</code> does not support offset-based pagination. All results are returned
+            in a single batch (up to 20). The <code>search_more()</code> slot simply emits "All results shown".
+          </div>
+        </section>
+
+        <!-- Download Pipeline -->
+        <section id="download-pipeline">
+          <h2>Download Pipeline</h2>
+          <p>
+            When the user clicks download on a search result, QML calls <code>download_song(song_json)</code>
+            with the full song data serialized as JSON.
+          </p>
+
+          <ol class="steps">
+            <li>
+              <strong>Parse song data</strong> -- JSON is deserialized and a unique <code>song_id</code>
+              (YouTube video ID) is extracted for deduplication.
+            </li>
+            <li>
+              <strong>Duplicate guard</strong> -- Checks <code>_pending_futures</code> to prevent downloading
+              the same song_id concurrently.
+            </li>
+            <li>
+              <strong>Build Song object</strong> -- Depending on the source:
+              <ul>
+                <li>Spotify URL: <code>Song.from_url(url)</code> fetches full Spotify metadata</li>
+                <li>YouTube Music result: <code>Song.from_missing_data(**song_data)</code> with the YT Music URL set as <code>download_url</code> so yt-dlp uses it directly</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Download &amp; convert</strong> -- <code>MusicDL.download(song)</code> delegates to the
+              <code>Downloader</code> which:
+              <ul>
+                <li>Searches YouTube for matching audio (or uses the direct URL)</li>
+                <li>Downloads with <code>yt-dlp</code></li>
+                <li>Converts to the target format via <code>ffmpeg</code></li>
+                <li>Embeds metadata (ID3 tags, album art) via <span class="file-path">utils/metadata.py</span></li>
+                <li>Saves to the configured output path with sanitized filename</li>
+              </ul>
+            </li>
+            <li>
+              <strong>Emit result</strong> -- On success, <code>downloadComplete</code> is emitted with
+              the song_id and file path. The search result is patched with <code>is_downloaded: true</code>
+              via <code>downloadStatusChanged</code> for in-place QML ListView updates.
+            </li>
+          </ol>
+
+          <h3>URL Downloads (Albums/Playlists)</h3>
+          <p>
+            The <code>download_from_url(url)</code> slot handles Spotify album and playlist URLs. It resolves
+            the URL into multiple Songs via <code>MusicDL.search()</code> and then batch-downloads them all
+            with <code>MusicDL.download_songs()</code>.
+          </p>
+
+          <h3>Output Filename Template</h3>
+          <pre><code><span class="str">"{artists} - {title}.{output-ext}"</span>
+<span class="cmt"># Example: "Joji - Test Drive.mp3"</span></code></pre>
+        </section>
+
+        <!-- Progress Reporting -->
+        <section id="progress-reporting">
+          <h2>Progress Reporting</h2>
+          <p>
+            Download progress flows from the music_dl engine to QML through a thread-safe queue:
+          </p>
+
+          <div class="diagram">
+Worker Thread                    Main Thread
+    |                                |
+    |  progress_handler callback     |
+    |  _on_download_progress()       |
+    |       |                        |
+    |  push to _progress_updates     |
+    |  (under _progress_lock)        |
+    |                                |
+    |                        QTimer (200ms poll)
+    |                        _poll_futures()
+    |                            |
+    |                    drain _progress_updates
+    |                    emit downloadProgress(song_id, 0.0-1.0)
+    |                            |
+    |                        QML ListView update
+          </div>
+
+          <p>The callback receives a tracker object with a <code>progress</code> field (0-100) which is normalized to 0.0-1.0:</p>
+          <pre><code><span class="kw">def</span> <span class="fn">_on_download_progress</span>(<span class="prop">self</span>, tracker, message):
+    song_id = tracker.song.song_id <span class="kw">if</span> tracker.song <span class="kw">else</span> <span class="str">""</span>
+    progress = tracker.progress / <span class="num">100.0</span>
+    <span class="kw">with</span> <span class="prop">self</span>._progress_lock:
+        <span class="prop">self</span>._progress_updates.append((song_id, progress))</code></pre>
+
+          <h3>In-Place Status Patching</h3>
+          <p>
+            To avoid rebuilding the entire QML ListView on each status change, the manager emits targeted
+            patches via <code>downloadStatusChanged(song_id, field, value_json)</code>. QML can update
+            individual list items by matching <code>song_id</code>.
+          </p>
+        </section>
+
+        <!-- Download Path -->
+        <section id="download-path">
+          <h2>Download Path &amp; Playlist Targeting</h2>
+          <p>
+            Downloads are saved into a subfolder of the media library. The path is constructed as:
+          </p>
+          <pre><code><span class="cmt"># mediaFolder / subfolder / "Artist - Title.mp3"</span>
+download_path = os.path.join(media_folder, subfolder)</code></pre>
+
+          <p>The subfolder can be:</p>
+          <ul>
+            <li>The <code>downloadSubfolder</code> setting (default: <code>"Downloads"</code>)</li>
+            <li>A runtime override set via <code>set_download_playlist(name)</code> -- this allows downloading directly into a specific playlist folder</li>
+          </ul>
+
+          <div class="info-box warning">
+            <div class="info-box-title">Path Traversal Protection</div>
+            The subfolder is validated using <code>is_safe_path()</code> from
+            <span class="file-path">backend/media_manager.py</span> to prevent directory traversal attacks.
+            If the path escapes the media folder, it falls back to <code>"Downloads"</code>.
+          </div>
+        </section>
+
+        <!-- Duplicate Detection -->
+        <section id="duplicate-detection">
+          <h2>Duplicate Detection</h2>
+          <p>
+            Search results are checked against existing files in the media library to prevent re-downloading.
+            The matching uses the same filename sanitization as the download engine:
+          </p>
+          <pre><code><span class="kw">@staticmethod</span>
+<span class="kw">def</span> <span class="fn">_sanitize_for_match</span>(text):
+    <span class="cmt"># Mirror sanitize_string from music_dl/utils/formatter.py</span>
+    text = <span class="str">""</span>.join(c <span class="kw">for</span> c <span class="kw">in</span> text <span class="kw">if</span> c <span class="kw">not in</span> <span class="str">"/?\\*|<>"</span>)
+    text = text.replace(<span class="str">'"'</span>, <span class="str">"'"</span>).replace(<span class="str">":"</span>, <span class="str">"-"</span>)
+    <span class="kw">return</span> text.lower()</code></pre>
+          <p>
+            The method <code>_get_downloaded_files()</code> walks the entire media library, collecting
+            audio filenames (mp3, flac, ogg, opus, m4a) mapped to their containing folder name.
+            Each search result's expected filename (<code>"Artist - Title"</code>) is matched against this index.
+          </p>
+        </section>
+
+        <!-- Format Options -->
+        <section id="format-options">
+          <h2>Format &amp; Bitrate Options</h2>
+          <table>
+            <thead>
+              <tr><th>Setting</th><th>Key</th><th>Default</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Format</td><td><code>downloadFormat</code></td><td><code>"mp3"</code></td><td>Android forces <code>"m4a"</code> (no ffmpeg needed)</td></tr>
+              <tr><td>Bitrate</td><td><code>downloadBitrate</code></td><td><code>"auto"</code></td><td>Passed to yt-dlp/ffmpeg</td></tr>
+              <tr><td>Overwrite</td><td>hardcoded</td><td><code>"skip"</code></td><td>Existing files are skipped</td></tr>
+              <tr><td>Threads</td><td>hardcoded</td><td><code>2</code></td><td>Concurrent download workers</td></tr>
+            </tbody>
+          </table>
+
+          <div class="info-box info">
+            <div class="info-box-title">Android Platform</div>
+            On Android, the format is forced to <code>m4a</code> because ffmpeg is not typically available.
+            The <code>m4a</code> container can be used directly from YouTube without transcoding.
+          </div>
+        </section>
+
+        <!-- Signals -->
+        <section id="signals">
+          <h2>Signals Reference</h2>
+          <table>
+            <thead>
+              <tr><th>Signal</th><th>Parameters</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>searchResults</code></td><td><code>str</code> (JSON array)</td><td>Search results ready for display</td></tr>
+              <tr><td><code>searchInProgress</code></td><td><code>bool</code></td><td>Search loading state</td></tr>
+              <tr><td><code>searchError</code></td><td><code>str</code></td><td>Search failure message</td></tr>
+              <tr><td><code>downloadStarted</code></td><td><code>str, str</code></td><td>song_id, display name -- download queued</td></tr>
+              <tr><td><code>downloadProgress</code></td><td><code>str, float</code></td><td>song_id, progress (0.0 to 1.0)</td></tr>
+              <tr><td><code>downloadComplete</code></td><td><code>str, str</code></td><td>song_id, file path -- download finished</td></tr>
+              <tr><td><code>downloadError</code></td><td><code>str, str, str</code></td><td>song_id, display name, error message</td></tr>
+              <tr><td><code>downloadQueueChanged</code></td><td>--</td><td>Queue state changed</td></tr>
+              <tr><td><code>downloadStatusChanged</code></td><td><code>str, str, str</code></td><td>song_id, field, value_json -- targeted patch</td></tr>
+              <tr><td><code>statusMessage</code></td><td><code>str</code></td><td>General status text for UI display</td></tr>
+              <tr><td><code>isSearchingChanged</code></td><td><code>bool</code></td><td>Search state property changed</td></tr>
+              <tr><td><code>activeDownloadsChanged</code></td><td><code>int</code></td><td>Active download count changed</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Properties -->
+        <section id="properties">
+          <h2>Properties Reference</h2>
+          <table>
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Notify Signal</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>isSearching</code></td><td><code>bool</code></td><td><code>isSearchingChanged</code></td><td>True while a search is running</td></tr>
+              <tr><td><code>activeDownloads</code></td><td><code>int</code></td><td><code>activeDownloadsChanged</code></td><td>Number of in-progress downloads</td></tr>
+              <tr><td><code>downloadPath</code></td><td><code>str</code></td><td>constant</td><td>Current download directory path</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Slots -->
+        <section id="slots">
+          <h2>Slots Reference</h2>
+          <table>
+            <thead>
+              <tr><th>Slot</th><th>Parameters</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>search(query)</code></td><td><code>str</code></td><td>Search for songs by text or Spotify URL</td></tr>
+              <tr><td><code>search_more()</code></td><td>--</td><td>Load more results (currently no-op, all shown)</td></tr>
+              <tr><td><code>download_song(song_json)</code></td><td><code>str</code></td><td>Download a single song from JSON data</td></tr>
+              <tr><td><code>download_from_url(url)</code></td><td><code>str</code></td><td>Download from Spotify URL (track/album/playlist)</td></tr>
+              <tr><td><code>set_download_playlist(name)</code></td><td><code>str</code></td><td>Set target subfolder for downloads</td></tr>
+              <tr><td><code>get_download_playlist()</code></td><td>-- (returns <code>str</code>)</td><td>Get current target playlist name</td></tr>
+              <tr><td><code>reset_engine()</code></td><td>--</td><td>Reset the MusicDL engine (e.g., after credential change)</td></tr>
+              <tr><td><code>get_song_data_for_download(url)</code></td><td><code>str</code> (returns <code>str</code>)</td><td>Get full song JSON for a URL from last search</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Dependencies -->
+        <section id="dependencies">
+          <h2>Dependencies</h2>
+          <table>
+            <thead>
+              <tr><th>Package</th><th>Purpose</th><th>Used By</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>yt-dlp</code></td><td>YouTube audio downloading</td><td><span class="file-path">music_dl/download/downloader.py</span></td></tr>
+              <tr><td><code>ytmusicapi</code></td><td>YouTube Music search API</td><td><span class="file-path">music_dl/utils/search.py</span></td></tr>
+              <tr><td><code>rapidfuzz</code></td><td>Fuzzy string matching for audio source selection</td><td><span class="file-path">music_dl/utils/matching.py</span></td></tr>
+              <tr><td><code>spotipy</code></td><td>Spotify Web API (optional)</td><td><span class="file-path">music_dl/utils/spotify.py</span></td></tr>
+              <tr><td><code>ffmpeg</code></td><td>Audio format conversion (system binary)</td><td><span class="file-path">music_dl/utils/ffmpeg.py</span></td></tr>
+              <tr><td><code>mutagen</code></td><td>Audio metadata reading/writing (ID3, M4A tags)</td><td><span class="file-path">music_dl/utils/metadata.py</span></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a class="related-link" href="architecture.html">Architecture Overview</a>
+          <a class="related-link" href="getting-started.html">Getting Started</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

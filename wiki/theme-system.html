@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theme System - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Theme System</div>
+          <h1 class="page-title">Theme System</h1>
+          <p class="page-subtitle">Dynamic theming with Style.qml, environment presets via EnvironmentTheme.qml, and responsive layout scaling from Spacing.qml</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#style-qml">Style.qml &mdash; Color Themes</a></li>
+            <li><a href="#builtin-themes">Built-in Themes</a></li>
+            <li><a href="#custom-themes">Custom Themes</a></li>
+            <li><a href="#album-art-capture">Album Art Capture</a></li>
+            <li><a href="#color-tokens">Color Token Reference</a></li>
+            <li><a href="#transitions">Color Transitions</a></li>
+            <li><a href="#environment-theme">EnvironmentTheme.qml &mdash; UI Shape Presets</a></li>
+            <li><a href="#env-presets">Environment Presets</a></li>
+            <li><a href="#spacing-qml">Spacing.qml &mdash; Layout Scaling</a></li>
+            <li><a href="#scaling-functions">Scaling Functions</a></li>
+            <li><a href="#customization">Customization Guide</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <h2 id="overview">Overview</h2>
+
+        <p>OCTAVE's theming is powered by three <code>pragma Singleton</code> QML objects that collectively control every visual aspect of the UI:</p>
+
+        <div class="diagram">
+<pre>
+ +------------------+    +---------------------+    +------------------+
+ | Style.qml        |    | EnvironmentTheme.qml|    | Spacing.qml      |
+ |                  |    |                     |    |                  |
+ | COLORS           |    | SHAPES              |    | SIZES            |
+ | - base, accent   |    | - card radius       |    | - dp(), dpMin()  |
+ | - text, sliders  |    | - button style      |    | - scaledSize()   |
+ | - obd, bottombar |    | - slider ticks      |    | - scalePx()      |
+ | - transitions    |    | - corner brackets   |    | - percentage     |
+ | - album art      |    | - scanline effects  |    |   properties     |
+ +------------------+    +---------------------+    +------------------+
+        |                        |                         |
+        +------------------------+-------------------------+
+                                 |
+                    All accessed via App.* namespace
+</pre>
+        </div>
+
+        <!-- Style.qml -->
+        <h2 id="style-qml">Style.qml &mdash; Color Themes</h2>
+
+        <p><span class="file-path">frontend/Style.qml</span> is the central color theme store. It defines built-in themes, supports custom themes loaded from settings, and provides the Album Art Capture feature.</p>
+
+        <h3>Theme Resolution</h3>
+
+        <p>The <code>activeTheme</code> property drives all color bindings. It resolves in priority order:</p>
+
+        <pre><code><span class="prop">property var</span> activeTheme: {
+    <span class="cmt">// 1. Album Art Capture (dynamic, real-time)</span>
+    <span class="kw">if</span> (currentTheme === <span class="str">"Album Art Capture"</span> && albumArtTheme)
+        <span class="kw">return</span> albumArtTheme
+
+    <span class="cmt">// 2. Custom themes (loaded from settings)</span>
+    <span class="kw">if</span> (customThemes[currentTheme])
+        <span class="kw">return</span> customThemes[currentTheme]
+
+    <span class="cmt">// 3. Built-in themes</span>
+    <span class="kw">return</span> themes[currentTheme] || themes[<span class="str">"SolarizedLight"</span>]
+}</code></pre>
+
+        <!-- Built-in Themes -->
+        <h2 id="builtin-themes">Built-in Themes</h2>
+
+        <p>OCTAVE ships with 9 built-in themes. Each is a JavaScript object with a standardized structure:</p>
+
+        <table>
+          <thead><tr><th>Theme</th><th>Base</th><th>Accent</th><th>Character</th></tr></thead>
+          <tbody>
+            <tr><td>SolarizedLight</td><td><code>#FDF6E3</code></td><td><code>#268BD2</code></td><td>Warm cream with blue accents</td></tr>
+            <tr><td>NeonMatrix</td><td><code>#0C0C0C</code></td><td><code>#00FF41</code></td><td>Black with green terminal glow</td></tr>
+            <tr><td>CosmicVoyager</td><td><code>#0A0E17</code></td><td><code>#00BFFF</code></td><td>Deep space with cyan highlights</td></tr>
+            <tr><td>TechnoRetro</td><td><code>#1E1014</code></td><td><code>#FF00AA</code></td><td>Dark with hot pink neon</td></tr>
+            <tr><td>AutumnCascade</td><td><code>#2D1E12</code></td><td><code>#E67E22</code></td><td>Warm brown with orange</td></tr>
+            <tr><td>VividGradient</td><td><code>#12001A</code></td><td><code>#C837AB</code></td><td>Deep purple with magenta</td></tr>
+            <tr><td>DesertOasis</td><td><code>#201007</code></td><td><code>#D2B48C</code></td><td>Dark earth with tan/sage</td></tr>
+            <tr><td>QuantumNebula</td><td><code>#0F0F1A</code></td><td><code>#9C27B0</code></td><td>Dark indigo with purple/cyan</td></tr>
+            <tr><td>Album Art Capture</td><td><code>#1a1a2e</code></td><td><code>#e94560</code></td><td>Dynamic (placeholder colors shown)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Theme Object Structure</h3>
+
+        <pre><code>{
+    <span class="str">"base"</span>: <span class="str">"#0C0C0C"</span>,           <span class="cmt">// Primary background</span>
+    <span class="str">"baseAlt"</span>: <span class="str">"#161616"</span>,        <span class="cmt">// Secondary background</span>
+    <span class="str">"accent"</span>: <span class="str">"#00FF41"</span>,         <span class="cmt">// Primary accent color</span>
+    <span class="str">"text"</span>: {
+        <span class="str">"primary"</span>: <span class="str">"#CCFFCC"</span>,     <span class="cmt">// Main text</span>
+        <span class="str">"secondary"</span>: <span class="str">"#88CC88"</span>   <span class="cmt">// Subdued text</span>
+    },
+    <span class="str">"states"</span>: {
+        <span class="str">"hover"</span>: <span class="str">"#202020"</span>,       <span class="cmt">// Hover background</span>
+        <span class="str">"paused"</span>: <span class="str">"#1C1C1C"</span>,     <span class="cmt">// Paused track highlight</span>
+        <span class="str">"playing"</span>: <span class="str">"#282828"</span>     <span class="cmt">// Playing track highlight</span>
+    },
+    <span class="str">"sliders"</span>: {
+        <span class="str">"volume"</span>: <span class="str">"#00FF41"</span>,     <span class="cmt">// Volume slider fill</span>
+        <span class="str">"media"</span>: <span class="str">"#88CC88"</span>,      <span class="cmt">// Media room slider</span>
+        <span class="str">"settings"</span>: <span class="str">"#00FF41"</span>   <span class="cmt">// Settings sliders</span>
+    },
+    <span class="str">"bottombar"</span>: {
+        <span class="str">"previous"</span>: <span class="str">"#00FF41"</span>,   <span class="cmt">// Each button has its own color</span>
+        <span class="str">"play"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"pause"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"next"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"volume"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"shuffle"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"toggleShade"</span>: <span class="str">"#202020"</span>,
+        <span class="str">"homeButton"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"obdButton"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"mediaButton"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"settingsButton"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"androidAutoButton"</span>: <span class="str">"#00FF41"</span>,
+        <span class="str">"phoneMirrorButton"</span>: <span class="str">"#00FF41"</span>
+    },
+    <span class="str">"mediaroom"</span>: { ... },       <span class="cmt">// MediaRoom button colors</span>
+    <span class="str">"mainmenu"</span>: { <span class="str">"mediaContainer"</span>: <span class="str">"#005500"</span> },
+    <span class="str">"obd"</span>: {
+        <span class="str">"boxBackground"</span>: <span class="str">"#161616"</span>,
+        <span class="str">"barColor"</span>: <span class="str">"#33FF66"</span>
+    }
+}</code></pre>
+
+        <!-- Custom Themes -->
+        <h2 id="custom-themes">Custom Themes</h2>
+
+        <p>Users can create custom themes that are stored in <code>settingsConfigure.json</code>. They are loaded at startup in <code>Main.qml</code>:</p>
+
+        <pre><code><span class="kw">let</span> customThemes = settingsManager.customThemes
+customThemes.<span class="fn">forEach</span>(<span class="kw">function</span>(themeName) {
+    <span class="kw">let</span> themeJSON = settingsManager.<span class="fn">get_custom_theme</span>(themeName)
+    <span class="kw">let</span> themeObj = JSON.<span class="fn">parse</span>(themeJSON)
+    App.Style.<span class="fn">addCustomTheme</span>(themeName, themeObj)
+})</code></pre>
+
+        <p>When custom themes change at runtime (via the <code>customThemesChanged</code> signal), the entire custom themes map is rebuilt atomically to avoid briefly clearing the active theme.</p>
+
+        <!-- Album Art Capture -->
+        <h2 id="album-art-capture">Album Art Capture</h2>
+
+        <p>The "Album Art Capture" theme extracts dominant colors from the current song's album art and generates a full theme object dynamically. The pipeline:</p>
+
+        <ol class="steps">
+          <li>A new track starts playing in <code>mediaManager</code> or <code>spotifyManager</code></li>
+          <li>Python extracts dominant colors from the album art image</li>
+          <li>A complete theme JSON is generated and emitted via <code>albumColorsExtracted(themeJson)</code> signal</li>
+          <li>Main.qml receives the signal and calls <code>Style.updateAlbumArtTheme(themeJson)</code></li>
+          <li>Style.qml parses the JSON, stores it as <code>albumArtTheme</code>, forces <code>activeTheme</code> to re-evaluate by toggling <code>currentTheme</code></li>
+          <li>All color properties with <code>Behavior on</code> animations smoothly transition to the new palette</li>
+        </ol>
+
+        <!-- Color Tokens -->
+        <h2 id="color-tokens">Color Token Reference</h2>
+
+        <p>Style.qml exposes these reactive color properties, all with <code>Behavior on { ColorAnimation { duration: colorTransitionMs } }</code>:</p>
+
+        <h3>Background Colors</h3>
+        <table>
+          <thead><tr><th>Property</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td><code>backgroundColor</code></td><td><code>activeTheme.base</code></td></tr>
+            <tr><td><code>headerBackgroundColor</code></td><td><code>activeTheme.baseAlt</code></td></tr>
+            <tr><td><code>sidebarColor</code></td><td><code>activeTheme.base</code></td></tr>
+            <tr><td><code>contentColor</code></td><td><code>activeTheme.baseAlt</code></td></tr>
+            <tr><td><code>bottomBarGradientStart</code></td><td><code>activeTheme.base</code></td></tr>
+            <tr><td><code>bottomBarGradientEnd</code></td><td><code>activeTheme.baseAlt</code></td></tr>
+            <tr><td><code>obdBoxBackground</code></td><td><code>activeTheme.obd.boxBackground</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Text Colors</h3>
+        <table>
+          <thead><tr><th>Property</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td><code>primaryTextColor</code></td><td><code>activeTheme.text.primary</code></td></tr>
+            <tr><td><code>secondaryTextColor</code></td><td><code>activeTheme.text.secondary</code></td></tr>
+            <tr><td><code>clockTextColor</code></td><td><code>activeTheme.accent</code></td></tr>
+            <tr><td><code>metadataColor</code></td><td><code>activeTheme.accent</code></td></tr>
+            <tr><td><code>obdLabelColor</code></td><td><code>activeTheme.obd.labelColor</code> (fallback: <code>secondaryTextColor</code>)</td></tr>
+            <tr><td><code>obdValueColor</code></td><td><code>activeTheme.obd.valueColor</code> (fallback: <code>primaryTextColor</code>)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Status Colors</h3>
+        <table>
+          <thead><tr><th>Property</th><th>Default</th></tr></thead>
+          <tbody>
+            <tr><td><code>statusConnected</code></td><td><code>#44AA44</code></td></tr>
+            <tr><td><code>statusDisconnected</code></td><td><code>#AA4444</code></td></tr>
+            <tr><td><code>statusError</code></td><td><code>#F44336</code></td></tr>
+            <tr><td><code>statusWarning</code></td><td><code>#FF9800</code></td></tr>
+            <tr><td><code>statusInfo</code></td><td><code>#2196F3</code></td></tr>
+            <tr><td><code>statusSuccess</code></td><td><code>#4CAF50</code></td></tr>
+            <tr><td><code>statusDanger</code></td><td><code>#e74c3c</code></td></tr>
+          </tbody>
+        </table>
+
+        <div class="info-box tip">
+          <strong>OBD Color Tokens:</strong> The OBD pages have their own dedicated color tokens (<code>obdBoxBackground</code>, <code>obdBarColor</code>, <code>obdLabelColor</code>, <code>obdValueColor</code>) because OBD cards need contrast tuning independent of the main background.
+        </div>
+
+        <!-- Transitions -->
+        <h2 id="transitions">Color Transitions</h2>
+
+        <p>Every color property in Style.qml has a <code>Behavior on</code> that creates smooth animated transitions:</p>
+
+        <pre><code><span class="prop">property color</span> backgroundColor: activeTheme.base
+<span class="cls">Behavior on</span> backgroundColor {
+    <span class="cls">ColorAnimation</span> { <span class="prop">duration</span>: colorTransitionMs }
+}</code></pre>
+
+        <p>The <code>colorTransitionMs</code> property defaults to 1000ms but can be dynamically set to match the current song's duration when <code>songLengthTransition</code> is enabled, creating an ambient color shift that spans the entire track.</p>
+
+        <!-- EnvironmentTheme -->
+        <h2 id="environment-theme">EnvironmentTheme.qml &mdash; UI Shape Presets</h2>
+
+        <p><span class="file-path">frontend/EnvironmentTheme.qml</span> controls the <em>shape</em> and <em>visual effects</em> of UI components, independent of color. It defines environment presets that change border radii, enable special effects like scanlines and corner brackets, and alter the visual personality of the UI.</p>
+
+        <pre><code><span class="kw">pragma</span> Singleton
+<span class="cls">QtObject</span> {
+    <span class="prop">property string</span> currentEnvironment: <span class="str">"Standard"</span>
+    <span class="kw">signal</span> <span class="fn">environmentChanged</span>()
+
+    <span class="prop">property var</span> active: environments[currentEnvironment]
+        || environments[<span class="str">"Standard"</span>]
+
+    <span class="kw">function</span> <span class="fn">setEnvironment</span>(name) {
+        <span class="kw">if</span> (environments[name]) {
+            currentEnvironment = name
+            <span class="fn">environmentChanged</span>()
+        }
+    }
+}</code></pre>
+
+        <!-- Environment Presets -->
+        <h2 id="env-presets">Environment Presets</h2>
+
+        <p>Three presets are defined, each controlling dozens of visual parameters:</p>
+
+        <h3>Standard</h3>
+        <p>Clean, modern defaults. Rounded corners (12px cards), solid buttons, no special effects.</p>
+
+        <h3>Spacecraft</h3>
+        <p>Military/HUD aesthetic with sharp corners (2px), corner brackets, animated dividers, glow borders, tick marks, uppercase labels, scanline overlays, and pulsing elements.</p>
+
+        <h3>Deep Sea</h3>
+        <p>Organic, fluid aesthetic with large radii (16px), glass effects, sonar ping animations, floating bubbles in the sidebar, and subtle accent borders.</p>
+
+        <h3>Key Properties by Category</h3>
+
+        <table>
+          <thead><tr><th>Category</th><th>Properties</th><th>Standard</th><th>Spacecraft</th><th>Deep Sea</th></tr></thead>
+          <tbody>
+            <tr><td>Card</td><td><code>cardRadius</code></td><td>12</td><td>2</td><td>16</td></tr>
+            <tr><td>Card</td><td><code>cornerBrackets</code></td><td>false</td><td>true</td><td>false</td></tr>
+            <tr><td>Card</td><td><code>accentBorder</code></td><td>false</td><td>true</td><td>true</td></tr>
+            <tr><td>Button</td><td><code>buttonRadius</code></td><td>6</td><td>2</td><td>12</td></tr>
+            <tr><td>Button</td><td><code>buttonGlowBorder</code></td><td>false</td><td>true</td><td>false</td></tr>
+            <tr><td>Slider</td><td><code>sliderTickMarks</code></td><td>false</td><td>true</td><td>false</td></tr>
+            <tr><td>Slider</td><td><code>sliderHandleGlow</code></td><td>false</td><td>true</td><td>true</td></tr>
+            <tr><td>Labels</td><td><code>labelUppercase</code></td><td>false</td><td>true</td><td>false</td></tr>
+            <tr><td>Terminal</td><td><code>terminalScanlines</code></td><td>false</td><td>true</td><td>false</td></tr>
+            <tr><td>Effects</td><td><code>scanlineOverlay</code></td><td>false</td><td>true</td><td>false</td></tr>
+            <tr><td>Effects</td><td><code>cardGlassEffect</code></td><td>false</td><td>false</td><td>true</td></tr>
+            <tr><td>Effects</td><td><code>sidebarBubbles</code></td><td>false</td><td>false</td><td>true</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Spacing.qml -->
+        <h2 id="spacing-qml">Spacing.qml &mdash; Layout Scaling</h2>
+
+        <p><span class="file-path">frontend/Spacing.qml</span> handles responsive layout. All sizes are derived from <code>applicationWidth</code> and <code>applicationHeight</code> through percentage-based calculations and scale factors.</p>
+
+        <h3>Scale Factor Chain</h3>
+
+        <pre><code><span class="prop">property real</span> globalScale: <span class="num">1.0</span>       <span class="cmt">// User preference multiplier</span>
+<span class="prop">property real</span> autoScaleFactor: <span class="num">1.0</span>  <span class="cmt">// Auto-detected from screen</span>
+<span class="prop">property real</span> effectiveScale: autoScaleFactor * globalScale
+<span class="prop">property real</span> baseScale: <span class="num">0.6</span> * globalScale</code></pre>
+
+        <p><code>effectiveScale</code> is used by <code>dp()</code> for hardcoded pixel values designed at 720p. <code>baseScale</code> is used by <code>scaledSize()</code> for percentage-based properties that already adapt to screen size.</p>
+
+        <!-- Scaling Functions -->
+        <h2 id="scaling-functions">Scaling Functions</h2>
+
+        <h3>dp(size) &mdash; Density-Independent Pixels</h3>
+        <pre><code><span class="kw">function</span> <span class="fn">dp</span>(size) {
+    <span class="kw">return</span> Math.<span class="fn">round</span>(size * effectiveScale)
+}</code></pre>
+        <p>Converts a reference pixel value (designed at 720p) to the actual screen resolution.</p>
+
+        <h3>dpMin(size, floor) &mdash; With Minimum</h3>
+        <pre><code><span class="kw">function</span> <span class="fn">dpMin</span>(size, floor) {
+    <span class="kw">return</span> Math.<span class="fn">max</span>(floor, Math.<span class="fn">round</span>(size * effectiveScale))
+}</code></pre>
+        <p>Same as <code>dp()</code> but with a minimum value. Used for border radii that should never go sub-pixel.</p>
+
+        <h3>scaledSize(baseSize) &mdash; Percentage Scaling</h3>
+        <pre><code><span class="kw">function</span> <span class="fn">scaledSize</span>(baseSize) {
+    <span class="kw">return</span> Math.<span class="fn">round</span>(baseSize * baseScale)
+}</code></pre>
+        <p>Applied to percentage-based properties. The input is already proportional to screen size, so only the design factor (0.6) and user preference are applied.</p>
+
+        <h3>Key Calculated Properties</h3>
+        <p>Spacing.qml computes dozens of pixel values from percentage properties. Examples:</p>
+
+        <pre><code><span class="cmt">// Bottom bar sizing</span>
+<span class="prop">property int</span> bottomBarHeight:
+    <span class="fn">scaledSize</span>(applicationHeight * <span class="num">0.125</span>)
+
+<span class="cmt">// Button sizes (from min dimension)</span>
+<span class="prop">property int</span> bottomBarPlayButtonWidth:
+    <span class="fn">scaledSize</span>(Math.<span class="fn">min</span>(applicationWidth, applicationHeight) * <span class="num">0.1275</span>)
+
+<span class="cmt">// Grid spacing</span>
+<span class="prop">property int</span> sectionSpacing:
+    <span class="fn">scaledSize</span>(Math.<span class="fn">min</span>(applicationWidth, applicationHeight) * <span class="num">0.05</span>)</code></pre>
+
+        <!-- Customization -->
+        <h2 id="customization">Customization Guide</h2>
+
+        <h3>Creating a New Built-in Theme</h3>
+        <ol class="steps">
+          <li>Open <span class="file-path">frontend/Style.qml</span></li>
+          <li>Add a new entry to the <code>themes</code> object following the existing structure</li>
+          <li>Define all required keys: <code>base</code>, <code>baseAlt</code>, <code>accent</code>, <code>text</code>, <code>states</code>, <code>sliders</code>, <code>bottombar</code>, <code>mediaroom</code>, <code>mainmenu</code>, <code>obd</code></li>
+          <li>The theme will automatically appear in the theme picker</li>
+        </ol>
+
+        <h3>Adding a New Environment Preset</h3>
+        <ol class="steps">
+          <li>Open <span class="file-path">frontend/EnvironmentTheme.qml</span></li>
+          <li>Add a new entry to the <code>environments</code> object</li>
+          <li>Define all shape/effect properties (copy from Standard as a base)</li>
+          <li>The preset will appear in the environment picker via <code>getAllEnvironmentNames()</code></li>
+        </ol>
+
+        <h3>Adding a New Font</h3>
+        <ol class="steps">
+          <li>Drop a <code>.ttf</code> or <code>.otf</code> file into <span class="file-path">frontend/assets/fonts/</span></li>
+          <li>Main.qml's <code>FolderListModel</code> will discover it automatically at next launch</li>
+          <li>The font name (derived from filename) will appear in the font picker</li>
+        </ol>
+
+        <!-- Font System -->
+        <h2 id="font-system">Font System</h2>
+
+        <p>Style.qml also manages the font system. The <code>fontFamily</code> property is the resolved font family name used by all UI components:</p>
+
+        <pre><code><span class="cmt">// Always returns a valid font family name</span>
+<span class="prop">property string</span> fontFamily: currentFont === <span class="str">"System Default"</span>
+    ? systemDefaultFont
+    : (fontFamilyMap[currentFont] || systemDefaultFont)</code></pre>
+
+        <p>Available fonts are populated at startup by Main.qml after scanning the <span class="file-path">frontend/assets/fonts/</span> directory. The <code>availableFonts</code> array always starts with "System Default":</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">registerFonts</span>(fontList, familyMap) {
+    availableFonts = [<span class="str">"System Default"</span>].<span class="fn">concat</span>(fontList)
+    fontFamilyMap = familyMap
+    <span class="fn">fontsUpdated</span>()
+}</code></pre>
+
+        <p>The <code>fontFamilyMap</code> maps display names (derived from filenames) to the actual font family names reported by Qt's <code>FontLoader</code>. This mapping is necessary because the filename may differ from the internal font family name.</p>
+
+        <!-- How Components Consume Themes -->
+        <h2 id="consuming-themes">How Components Consume the Theme</h2>
+
+        <p>Components access theme values through the <code>App.Style</code> namespace. The reactive color properties ensure automatic updates when the theme changes:</p>
+
+        <pre><code><span class="cmt">// Direct color binding (auto-updates with transitions)</span>
+<span class="prop">color</span>: App.Style.backgroundColor
+<span class="prop">color</span>: App.Style.primaryTextColor
+<span class="prop">color</span>: App.Style.accent
+
+<span class="cmt">// Environment-aware shape properties</span>
+<span class="prop">radius</span>: App.Spacing.<span class="fn">dpMin</span>(
+    App.EnvironmentTheme.active.cardRadius, <span class="num">2</span>)
+
+<span class="cmt">// Conditional features based on environment</span>
+<span class="prop">visible</span>: App.EnvironmentTheme.active.cornerBrackets
+<span class="prop">visible</span>: App.EnvironmentTheme.active.sliderTickMarks</code></pre>
+
+        <p>The pattern of using <code>Behavior on { ColorAnimation { duration: colorTransitionMs } }</code> on every color property means theme switches are always smooth, never jarring. This is especially important for Album Art Capture where colors change with every track.</p>
+
+        <div class="info-box warning">
+          <strong>Performance:</strong> Every <code>Behavior on</code> creates an active animation object. With 40+ color properties each having a behavior, theme transitions involve 40+ simultaneous <code>ColorAnimation</code> instances. This is manageable on desktop but can impact performance on Raspberry Pi. Consider reducing <code>colorTransitionMs</code> on low-powered devices.
+        </div>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="frontend-overview.html" class="related-link">Frontend Overview</a>
+          <a href="settings-ui.html" class="related-link">Settings UI</a>
+          <a href="components.html" class="related-link">Components</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

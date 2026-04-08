@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pages - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Pages</div>
+          <h1 class="page-title">Pages</h1>
+          <p class="page-subtitle">Every top-level view in the OCTAVE StackView: what it shows, which managers it uses, and notable QML techniques</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#mainmenu">MainMenu</a></li>
+            <li><a href="#mediaroom">MediaRoom</a></li>
+            <li><a href="#mediaplayer">MediaPlayer</a></li>
+            <li><a href="#obdmenu">OBDMenu</a></li>
+            <li><a href="#obddiagnostics">OBDDiagnostics</a></li>
+            <li><a href="#carmenu">CarMenu</a></li>
+            <li><a href="#sensormenu">SensorMenu</a></li>
+            <li><a href="#clockmenu">ClockMenu</a></li>
+            <li><a href="#phonemirror">PhoneMirrorView</a></li>
+            <li><a href="#androidauto">AndroidAutoView</a></li>
+            <li><a href="#downloadpage">DownloadPage</a></li>
+          </ul>
+        </nav>
+
+        <!-- MainMenu -->
+        <h2 id="mainmenu">MainMenu.qml</h2>
+
+        <p><span class="file-path">frontend/MainMenu.qml</span> is the home screen and the <code>initialItem</code> of the StackView. It presents a two-column dashboard with media controls on the left and OBD telemetry on the right.</p>
+
+        <h3>Layout</h3>
+
+        <pre><code><span class="cls">RowLayout</span> {
+    <span class="prop">anchors.fill</span>: parent
+    <span class="prop">spacing</span>: App.Spacing.<span class="fn">dp</span>(<span class="num">10</span>)
+
+    <span class="cmt">// LEFT: Media section (33% width)</span>
+    <span class="cls">Rectangle</span> { Layout.preferredWidth: parent.width * <span class="num">0.33</span> }
+
+    <span class="cmt">// RIGHT: OBD section (fills remaining 67%)</span>
+    <span class="cls">Rectangle</span> { Layout.fillWidth: <span class="kw">true</span> }
+}</code></pre>
+
+        <h3>Media Section Features</h3>
+        <ul>
+          <li><strong>Blurred album art background</strong> &mdash; Uses <code>GaussianBlur</code> on the current album art with a dark overlay for readability</li>
+          <li><strong>Album art image</strong> with <code>DropShadow</code> effect</li>
+          <li><strong>Auto-scrolling text</strong> &mdash; Song title and artist/album use a <code>Flickable</code> with a <code>Timer</code>-driven <code>NumberAnimation</code> that scrolls horizontally when text overflows</li>
+          <li><strong>Seek slider</strong> &mdash; Custom-styled <code>Slider</code> with accent-colored fill and a circular handle</li>
+          <li><strong>Dual media source</strong> &mdash; The <code>useSpotify</code> flag determines whether properties come from <code>mediaManager</code> or <code>spotifyManager</code></li>
+        </ul>
+
+        <h3>OBD Section</h3>
+        <p>Embeds the <code>HomeOBDView</code> component which displays a configurable subset of OBD parameters in a compact stacked layout. Clicking either section navigates to the relevant full page.</p>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>mediaManager</code>, <code>spotifyManager</code>, <code>settingsManager</code>, <code>obdManager</code></p>
+
+        <!-- MediaRoom -->
+        <h2 id="mediaroom">MediaRoom.qml</h2>
+
+        <p><span class="file-path">frontend/MediaRoom.qml</span> is the full-screen "now playing" view with large album art, playback controls, and optional waveform visualizer.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>AlbumArtCarousel</strong> &mdash; The centerpiece uses the reusable <code>AlbumArtCarousel</code> component with configurable transitions (Crossfade, Slide, Vinyl Lift, Dissolve, Flip, and 3D modes like Coverflow, Conveyor, Stack)</li>
+          <li><strong>Blurred background</strong> &mdash; Full-screen album art blur behind all content, with configurable blur radius</li>
+          <li><strong>Scrolling metadata</strong> &mdash; Song title, artist, and album with auto-scroll for long text</li>
+          <li><strong>Seek bar</strong> with position/duration display</li>
+          <li><strong>Transport controls</strong> &mdash; Previous, Play/Pause, Next, Shuffle buttons with press animations</li>
+          <li><strong>Empty playlist detection</strong> &mdash; When no local songs exist, shows a download button instead of controls</li>
+          <li><strong>Cached DownloadPage navigation</strong> &mdash; The <code>openDownloadPage()</code> function reuses a cached page instance stored on the StackView</li>
+        </ul>
+
+        <h3>Spotify Integration</h3>
+        <p>The <code>useSpotify</code> property switches all track info, playback commands, and progress between local and Spotify sources. Spotify track info is cached in dedicated properties updated via Connections signals.</p>
+
+        <h3>Side Card Preloading</h3>
+        <p>MediaRoom pre-fetches album art for adjacent tracks to ensure instant coverflow transitions:</p>
+
+        <pre><code><span class="cmt">// Hidden preloaders decode next/prev art at full resolution</span>
+<span class="cls">Image</span> {
+    <span class="prop">id</span>: prevArtPreloader
+    <span class="prop">visible</span>: <span class="kw">false</span>; <span class="prop">width</span>: <span class="num">1</span>; <span class="prop">height</span>: <span class="num">1</span>
+    <span class="prop">sourceSize</span>: Qt.<span class="fn">size</span>(albumArtStack.artSize * <span class="num">2</span>, ...)
+    <span class="prop">asynchronous</span>: <span class="kw">true</span>; <span class="prop">cache</span>: <span class="kw">true</span>
+}
+<span class="cls">Image</span> {
+    <span class="prop">id</span>: nextArtPreloader
+    <span class="prop">visible</span>: <span class="kw">false</span>; <span class="prop">width</span>: <span class="num">1</span>; <span class="prop">height</span>: <span class="num">1</span>
+    <span class="prop">sourceSize</span>: Qt.<span class="fn">size</span>(albumArtStack.artSize * <span class="num">2</span>, ...)
+    <span class="prop">asynchronous</span>: <span class="kw">true</span>; <span class="prop">cache</span>: <span class="kw">true</span>
+}</code></pre>
+
+        <p>A <code>sideCardRefreshTimer</code> fires on the next event-loop tick after track changes, using a batched backend call (<code>get_neighbor_album_arts()</code>) to minimize PySide6 bridge crossings.</p>
+
+        <h3>Animation and Performance</h3>
+        <p>Track change animations are carefully sequenced to avoid frame stuttering:</p>
+        <ol class="steps">
+          <li>Kill the visualizer instantly (snap bars to zero before animation)</li>
+          <li>Trigger the carousel slide animation</li>
+          <li>Defer FFT analysis until after the <code>settled</code> signal fires</li>
+          <li>Fade the visualizer back in after a brief delay</li>
+        </ol>
+
+        <pre><code><span class="kw">function</span> <span class="fn">animateTrackChange</span>() {
+    vizFadeInTimer.<span class="fn">stop</span>()
+    _cardAnimBusy = <span class="kw">true</span>
+    waveformContainer._vizFadedOut = <span class="kw">true</span>
+    waveformContainer.<span class="fn">dropBars</span>()
+    albumArtStack.<span class="fn">triggerSlide</span>()
+}</code></pre>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>mediaManager</code>, <code>spotifyManager</code>, <code>settingsManager</code>, <code>audioAnalyzer</code>, <code>downloadManager</code></p>
+
+        <!-- MediaPlayer -->
+        <h2 id="mediaplayer">MediaPlayer.qml</h2>
+
+        <p><span class="file-path">frontend/MediaPlayer.qml</span> is the playlist/library browser view showing all songs in a scrollable list.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>Playlist management</strong> &mdash; Local and Spotify playlists are listed and switchable. Properties track both <code>playlistNames</code> and <code>spotifyPlaylistNames</code></li>
+          <li><strong>Song list</strong> &mdash; Each row shows index, album art thumbnail (via LazyImage), title, artist, and album</li>
+          <li><strong>Playback state highlighting</strong> &mdash; Currently playing song is highlighted with <code>playingHighlightColor</code>; paused songs use <code>pausedHighlightColor</code></li>
+          <li><strong>Initial scroll position</strong> &mdash; On page load, the list scrolls to the currently playing song</li>
+          <li><strong>Cached DownloadPage</strong> &mdash; Uses the same caching pattern as MediaRoom, stored on <code>stackView._cachedDownloadPage</code></li>
+          <li><strong>Force model refresh</strong> &mdash; A <code>playlistRefreshCounter</code> is incremented when switching between local and Spotify playlists to force delegate rebinding</li>
+        </ul>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>mediaManager</code>, <code>spotifyManager</code>, <code>settingsManager</code>, <code>downloadManager</code></p>
+
+        <!-- OBDMenu -->
+        <h2 id="obdmenu">OBDMenu.qml</h2>
+
+        <p><span class="file-path">frontend/OBDMenu.qml</span> displays live OBD-II vehicle data in a responsive grid of parameter cards.</p>
+
+        <h3>Layout</h3>
+
+        <pre><code><span class="cls">GridLayout</span> {
+    <span class="prop">id</span>: parametersGrid
+    <span class="prop">columns</span>: <span class="num">3</span>  <span class="cmt">// Adapts: 2 for &le;4 params, 3 for &le;9, 4 for more</span>
+    <span class="prop">rowSpacing</span>: App.Spacing.<span class="fn">dp</span>(<span class="num">10</span>)
+    <span class="prop">columnSpacing</span>: App.Spacing.<span class="fn">dp</span>(<span class="num">10</span>)
+
+    <span class="cls">Repeater</span> {
+        <span class="prop">model</span>: allParameters  <span class="cmt">// From OBDParameterModel singleton</span>
+    }
+}</code></pre>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>OBDParameterModel singleton</strong> &mdash; All 93 OBD parameters with display metadata (title, unit, min, max) are defined in the <code>OBDParameterModel</code> singleton</li>
+          <li><strong>Configurable visibility</strong> &mdash; Each parameter can be enabled/disabled via settings; the grid column count auto-adjusts</li>
+          <li><strong>Animated values</strong> &mdash; A <code>Behavior on displayValue</code> with 50ms linear animation creates a smooth rolling number effect</li>
+          <li><strong>Dual card styles</strong> &mdash; The <code>useCircularCards</code> setting switches between square progress bar cards and circular gauge cards</li>
+          <li><strong>OBD-specific theming</strong> &mdash; Uses <code>Style.obdBoxBackground</code>, <code>Style.obdBarColor</code>, <code>Style.obdValueColor</code>, and <code>Style.obdLabelColor</code></li>
+        </ul>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>obdManager</code>, <code>settingsManager</code></p>
+
+        <!-- OBDDiagnostics -->
+        <h2 id="obddiagnostics">OBDDiagnostics.qml</h2>
+
+        <p><span class="file-path">frontend/OBDDiagnostics.qml</span> is the diagnostic trouble code (DTC) reader and clearer.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>DTC scanning</strong> &mdash; Reads trouble codes via <code>obdManager</code> and displays code + description</li>
+          <li><strong>MIL status</strong> &mdash; Shows whether the Check Engine Light is on or off</li>
+          <li><strong>DTC clearing</strong> &mdash; Sends a clear command and reports success/failure</li>
+          <li><strong>Freeze frame data</strong> &mdash; Displays snapshot data captured when a DTC was set</li>
+          <li><strong>Terminal output</strong> &mdash; Uses the <code>TerminalFeedback</code> component to show a real-time log of all diagnostic operations in a retro terminal style</li>
+        </ul>
+
+        <h3>Signal Handling</h3>
+        <pre><code><span class="cls">Connections</span> {
+    <span class="prop">target</span>: obdManager
+    <span class="kw">function</span> <span class="fn">onDtcCodesChanged</span>(codes) {
+        dtcCodes = codes
+        <span class="kw">for</span> (<span class="kw">var</span> i = <span class="num">0</span>; i < codes.length; i++) {
+            terminalOutput.<span class="fn">appendLine</span>(
+                <span class="str">"[DTC] "</span> + codes[i].code + <span class="str">" - "</span> + codes[i].description)
+        }
+    }
+    <span class="kw">function</span> <span class="fn">onMilStatusChanged</span>(status) { ... }
+    <span class="kw">function</span> <span class="fn">onDtcClearResult</span>(success, message) { ... }
+}</code></pre>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>obdManager</code></p>
+
+        <!-- CarMenu -->
+        <h2 id="carmenu">CarMenu.qml</h2>
+
+        <p><span class="file-path">frontend/CarMenu.qml</span> renders a <strong>3D vehicle model</strong> that rotates in real time based on IMU sensor data.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>QtQuick3D integration</strong> &mdash; Imports <code>QtQuick3D</code> and <code>QtQuick3D.AssetUtils</code> for real-time 3D rendering</li>
+          <li><strong>Quaternion-based rotation</strong> &mdash; The 3D car model uses quaternion orientation directly from the BerryIMU, avoiding gimbal lock. The sensor frame (Z-up) is remapped to Qt3D's frame (Y-up): <code>(w,x,y,z) &rarr; (w,y,z,x)</code></li>
+          <li><strong>Camera orbit</strong> &mdash; Properties <code>cameraYaw</code>, <code>cameraPitch</code>, and <code>cameraDistance</code> allow interactive camera control</li>
+          <li><strong>Simulation fallback</strong> &mdash; When no IMU is connected, a timer generates sinusoidal pitch and roll values for demonstration</li>
+          <li><strong>Gauge overlays</strong> &mdash; Heading (with cardinal direction), altitude, G-force, and barometric temperature are displayed around the 3D viewport</li>
+        </ul>
+
+        <h3>IMU Connection</h3>
+        <pre><code><span class="cls">Connections</span> {
+    <span class="prop">target</span>: berryIMU
+    <span class="cmt">// Quaternion for 3D model (no gimbal lock)</span>
+    <span class="kw">function</span> <span class="fn">onOrientationChanged</span>(w, x, y, z) {
+        carModel.rotation = Qt.<span class="fn">quaternion</span>(w, y, z, x)
+    }
+    <span class="cmt">// Euler angles for gauge displays only</span>
+    <span class="kw">function</span> <span class="fn">onPitchChanged</span>(val) { currentPitch = val }
+    <span class="kw">function</span> <span class="fn">onRollChanged</span>(val) { currentRoll = val }
+    <span class="kw">function</span> <span class="fn">onHeadingChanged</span>(val) { currentHeading = val }
+}</code></pre>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>berryIMU</code>, <code>settingsManager</code></p>
+
+        <!-- SensorMenu -->
+        <h2 id="sensormenu">SensorMenu.qml</h2>
+
+        <p><span class="file-path">frontend/SensorMenu.qml</span> is a dashboard for all BerryIMU sensor readings.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>SensorCard components</strong> &mdash; Each reading (pitch, roll, heading, altitude, temperature) is displayed in a dedicated <code>SensorCard</code></li>
+          <li><strong>GForceDisplay</strong> &mdash; A specialized G-force visualization with lateral/longitudinal components and a trail history</li>
+          <li><strong>Configurable units</strong> &mdash; Temperature (Celsius/Fahrenheit) and altitude (meters/feet) are switchable via settings</li>
+          <li><strong>Configurable visibility</strong> &mdash; Each sensor card can be shown/hidden independently</li>
+          <li><strong>Decimal precision</strong> &mdash; Configurable decimal places for all numeric displays</li>
+          <li><strong>Emit rate control</strong> &mdash; The sensor polling rate is adjustable and applied on page load via <code>berryIMU.setEmitRate(emitRate)</code></li>
+        </ul>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>berryIMU</code>, <code>settingsManager</code></p>
+
+        <!-- ClockMenu -->
+        <h2 id="clockmenu">ClockMenu.qml</h2>
+
+        <p><span class="file-path">frontend/ClockMenu.qml</span> is a full-screen clock with both digital and analog displays.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>Digital clock</strong> &mdash; Large text display using <code>dp(72)</code> font size, respecting the 24-hour format setting</li>
+          <li><strong>Date display</strong> below the digital clock</li>
+          <li><strong>Analog clock face</strong> &mdash; Built entirely from QML <code>Rectangle</code> primitives:
+            <ul>
+              <li>Hour hand: <code>width: dp(4), height: parent.height * 0.3</code></li>
+              <li>Minute hand: <code>width: dp(2), height: parent.height * 0.4</code></li>
+              <li>Second hand and center dot</li>
+              <li>All hands use <code>transformOrigin: Item.Bottom</code> and rotate around the clock center</li>
+            </ul>
+          </li>
+          <li><strong>Timer-driven updates</strong> &mdash; A 1-second timer updates all hand rotations and text</li>
+        </ul>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>settingsManager</code> (for clock format preference)</p>
+
+        <!-- PhoneMirrorView -->
+        <h2 id="phonemirror">PhoneMirrorView.qml</h2>
+
+        <p><span class="file-path">frontend/PhoneMirrorView.qml</span> displays a mirrored phone screen via scrcpy frame capture.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>Custom QML type registration</strong> &mdash; Imports <code>OCTAVE.PhoneMirror 1.0</code> for the frame capture component</li>
+          <li><strong>Image provider frames</strong> &mdash; Phone frames are streamed via a custom <code>QQuickImageProvider</code> at URL <code>image://scrcpyframe/frame?{counter}</code></li>
+          <li><strong>Frame counter refresh</strong> &mdash; A <code>frameCounter</code> property is appended to the image URL query string and incremented to force QML to reload the image each frame</li>
+          <li><strong>Lifecycle management</strong> &mdash; <code>StackView.onActivated</code> resumes capture, <code>StackView.onDeactivated</code> pauses it to save resources</li>
+          <li><strong>Error handling</strong> &mdash; Launch failures show an error message overlay</li>
+        </ul>
+
+        <pre><code><span class="cls">Image</span> {
+    <span class="prop">id</span>: phoneFrame
+    <span class="prop">source</span>: mirrorRunning
+        ? <span class="str">"image://scrcpyframe/frame?"</span> + frameCounter : <span class="str">""</span>
+    <span class="prop">cache</span>: <span class="kw">false</span>
+    <span class="prop">asynchronous</span>: <span class="kw">false</span>
+}</code></pre>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>phoneMirrorManager</code></p>
+
+        <!-- AndroidAutoView -->
+        <h2 id="androidauto">AndroidAutoView.qml</h2>
+
+        <p><span class="file-path">frontend/AndroidAutoView.qml</span> embeds the Google Desktop Head Unit (DHU) directly into OCTAVE's window.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>Custom QML type</strong> &mdash; Imports <code>OCTAVE.AndroidAuto 1.0</code> for the <code>EmbeddedDhuItem</code> component</li>
+          <li><strong>Seamless embedding</strong> &mdash; The DHU window becomes a child widget of the QML item, rendering natively within the OCTAVE window</li>
+          <li><strong>Stream signals</strong> &mdash; <code>onStreamStarted</code> and <code>onStreamStopped</code> track the DHU connection state</li>
+          <li><strong>Close button overlay</strong> &mdash; A semi-transparent "X" button at the top-right corner allows stopping the DHU</li>
+          <li><strong>Error display</strong> &mdash; Connection failures show an error message with a retry button</li>
+        </ul>
+
+        <pre><code><span class="cls">EmbeddedDhuItem</span> {
+    <span class="prop">id</span>: embeddedDhu
+    <span class="prop">anchors.fill</span>: parent
+
+    Component.onCompleted: {
+        <span class="kw">if</span> (androidAutoManager)
+            <span class="fn">connectToManager</span>(androidAutoManager)
+    }
+}</code></pre>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>androidAutoManager</code></p>
+
+        <!-- DownloadPage -->
+        <h2 id="downloadpage">DownloadPage.qml</h2>
+
+        <p><span class="file-path">frontend/DownloadPage.qml</span> provides a YouTube music search and download interface.</p>
+
+        <h3>Key Features</h3>
+        <ul>
+          <li><strong>Search interface</strong> &mdash; Text input with results displayed as cards showing title, artist, and duration</li>
+          <li><strong>Download queue</strong> &mdash; Active downloads tracked by <code>song_id</code> with progress bars (0.0 to 1.0)</li>
+          <li><strong>Playlist targeting</strong> &mdash; A playlist selector lets users choose which local playlist to download songs into</li>
+          <li><strong>Page caching</strong> &mdash; The DownloadPage is created once and cached on <code>stackView._cachedDownloadPage</code> so navigating away and back is instant</li>
+          <li><strong>On-screen keyboard</strong> &mdash; A <code>showKeyboard</code> flag for touch environments</li>
+          <li><strong>Pagination</strong> &mdash; <code>hasMoreResults</code> enables loading additional search results</li>
+        </ul>
+
+        <h3>Download Manager Connections</h3>
+        <pre><code><span class="cls">Connections</span> {
+    <span class="prop">target</span>: downloadManager
+
+    <span class="kw">function</span> <span class="fn">onSearchResults</span>(jsonStr) {
+        <span class="kw">var</span> results = JSON.<span class="fn">parse</span>(jsonStr)
+        downloadPage.searchResults = results
+        <span class="cmt">// If we got a full page (20), there are probably more</span>
+        downloadPage.hasMoreResults =
+            (results.length % <span class="num">20</span> === <span class="num">0</span>) && results.length > <span class="num">0</span>
+    }
+}</code></pre>
+
+        <h3>Backend Managers Used</h3>
+        <p><code>downloadManager</code>, <code>mediaManager</code></p>
+
+        <!-- Page Navigation Summary -->
+        <h2 id="navigation-summary">Page Navigation Summary</h2>
+
+        <p>The following diagram shows the navigational relationships between pages. Solid arrows indicate primary navigation paths from the BottomBar; dashed arrows show secondary navigation within pages.</p>
+
+        <div class="diagram">
+<pre>
+                        BottomBar
+                           |
+          +--------+-------+-------+---------+
+          |        |       |       |         |
+          v        v       v       v         v
+      MainMenu  OBDMenu  Media*  Settings  AA/PM
+          |        |       |       |
+          |        v       v       |
+          |   OBDDiag  MediaRoom   |
+          |            MediaPlayer |
+          |                |       |
+          +--- Click ------+       |
+          |                        |
+          +------ DownloadPage ----+
+
+  * Media button default configurable: MediaRoom or MediaPlayer
+  AA = AndroidAutoView, PM = PhoneMirrorView
+</pre>
+        </div>
+
+        <h3>Page ObjectNames</h3>
+        <p>Each page declares an <code>objectName</code> used by the BottomBar for smart navigation (toggling between related pages):</p>
+
+        <table>
+          <thead><tr><th>Page</th><th>objectName</th></tr></thead>
+          <tbody>
+            <tr><td>MediaRoom</td><td><code>"mediaRoom"</code></td></tr>
+            <tr><td>MediaPlayer</td><td><code>"mediaPlayer"</code></td></tr>
+            <tr><td>OBDMenu</td><td><code>"obdMenu"</code></td></tr>
+            <tr><td>OBDDiagnostics</td><td><code>"obdDiagnostics"</code></td></tr>
+            <tr><td>SettingsMenu</td><td><code>"settingsMenu"</code></td></tr>
+            <tr><td>DownloadPage</td><td><code>"downloadPage"</code></td></tr>
+          </tbody>
+        </table>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="frontend-overview.html" class="related-link">Frontend Overview</a>
+          <a href="bottom-bar.html" class="related-link">Bottom Bar</a>
+          <a href="components.html" class="related-link">Components</a>
+          <a href="settings-ui.html" class="related-link">Settings UI</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

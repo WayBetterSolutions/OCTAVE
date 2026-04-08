@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings UI - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Settings UI</div>
+          <h1 class="page-title">Settings UI</h1>
+          <p class="page-subtitle">Settings page routing, four layout engines, reusable components, the widget system, and how to add new settings pages</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#orchestrator">SettingsMenu Orchestrator</a></li>
+            <li><a href="#page-model">Page Model</a></li>
+            <li><a href="#layouts">Layout Engines</a></li>
+            <li><a href="#carousel">Carousel Layout</a></li>
+            <li><a href="#sidebar">Sidebar Layout</a></li>
+            <li><a href="#hub">Hub Layout</a></li>
+            <li><a href="#dashboard">Dashboard Layout</a></li>
+            <li><a href="#components">Reusable Components</a></li>
+            <li><a href="#widgets">Widget System</a></li>
+            <li><a href="#adding-page">Adding a New Settings Page</a></li>
+          </tbody>
+          </ul>
+        </nav>
+
+        <!-- Orchestrator -->
+        <h2 id="orchestrator">SettingsMenu Orchestrator</h2>
+
+        <p><span class="file-path">frontend/SettingsMenu.qml</span> is the orchestrator that manages settings navigation. It does not render settings content itself; instead it delegates to one of four layout engines based on user preference.</p>
+
+        <pre><code><span class="cls">Item</span> {
+    <span class="prop">id</span>: settingsMenu
+    <span class="prop">objectName</span>: <span class="str">"settingsMenu"</span>
+    <span class="kw">required property var</span> stackView
+    <span class="kw">required property var</span> mainWindow
+    <span class="kw">required property string</span> initialSection
+
+    <span class="prop">property string</span> layoutStyle: settingsManager
+        ? settingsManager.settingsLayoutStyle : <span class="str">"Carousel"</span>
+}</code></pre>
+
+        <p>The layout style determines which component is loaded. The orchestrator provides the <code>hubModel</code> (filtered list of visible pages) and helper functions to each layout.</p>
+
+        <!-- Page Model -->
+        <h2 id="page-model">Page Model</h2>
+
+        <p>The <code>pageModel</code> is the single source of truth for all settings pages:</p>
+
+        <pre><code><span class="kw">readonly property var</span> pageModel: [
+    { <span class="prop">name</span>: <span class="str">"Display"</span>,
+      <span class="prop">section</span>: <span class="str">"displaySettings"</span>,
+      <span class="prop">source</span>: <span class="str">"settings/DisplaySettingsPage.qml"</span>,
+      <span class="prop">widget</span>: <span class="str">"widgets/DisplayWidget.qml"</span>,
+      <span class="prop">icon</span>: <span class="str">"\u263C"</span>,
+      <span class="prop">group</span>: <span class="str">"Appearance"</span>,
+      <span class="prop">subSections</span>: [<span class="str">"Layout"</span>, <span class="str">"Window"</span>, <span class="str">"Appearance"</span>, <span class="str">"Clock"</span>] },
+    { <span class="prop">name</span>: <span class="str">"Media"</span>,
+      <span class="prop">section</span>: <span class="str">"mediaSettings"</span>,
+      <span class="prop">source</span>: <span class="str">"settings/MediaSettingsPage.qml"</span>,
+      <span class="prop">widget</span>: <span class="str">"widgets/MediaWidget.qml"</span>,
+      <span class="prop">icon</span>: <span class="str">"\u266B"</span>,
+      <span class="prop">group</span>: <span class="str">"Appearance"</span>,
+      <span class="prop">subSections</span>: [<span class="str">"Library"</span>, <span class="str">"Playback"</span>, <span class="str">"Album Art"</span>, ...] },
+    <span class="cmt">// ... 5 more pages</span>
+]</code></pre>
+
+        <p>Each entry defines:</p>
+        <table>
+          <thead><tr><th>Key</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>name</code></td><td>Display name shown in tabs/sidebar</td></tr>
+            <tr><td><code>section</code></td><td>Internal identifier used for navigation and persistence</td></tr>
+            <tr><td><code>source</code></td><td>QML file path (relative to <code>frontend/</code>)</td></tr>
+            <tr><td><code>widget</code></td><td>Widget QML file for Dashboard layout (relative to <code>frontend/settings/</code>)</td></tr>
+            <tr><td><code>icon</code></td><td>Unicode character used as icon</td></tr>
+            <tr><td><code>group</code></td><td>Category grouping: Appearance, Connectivity, System</td></tr>
+            <tr><td><code>subSections</code></td><td>Named anchors within the page for sub-navigation</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Settings Pages</h3>
+        <table>
+          <thead><tr><th>Page</th><th>File</th><th>Covers</th></tr></thead>
+          <tbody>
+            <tr><td>Display</td><td><span class="file-path">settings/DisplaySettingsPage.qml</span></td><td>Theme, environment, layout, window size, clock, UI scale, fonts</td></tr>
+            <tr><td>Media</td><td><span class="file-path">settings/MediaSettingsPage.qml</span></td><td>Library paths, playback, album art transitions, blur, visualizer, Spotify</td></tr>
+            <tr><td>Phone Dock</td><td><span class="file-path">settings/PhoneDockSettingsPage.qml</span></td><td>Android Auto and Phone Mirror settings</td></tr>
+            <tr><td>OBD</td><td><span class="file-path">settings/OBDSettingsPage.qml</span></td><td>Connection, port, fast mode, parameter visibility</td></tr>
+            <tr><td>Accessories</td><td><span class="file-path">settings/AccessoriesSettingsPage.qml</span></td><td>ESP32 volume knob, gesture sensor</td></tr>
+            <tr><td>Device</td><td><span class="file-path">settings/DeviceSettingsPage.qml</span></td><td>Device name, updates, data management</td></tr>
+            <tr><td>About</td><td><span class="file-path">settings/AboutPage.qml</span></td><td>Version info, credits, licenses</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Layouts -->
+        <h2 id="layouts">Layout Engines</h2>
+
+        <p>OCTAVE provides four distinct settings layout styles, all rendering the same pages with different navigation paradigms.</p>
+
+        <!-- Carousel -->
+        <h2 id="carousel">Carousel Layout</h2>
+
+        <p><span class="file-path">frontend/SettingsCarouselLayout.qml</span> presents settings pages as a horizontal <code>SwipeView</code> with a tab strip at the top.</p>
+
+        <h3>Tab Strip</h3>
+        <pre><code><span class="cls">Row</span> {
+    <span class="prop">id</span>: tabStrip
+    <span class="prop">anchors.horizontalCenter</span>: parent.horizontalCenter
+
+    <span class="cmt">// Tabs divide available width equally</span>
+    <span class="prop">property real</span> tabWidth: hubModel.length > <span class="num">0</span>
+        ? (parent.width - spacing * (hubModel.length - <span class="num">1</span>)) / hubModel.length
+        : App.Spacing.<span class="fn">dp</span>(<span class="num">80</span>)
+
+    <span class="cls">Repeater</span> {
+        <span class="prop">model</span>: hubModel.length
+        <span class="cls">Rectangle</span> {
+            <span class="prop">color</span>: isCurrent
+                ? Qt.<span class="fn">rgba</span>(App.Style.accent.r, ..., <span class="num">0.2</span>)
+                : <span class="str">"transparent"</span>
+        }
+    }
+}</code></pre>
+
+        <p>Each tab shows an icon + name, with accent-colored highlight for the active tab and an orange dot for update notifications. The <code>SwipeView</code> below allows horizontal swiping between pages or tab clicking.</p>
+
+        <!-- Sidebar -->
+        <h2 id="sidebar">Sidebar Layout</h2>
+
+        <p><span class="file-path">frontend/SettingsSidebarLayout.qml</span> is a traditional two-panel layout with a sidebar navigation list on the left and content on the right.</p>
+
+        <pre><code><span class="cls">RowLayout</span> {
+    <span class="prop">spacing</span>: <span class="num">0</span>
+
+    <span class="cls">Rectangle</span> { <span class="cmt">// Left sidebar panel</span>
+        Layout.preferredWidth: App.Spacing.settingsNavWidth
+        <span class="prop">color</span>: App.Style.sidebarColor
+    }
+
+    <span class="cls">Loader</span> { <span class="cmt">// Right content area</span>
+        Layout.fillWidth: <span class="kw">true</span>
+        <span class="prop">source</span>: <span class="fn">sourceForSection</span>(settingsMenu.currentSection)
+    }
+}</code></pre>
+
+        <h3>Visual Enhancements</h3>
+        <ul>
+          <li>Subtle overhead lighting gradient on the sidebar</li>
+          <li>Lit edge highlight along the top</li>
+          <li>Soft drop shadow on the right edge</li>
+          <li>Scroll memory (via <code>ScrollMemory.js</code>) preserves scroll position when switching pages</li>
+        </ul>
+
+        <!-- Hub -->
+        <h2 id="hub">Hub Layout</h2>
+
+        <p><span class="file-path">frontend/SettingsHubLayout.qml</span> presents a card grid landing page. Clicking a card opens its detail page full-width.</p>
+
+        <h3>Two-State Navigation</h3>
+        <pre><code><span class="prop">property string</span> viewState: <span class="str">""</span>  <span class="cmt">// "hub" or "detail"</span></code></pre>
+
+        <p>The hub state shows a grid of <code>SettingsHubGridCard</code> components, each displaying a summary widget with live info lines (theme name, connection status, etc.). The detail state loads the full settings page in a <code>Loader</code>.</p>
+
+        <h3>Widget Info Lines</h3>
+        <pre><code><span class="kw">function</span> <span class="fn">getWidgetForSection</span>(section) {
+    <span class="kw">switch</span> (section) {
+        <span class="kw">case</span> <span class="str">"displaySettings"</span>:
+            <span class="kw">return</span> [
+                { <span class="prop">label</span>: <span class="str">"Theme"</span>, <span class="prop">value</span>: settingsManager.themeSetting },
+                { <span class="prop">label</span>: <span class="str">"Environment"</span>, <span class="prop">value</span>: settingsManager.environmentTheme },
+                { <span class="prop">label</span>: <span class="str">"Scale"</span>, <span class="prop">value</span>: Math.<span class="fn">round</span>(settingsManager.uiScale * <span class="num">100</span>) + <span class="str">"%"</span> }
+            ]
+        <span class="cmt">// ... similar for each section</span>
+    }
+}</code></pre>
+
+        <!-- Dashboard -->
+        <h2 id="dashboard">Dashboard Layout</h2>
+
+        <p><span class="file-path">frontend/SettingsDashboardLayout.qml</span> is an advanced grid layout where each card can load a live widget preview from the <code>widgets/</code> directory.</p>
+
+        <h3>Column Spanning</h3>
+        <p>Important sections (Display, Media) get 2 columns in a 3-column grid, while smaller sections get 1:</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">getSpanForSection</span>(section) {
+    <span class="kw">switch</span> (section) {
+        <span class="kw">case</span> <span class="str">"displaySettings"</span>:
+        <span class="kw">case</span> <span class="str">"mediaSettings"</span>:
+            <span class="kw">return</span> <span class="num">2</span>
+        <span class="kw">default</span>:
+            <span class="kw">return</span> <span class="num">1</span>
+    }
+}</code></pre>
+
+        <p>Like the Hub layout, it uses a "hub" / "detail" view state. Cards load their widget QML source from <code>pageModel[i].widget</code>.</p>
+
+        <!-- Components -->
+        <h2 id="components">Reusable Components</h2>
+
+        <p>All settings components live in <span class="file-path">frontend/settings/</span> and import the parent directory as <code>App</code> for access to Style, Spacing, and EnvironmentTheme.</p>
+
+        <h3>SettingsCard</h3>
+        <p><span class="file-path">settings/SettingsCard.qml</span> &mdash; A collapsible container card for grouping related settings.</p>
+        <ul>
+          <li><strong>Properties:</strong> <code>cardId</code>, <code>title</code>, <code>description</code>, <code>expanded</code></li>
+          <li><strong>Persistence:</strong> Expanded/collapsed state is persisted via <code>ExpandedCards.js</code> (a <code>.pragma library</code> singleton loaded at startup). State changes are debounced with a 500ms timer before writing to disk.</li>
+          <li><strong>Theming:</strong> Semi-transparent background with <code>primaryTextColor</code> at 7% opacity. Supports environment features: accent borders, corner brackets, top-edge highlights, and frosted glass gradient (Deep Sea).</li>
+          <li><strong>Content:</strong> Uses a <code>default property alias</code> so child items are placed inside the card body automatically.</li>
+        </ul>
+
+        <h3>SettingsToggle</h3>
+        <p><span class="file-path">settings/SettingsToggle.qml</span> &mdash; A toggle switch with two modes.</p>
+        <ul>
+          <li><strong>Compact mode:</strong> Inline switch with label, suitable for use within cards</li>
+          <li><strong>Full mode:</strong> Larger switch with dedicated row layout</li>
+          <li><strong>Properties:</strong> <code>checked</code>, <code>compact</code>, <code>text</code>, <code>activeColor</code></li>
+          <li><strong>Signal:</strong> <code>toggled(bool checked)</code></li>
+          <li><strong>Environment-aware:</strong> Switch radius, knob radius, glow effects, and accent borders adapt to the current environment preset</li>
+        </ul>
+
+        <h3>SettingsSlider</h3>
+        <p><span class="file-path">settings/SettingsSlider.qml</span> &mdash; A themed horizontal slider.</p>
+        <ul>
+          <li><strong>Properties:</strong> <code>activeColor</code>, <code>visualValue</code>, <code>valueDisplay</code></li>
+          <li><strong>Environment features:</strong> Handle glow (Spacecraft/Deep Sea), tick marks below the track (Spacecraft), configurable handle radius</li>
+          <li><strong>Track:</strong> Active fill portion uses the <code>activeColor</code>; background uses <code>secondaryTextColor</code></li>
+        </ul>
+
+        <h3>SettingsDropdown</h3>
+        <p><span class="file-path">settings/SettingsDropdown.qml</span> &mdash; A button-based dropdown selector.</p>
+        <ul>
+          <li><strong>Properties:</strong> <code>displayText</code>, <code>options</code> (array), <code>onSelected</code> (callback)</li>
+          <li><strong>Styling:</strong> Environment-aware border radius with corner marks (Spacecraft), hover states</li>
+          <li><strong>Popup:</strong> Opens a scrollable list of options in a themed popup overlay</li>
+        </ul>
+
+        <h3>SettingsButton</h3>
+        <p><span class="file-path">settings/SettingsButton.qml</span> &mdash; A themed action button.</p>
+        <ul>
+          <li><strong>Properties:</strong> <code>text</code>, <code>tooltipText</code>, <code>buttonColor</code>, <code>bold</code></li>
+          <li><strong>Signal:</strong> <code>clicked()</code></li>
+          <li><strong>Environment modes:</strong> Standard uses solid color fill; Spacecraft uses semi-transparent fill with glow border and top-edge highlight</li>
+        </ul>
+
+        <h3>SettingsTextField</h3>
+        <p><span class="file-path">settings/SettingsTextField.qml</span> &mdash; A themed text input field.</p>
+        <ul>
+          <li><strong>Styling:</strong> Uses <code>hoverColor</code> background with accent border on focus</li>
+          <li><strong>Environment features:</strong> Corner marks at all four corners (Spacecraft), configurable border radius</li>
+        </ul>
+
+        <h3>SettingsChips</h3>
+        <p><span class="file-path">settings/SettingsChips.qml</span> &mdash; A flow layout of selectable chip buttons.</p>
+        <ul>
+          <li><strong>Properties:</strong> <code>options</code> (array), <code>currentValue</code>, <code>chipColors</code> (per-chip colors), <code>chipImages</code> (album art chips), <code>deletableItems</code></li>
+          <li><strong>Features:</strong> Text chips and image chips are separated into different rows. Deletable chips show a confirmation popup. Environment-aware border radius and accent borders.</li>
+        </ul>
+
+        <h3>Additional Components</h3>
+        <table>
+          <thead><tr><th>Component</th><th>File</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td>SettingsCheckBox</td><td><span class="file-path">settings/SettingsCheckBox.qml</span></td><td>Themed checkbox with environment-aware radius</td></tr>
+            <tr><td>SettingsRadio</td><td><span class="file-path">settings/SettingsRadio.qml</span></td><td>Radio buttons (can be square in Spacecraft)</td></tr>
+            <tr><td>SettingsSegmentedControl</td><td><span class="file-path">settings/SettingsSegmentedControl.qml</span></td><td>Multi-option segmented control with glow bar</td></tr>
+            <tr><td>SettingsCollapsibleSection</td><td><span class="file-path">settings/SettingsCollapsibleSection.qml</span></td><td>Expandable/collapsible section within a card</td></tr>
+            <tr><td>SettingsDivider</td><td><span class="file-path">settings/SettingsDivider.qml</span></td><td>Horizontal divider with gradient/animation options</td></tr>
+            <tr><td>SettingsSectionHeader</td><td><span class="file-path">settings/SettingsSectionHeader.qml</span></td><td>Section title with optional decorative lines</td></tr>
+            <tr><td>SettingLabel</td><td><span class="file-path">settings/SettingLabel.qml</span></td><td>Themed text label for form rows</td></tr>
+            <tr><td>SettingDescription</td><td><span class="file-path">settings/SettingDescription.qml</span></td><td>Subdued description text below settings</td></tr>
+            <tr><td>ValueDisplay</td><td><span class="file-path">settings/ValueDisplay.qml</span></td><td>Formatted value with optional brackets and accent</td></tr>
+            <tr><td>HomeScreenButton</td><td><span class="file-path">settings/HomeScreenButton.qml</span></td><td>Navigation button used in settings hub grids</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Widgets -->
+        <h2 id="widgets">Widget System</h2>
+
+        <p>The Dashboard layout loads live preview widgets from <span class="file-path">frontend/settings/widgets/</span>. Each widget is a small QML component that displays a summary of its settings category.</p>
+
+        <table>
+          <thead><tr><th>Widget</th><th>File</th><th>Shows</th></tr></thead>
+          <tbody>
+            <tr><td>DisplayWidget</td><td><span class="file-path">widgets/DisplayWidget.qml</span></td><td>Theme preview, environment, scale</td></tr>
+            <tr><td>MediaWidget</td><td><span class="file-path">widgets/MediaWidget.qml</span></td><td>Media source, autoplay, visualizer status</td></tr>
+            <tr><td>PhoneDockWidget</td><td><span class="file-path">widgets/PhoneDockWidget.qml</span></td><td>AA/PM enabled status, audio toggle</td></tr>
+            <tr><td>OBDWidget</td><td><span class="file-path">widgets/OBDWidget.qml</span></td><td>Connection status, port, fast mode</td></tr>
+            <tr><td>AccessoriesWidget</td><td><span class="file-path">widgets/AccessoriesWidget.qml</span></td><td>Volume knob, gesture sensor status</td></tr>
+            <tr><td>DeviceWidget</td><td><span class="file-path">widgets/DeviceWidget.qml</span></td><td>Device name, system info</td></tr>
+            <tr><td>AboutWidget</td><td><span class="file-path">widgets/AboutWidget.qml</span></td><td>Version, build info</td></tr>
+          </tbody>
+        </table>
+
+        <p>Helper components <span class="file-path">widgets/WidgetChip.qml</span> and <span class="file-path">widgets/WidgetPill.qml</span> provide standardized chip/pill UI elements used across widgets.</p>
+
+        <!-- Adding a Page -->
+        <h2 id="adding-page">Adding a New Settings Page</h2>
+
+        <ol class="steps">
+          <li><strong>Create the page QML file</strong> in <span class="file-path">frontend/settings/</span>. Name it <code>MySettingsPage.qml</code>. It receives <code>settingsManager</code> as a context property and should use <code>SettingsCard</code> components for grouping.</li>
+
+          <li><strong>Create an optional widget</strong> in <span class="file-path">frontend/settings/widgets/MyWidget.qml</span> for the Dashboard layout preview.</li>
+
+          <li><strong>Register in pageModel</strong> &mdash; Add an entry to the <code>pageModel</code> array in <span class="file-path">frontend/SettingsMenu.qml</span>:
+            <pre><code>{ <span class="prop">name</span>: <span class="str">"My Page"</span>,
+  <span class="prop">section</span>: <span class="str">"mySettings"</span>,
+  <span class="prop">source</span>: <span class="str">"settings/MySettingsPage.qml"</span>,
+  <span class="prop">widget</span>: <span class="str">"widgets/MyWidget.qml"</span>,
+  <span class="prop">icon</span>: <span class="str">"\u2605"</span>,
+  <span class="prop">group</span>: <span class="str">"System"</span>,
+  <span class="prop">subSections</span>: [] }</code></pre>
+          </li>
+
+          <li><strong>Add visibility default</strong> &mdash; Ensure <code>settingsManager.is_settings_section_visible("mySettings")</code> returns <code>true</code> by default in the Python backend.</li>
+
+          <li><strong>Test all four layouts</strong> &mdash; Verify the page appears correctly in Carousel, Sidebar, Hub, and Dashboard modes.</li>
+        </ol>
+
+        <div class="info-box info">
+          <strong>Path Convention:</strong> The <code>source</code> path in pageModel is relative to <code>frontend/</code> (used by layout Loaders in frontend/). The <code>widget</code> path is relative to <code>frontend/settings/</code> (used by SettingsDashboardCard's internal Loader).
+        </div>
+
+        <!-- Layout Switching -->
+        <h2 id="layout-switching">Layout Switching</h2>
+
+        <p>The layout engine is selected at runtime via a <code>Loader</code> in SettingsMenu.qml:</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">layoutSourceForStyle</span>(style) {
+    <span class="kw">switch</span> (style) {
+        <span class="kw">case</span> <span class="str">"Carousel"</span>:  <span class="kw">return</span> <span class="str">"SettingsCarouselLayout.qml"</span>
+        <span class="kw">case</span> <span class="str">"Sidebar"</span>:   <span class="kw">return</span> <span class="str">"SettingsSidebarLayout.qml"</span>
+        <span class="kw">case</span> <span class="str">"Hub"</span>:       <span class="kw">return</span> <span class="str">"SettingsHubLayout.qml"</span>
+        <span class="kw">case</span> <span class="str">"Dashboard"</span>: <span class="kw">return</span> <span class="str">"SettingsDashboardLayout.qml"</span>
+        <span class="kw">default</span>:          <span class="kw">return</span> <span class="str">"SettingsCarouselLayout.qml"</span>
+    }
+}
+
+<span class="cls">Loader</span> {
+    <span class="prop">id</span>: layoutLoader
+    <span class="prop">anchors.fill</span>: parent
+    <span class="prop">source</span>: <span class="fn">layoutSourceForStyle</span>(layoutStyle)
+
+    <span class="prop">onLoaded</span>: {
+        <span class="kw">if</span> (item) {
+            item.settingsMenu = settingsMenu
+            item.hubModel = Qt.<span class="fn">binding</span>(<span class="kw">function</span>() {
+                <span class="kw">return</span> settingsMenu.hubModel
+            })
+        }
+    }
+}</code></pre>
+
+        <p>When the user changes the layout style mid-session, the <code>isInitialLoad</code> flag is set to <code>false</code> so the new layout engine knows to preserve the current section rather than restoring from saved state.</p>
+
+        <h3>Navigation Functions</h3>
+        <p>The orchestrator provides navigation functions that delegate to the active layout:</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">navigateToCategory</span>(section) {
+    currentSection = section
+    settingsManager.<span class="fn">set_last_settings_section</span>(section)
+
+    <span class="kw">if</span> (layoutLoader.item) {
+        <span class="kw">if</span> (layoutStyle === <span class="str">"Carousel"</span>)
+            layoutLoader.item.currentIndex = <span class="fn">indexForSection</span>(section)
+        <span class="kw">else</span>
+            layoutLoader.item.<span class="fn">navigateToCategory</span>(section)
+    }
+}
+
+<span class="kw">function</span> <span class="fn">navigateToSubSection</span>(section, subSection) {
+    <span class="cmt">// Delegates to layout-specific sub-section scrolling</span>
+    layoutLoader.item.<span class="fn">navigateToSubSection</span>(section, subSection)
+}</code></pre>
+
+        <!-- Visibility System -->
+        <h2 id="visibility">Section Visibility</h2>
+
+        <p>Settings sections can be hidden/shown by the user. The <code>buildHubModel()</code> function filters the <code>pageModel</code> to only include visible sections:</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">buildHubModel</span>() {
+    <span class="kw">var</span> model = []
+    <span class="kw">for</span> (<span class="kw">var</span> i = <span class="num">0</span>; i < pageModel.length; i++) {
+        <span class="kw">var</span> page = pageModel[i]
+        <span class="kw">if</span> (!<span class="fn">isVisible</span>(page.section)) <span class="kw">continue</span>
+        model.<span class="fn">push</span>({
+            <span class="prop">name</span>: page.name,
+            <span class="prop">section</span>: page.section,
+            <span class="prop">source</span>: page.source,
+            <span class="prop">icon</span>: page.icon,
+            <span class="prop">group</span>: page.group,
+            <span class="prop">widget</span>: page.widget
+        })
+    }
+    hubModel = model
+}</code></pre>
+
+        <p>When visibility changes (via the Settings button's visibility popup in the BottomBar), the <code>settingsMenuVisibilityChanged</code> signal triggers a rebuild of the hub model.</p>
+
+        <!-- ExpandedCards.js -->
+        <h2 id="expanded-cards">Card State Persistence (ExpandedCards.js)</h2>
+
+        <p>The expanded/collapsed state of <code>SettingsCard</code> components is persisted via a <code>.pragma library</code> JavaScript module:</p>
+
+        <pre><code><span class="cmt">// Pre-loaded once at app startup in SettingsMenu.onCompleted</span>
+ExpandedCards.<span class="fn">load</span>(settingsManager)
+
+<span class="cmt">// In SettingsCard: check cached state (no disk I/O)</span>
+<span class="prop">property bool</span> expanded: ExpandedCards.<span class="fn">isExpanded</span>(cardId)
+
+<span class="cmt">// On state change: update cache immediately, debounce disk write</span>
+<span class="prop">onExpandedChanged</span>: {
+    ExpandedCards.<span class="fn">setExpanded</span>(cardId, expanded)
+    _saveTimer.<span class="fn">restart</span>()  <span class="cmt">// 500ms debounce</span>
+}</code></pre>
+
+        <p>The <code>.pragma library</code> pattern makes this a true singleton across all QML components, ensuring consistent state without per-card disk reads.</p>
+
+        <!-- Environment Backgrounds -->
+        <h2 id="environment-backgrounds">Environment Backgrounds</h2>
+
+        <p>The Carousel layout (and other layouts that need it) can display environment-specific animated backgrounds:</p>
+
+        <pre><code><span class="cmt">// Sonar ping animation (Deep Sea environment)</span>
+<span class="cls">ContentSonar</span> {
+    <span class="prop">visible</span>: layoutStyle === <span class="str">"Carousel"</span>
+}
+
+<span class="cmt">// Orbiting planetary system (custom environments)</span>
+<span class="cls">ContentSolarSystem</span> {
+    <span class="prop">visible</span>: layoutStyle === <span class="str">"Carousel"</span>
+}</code></pre>
+
+        <p>These ambient background components are defined in <span class="file-path">frontend/settings/ContentSonar.qml</span> and <span class="file-path">frontend/settings/ContentSolarSystem.qml</span>.</p>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="theme-system.html" class="related-link">Theme System</a>
+          <a href="components.html" class="related-link">Components</a>
+          <a href="frontend-overview.html" class="related-link">Frontend Overview</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

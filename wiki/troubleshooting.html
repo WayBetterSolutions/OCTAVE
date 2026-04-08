@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Troubleshooting - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Troubleshooting</div>
+          <h1 class="page-title">Troubleshooting</h1>
+          <p class="page-subtitle">Common issues, platform-specific fixes, log file analysis, and debugging techniques.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#installation">Installation Issues</a></li>
+            <li><a href="#display">Display &amp; Rendering Issues</a></li>
+            <li><a href="#audio">Audio Issues</a></li>
+            <li><a href="#obd">OBD Connection Issues</a></li>
+            <li><a href="#spotify">Spotify Authentication Issues</a></li>
+            <li><a href="#hardware-sensors">Hardware Sensor Issues</a></li>
+            <li><a href="#logs">Log Files &amp; Debug Mode</a></li>
+            <li><a href="#performance">Performance Issues</a></li>
+            <li><a href="#android">Android-Specific Issues</a></li>
+            <li><a href="#wsl">WSL Display Issues</a></li>
+          </ul>
+        </nav>
+
+        <!-- Installation -->
+        <h2 id="installation">Installation Issues</h2>
+
+        <h3>Windows</h3>
+        <table>
+          <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+          <tbody>
+            <tr><td>"DLL not found" errors</td><td>Install <a href="https://aka.ms/vs/17/release/vc_redist.x64.exe">Visual C++ Redistributable</a></td></tr>
+            <tr><td>PySide6 fails to install</td><td>Ensure Python 3.8+ (64-bit). Run: <code>pip install --upgrade pip setuptools wheel</code> then retry</td></tr>
+            <tr><td><code>pip install obd</code> fails</td><td>Install build tools: Visual Studio Build Tools with "Desktop development with C++"</td></tr>
+            <tr><td>Virtual environment won't activate</td><td>Run <code>Set-ExecutionPolicy RemoteSigned -Scope CurrentUser</code> in PowerShell</td></tr>
+          </tbody>
+        </table>
+
+        <h3>macOS</h3>
+        <table>
+          <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+          <tbody>
+            <tr><td>"App is damaged" Gatekeeper error</td><td><code>xattr -cr /Applications/OCTAVE.app</code> or <code>sudo spctl --master-disable</code></td></tr>
+            <tr><td>PySide6 import errors on ARM Mac</td><td>Ensure using native ARM Python, not Rosetta x86. Check with <code>python -c "import platform; print(platform.machine())"</code></td></tr>
+            <tr><td><code>keyring</code> fails</td><td>Grant terminal access to Keychain in System Settings > Privacy</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Linux</h3>
+        <table>
+          <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+          <tbody>
+            <tr><td>Missing <code>libxcb</code> libraries</td><td><code>sudo apt install libxcb-xinerama0 libxcb-cursor0 libxkbcommon0</code></td></tr>
+            <tr><td><code>libGL</code> errors</td><td><code>sudo apt install libgl1-mesa-glx libegl1</code></td></tr>
+            <tr><td><code>smbus2</code> install fails</td><td><code>sudo apt install python3-dev i2c-tools</code></td></tr>
+            <tr><td>AppImage won't run</td><td><code>chmod +x OCTAVE-x86_64.AppImage</code> or install libfuse2: <code>sudo apt install libfuse2</code></td></tr>
+            <tr><td>AppImage FUSE not available</td><td>Extract: <code>./OCTAVE-x86_64.AppImage --appimage-extract && ./squashfs-root/AppRun</code></td></tr>
+          </tbody>
+        </table>
+
+        <!-- Display -->
+        <h2 id="display">Display &amp; Rendering Issues</h2>
+
+        <h3>XCB Plugin Errors (Linux)</h3>
+        <div class="info-box danger">
+          <strong>Error:</strong> <code>qt.qpa.plugin: Could not load the Qt platform plugin "xcb"</code>
+        </div>
+        <p>Install required X11 libraries:</p>
+        <pre><code>sudo apt install libxcb-xinerama0 libxcb-cursor0 libxkbcommon-x11-0 \
+  libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+  libxcb-render-util0 libxcb-shape0</code></pre>
+
+        <h3>Wayland vs X11</h3>
+        <p>OCTAVE uses Qt Quick which works on both Wayland and X11. If you experience issues on Wayland:</p>
+        <pre><code><span class="cmt"># Force X11 backend</span>
+<span class="kw">export</span> QT_QPA_PLATFORM=xcb
+<span class="fn">python</span> main.py
+
+<span class="cmt"># Or force Wayland</span>
+<span class="kw">export</span> QT_QPA_PLATFORM=wayland
+<span class="fn">python</span> main.py</code></pre>
+
+        <h3>OpenGL / Software Rendering</h3>
+        <p>If the UI is black or has rendering artifacts:</p>
+        <pre><code><span class="cmt"># Force software rendering (slow but reliable)</span>
+<span class="kw">export</span> QT_QUICK_BACKEND=software
+<span class="fn">python</span> main.py
+
+<span class="cmt"># Or specify OpenGL ES (for Raspberry Pi)</span>
+<span class="kw">export</span> QT_OPENGL=es2
+<span class="fn">python</span> main.py</code></pre>
+
+        <h3>Black Screen on Startup</h3>
+        <ul>
+          <li>Check QML import path: OCTAVE adds <code>frontend/</code> to the QML import path. If running from a different directory, QML files won't be found.</li>
+          <li>Check Qt Quick Controls style: OCTAVE forces <code>QT_QUICK_CONTROLS_STYLE=Basic</code>. If this env var is overridden, slider customization breaks.</li>
+          <li>Run with <code>--debug</code> and check logs for QML errors.</li>
+        </ul>
+
+        <h3>UI Scaling Issues</h3>
+        <p>If the UI is too small or too large, adjust the <code>uiScale</code> setting (0.5 - 2.0) in Settings > Display, or set it in <code>settingsConfigure.json</code>.</p>
+
+        <!-- Audio -->
+        <h2 id="audio">Audio Issues</h2>
+
+        <h3>No Audio Output</h3>
+        <ul>
+          <li>Check volume: OCTAVE uses a logarithmic curve <code>(volume/100)^2.0</code>. Low slider values produce very quiet output.</li>
+          <li>Check mute state: <code>mediaManager.is_muted()</code> in QML or check the mute toggle guard (<code>_mute_toggle_locked</code>).</li>
+          <li>Verify audio output device in system settings.</li>
+        </ul>
+
+        <h3>PulseAudio Issues (Linux)</h3>
+        <pre><code><span class="cmt"># Check PulseAudio is running</span>
+pulseaudio --check
+
+<span class="cmt"># Restart PulseAudio</span>
+pulseaudio --kill && pulseaudio --start
+
+<span class="cmt"># List audio sinks</span>
+pactl list short sinks</code></pre>
+
+        <h3>ALSA Errors (Linux)</h3>
+        <pre><code><span class="cmt"># Install ALSA plugins</span>
+sudo apt install libasound2-plugins
+
+<span class="cmt"># If "ALSA lib pcm_dmix.c" errors appear, set:</span>
+<span class="kw">export</span> QT_MULTIMEDIA_PREFERRED_PLUGINS=gstreamer</code></pre>
+
+        <h3>Audio Playback Stalls</h3>
+        <p>The media manager has automatic recovery for stalled/invalid media. If a file consistently fails, check the file format. Supported: MP3, M4A, FLAC, OGG, OPUS, WAV.</p>
+
+        <!-- OBD -->
+        <h2 id="obd">OBD Connection Issues</h2>
+
+        <h3>Serial Port Permissions (Linux)</h3>
+        <pre><code><span class="cmt"># Add user to dialout group for serial port access</span>
+sudo usermod -aG dialout $USER
+
+<span class="cmt"># Log out and back in, then verify</span>
+groups | grep dialout</code></pre>
+
+        <h3>Bluetooth OBD Pairing (Linux)</h3>
+        <pre><code><span class="cmt"># Pair the OBD adapter</span>
+bluetoothctl
+  scan on
+  pair XX:XX:XX:XX:XX:XX
+  trust XX:XX:XX:XX:XX:XX
+  quit
+
+<span class="cmt"># Bind to rfcomm</span>
+sudo rfcomm bind 0 XX:XX:XX:XX:XX:XX
+
+<span class="cmt"># Verify</span>
+ls -la /dev/rfcomm0</code></pre>
+
+        <h3>Connection Timeouts</h3>
+        <ul>
+          <li>Default timeout is 5 seconds. The OBD manager uses a dedicated QThread worker to avoid blocking the UI.</li>
+          <li>If connection is slow, check if <code>obdFastMode</code> is enabled (it should be by default).</li>
+          <li>The manager caches the last successful protocol to skip auto-detection on reconnect (saves 1-3 seconds).</li>
+          <li>Set <code>obdAutoReconnectAttempts</code> to 1-10 for automatic reconnection after drops.</li>
+        </ul>
+
+        <h3>"No Data" from Vehicle</h3>
+        <ul>
+          <li>Run a vehicle scan (OBD Settings > Scan Vehicle) to discover which PIDs your vehicle supports.</li>
+          <li>Not all vehicles support all 87+ parameters. Enable only supported ones to avoid polling errors.</li>
+          <li>Some parameters only report data when the engine is running.</li>
+        </ul>
+
+        <h3>Data Watchdog</h3>
+        <p>The OBD manager includes a data watchdog that detects stale connections (no data for 30 seconds while parameters are watched). If triggered, it automatically reconnects.</p>
+
+        <!-- Spotify -->
+        <h2 id="spotify">Spotify Authentication Issues</h2>
+
+        <h3>OAuth Flow</h3>
+        <ol class="steps">
+          <li>Enter Client ID and Client Secret in Spotify Settings</li>
+          <li>Click "Connect" - OCTAVE starts a local HTTP server on port 8888</li>
+          <li>Browser opens to Spotify's auth page</li>
+          <li>After authorizing, Spotify redirects to <code>http://127.0.0.1:8888/callback</code></li>
+          <li>OCTAVE captures the auth code and exchanges it for tokens</li>
+        </ol>
+
+        <h3>Common Issues</h3>
+        <table>
+          <thead><tr><th>Problem</th><th>Solution</th></tr></thead>
+          <tbody>
+            <tr><td>Redirect URI mismatch</td><td>Add <code>http://127.0.0.1:8888/callback</code> to your Spotify Developer Dashboard redirect URIs</td></tr>
+            <tr><td>Token expired</td><td>OCTAVE auto-refreshes tokens via spotipy. If it fails, disconnect and re-authenticate.</td></tr>
+            <tr><td>Keyring errors</td><td>Install <code>keyring</code> and the appropriate backend. Falls back to file cache at <code>backend/.spotify_token_cache</code></td></tr>
+            <tr><td>No devices found</td><td>Ensure Spotify is running on at least one device (phone, desktop). OCTAVE controls playback remotely.</td></tr>
+            <tr><td>Rate limiting</td><td>OCTAVE polls every 3 seconds and uses max 2 concurrent API threads. If rate-limited, reduce polling interval.</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Token Storage</h3>
+        <p>Tokens are stored securely in the OS keychain via the <code>keyring</code> library (service: "OCTAVE_Spotify", username: "spotify_token"). Fallback: <span class="file-path">backend/.spotify_token_cache</span> file.</p>
+
+        <!-- Hardware Sensors -->
+        <h2 id="hardware-sensors">Hardware Sensor Issues</h2>
+
+        <h3>I2C Permissions</h3>
+        <pre><code><span class="cmt"># Add user to i2c group</span>
+sudo usermod -aG i2c $USER
+
+<span class="cmt"># Enable I2C on Raspberry Pi</span>
+sudo raspi-config  <span class="cmt"># Interface Options > I2C > Enable</span>
+
+<span class="cmt"># Verify I2C devices are detected</span>
+i2cdetect -y 2
+<span class="cmt"># Should show: 0x6A (LSM6DSL), 0x1C (LIS3MDL), 0x77 (BMP388), 0x73 (PAJ7620)</span></code></pre>
+
+        <h3>"Device not found" Errors</h3>
+        <table>
+          <thead><tr><th>Error</th><th>Cause</th><th>Solution</th></tr></thead>
+          <tbody>
+            <tr><td><code>/dev/i2c-2 not found</code></td><td>I2C bus not enabled or wrong bus number</td><td>Enable I2C in raspi-config. OCTAVE uses bus 2 by default.</td></tr>
+            <tr><td>Permission denied on <code>/dev/i2c-2</code></td><td>User not in i2c group</td><td><code>sudo usermod -aG i2c $USER</code> then log out/in</td></tr>
+            <tr><td>Expected chip ID 0x7620, got 0x0000</td><td>PAJ7620U2 not responding</td><td>Check wiring, verify 3.3V power, check I2C pull-up resistors</td></tr>
+            <tr><td>smbus2 not installed</td><td>Python I2C library missing</td><td><code>pip install smbus2</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Reconnection Behavior</h3>
+        <p>Both BerryIMU and gesture sensor managers retry up to 5 times with linear backoff (5s, 10s, 15s, 20s, 25s). Permission errors do not trigger retries (permanent failure). After max retries, the sensor is marked as unavailable.</p>
+
+        <h3>ESP32 Volume Knob Not Connecting</h3>
+        <ul>
+          <li>Check that the ESP32-S3 dongle appears in <code>dmesg</code> output after plugging in</li>
+          <li>Verify serial port permissions: <code>sudo usermod -aG dialout $USER</code></li>
+          <li>Check that the OBD port and ESP32 port are different (OCTAVE filters out the OBD port)</li>
+          <li>Try manual port selection in Volume Knob settings if auto-detection fails</li>
+          <li>Check baud rate: must be 115200</li>
+        </ul>
+
+        <!-- Logs -->
+        <h2 id="logs">Log Files &amp; Debug Mode</h2>
+
+        <h3>Log File Locations</h3>
+        <table>
+          <thead><tr><th>Platform</th><th>Path</th></tr></thead>
+          <tbody>
+            <tr><td>Windows</td><td><code>%APPDATA%\OCTAVE\logs\</code></td></tr>
+            <tr><td>macOS</td><td><code>~/Library/Application Support/OCTAVE/logs/</code></td></tr>
+            <tr><td>Linux</td><td><code>~/.config/OCTAVE/logs/</code></td></tr>
+            <tr><td>Android</td><td><code>&lt;cwd&gt;/OCTAVE/logs/</code></td></tr>
+          </tbody>
+        </table>
+
+        <h3>Log Files</h3>
+        <table>
+          <thead><tr><th>File</th><th>Level</th><th>Max Size</th><th>Backups</th><th>Total Disk</th></tr></thead>
+          <tbody>
+            <tr><td><code>octave.log</code></td><td>INFO+</td><td>5 MB</td><td>3</td><td>~20 MB</td></tr>
+            <tr><td><code>octave-error.log</code></td><td>ERROR+</td><td>2 MB</td><td>5</td><td>~12 MB</td></tr>
+            <tr><td><code>octave-debug.log</code></td><td>DEBUG+</td><td>10 MB</td><td>2</td><td>~30 MB</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Log Format</h3>
+        <pre><code><span class="cmt"># Console format:</span>
+HH:MM:SS | LEVEL   | module_name               | message
+
+<span class="cmt"># File format (more detail):</span>
+YYYY-MM-DD HH:MM:SS | LEVEL   | module | file.py:line | function() | message</code></pre>
+
+        <h3>Enabling Debug Mode</h3>
+        <pre><code><span class="fn">python</span> main.py --debug</code></pre>
+        <p>Creates the <code>octave-debug.log</code> file with verbose output from all modules. Useful for diagnosing:</p>
+        <ul>
+          <li>I2C communication issues (every register read/write logged)</li>
+          <li>Serial port data (ESP32 commands logged)</li>
+          <li>Settings load/save operations</li>
+          <li>Media file scanning and metadata extraction</li>
+          <li>Spotify API calls and token refresh</li>
+        </ul>
+
+        <h3>Reading Logs</h3>
+        <p>Module names are mapped to clean hierarchical names:</p>
+        <pre><code>octave.obd        <span class="cmt">- OBD manager</span>
+octave.media      <span class="cmt">- Media manager</span>
+octave.spotify    <span class="cmt">- Spotify manager</span>
+octave.settings   <span class="cmt">- Settings manager</span>
+octave.clock      <span class="cmt">- Clock</span>
+octave.app        <span class="cmt">- Main application</span></code></pre>
+
+        <!-- Performance -->
+        <h2 id="performance">Performance Issues</h2>
+
+        <h3>UI Stuttering</h3>
+        <ol class="steps">
+          <li>Run with <code>--profile</code> to see event-loop latency. Healthy is &lt;5ms avg.</li>
+          <li>Check GIL jitter. High values indicate a Python thread is holding the GIL too long.</li>
+          <li>Look for slow slots in the perf output (&gt;2ms p95).</li>
+          <li>Check CPU usage. If near 100%, identify which thread is busy.</li>
+        </ol>
+
+        <h3>High Memory Usage</h3>
+        <ul>
+          <li>Album art cache: Limited to 500 files. LRU eviction when full.</li>
+          <li>Metadata cache: Limited to 1000 entries.</li>
+          <li>FFT data: Pre-computed for entire track. Large FLAC files may use significant memory.</li>
+          <li>Spotify queue cache: Stores track metadata for side-card art.</li>
+        </ul>
+
+        <h3>Slow Media Library Scan</h3>
+        <p>Large libraries (&gt;10,000 files) may take time on first scan. The scan runs on the main thread but uses lazy metadata loading. Pre-caching of neighboring tracks runs on a background thread after each track change.</p>
+
+        <!-- Android -->
+        <h2 id="android">Android-Specific Issues</h2>
+
+        <h3>Stub Managers</h3>
+        <p>On Android, hardware-dependent managers are replaced with stubs from <span class="file-path">backend/stubs.py</span>:</p>
+        <ul>
+          <li><code>StubOBDManager</code> - All sensor slots return 0.0, connection slots return False</li>
+          <li><code>StubBerryIMUManager</code> - No sensor data, connected returns False</li>
+          <li><code>StubGestureManager</code> - No gestures detected</li>
+          <li><code>StubESP32VolumeManager</code> - No serial connection</li>
+          <li><code>StubPhoneMirrorManager</code> / <code>StubAndroidAutoManager</code> - No external device support</li>
+          <li><code>StubImageProvider</code> - Returns 1x1 transparent image for any request</li>
+        </ul>
+
+        <h3>File Paths</h3>
+        <p>Android uses different data paths detected via <span class="file-path">backend/platform_config.py</span>:</p>
+        <ul>
+          <li>Settings: <code>&lt;cwd&gt;/OCTAVE/settingsConfigure.json</code></li>
+          <li>Music: <code>/sdcard/Music</code> (requires storage permission)</li>
+          <li>Logs: <code>&lt;cwd&gt;/OCTAVE/logs/</code></li>
+        </ul>
+
+        <!-- WSL -->
+        <h2 id="wsl">WSL Display Issues</h2>
+
+        <h3>WSL2 with GUI</h3>
+        <p>WSL2 supports GUI apps natively on Windows 11. If the display doesn't work:</p>
+        <pre><code><span class="cmt"># Check WSLg is working</span>
+echo $DISPLAY  <span class="cmt"># Should show :0 or similar</span>
+
+<span class="cmt"># If blank, try setting it</span>
+<span class="kw">export</span> DISPLAY=:0
+
+<span class="cmt"># For WSL2 with X server (VcXsrv, etc.)</span>
+<span class="kw">export</span> DISPLAY=$(cat /etc/resolv.conf | grep nameserver | awk '{print $2}'):0
+<span class="kw">export</span> LIBGL_ALWAYS_INDIRECT=1</code></pre>
+
+        <h3>WSL1 (No Native GUI)</h3>
+        <p>WSL1 requires an external X server (VcXsrv, Xming). Install and run the X server first, then set <code>DISPLAY</code>.</p>
+
+        <h3>OpenGL in WSL</h3>
+        <pre><code><span class="cmt"># If OpenGL errors, force software rendering</span>
+<span class="kw">export</span> QT_QUICK_BACKEND=software
+<span class="kw">export</span> LIBGL_ALWAYS_SOFTWARE=1
+<span class="fn">python</span> main.py</code></pre>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="getting-started.html" class="related-link">Getting Started</a>
+          <a href="hardware-setup.html" class="related-link">Hardware Setup</a>
+          <a href="development.html" class="related-link">Development Guide</a>
+          <a href="building.html" class="related-link">Building &amp; Distribution</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

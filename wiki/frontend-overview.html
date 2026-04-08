@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frontend Overview - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Frontend Overview</div>
+          <h1 class="page-title">Frontend Overview</h1>
+          <p class="page-subtitle">QML architecture, Main.qml structure, page routing, and the bridge between Python managers and the UI</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#architecture">QML Architecture Overview</a></li>
+            <li><a href="#main-qml">Main.qml Structure</a></li>
+            <li><a href="#window-management">Window Management</a></li>
+            <li><a href="#page-routing">Page Routing Mechanism</a></li>
+            <li><a href="#import-path">Import Path Setup</a></li>
+            <li><a href="#context-properties">Accessing Python Managers</a></li>
+            <li><a href="#font-loading">Dynamic Font Loading</a></li>
+            <li><a href="#album-art-capture">Album Art Capture Pipeline</a></li>
+            <li><a href="#shift-light">Shift Light Logic</a></li>
+          </ul>
+        </nav>
+
+        <!-- Architecture Overview -->
+        <h2 id="architecture">QML Architecture Overview</h2>
+
+        <p>OCTAVE's frontend is built with <strong>Qt Quick 2.15</strong> (QML) using PySide6. The QML layer handles all visual presentation, animations, and user interaction. Business logic lives in Python backend manager classes that are exposed to QML as <strong>context properties</strong>.</p>
+
+        <div class="diagram">
+<pre>
+ ApplicationWindow (Main.qml)
+ +-------------------------------------------+
+ |  mainContainer (Item)                     |
+ |  +---------------------------------------+|
+ |  |  StackView (page navigation)          ||
+ |  |  +-----------------------------------+||
+ |  |  | MainMenu.qml (initialItem)        |||
+ |  |  | MediaPlayer.qml                   |||
+ |  |  | MediaRoom.qml                     |||
+ |  |  | OBDMenu.qml                       |||
+ |  |  | SettingsMenu.qml                  |||
+ |  |  | ...                               |||
+ |  |  +-----------------------------------+||
+ |  +---------------------------------------+|
+ |  |  BottomBar.qml (persistent nav+media) ||
+ |  +---------------------------------------+|
+ |  |  globalFullScreenFlash (z: 999999)    ||
+ |  +---------------------------------------+|
+ +-------------------------------------------+
+</pre>
+        </div>
+
+        <p>Key architectural points:</p>
+        <ul>
+          <li><strong>Single window</strong> &mdash; one <code>ApplicationWindow</code> hosts everything</li>
+          <li><strong>StackView navigation</strong> &mdash; pages are pushed/popped onto a stack; no router library</li>
+          <li><strong>Persistent BottomBar</strong> &mdash; always visible below (or beside) the StackView</li>
+          <li><strong>Singleton design tokens</strong> &mdash; <span class="file-path">Style.qml</span>, <span class="file-path">Spacing.qml</span>, and <span class="file-path">EnvironmentTheme.qml</span> are <code>pragma Singleton</code> objects</li>
+          <li><strong>No page transitions</strong> &mdash; all StackView enter/exit transitions are set to <code>null</code> for performance</li>
+        </ul>
+
+        <!-- Main.qml Structure -->
+        <h2 id="main-qml">Main.qml Structure</h2>
+
+        <p>The entry point file <span class="file-path">frontend/Main.qml</span> is an <code>ApplicationWindow</code> that orchestrates the entire UI. Here is its top-level declaration:</p>
+
+        <pre><code><span class="kw">import</span> QtQuick <span class="num">2.15</span>
+<span class="kw">import</span> QtQuick.Controls <span class="num">2.15</span>
+<span class="kw">import</span> QtQuick.Layouts <span class="num">1.15</span>
+<span class="kw">import</span> Qt.labs.folderlistmodel <span class="num">2.15</span>
+<span class="kw">import</span> <span class="str">"."</span> <span class="kw">as</span> App
+
+<span class="cls">ApplicationWindow</span> {
+    <span class="prop">id</span>: mainWindow
+    <span class="prop">visible</span>: <span class="kw">true</span>
+    <span class="prop">title</span>: deviceName
+    <span class="prop">minimumWidth</span>: <span class="num">400</span>
+    <span class="prop">minimumHeight</span>: <span class="num">300</span>
+    <span class="prop">font.family</span>: App.Style.fontFamily !== <span class="str">""</span>
+        ? App.Style.fontFamily : systemDefaultFont
+}</code></pre>
+
+        <p>The window stores a captured <code>systemDefaultFont</code> at startup, before any custom fonts are applied. This ensures there is always a valid fallback.</p>
+
+        <h3>Key Properties</h3>
+
+        <table>
+          <thead><tr><th>Property</th><th>Source</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>deviceName</code></td><td>settingsManager.deviceName</td><td>Window title</td></tr>
+            <tr><td><code>theme</code></td><td>settingsManager.themeSetting</td><td>Current color theme name</td></tr>
+            <tr><td><code>screenWidth / screenHeight</code></td><td>settingsManager</td><td>Persisted window dimensions</td></tr>
+            <tr><td><code>isVerticalLayout</code></td><td>settingsManager.bottomBarOrientation</td><td>Side bar vs bottom bar mode</td></tr>
+            <tr><td><code>currentRpm</code></td><td>obdManager.rpmChanged signal</td><td>Live RPM for shift light overlay</td></tr>
+            <tr><td><code>shiftLightFlags</code></td><td>settingsManager (JSON array)</td><td>RPM threshold + color flag definitions</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Window Management -->
+        <h2 id="window-management">Window Management</h2>
+
+        <p>Window dimensions are persisted bidirectionally. On startup, Main.qml reads saved dimensions from <code>settingsManager</code>. On resize, it writes them back:</p>
+
+        <pre><code><span class="fn">onWidthChanged</span>: {
+    <span class="kw">if</span> (settingsManager && width > <span class="num">0</span> && width >= minimumWidth) {
+        settingsManager.<span class="fn">save_screen_width</span>(width)
+        screenWidth = width
+        App.Spacing.<span class="fn">updateDimensions</span>(width, height)
+    }
+}</code></pre>
+
+        <p>The <code>Spacing.updateDimensions()</code> call recalculates all percentage-based layout values. Window state (fullscreen, maximized, normal) is also saved and restored:</p>
+
+        <pre><code><span class="cmt">// Restore window state</span>
+<span class="kw">let</span> savedState = settingsManager.<span class="fn">get_window_state</span>()
+<span class="kw">if</span> (savedState === <span class="str">"fullscreen"</span>)
+    mainWindow.visibility = Window.FullScreen
+<span class="kw">else if</span> (savedState === <span class="str">"maximized"</span>)
+    mainWindow.visibility = Window.Maximized</code></pre>
+
+        <div class="info-box info">
+          <strong>Cleanup on Close:</strong> The <code>onClosing</code> handler saves playback state, clears temp files, and cleans up Spotify before the window closes.
+        </div>
+
+        <!-- Page Routing -->
+        <h2 id="page-routing">Page Routing Mechanism</h2>
+
+        <p>OCTAVE uses Qt's <code>StackView</code> for page navigation. The initial item is <code>MainMenu</code>:</p>
+
+        <pre><code><span class="cls">StackView</span> {
+    <span class="prop">id</span>: stackView
+    <span class="prop">objectName</span>: <span class="str">"stackView"</span>
+
+    <span class="prop">initialItem</span>: <span class="cls">MainMenu</span> {
+        <span class="prop">stackView</span>: stackView
+        <span class="prop">windowWidth</span>: mainWindow.width
+        <span class="prop">windowHeight</span>: mainWindow.height
+    }
+
+    <span class="cmt">// Disable all transitions for performance</span>
+    <span class="prop">pushEnter</span>: <span class="kw">null</span>
+    <span class="prop">pushExit</span>: <span class="kw">null</span>
+    <span class="prop">popEnter</span>: <span class="kw">null</span>
+    <span class="prop">popExit</span>: <span class="kw">null</span>
+}</code></pre>
+
+        <p>Pages push themselves onto the stack by creating components dynamically. For example, navigating to OBD from the BottomBar:</p>
+
+        <pre><code><span class="kw">var</span> component = Qt.<span class="fn">createComponent</span>(<span class="str">"OBDMenu.qml"</span>)
+<span class="kw">var</span> page = component.<span class="fn">createObject</span>(stackView, {
+    <span class="prop">stackView</span>: bottomBar.stackView,
+    <span class="prop">mainWindow</span>: stackView.parent.Window.window
+})
+stackView.<span class="fn">push</span>(page)</code></pre>
+
+        <p>The <code>navigateTo()</code> function provides a complete page map for remote/programmatic navigation:</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">navigateTo</span>(pageName) {
+    <span class="kw">var</span> pageMap = {
+        <span class="str">"MainMenu.qml"</span>:    { file: <span class="str">"MainMenu.qml"</span>,    props: { ... } },
+        <span class="str">"MediaRoom.qml"</span>:   { file: <span class="str">"MediaRoom.qml"</span>,   props: { ... } },
+        <span class="str">"MediaPlayer.qml"</span>: { file: <span class="str">"MediaPlayer.qml"</span>, props: { ... } },
+        <span class="str">"OBDMenu.qml"</span>:     { file: <span class="str">"OBDMenu.qml"</span>,     props: { ... } },
+        <span class="cmt">// ... 12 pages total</span>
+    }
+}</code></pre>
+
+        <p>There are also <code>navigateHome()</code> (pops to root) and <code>navigateBack()</code> (pops one) helper functions, primarily used by a Python command server for performance testing.</p>
+
+        <h3>StackView Anchoring</h3>
+
+        <p>The StackView adapts its anchoring based on bottom bar orientation:</p>
+
+        <pre><code><span class="prop">anchors</span> {
+    <span class="prop">left</span>: isVerticalLayout ? bottomBar.right : parent.left
+    <span class="prop">right</span>: parent.right
+    <span class="prop">top</span>: parent.top
+    <span class="prop">bottom</span>: isVerticalLayout ? parent.bottom : bottomBar.top
+}</code></pre>
+
+        <p>When the bottom bar is vertical (side mode), the StackView fills from the bar's right edge to the window's right edge. When horizontal, it fills from the top to the bar's top edge.</p>
+
+        <!-- Import Path -->
+        <h2 id="import-path">Import Path Setup</h2>
+
+        <p>The Python launcher adds <span class="file-path">frontend/</span> to the QML import path in <span class="file-path">main.py</span>. This means any QML file in <span class="file-path">frontend/</span> can be imported by name without a path prefix. The <code>import "." as App</code> pattern used throughout the codebase creates a namespace alias:</p>
+
+        <pre><code><span class="kw">import</span> <span class="str">"."</span> <span class="kw">as</span> App
+
+<span class="cmt">// Access singletons via the App namespace</span>
+App.Style.backgroundColor
+App.Spacing.dp(<span class="num">10</span>)
+App.EnvironmentTheme.active.cardRadius</code></pre>
+
+        <p>Settings sub-components use <code>import ".." as App</code> since they are one directory deeper.</p>
+
+        <!-- Context Properties -->
+        <h2 id="context-properties">Accessing Python Managers (Context Properties)</h2>
+
+        <p>Backend managers are registered as QML context properties in <span class="file-path">main.py</span>. They appear as global variables in every QML file:</p>
+
+        <pre><code><span class="cmt"># In main.py (Python)</span>
+engine.rootContext().<span class="fn">setContextProperty</span>(<span class="str">"mediaManager"</span>, media_manager)
+engine.rootContext().<span class="fn">setContextProperty</span>(<span class="str">"spotifyManager"</span>, spotify_manager)
+engine.rootContext().<span class="fn">setContextProperty</span>(<span class="str">"settingsManager"</span>, settings_manager)
+engine.rootContext().<span class="fn">setContextProperty</span>(<span class="str">"obdManager"</span>, obd_manager)</code></pre>
+
+        <p>In QML, these are consumed directly:</p>
+
+        <pre><code><span class="cmt">// Call Python slots</span>
+mediaManager.<span class="fn">next_track</span>()
+spotifyManager.<span class="fn">toggle_play</span>()
+settingsManager.<span class="fn">save_theme_setting</span>(newTheme)
+
+<span class="cmt">// Read Python properties</span>
+<span class="prop">text</span>: settingsManager.deviceName
+
+<span class="cmt">// Connect to Python signals via Connections</span>
+<span class="cls">Connections</span> {
+    <span class="prop">target</span>: mediaManager
+    <span class="kw">function</span> <span class="fn">onMetadataChanged</span>(title, artist, album) { ... }
+}</code></pre>
+
+        <p>The main managers available in QML are:</p>
+
+        <table>
+          <thead><tr><th>Context Property</th><th>Python Class</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>settingsManager</code></td><td>SettingsManager</td><td>All persistent settings, theme, layout</td></tr>
+            <tr><td><code>mediaManager</code></td><td>MediaManager</td><td>Local MP3 playback, playlists, metadata</td></tr>
+            <tr><td><code>spotifyManager</code></td><td>SpotifyManager</td><td>Spotify API integration</td></tr>
+            <tr><td><code>obdManager</code></td><td>OBDManager</td><td>OBD-II vehicle diagnostics</td></tr>
+            <tr><td><code>audioAnalyzer</code></td><td>AudioAnalyzer</td><td>FFT waveform visualization</td></tr>
+            <tr><td><code>phoneMirrorManager</code></td><td>PhoneMirrorManager</td><td>Phone screen mirroring (scrcpy)</td></tr>
+            <tr><td><code>androidAutoManager</code></td><td>AndroidAutoManager</td><td>Android Auto via DHU</td></tr>
+            <tr><td><code>berryIMU</code></td><td>BerryIMUManager</td><td>Accelerometer/gyro/magnetometer</td></tr>
+            <tr><td><code>downloadManager</code></td><td>DownloadManager</td><td>YouTube music downloads</td></tr>
+            <tr><td><code>networkManager</code></td><td>NetworkManager</td><td>Update checks, connectivity</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Font Loading -->
+        <h2 id="font-loading">Dynamic Font Loading</h2>
+
+        <p>Main.qml scans for custom fonts at startup using a <code>FolderListModel</code>:</p>
+
+        <pre><code><span class="cls">FolderListModel</span> {
+    <span class="prop">id</span>: fontFolderModel
+    <span class="prop">folder</span>: Qt.<span class="fn">resolvedUrl</span>(<span class="str">"assets/fonts"</span>)
+    <span class="prop">nameFilters</span>: [<span class="str">"*.ttf"</span>, <span class="str">"*.otf"</span>, <span class="str">"*.TTF"</span>, <span class="str">"*.OTF"</span>]
+}</code></pre>
+
+        <p>For each font file found, a <code>FontLoader</code> is dynamically created. Once all fonts are loaded, they are registered with <code>Style.registerFonts()</code> which makes them available in the settings UI font picker. The saved font preference is then applied via <code>Style.setFont()</code>.</p>
+
+        <!-- Album Art Capture -->
+        <h2 id="album-art-capture">Album Art Capture Pipeline</h2>
+
+        <p>When the "Album Art Capture" theme is active, album art colors are extracted and applied to the entire UI in real time. Main.qml connects to multiple signal sources:</p>
+
+        <pre><code><span class="cmt">// From mediaManager (local media)</span>
+<span class="kw">function</span> <span class="fn">onAlbumColorsExtracted</span>(themeJson) {
+    App.Style.<span class="fn">updateAlbumArtTheme</span>(themeJson)
+}
+
+<span class="cmt">// From spotifyManager (Spotify)</span>
+<span class="kw">function</span> <span class="fn">onAlbumColorsExtracted</span>(themeJson) {
+    lastAppliedAlbumArtColors = themeJson
+    App.Style.<span class="fn">updateAlbumArtTheme</span>(themeJson)
+}
+
+<span class="cmt">// Duration-based transition speed</span>
+<span class="kw">function</span> <span class="fn">onDurationChanged</span>(durationMs) {
+    <span class="kw">if</span> (settingsManager.songLengthTransition && durationMs > <span class="num">0</span>)
+        App.Style.colorTransitionMs = durationMs
+}</code></pre>
+
+        <p>The <code>songLengthTransition</code> feature makes color transitions match the song duration, creating a slow ambient color shift throughout playback.</p>
+
+        <!-- Shift Light -->
+        <h2 id="shift-light">Shift Light Logic</h2>
+
+        <p>Main.qml implements a full-screen RPM shift light overlay for track/racing use. The system works as follows:</p>
+
+        <ol class="steps">
+          <li><strong>Load flags</strong> &mdash; <code>loadShiftLightFlags()</code> reads RPM threshold definitions from settings as a JSON array. Each flag has <code>rpmLow</code>, <code>rpmHigh</code>, <code>color</code>, <code>flash</code>, <code>flashSpeed</code>, <code>fullScreenFlash</code>, and <code>fullScreenFlashOpacity</code> properties.</li>
+          <li><strong>Track RPM</strong> &mdash; <code>obdManager.rpmChanged</code> signal updates <code>currentRpm</code>.</li>
+          <li><strong>Find active flag</strong> &mdash; <code>findActiveFlag()</code> iterates flags from highest to lowest priority, selecting the first whose RPM range contains the current value.</li>
+          <li><strong>Flash overlay</strong> &mdash; A <code>Rectangle</code> at z-index 999999 covers the entire UI. It is visible only when the active flag has <code>fullScreenFlash === true</code>.</li>
+          <li><strong>Flash timer</strong> &mdash; A <code>Timer</code> toggles visibility at the flag's <code>flashSpeed</code> interval to create a flashing effect.</li>
+        </ol>
+
+        <pre><code><span class="cls">Rectangle</span> {
+    <span class="prop">id</span>: globalFullScreenFlash
+    <span class="prop">anchors.fill</span>: parent
+    <span class="prop">z</span>: <span class="num">999999</span>
+    <span class="prop">visible</span>: mainWindow.shiftLightEnabled &&
+             mainWindow.activeShiftFlag !== <span class="kw">null</span> &&
+             mainWindow.activeShiftFlag.fullScreenFlash === <span class="kw">true</span> &&
+             mainWindow.shiftLightFlashVisible
+    <span class="prop">color</span>: mainWindow.activeShiftFlag
+        ? mainWindow.activeShiftFlag.color : <span class="str">"transparent"</span>
+    <span class="prop">enabled</span>: <span class="kw">false</span>  <span class="cmt">// Allow clicks to pass through</span>
+}</code></pre>
+
+        <div class="info-box warning">
+          <strong>Performance Note:</strong> The flash overlay is deliberately placed as the <em>last child</em> of <code>mainContainer</code> so it renders on top without requiring a separate window or popup, which ensures cross-platform compatibility.
+        </div>
+
+        <!-- Settings Connections -->
+        <h2 id="settings-connections">Settings Manager Connections</h2>
+
+        <p>Main.qml has an extensive <code>Connections</code> block that reacts to settings changes in real time. These handlers keep the UI synchronized with the backend state:</p>
+
+        <h3>Theme and Appearance</h3>
+        <pre><code><span class="kw">function</span> <span class="fn">onThemeSettingChanged</span>() {
+    <span class="kw">var</span> newTheme = settingsManager.themeSetting
+    App.Style.<span class="fn">setTheme</span>(newTheme)
+    <span class="cmt">// If Album Art Capture, extract colors from current song</span>
+    <span class="kw">if</span> (newTheme === <span class="str">"Album Art Capture"</span> && mediaManager) {
+        <span class="kw">var</span> currentFile = mediaManager.<span class="fn">get_current_file</span>()
+        <span class="kw">if</span> (currentFile)
+            mediaManager.<span class="fn">extract_colors_from_album_art</span>(currentFile)
+    }
+}
+
+<span class="kw">function</span> <span class="fn">onEnvironmentThemeChanged</span>() {
+    App.EnvironmentTheme.<span class="fn">setEnvironment</span>(settingsManager.environmentTheme)
+}
+
+<span class="kw">function</span> <span class="fn">onFontSettingChanged</span>() {
+    App.Style.<span class="fn">setFont</span>(settingsManager.fontSetting)
+}</code></pre>
+
+        <h3>Song Length Transition</h3>
+        <p>When song-length color transitions are disabled, the saved manual transition speed is restored:</p>
+        <pre><code><span class="kw">function</span> <span class="fn">onSongLengthTransitionChanged</span>() {
+    <span class="kw">if</span> (!settingsManager.songLengthTransition) {
+        App.Style.colorTransitionMs = settingsManager.colorTransitionMs
+    }
+}</code></pre>
+
+        <h3>Bottom Bar Orientation</h3>
+        <p>When the bar switches between bottom and side mode, the entire settings page is reloaded after a 150ms delay to account for the layout change:</p>
+
+        <pre><code><span class="kw">function</span> <span class="fn">onBottomBarOrientationChanged</span>() {
+    isVerticalLayout = settingsManager.bottomBarOrientation === <span class="str">"side"</span>
+    bottomBar.isVertical = isVerticalLayout
+
+    <span class="cmt">// If on settings page, reload it after layout settles</span>
+    <span class="kw">if</span> (stackView.currentItem &&
+        stackView.currentItem.objectName === <span class="str">"settingsMenu"</span>) {
+        navReloadTimer.<span class="fn">restart</span>()
+    }
+}</code></pre>
+
+        <h3>Custom Theme Hot-Reload</h3>
+        <p>Custom themes are rebuilt atomically to avoid a flash where the active theme temporarily disappears:</p>
+
+        <pre><code>settingsManager.customThemesChanged.<span class="fn">connect</span>(<span class="kw">function</span>() {
+    <span class="kw">var</span> newCustomThemes = {}
+    <span class="kw">let</span> customThemes = settingsManager.customThemes
+    customThemes.<span class="fn">forEach</span>(<span class="kw">function</span>(themeName) {
+        <span class="kw">let</span> themeJSON = settingsManager.<span class="fn">get_custom_theme</span>(themeName)
+        newCustomThemes[themeName] = JSON.<span class="fn">parse</span>(themeJSON)
+    })
+    <span class="cmt">// Assign in one shot to avoid briefly clearing active theme</span>
+    App.Style.customThemes = newCustomThemes
+    App.Style.<span class="fn">customThemesUpdated</span>()
+})</code></pre>
+
+        <!-- Drop Shadows -->
+        <h2 id="drop-shadows">Drop Shadows</h2>
+
+        <p>Main.qml renders drop shadows between the StackView and the BottomBar for visual depth. Two shadow rectangles exist &mdash; one for each orientation:</p>
+
+        <pre><code><span class="cmt">// Bottom shadow (horizontal mode)</span>
+<span class="cls">Rectangle</span> {
+    <span class="prop">id</span>: bottomBarShadow
+    <span class="prop">visible</span>: !isVerticalLayout
+    <span class="prop">anchors.bottom</span>: bottomBar.top
+    <span class="prop">height</span>: <span class="num">12</span>
+    <span class="prop">gradient</span>: <span class="cls">Gradient</span> {
+        <span class="cls">GradientStop</span> { <span class="prop">position</span>: <span class="num">0.0</span>; <span class="prop">color</span>: <span class="str">"transparent"</span> }
+        <span class="cls">GradientStop</span> { <span class="prop">position</span>: <span class="num">1.0</span>; <span class="prop">color</span>: <span class="str">"#30000000"</span> }
+    }
+}
+
+<span class="cmt">// Side shadow (vertical mode)</span>
+<span class="cls">Rectangle</span> {
+    <span class="prop">id</span>: sideBarShadow
+    <span class="prop">visible</span>: isVerticalLayout
+    <span class="prop">anchors.left</span>: bottomBar.right
+    <span class="prop">width</span>: <span class="num">12</span>
+    <span class="prop">gradient</span>: <span class="cls">Gradient</span> {
+        <span class="prop">orientation</span>: Gradient.Horizontal
+        <span class="cls">GradientStop</span> { <span class="prop">position</span>: <span class="num">0.0</span>; <span class="prop">color</span>: <span class="str">"#30000000"</span> }
+        <span class="cls">GradientStop</span> { <span class="prop">position</span>: <span class="num">1.0</span>; <span class="prop">color</span>: <span class="str">"transparent"</span> }
+    }
+}</code></pre>
+
+        <!-- Component Initialization -->
+        <h2 id="initialization">Initialization Sequence</h2>
+
+        <p>The <code>Component.onCompleted</code> handler in Main.qml performs a carefully ordered startup sequence:</p>
+
+        <ol class="steps">
+          <li><strong>Capture system font</strong> &mdash; Store the default font family before any custom fonts are loaded</li>
+          <li><strong>Load custom themes</strong> &mdash; Must happen before <code>setTheme()</code> so saved custom themes are available</li>
+          <li><strong>Apply theme</strong> &mdash; Set the saved color theme</li>
+          <li><strong>Load dimensions</strong> &mdash; Restore window width/height from settings</li>
+          <li><strong>Initialize Spacing</strong> &mdash; Update dimension-dependent layout calculations</li>
+          <li><strong>Set auto-scale</strong> &mdash; Apply screen detection scale factor</li>
+          <li><strong>Set UI scale</strong> &mdash; Apply user preference multiplier</li>
+          <li><strong>Load environment</strong> &mdash; Apply the shape/effect preset</li>
+          <li><strong>Load color transition speed</strong></li>
+          <li><strong>Connect media manager</strong> &mdash; Wire up settings manager to media manager</li>
+          <li><strong>Initialize orientation</strong> &mdash; Set bottom bar mode</li>
+          <li><strong>Restore window state</strong> &mdash; Fullscreen, maximized, or normal</li>
+          <li><strong>Load shift light flags</strong> &mdash; For the RPM overlay</li>
+          <li><strong>Connect RPM signal</strong> &mdash; Manually connect <code>obdManager.rpmChanged</code> for reliability</li>
+        </ol>
+
+        <div class="info-box warning">
+          <strong>Signal Connection Order:</strong> The <code>obdManager.rpmChanged</code> signal is connected manually in <code>Component.onCompleted</code> rather than via a <code>Connections</code> block. This is a workaround for better reliability with PySide6 signal handling.
+        </div>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="bottom-bar.html" class="related-link">Bottom Bar</a>
+          <a href="pages.html" class="related-link">Pages</a>
+          <a href="theme-system.html" class="related-link">Theme System</a>
+          <a href="architecture.html" class="related-link">Architecture</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

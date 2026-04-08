@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Development Guide - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Development Guide</div>
+          <h1 class="page-title">Development Guide</h1>
+          <p class="page-subtitle">Dev mode, mock OBD, dev tools, MCP server, performance profiling, command server, and how to add new features.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#dev-mode">Dev Mode Setup &amp; Usage</a></li>
+            <li><a href="#mock-obd">Mock OBD Manager</a></li>
+            <li><a href="#dev-tools">DevToolsPanel</a></li>
+            <li><a href="#mcp-server">MCP Server</a></li>
+            <li><a href="#profiling">Performance Profiling</a></li>
+            <li><a href="#command-server">Command Server (TCP)</a></li>
+            <li><a href="#screenshots">Screenshot Tool</a></li>
+            <li><a href="#adding-features">How to Add New Features</a></li>
+            <li><a href="#testing">Testing Approach</a></li>
+          </ul>
+        </nav>
+
+        <!-- Dev Mode -->
+        <h2 id="dev-mode">Dev Mode Setup &amp; Usage</h2>
+        <p>Dev mode provides simulated vehicle data and keyboard controls for testing without a physical OBD-II adapter.</p>
+
+        <pre><code><span class="cmt"># Launch dev mode</span>
+<span class="fn">python</span> dev/dev_main.py</code></pre>
+
+        <p>The <span class="file-path">dev/</span> directory is gitignored and fully isolated from production code. Dev mode:</p>
+        <ul>
+          <li>Replaces <code>OBDManager</code> with <code>MockOBDManager</code></li>
+          <li>Adds a <code>KeyboardController</code> exposed to QML as <code>devKeyboardController</code></li>
+          <li>Sets <code>devMode = true</code> as a QML context property</li>
+          <li>Loads <span class="file-path">dev/DevMain.qml</span> with keyboard handler overlay</li>
+          <li>Adds <code>DevToolsManager</code> for screenshots and diagnostics</li>
+        </ul>
+
+        <h3>Keyboard Controls</h3>
+        <table>
+          <thead><tr><th>Key</th><th>Action</th><th>Type</th></tr></thead>
+          <tbody>
+            <tr><td><code>W</code> / <code>Up</code></td><td>Accelerate (hold for continuous)</td><td>Continuous</td></tr>
+            <tr><td><code>S</code> / <code>Down</code></td><td>Brake (hold for continuous)</td><td>Continuous</td></tr>
+            <tr><td><code>Space</code></td><td>Quick rev (throttle blip to 70%)</td><td>Instant</td></tr>
+            <tr><td><code>E</code></td><td>Toggle engine on/off</td><td>Toggle</td></tr>
+            <tr><td><code>Q</code></td><td>Downshift</td><td>Instant</td></tr>
+            <tr><td><code>R</code></td><td>Upshift</td><td>Instant</td></tr>
+            <tr><td><code>1</code>-<code>6</code></td><td>Set specific gear</td><td>Instant</td></tr>
+            <tr><td><code>F1</code></td><td>Simulate cold start</td><td>Scenario</td></tr>
+            <tr><td><code>F2</code></td><td>Simulate overheating</td><td>Scenario</td></tr>
+            <tr><td><code>F3</code></td><td>Simulate low fuel</td><td>Scenario</td></tr>
+            <tr><td><code>F4</code></td><td>Reset to normal conditions</td><td>Scenario</td></tr>
+            <tr><td><code>Escape</code></td><td>Quit application</td><td>Instant</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Dev Mode Architecture</h3>
+        <div class="diagram">
+<pre>
+  dev_main.py
+    |
+    +-- MockOBDManager     (replaces OBDManager)
+    +-- KeyboardController (handles key events from QML)
+    +-- DevToolsManager    (screenshots, diagnostics)
+    +-- DevMain.qml        (wraps Main.qml with keyboard handler)
+    |
+    +-- All regular managers (MediaManager, SpotifyManager, etc.)
+</pre>
+        </div>
+
+        <!-- Mock OBD -->
+        <h2 id="mock-obd">Mock OBD Manager</h2>
+        <p><span class="file-path">dev/mock_obd_manager.py</span></p>
+        <p>The MockOBDManager provides the same Signal interface as the real OBDManager but generates simulated data based on keyboard input and physics modeling.</p>
+
+        <h3>Signal Compatibility</h3>
+        <p>Emits all 87+ OBD signals identical to the real manager: <code>rpmChanged(float)</code>, <code>speedMPHChanged(float)</code>, <code>coolantTempChanged(float)</code>, etc. Plus all connection status signals. QML code works identically with both.</p>
+
+        <h3>Simulation Features</h3>
+        <ul>
+          <li><strong>Physics-based RPM/speed:</strong> Throttle input drives RPM, which drives speed through gear ratios</li>
+          <li><strong>Gear simulation:</strong> 6 gears with realistic ratios, manual shifting via Q/R</li>
+          <li><strong>Temperature modeling:</strong> Coolant and oil temp rise with engine load, cool at idle</li>
+          <li><strong>Fuel consumption:</strong> Fuel level decreases proportional to load</li>
+          <li><strong>Scenario presets:</strong> Cold start (low coolant, rich fuel), overheating (high temps, low voltage), low fuel</li>
+        </ul>
+
+        <h3>Key Methods</h3>
+        <pre><code><span class="fn">set_throttle</span>(percent)    <span class="cmt"># 0-100 throttle input</span>
+<span class="fn">set_brake</span>(percent)       <span class="cmt"># 0-100 brake input</span>
+<span class="fn">rev_engine</span>(percent)      <span class="cmt"># Quick throttle blip</span>
+<span class="fn">toggle_engine</span>()          <span class="cmt"># Engine on/off</span>
+<span class="fn">upshift</span>() / <span class="fn">downshift</span>()  <span class="cmt"># Gear changes</span>
+<span class="fn">simulate_cold_start</span>()   <span class="cmt"># Preset scenario</span>
+<span class="fn">simulate_overheating</span>()  <span class="cmt"># Preset scenario</span>
+<span class="fn">simulate_low_fuel</span>()     <span class="cmt"># Preset scenario</span>
+<span class="fn">reset_to_normal</span>()       <span class="cmt"># Reset all values</span></code></pre>
+
+        <!-- Dev Tools -->
+        <h2 id="dev-tools">DevToolsPanel</h2>
+        <p><span class="file-path">dev/dev_tools_manager.py</span> &amp; <span class="file-path">dev/DevToolsPanel.qml</span></p>
+        <p>The DevToolsManager provides dev-only tools exposed to QML as <code>devToolsManager</code>.</p>
+
+        <h3>Screenshot Capture</h3>
+        <p>Uses Qt's <code>grabWindow()</code> for cross-platform screenshots (works on Wayland and X11):</p>
+        <ul>
+          <li>Saves to <span class="file-path">dev/screenshots/output/</span></li>
+          <li>Maintains a manifest.json tracking all screenshots with metadata</li>
+          <li>Emits <code>hideOverlaysRequested</code>/<code>showOverlaysRequested</code> signals to hide dev UI for clean captures</li>
+        </ul>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>screenshotStatusChanged</code></td><td>str</td><td>"idle", "capturing", "done", "error"</td></tr>
+            <tr><td><code>screenshotOutputChanged</code></td><td>str</td><td>Accumulated terminal-style output</td></tr>
+            <tr><td><code>screenshotCountChanged</code></td><td>int</td><td>Total screenshots in manifest</td></tr>
+            <tr><td><code>isCapturingChanged</code></td><td>bool</td><td>Whether a capture is in progress</td></tr>
+            <tr><td><code>hideOverlaysRequested</code></td><td>(none)</td><td>QML should hide dev overlays</td></tr>
+            <tr><td><code>showOverlaysRequested</code></td><td>(none)</td><td>QML should show dev overlays again</td></tr>
+          </tbody>
+        </table>
+
+        <!-- MCP Server -->
+        <h2 id="mcp-server">MCP Server for Remote Control</h2>
+        <p><span class="file-path">dev/mcp_server.py</span></p>
+        <p>The MCP (Model Context Protocol) server lets an AI agent (like Claude Code) remote-control OCTAVE for automated testing.</p>
+
+        <h3>Setup</h3>
+        <pre><code><span class="cmt"># Install MCP dependency</span>
+pip install mcp
+
+<span class="cmt"># Start OCTAVE with command server enabled</span>
+<span class="fn">python</span> main.py --profile
+
+<span class="cmt"># In another terminal, start the MCP server</span>
+<span class="fn">python</span> dev/mcp_server.py</code></pre>
+
+        <h3>How It Works</h3>
+        <div class="diagram">
+<pre>
+  AI Agent (Claude Code)
+       |
+       v
+  MCP Server (dev/mcp_server.py)
+       |  TCP socket (127.0.0.1:9876)
+       v
+  Command Server (backend/command_server.py)
+       |  QMetaObject.invokeMethod
+       v
+  OCTAVE Managers (media, settings, OBD, etc.)
+</pre>
+        </div>
+
+        <h3>Available MCP Tools</h3>
+        <table>
+          <thead><tr><th>Tool</th><th>Arguments</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>ping()</code></td><td>-</td><td>Check if OCTAVE is running</td></tr>
+            <tr><td><code>navigate(page)</code></td><td>page name</td><td>Navigate to a specific page (home, media_room, obd, settings, etc.)</td></tr>
+            <tr><td><code>go_back()</code></td><td>-</td><td>Navigate back in the stack</td></tr>
+            <tr><td><code>go_home()</code></td><td>-</td><td>Return to home screen</td></tr>
+            <tr><td><code>list_actions()</code></td><td>-</td><td>List all available actions</td></tr>
+          </tbody>
+        </table>
+        <p>Plus media controls (next_track, toggle_play, etc.), Spotify controls, OBD controls, and settings manipulation tools. See <span class="file-path">dev/mcp_server.py</span> for the full list.</p>
+
+        <div class="info-box info">
+          <strong>Benchmark Tool:</strong> <span class="file-path">dev/mcp_benchmark.py</span> provides automated benchmark sequences that the MCP server can run for repeatable performance testing.
+        </div>
+
+        <!-- Profiling -->
+        <h2 id="profiling">Performance Profiling</h2>
+        <p><span class="file-path">backend/perf_monitor.py</span></p>
+
+        <h3>Launch with Profiling</h3>
+        <pre><code><span class="fn">python</span> main.py --profile</code></pre>
+
+        <h3>What Gets Measured</h3>
+        <table>
+          <thead><tr><th>Metric</th><th>Method</th><th>Threshold</th></tr></thead>
+          <tbody>
+            <tr><td>Event-loop latency</td><td>QTimer(0) probe measures time between iterations</td><td>&lt;5ms green, &lt;16ms yellow, &gt;16ms red</td></tr>
+            <tr><td>GIL contention</td><td>Background thread measures jitter vs expected 10ms sleep</td><td>Higher = more GIL lock contention</td></tr>
+            <tr><td>Per-slot timing</td><td><code>@timed_slot</code> decorator on critical QObject methods</td><td>&gt;2ms p95 reported as "slow"</td></tr>
+            <tr><td>CPU usage</td><td>psutil.Process.cpu_percent()</td><td>-</td></tr>
+            <tr><td>Memory (RSS)</td><td>psutil.Process.memory_info().rss</td><td>-</td></tr>
+            <tr><td>Thread count</td><td>threading.active_count()</td><td>-</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Output Formats</h3>
+        <ul>
+          <li><strong>Terminal:</strong> Color-coded live metrics every 1 second (overwrites line). Slow slots reported every 5 seconds.</li>
+          <li><strong>CSV file:</strong> Machine-readable metrics log for spreadsheet analysis. Columns: timestamp, loop_avg_ms, loop_p50_ms, loop_p95_ms, loop_p99_ms, loop_max_ms, gil_avg_ms, gil_p99_ms, cpu_pct, mem_mb, threads.</li>
+          <li><strong>Perf log file:</strong> Human-readable plain text log with health tags (OK/WARN/STUTTER) and slow slot details.</li>
+          <li><strong>QML HUD:</strong> <code>summaryText</code> property for on-screen display</li>
+        </ul>
+
+        <h3>Manual Instrumentation</h3>
+        <pre><code><span class="cmt"># Decorator for QObject slots</span>
+<span class="kw">from</span> backend.perf_monitor <span class="kw">import</span> timed_slot
+
+<span class="kw">@timed_slot</span>
+<span class="kw">def</span> <span class="fn">my_expensive_slot</span>(self):
+    ...
+
+<span class="cmt"># Inline timing for arbitrary code sections</span>
+t = PerfMonitor.begin()
+... <span class="cmt"># code to measure</span>
+PerfMonitor.end(t, <span class="str">"my_section"</span>)</code></pre>
+
+        <!-- Command Server -->
+        <h2 id="command-server">Command Server (TCP)</h2>
+        <p><span class="file-path">backend/command_server.py</span></p>
+        <p>A TCP server on <code>127.0.0.1:9876</code> that accepts JSON commands for remote control. Only active when <code>--profile</code> is passed.</p>
+
+        <h3>Protocol</h3>
+        <pre><code><span class="cmt">// Client sends JSON + newline:</span>
+{<span class="str">"action"</span>: <span class="str">"next_track"</span>}
+
+<span class="cmt">// Server responds with JSON + newline:</span>
+{<span class="str">"ok"</span>: <span class="kw">true</span>, <span class="str">"result"</span>: <span class="kw">null</span>}
+
+<span class="cmt">// With arguments:</span>
+{<span class="str">"action"</span>: <span class="str">"navigate"</span>, <span class="str">"args"</span>: {<span class="str">"page"</span>: <span class="str">"media_player"</span>}}
+
+<span class="cmt">// Error response:</span>
+{<span class="str">"ok"</span>: <span class="kw">false</span>, <span class="str">"error"</span>: <span class="str">"Unknown action: foo"</span>}</code></pre>
+
+        <h3>Action Categories</h3>
+        <p>The command server dispatches 40+ actions organized by category:</p>
+        <ul>
+          <li><strong>App:</strong> <code>ping</code>, <code>list_actions</code></li>
+          <li><strong>Performance:</strong> <code>get_metrics</code>, <code>get_detailed_report</code>, <code>get_slot_timings</code></li>
+          <li><strong>Navigation:</strong> <code>navigate</code>, <code>go_back</code>, <code>go_home</code>, <code>get_current_page</code>, <code>list_pages</code></li>
+          <li><strong>Media:</strong> <code>next_track</code>, <code>previous_track</code>, <code>toggle_play</code>, <code>pause</code>, <code>toggle_mute</code>, <code>toggle_shuffle</code>, <code>set_volume</code>, <code>get_media_status</code>, <code>get_track_info</code>, <code>skip_tracks</code></li>
+          <li><strong>Spotify:</strong> <code>spotify_toggle_play</code>, <code>spotify_next</code>, <code>spotify_previous</code>, <code>spotify_status</code></li>
+          <li><strong>OBD:</strong> <code>obd_status</code>, <code>obd_reconnect</code></li>
+          <li><strong>Settings:</strong> <code>get_all_settings</code>, <code>toggle_setting</code>, <code>set_bool_setting</code>, <code>set_numeric_setting</code>, <code>set_string_setting</code>, and <code>list_*</code> variants</li>
+        </ul>
+
+        <h3>Navigation Bridge</h3>
+        <p>The <code>NavigationBridge</code> class provides thread-safe QML navigation. Commands from the TCP handler thread are dispatched to the GUI thread via <code>QMetaObject.invokeMethod</code> with <code>QueuedConnection</code>.</p>
+
+        <h3>Valid Navigation Pages</h3>
+        <pre><code>home, media_room, media_player, obd, obd_diagnostics,
+settings, phone_mirror, android_auto, sensors, car, download, clock</code></pre>
+
+        <!-- Screenshots -->
+        <h2 id="screenshots">Screenshot Tool</h2>
+        <p><span class="file-path">dev/screenshot_tool.py</span></p>
+        <pre><code><span class="cmt"># Run a pre-defined scenario</span>
+<span class="fn">python</span> dev/screenshot_tool.py run main_pages
+
+<span class="cmt"># Take a single screenshot</span>
+<span class="fn">python</span> dev/screenshot_tool.py shot --name my_screenshot
+
+<span class="cmt"># Interactive mode</span>
+<span class="fn">python</span> dev/screenshot_tool.py interactive
+
+<span class="cmt"># List existing screenshots</span>
+<span class="fn">python</span> dev/screenshot_tool.py list</code></pre>
+
+        <p>For agentic/programmatic use:</p>
+        <pre><code><span class="kw">from</span> dev.screenshots.core <span class="kw">import</span> OctaveWindow, ScreenCapture
+
+win = OctaveWindow.find()
+cap = ScreenCapture(win)
+
+<span class="cmt"># Navigate and capture</span>
+win.click_percent(<span class="num">0.51</span>, <span class="num">0.96</span>)   <span class="cmt"># Click media button</span>
+cap.capture(<span class="str">"media_view"</span>, <span class="str">"Media player view"</span>)</code></pre>
+
+        <!-- Adding Features -->
+        <h2 id="adding-features">How to Add New Features</h2>
+        <p>OCTAVE follows a consistent pattern for every feature. Here is a step-by-step guide:</p>
+
+        <ol class="steps">
+          <li>
+            <strong>Create a Manager class</strong> in <span class="file-path">backend/</span>:<br>
+            Inherit from <code>QObject</code>. Define Signals for state changes, Properties for QML binding, and Slots for QML-callable methods. Use <code>get_logger(__name__)</code> for logging.
+          </li>
+          <li>
+            <strong>Add settings</strong> if needed:<br>
+            Add defaults to <code>_default_settings</code> in <span class="file-path">backend/settings_manager.py</span>. Add a Property + Signal + save_xxx Slot. Optionally register in <code>SETTINGS_REGISTRY</code> for Quick Panel support.
+          </li>
+          <li>
+            <strong>Register in main.py:</strong><br>
+            Instantiate the manager, call <code>engine.rootContext().setContextProperty("myManager", manager)</code>. Wire up any cross-manager signal connections.
+          </li>
+          <li>
+            <strong>Create QML view</strong> in <span class="file-path">frontend/</span>:<br>
+            Access the manager directly: <code>myManager.someSlot()</code>, bind to properties. Add navigation in BottomBar.qml or the appropriate menu.
+          </li>
+          <li>
+            <strong>Add settings UI</strong> if needed:<br>
+            Create a settings section in <span class="file-path">frontend/settings/</span> and register it in the settings menu visibility system.
+          </li>
+          <li>
+            <strong>Add dev mode support:</strong><br>
+            If the feature uses hardware, create a mock manager. Register it in <span class="file-path">dev/dev_main.py</span>. If on Android, add a stub in <span class="file-path">backend/stubs.py</span>.
+          </li>
+          <li>
+            <strong>Add to command server</strong> (optional):<br>
+            Add actions in <span class="file-path">backend/command_server.py</span> dispatch method. Add MCP tools in <span class="file-path">dev/mcp_server.py</span>.
+          </li>
+          <li>
+            <strong>Test manually:</strong><br>
+            Run in dev mode (<code>python dev/dev_main.py</code>) and production mode (<code>python main.py</code>). Test on target platform if using hardware.
+          </li>
+        </ol>
+
+        <!-- Testing -->
+        <h2 id="testing">Testing Approach</h2>
+        <div class="info-box warning">
+          <strong>No Automated Tests:</strong> OCTAVE does not have an automated test suite or linter configured. All testing is manual.
+        </div>
+
+        <h3>Manual Testing Workflow</h3>
+        <ol class="steps">
+          <li><strong>Dev mode testing:</strong> Use <code>python dev/dev_main.py</code> for rapid iteration with simulated OBD data and keyboard controls</li>
+          <li><strong>Profile mode:</strong> Use <code>python main.py --profile</code> to verify no performance regressions (watch event-loop latency, GIL jitter)</li>
+          <li><strong>MCP automation:</strong> Use the MCP server for repeatable test sequences (navigate pages, change settings, verify state)</li>
+          <li><strong>Cross-platform:</strong> Test on Windows, macOS, and Linux. Use <code>python main.py --debug</code> for verbose logging when debugging platform-specific issues.</li>
+          <li><strong>Hardware testing:</strong> Test with physical OBD adapter, ESP32 volume knob, BerryIMU, and gesture sensor when making changes to those subsystems</li>
+          <li><strong>Build testing:</strong> Run <code>python build_scripts/build.py</code> and test the built executable before releasing</li>
+        </ol>
+
+        <h3>Debug Mode</h3>
+        <pre><code><span class="fn">python</span> main.py --debug</code></pre>
+        <p>Enables DEBUG level logging, creates <code>octave-debug.log</code> (10MB, 2 backups) with full stack traces and verbose output from all modules.</p>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="architecture.html" class="related-link">Architecture Overview</a>
+          <a href="signals-slots-reference.html" class="related-link">Signals &amp; Slots Reference</a>
+          <a href="building.html" class="related-link">Building &amp; Distribution</a>
+          <a href="troubleshooting.html" class="related-link">Troubleshooting</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

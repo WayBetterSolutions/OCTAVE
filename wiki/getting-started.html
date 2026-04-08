@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Getting Started</div>
+          <h1 class="page-title">Getting Started</h1>
+          <p class="page-subtitle">
+            Installation, setup, and first run on all supported platforms.
+          </p>
+        </div>
+
+        <nav class="toc">
+          <div class="toc-title">On This Page</div>
+          <ul class="toc-list">
+            <li><a href="#requirements">System Requirements</a></li>
+            <li><a href="#quick-start">Quick Start</a></li>
+            <li><a href="#setup-script">What setup.py Does</a></li>
+            <li><a href="#platform-linux">Linux Installation</a></li>
+            <li class="toc-h3"><a href="#linux-arch">Arch Linux / Manjaro</a></li>
+            <li class="toc-h3"><a href="#linux-debian">Debian / Ubuntu</a></li>
+            <li class="toc-h3"><a href="#linux-fedora">Fedora / RHEL</a></li>
+            <li class="toc-h3"><a href="#linux-rpi">Raspberry Pi</a></li>
+            <li><a href="#platform-windows">Windows Installation</a></li>
+            <li><a href="#platform-macos">macOS Installation</a></li>
+            <li><a href="#platform-android">Android Build</a></li>
+            <li><a href="#platform-wsl">WSL Notes</a></li>
+            <li><a href="#running">Running OCTAVE</a></li>
+            <li><a href="#dev-mode">Developer Mode</a></li>
+            <li><a href="#dependencies">Python Dependencies</a></li>
+            <li><a href="#directory-structure">Directory Structure</a></li>
+            <li><a href="#first-steps">First Steps After Install</a></li>
+          </ul>
+        </nav>
+
+        <!-- System Requirements -->
+        <h2 id="requirements">System Requirements</h2>
+        <table>
+          <thead>
+            <tr><th>Requirement</th><th>Minimum</th><th>Notes</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Python</strong></td>
+              <td>3.8+</td>
+              <td>3.11 required for Android builds (must match PySide6 wheel ABI)</td>
+            </tr>
+            <tr>
+              <td><strong>OS</strong></td>
+              <td>Windows 10+, macOS 10.14+, Linux</td>
+              <td>Raspberry Pi OS fully supported</td>
+            </tr>
+            <tr>
+              <td><strong>Display</strong></td>
+              <td>Any resolution</td>
+              <td>Auto-scales based on screen height (720p baseline). Scale factor clamped to 0.4&ndash;3.0.</td>
+            </tr>
+            <tr>
+              <td><strong>Audio</strong></td>
+              <td>PulseAudio / ALSA / CoreAudio / DirectSound</td>
+              <td>Required for media playback. Qt uses the platform's native audio.</td>
+            </tr>
+            <tr>
+              <td><strong>Network</strong></td>
+              <td>Optional</td>
+              <td>Required for Spotify, music download, and update checking. Local playback works offline.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Quick Start -->
+        <h2 id="quick-start">Quick Start</h2>
+        <p>The fastest path from zero to running:</p>
+
+        <pre><code><span class="cmt"># Clone the repository</span>
+git clone https://github.com/waybettersolutions/octave.git
+cd octave
+
+<span class="cmt"># Setup and run (creates venv, installs deps, launches app)</span>
+python setup.py</code></pre>
+
+        <p>That's it. The <code>setup.py</code> script handles everything automatically. If you only
+          want to install without launching:</p>
+
+        <pre><code>python setup.py --no-run</code></pre>
+
+        <p>To run manually after setup:</p>
+
+        <pre><code><span class="cmt"># Linux / macOS</span>
+<span class="kw">source</span> venv/bin/activate
+python main.py
+
+<span class="cmt"># Windows</span>
+venv\Scripts\activate
+python main.py</code></pre>
+
+        <!-- What setup.py Does -->
+        <h2 id="setup-script">What <code>setup.py</code> Does</h2>
+        <span class="file-path">setup.py</span>
+        <p>The setup script performs these steps in order:</p>
+
+        <ol class="steps">
+          <li>
+            <strong>Detects your platform</strong> &mdash; Identifies Windows, macOS, Linux, or
+            Raspberry Pi. On Linux, detects the distro family (Arch, Debian, Fedora) by reading
+            <code>/etc/os-release</code> or falling back to package manager detection
+            (<code>pacman</code>, <code>apt</code>, <code>dnf</code>).
+          </li>
+          <li>
+            <strong>Checks Python version</strong> &mdash; Ensures Python 3.8 or higher is available.
+            Exits with a clear error if not.
+          </li>
+          <li>
+            <strong>Installs system dependencies</strong> (Linux only) &mdash; Uses the appropriate
+            package manager to install required system libraries: audio (PulseAudio/ALSA), OpenGL/EGL,
+            XCB platform plugins, X11 libs, fonts, D-Bus, and Qt6 base packages.
+          </li>
+          <li>
+            <strong>Creates a virtual environment</strong> &mdash; Uses Python's built-in <code>venv</code>
+            module to create an isolated environment at <code>./venv/</code>. If an existing venv is
+            incompatible (wrong platform or broken pip), it is automatically recreated.
+          </li>
+          <li>
+            <strong>Installs Python dependencies</strong> &mdash; Upgrades pip, then installs everything
+            from <code>requirements.txt</code> into the venv.
+          </li>
+          <li>
+            <strong>Launches the application</strong> &mdash; Unless <code>--no-run</code> is passed,
+            replaces the setup process with the OCTAVE app via <code>os.execv()</code>.
+          </li>
+        </ol>
+
+        <!-- Linux Installation -->
+        <h2 id="platform-linux">Linux Installation</h2>
+        <p>
+          Linux is the primary development and deployment platform. The setup script automatically
+          installs system-level dependencies via your distro's package manager.
+        </p>
+
+        <h3 id="linux-arch">Arch Linux / Manjaro / EndeavourOS</h3>
+        <p>System packages installed via <code>pacman</code>:</p>
+        <pre><code>sudo pacman -S --needed python python-pip libpulse alsa-lib mesa libglvnd \
+  libxcb xcb-util xcb-util-cursor xcb-util-image xcb-util-keysyms \
+  xcb-util-renderutil xcb-util-wm libx11 libxkbcommon libxkbcommon-x11 \
+  libxi libsm libice fontconfig freetype2 harfbuzz dbus libxrender \
+  libxext libxrandr libxfixes libxcomposite libxdamage libxtst libxss \
+  qt6-base qt6-multimedia</code></pre>
+
+        <div class="info-box info">
+          <div class="info-box-title">Note</div>
+          On Arch, <code>python3-venv</code> is included in the <code>python</code> package. No separate
+          install needed.
+        </div>
+
+        <h3 id="linux-debian">Debian / Ubuntu / Mint / Pop!_OS</h3>
+        <p>System packages installed via <code>apt</code>:</p>
+        <pre><code>sudo apt update
+sudo apt install -y python3 python3-venv python3-pip libpulse0 libasound2 \
+  libegl1 libgl1 libopengl0 libglx-mesa0 libgl1-mesa-dri libegl1-mesa \
+  libgles2 libxcb1 libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+  libxcb-keysyms1 libxcb-randr0 libxcb-render0 libxcb-render-util0 \
+  libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-xfixes0 libxcb-xinerama0 \
+  libxcb-xkb1 libxcb-util1 libx11-6 libx11-xcb1 libxkbcommon0 \
+  libxkbcommon-x11-0 libxi6 libsm6 libice6 libfontconfig1 libfreetype6 \
+  libharfbuzz0b libdbus-1-3 libxrender1 libxext6 libxrandr2 libxfixes3 \
+  libxcomposite1 libxdamage1 libxtst6 libxss1</code></pre>
+
+        <h3 id="linux-fedora">Fedora / RHEL / CentOS</h3>
+        <p>System packages installed via <code>dnf</code>:</p>
+        <pre><code>sudo dnf install -y python3 python3-pip pulseaudio-libs alsa-lib \
+  mesa-libGL mesa-libEGL libglvnd-glx libxcb xcb-util xcb-util-cursor \
+  xcb-util-image xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
+  libX11 libX11-xcb libxkbcommon libxkbcommon-x11 libXi libSM libICE \
+  fontconfig freetype harfbuzz dbus-libs libXrender libXext libXrandr \
+  libXfixes libXcomposite libXdamage libXtst libXScrnSaver qt6-qtbase \
+  qt6-qtmultimedia</code></pre>
+
+        <h3 id="linux-rpi">Raspberry Pi</h3>
+        <p>
+          Raspberry Pi OS (Debian-based) uses the same <code>apt</code> packages as Debian. The setup
+          script automatically detects Raspberry Pi by reading <code>/sys/firmware/devicetree/base/model</code>.
+        </p>
+
+        <div class="info-box tip">
+          <div class="info-box-title">OBD-II Bluetooth</div>
+          To use OBD-II via Bluetooth on Linux, add your user to the <code>dialout</code> group:
+          <pre><code>sudo usermod -a -G dialout $USER</code></pre>
+          Log out and back in for the change to take effect.
+        </div>
+
+        <!-- Windows -->
+        <h2 id="platform-windows">Windows Installation</h2>
+        <ol class="steps">
+          <li>
+            <strong>Install Python 3.8+</strong> from <a href="https://python.org">python.org</a>.
+            Check "Add Python to PATH" during installation.
+          </li>
+          <li>
+            <strong>Clone and run setup</strong>:
+            <pre><code>git clone https://github.com/waybettersolutions/octave.git
+cd octave
+python setup.py</code></pre>
+          </li>
+        </ol>
+        <p>
+          No system dependencies are needed on Windows. PySide6 bundles everything required. The
+          venv activation command on Windows is <code>venv\Scripts\activate</code>.
+        </p>
+
+        <!-- macOS -->
+        <h2 id="platform-macos">macOS Installation</h2>
+        <ol class="steps">
+          <li>
+            <strong>Install Python 3.8+</strong> via <a href="https://brew.sh">Homebrew</a>
+            (<code>brew install python</code>) or from <a href="https://python.org">python.org</a>.
+          </li>
+          <li>
+            <strong>Clone and run setup</strong>:
+            <pre><code>git clone https://github.com/waybettersolutions/octave.git
+cd octave
+python3 setup.py</code></pre>
+          </li>
+        </ol>
+        <p>
+          macOS system dependencies are typically pre-installed. If you encounter OpenGL issues,
+          ensure you're running macOS 10.14+.
+        </p>
+
+        <!-- Android -->
+        <h2 id="platform-android">Android Build</h2>
+        <p>
+          OCTAVE can be compiled as an Android APK using
+          <a href="https://github.com/kivy/buildozer">Buildozer</a> with the python-for-android Qt bootstrap.
+          This is an experimental feature.
+        </p>
+
+        <h3>Prerequisites</h3>
+        <ul>
+          <li><strong>Linux host</strong> &mdash; Building Android APKs requires Linux</li>
+          <li><strong>Python 3.11</strong> &mdash; Must match the PySide6 wheel ABI</li>
+          <li><strong>Android SDK</strong> with platform tools</li>
+          <li><strong>Android NDK r26b</strong> (<code>26.1.10909125</code>)</li>
+          <li><strong>Buildozer</strong> and <strong>python-for-android</strong> (develop branch)</li>
+        </ul>
+
+        <pre><code><span class="cmt"># Install build tools</span>
+pip install buildozer
+pip install <span class="str">"python-for-android @ git+https://github.com/kivy/python-for-android@develop"</span>
+
+<span class="cmt"># Install NDK via SDK Manager</span>
+sdkmanager <span class="str">"ndk;26.1.10909125"</span></code></pre>
+
+        <h3>PySide6 Android Wheels</h3>
+        <p>
+          Download pre-built PySide6 and shiboken6 wheels for Android aarch64 from
+          <a href="https://download.qt.io/official_releases/QtForPython/">Qt for Python releases</a>
+          and place them in <code>deployment/wheels/</code>:
+        </p>
+        <ul>
+          <li><code>pyside6-6.11.0-6.11.0-cp311-cp311-android_aarch64.whl</code></li>
+          <li><code>shiboken6-6.11.0-6.11.0-cp311-cp311-android_aarch64.whl</code></li>
+        </ul>
+        <p>Or set <code>OCTAVE_WHEELS_DIR</code> to point to a different directory.</p>
+
+        <h3>Configure & Build</h3>
+        <ol class="steps">
+          <li>
+            Edit <code>deployment/buildozer.spec</code> and set <code>android.ndk_path</code>,
+            <code>android.sdk_path</code>, and the <code>--sdk-dir</code>/<code>--ndk-dir</code> values
+            in <code>p4a.extra_args</code> to your local paths.
+          </li>
+          <li>
+            Edit <code>pysidedeploy.spec</code> and set <code>ndk_path</code>, <code>sdk_path</code>,
+            and <code>python_path</code>.
+          </li>
+          <li>
+            Build the APK:
+            <pre><code>cd deployment
+buildozer android debug</code></pre>
+            Output APK in <code>dist/</code>.
+          </li>
+        </ol>
+
+        <div class="info-box warning">
+          <div class="info-box-title">Known Issue: pip corruption</div>
+          The python-for-android build venv ships with pip 24.0, which has a broken <code>resolvelib</code>.
+          If the build fails during package installation, delete the build venv:
+          <pre><code>rm -rf deployment/.buildozer/android/platform/build-arm64-v8a/build/venv</code></pre>
+          Then re-run the build.
+        </div>
+
+        <h3>Android Feature Differences</h3>
+        <p>On Android, several features use platform-specific implementations:</p>
+        <table>
+          <thead>
+            <tr><th>Feature</th><th>Desktop</th><th>Android</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>OBD-II</td>
+              <td>USB ELM327 via <code>python-obd</code></td>
+              <td>Bluetooth ELM327 via <code>AndroidOBDManager</code></td>
+            </tr>
+            <tr>
+              <td>IMU Sensors</td>
+              <td>BerryIMU v3 via I2C (<code>smbus2</code>)</td>
+              <td>Device accelerometer/gyro via <code>AndroidSensorManager</code></td>
+            </tr>
+            <tr>
+              <td>Phone Mirror</td>
+              <td>scrcpy-based screen mirroring</td>
+              <td>Disabled (stub)</td>
+            </tr>
+            <tr>
+              <td>Android Auto</td>
+              <td>Google DHU capture</td>
+              <td>Disabled (stub)</td>
+            </tr>
+            <tr>
+              <td>Volume Knob</td>
+              <td>ESP32 via USB serial</td>
+              <td>Disabled (stub)</td>
+            </tr>
+            <tr>
+              <td>Gesture Sensor</td>
+              <td>PAJ7620U2 via I2C</td>
+              <td>Disabled (stub)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- WSL -->
+        <h2 id="platform-wsl">WSL Notes</h2>
+        <p>
+          OCTAVE can run under WSL (Windows Subsystem for Linux) but requires a display server.
+          The setup script detects WSL by checking for "microsoft" in <code>/proc/version</code>.
+        </p>
+        <ul>
+          <li><strong>WSLg (Windows 11)</strong> &mdash; Should work automatically. Run <code>wsl --update</code> to ensure it's current.</li>
+          <li><strong>X Server (Windows 10)</strong> &mdash; Install VcXsrv or X410, then set <code>export DISPLAY=:0</code>.</li>
+        </ul>
+        <p>If no display is detected (<code>DISPLAY</code> and <code>WAYLAND_DISPLAY</code> both unset),
+          the setup script will install dependencies but skip launching.</p>
+
+        <!-- Running -->
+        <h2 id="running">Running OCTAVE</h2>
+
+        <h3>Standard Mode</h3>
+        <pre><code><span class="kw">source</span> venv/bin/activate
+python main.py</code></pre>
+
+        <h3>Debug Mode</h3>
+        <p>Enables DEBUG-level logging and creates <code>octave-debug.log</code>:</p>
+        <pre><code>python main.py --debug</code></pre>
+
+        <h3>Performance Profiling</h3>
+        <p>Enables the performance monitor with CSV and log export to <code>dev/perf/logs/</code>:</p>
+        <pre><code>python main.py --profile</code></pre>
+        <p>
+          Profiling also starts a <strong>Command Server</strong> (TCP) for remote control via MCP,
+          and instruments hot paths across all managers.
+        </p>
+
+        <!-- Dev Mode -->
+        <h2 id="dev-mode">Developer Mode</h2>
+        <span class="file-path">dev/dev_main.py</span>
+        <p>
+          Developer mode provides simulated OBD data and keyboard controls for testing without
+          hardware or a vehicle connection. The <code>dev/</code> directory is fully isolated from
+          production code and is gitignored.
+        </p>
+        <pre><code><span class="kw">source</span> venv/bin/activate
+python dev/dev_main.py</code></pre>
+
+        <div class="info-box info">
+          <div class="info-box-title">Dev Mode Features</div>
+          <ul>
+            <li>Mock OBD data with simulated RPM, speed, and temperature</li>
+            <li>Development tools panel for testing</li>
+            <li>Keyboard shortcuts for media control</li>
+            <li>No hardware required</li>
+          </ul>
+        </div>
+
+        <!-- Dependencies -->
+        <h2 id="dependencies">Python Dependencies</h2>
+        <span class="file-path">requirements.txt</span>
+
+        <table>
+          <thead>
+            <tr><th>Package</th><th>Version</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>PySide6</code></td><td>&ge;6.5.0</td><td>Qt6 Python bindings (UI framework, media player, QML engine)</td></tr>
+            <tr><td><code>mutagen</code></td><td>1.47.0</td><td>Audio file metadata reading (ID3 tags, album art)</td></tr>
+            <tr><td><code>numpy</code></td><td>&ge;1.26.0</td><td>FFT computation for audio waveform visualization</td></tr>
+            <tr><td><code>obd</code></td><td>&ge;0.7.3</td><td>ELM327 OBD-II adapter communication</td></tr>
+            <tr><td><code>spotipy</code></td><td>&ge;2.25.2</td><td>Spotify Web API wrapper</td></tr>
+            <tr><td><code>keyring</code></td><td>25.7.0</td><td>Secure OS keychain for Spotify tokens</td></tr>
+            <tr><td><code>av</code></td><td>&ge;12.0.0</td><td>Audio decoding for FFT analysis (FFmpeg bindings)</td></tr>
+            <tr><td><code>requests</code></td><td>&ge;2.25.0</td><td>HTTP client for API calls and update checking</td></tr>
+            <tr><td><code>pyserial</code></td><td>&ge;3.5</td><td>USB serial communication with ESP32 volume knob</td></tr>
+            <tr><td><code>smbus2</code></td><td>&ge;0.4.3</td><td>I2C interface for BerryIMU and gesture sensor (Linux only)</td></tr>
+            <tr><td><code>pycaw</code></td><td>&ge;20240210</td><td>Windows audio control for scrcpy volume (Windows only)</td></tr>
+            <tr><td><code>Pillow</code></td><td>&ge;10.0.0</td><td>Image processing for album art color extraction</td></tr>
+            <tr><td><code>yt-dlp</code></td><td>2026.2.21</td><td>YouTube audio extraction for music download</td></tr>
+            <tr><td><code>ytmusicapi</code></td><td>1.11.5</td><td>YouTube Music API for search queries</td></tr>
+            <tr><td><code>rapidfuzz</code></td><td>&ge;3.0.0</td><td>Fuzzy string matching for music metadata</td></tr>
+            <tr><td><code>python-slugify</code></td><td>&ge;8.0.0</td><td>URL/filename-safe string generation</td></tr>
+            <tr><td><code>typing_extensions</code></td><td>&ge;4.0.0</td><td>Backported typing features</td></tr>
+          </tbody>
+        </table>
+
+        <div class="info-box info">
+          <div class="info-box-title">Platform-Conditional Dependencies</div>
+          <code>smbus2</code> is only installed on Linux (I2C is not available on Windows/macOS).
+          <code>pycaw</code> is only installed on Windows (Windows-specific audio control).
+        </div>
+
+        <!-- Directory Structure -->
+        <h2 id="directory-structure">Directory Structure</h2>
+        <pre><code>octave/
+├── <span class="prop">backend/</span>             <span class="cmt"># Python managers and business logic</span>
+│   ├── settings_manager.py
+│   ├── media_manager.py
+│   ├── spotify_manager.py
+│   ├── obd_manager.py
+│   ├── network_manager.py
+│   ├── download_manager.py
+│   ├── esp32_volume_manager.py
+│   ├── berryimu_manager.py
+│   ├── gesture_manager.py
+│   ├── audio_analyzer.py
+│   ├── clock.py
+│   ├── android_auto/    <span class="cmt"># Android Auto DHU integration</span>
+│   ├── phone_mirror/    <span class="cmt"># Phone screen mirroring</span>
+│   ├── music_dl/        <span class="cmt"># Music download engine</span>
+│   └── ...
+├── <span class="prop">frontend/</span>            <span class="cmt"># QML UI files</span>
+│   ├── Main.qml
+│   ├── MediaPlayer.qml
+│   ├── OBDMenu.qml
+│   ├── settings/        <span class="cmt"># Settings pages and components</span>
+│   └── assets/          <span class="cmt"># Icons, fonts, 3D models</span>
+├── <span class="prop">build_scripts/</span>       <span class="cmt"># Platform-specific build automation</span>
+├── <span class="prop">deployment/</span>          <span class="cmt"># Android build config and wheels</span>
+├── <span class="prop">dev/</span>                 <span class="cmt"># Development tools (gitignored)</span>
+├── <span class="prop">hardware/</span>            <span class="cmt"># 3D printed mount CAD files</span>
+├── <span class="prop">tools/</span>               <span class="cmt"># Bundled utilities (scrcpy)</span>
+├── main.py              <span class="cmt"># Application entry point</span>
+├── setup.py             <span class="cmt"># Cross-platform installer</span>
+├── requirements.txt     <span class="cmt"># Python dependencies</span>
+└── pyproject.toml       <span class="cmt"># Project metadata</span></code></pre>
+
+        <!-- First Steps -->
+        <h2 id="first-steps">First Steps After Install</h2>
+        <ol class="steps">
+          <li>
+            <strong>Set your music directory</strong> &mdash; Open Settings and point the media library
+            to a folder containing MP3, M4A, or FLAC files. OCTAVE will scan and index them automatically.
+          </li>
+          <li>
+            <strong>Configure Spotify</strong> (optional) &mdash; Go to Settings &gt; Spotify and enter
+            your Spotify API credentials (Client ID and Client Secret from the
+            <a href="https://developer.spotify.com/dashboard">Spotify Developer Dashboard</a>).
+            Tokens are stored securely in your OS keychain.
+          </li>
+          <li>
+            <strong>Connect OBD-II</strong> (optional) &mdash; Plug in an ELM327 adapter (USB or Bluetooth)
+            and OCTAVE will auto-detect it. On Linux, ensure your user is in the <code>dialout</code> group.
+          </li>
+          <li>
+            <strong>Explore Settings</strong> &mdash; OCTAVE has 100+ configurable settings across
+            display, media, OBD, hardware, and more. The settings pages are organized by category with
+            sliders, toggles, and dropdowns.
+          </li>
+        </ol>
+
+        <!-- Related Pages -->
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <div class="related-links">
+            <a href="architecture.html" class="related-link">Architecture Overview</a>
+            <a href="settings-reference.html" class="related-link">Settings Reference</a>
+            <a href="building.html" class="related-link">Building & CI/CD</a>
+            <a href="development.html" class="related-link">Development Guide</a>
+            <a href="troubleshooting.html" class="related-link">Troubleshooting</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

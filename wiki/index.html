@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+
+        <div class="page-header">
+          <h1 class="page-title">OCTAVE Wiki</h1>
+          <p class="page-subtitle">
+            The complete reference for the Open-source Cross-platform Telematics for Augmented Vehicle Experience.
+            Everything you need to understand, use, modify, and extend OCTAVE.
+          </p>
+        </div>
+
+        <h2>What is OCTAVE?</h2>
+        <p>
+          OCTAVE is a fully programmable infotainment system designed for vehicles. Built with a
+          <strong>Python backend</strong> and <strong>QML frontend</strong> (via PySide6), it runs on
+          Windows, macOS, Linux, Raspberry Pi, and Android. OCTAVE is purpose-built for older vehicles
+          with outdated or missing infotainment systems, but works anywhere you want a rich media and
+          diagnostics experience.
+        </p>
+        <p>
+          The typical installation uses a Raspberry Pi (or equivalent SBC), a proportionate touchscreen,
+          a power source, a 3D-printed mount, and a speaker interface. Development and testing can happen
+          on any desktop OS.
+        </p>
+
+        <h2>Core Features</h2>
+        <div class="feature-grid">
+
+          <div class="feature-card">
+            <a href="media-manager.html">
+              <span class="feature-icon">&#9835;</span>
+              <div class="feature-title">Local Media Player</div>
+              <div class="feature-desc">
+                MP3, M4A, FLAC playback with album art carousel, shuffle/repeat,
+                playlist management, and FFT waveform visualization.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="spotify-manager.html">
+              <span class="feature-icon">&#9836;</span>
+              <div class="feature-title">Spotify Integration</div>
+              <div class="feature-desc">
+                Full Spotify Connect with OAuth2 authentication, device switching,
+                playback control, and secure keyring token storage.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="obd-manager.html">
+              <span class="feature-icon">&gt;_</span>
+              <div class="feature-title">OBD-II Diagnostics</div>
+              <div class="feature-desc">
+                50+ vehicle parameters via ELM327 adapter. RPM, speed, coolant temp,
+                fuel level, O2 sensors, DTC codes, and configurable gauge layouts.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="phone-mirror-android-auto.html">
+              <span class="feature-icon">&#9743;</span>
+              <div class="feature-title">Phone Mirror & Android Auto</div>
+              <div class="feature-desc">
+                Mirror your phone screen via scrcpy or run Android Auto through
+                Google's Desktop Head Unit with touch forwarding.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="download-manager.html">
+              <span class="feature-icon">&#8615;</span>
+              <div class="feature-title">Music Download</div>
+              <div class="feature-desc">
+                Search and download music with Spotify metadata matching and
+                YouTube audio extraction. Auto-adds to your library.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="hardware-managers.html">
+              <span class="feature-icon">&#9881;</span>
+              <div class="feature-title">Hardware Integrations</div>
+              <div class="feature-desc">
+                ESP32 wireless volume knob (ESP-NOW), BerryIMU v3 9DOF sensor
+                fusion (Madgwick AHRS), PAJ7620U2 gesture recognition.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="theme-system.html">
+              <span class="feature-icon">&#9670;</span>
+              <div class="feature-title">Dynamic Theming</div>
+              <div class="feature-desc">
+                UI colors adapt in real-time to album art. Accent, background,
+                and text colors extracted and applied across all views.
+              </div>
+            </a>
+          </div>
+
+          <div class="feature-card">
+            <a href="audio-analyzer.html">
+              <span class="feature-icon">&#8767;</span>
+              <div class="feature-title">Waveform Visualizer</div>
+              <div class="feature-desc">
+                Real-time FFT waveform visualization with 5 quality tiers
+                from Low to Insane, rendered directly in QML.
+              </div>
+            </a>
+          </div>
+
+        </div>
+
+        <h2>Platform Support</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Status</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Linux</strong> (Debian/Arch/Fedora)</td>
+              <td>Full support</td>
+              <td>Primary development target. All features available.</td>
+            </tr>
+            <tr>
+              <td><strong>Raspberry Pi</strong></td>
+              <td>Full support</td>
+              <td>Recommended for vehicle installation. All hardware I2C sensors supported.</td>
+            </tr>
+            <tr>
+              <td><strong>Windows</strong> 10+</td>
+              <td>Full support</td>
+              <td>All features except I2C hardware (BerryIMU, gesture sensor).</td>
+            </tr>
+            <tr>
+              <td><strong>macOS</strong> 10.14+</td>
+              <td>Full support</td>
+              <td>All features except I2C hardware.</td>
+            </tr>
+            <tr>
+              <td><strong>Android</strong></td>
+              <td>Experimental</td>
+              <td>APK via Buildozer. Uses Android Bluetooth OBD and device sensors. Phone mirror/AA disabled.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Wiki Sections</h2>
+
+        <h3>Getting Started</h3>
+        <ul>
+          <li><a href="getting-started.html">Installation & First Run</a> &mdash; Setup on all platforms, requirements, configuration</li>
+          <li><a href="architecture.html">Architecture Overview</a> &mdash; System design, communication patterns, threading model</li>
+        </ul>
+
+        <h3>Backend Deep Dives</h3>
+        <ul>
+          <li><a href="settings-manager.html">Settings Manager</a> &mdash; Central settings store, property system, JSON persistence</li>
+          <li><a href="media-manager.html">Media Manager</a> &mdash; Local audio playback, library scanning, album art</li>
+          <li><a href="spotify-manager.html">Spotify Manager</a> &mdash; OAuth2, API integration, device control</li>
+          <li><a href="obd-manager.html">OBD Manager</a> &mdash; ELM327 protocol, 50+ vehicle parameters, threaded worker</li>
+          <li><a href="network-manager.html">Network Manager</a> &mdash; WiFi status, update checking, self-update</li>
+          <li><a href="download-manager.html">Download Manager</a> &mdash; Music search and download pipeline</li>
+          <li><a href="hardware-managers.html">Hardware Managers</a> &mdash; ESP32, BerryIMU, gesture sensor</li>
+          <li><a href="phone-mirror-android-auto.html">Phone Mirror & Android Auto</a> &mdash; Scrcpy, DHU, frame providers</li>
+          <li><a href="audio-analyzer.html">Audio Analyzer</a> &mdash; FFT waveform visualization</li>
+          <li><a href="utilities.html">Utilities</a> &mdash; Clock, logging, platform detection, performance monitor</li>
+        </ul>
+
+        <h3>Frontend Deep Dives</h3>
+        <ul>
+          <li><a href="frontend-overview.html">Frontend Overview</a> &mdash; QML architecture, Main.qml, page routing</li>
+          <li><a href="pages.html">Pages & Views</a> &mdash; Every page in the application</li>
+          <li><a href="bottom-bar.html">Bottom Bar</a> &mdash; Navigation and volume control</li>
+          <li><a href="theme-system.html">Theme System</a> &mdash; Dynamic theming, design tokens</li>
+          <li><a href="settings-ui.html">Settings UI</a> &mdash; Settings framework, layout engines, components</li>
+          <li><a href="components.html">Components</a> &mdash; Reusable QML components</li>
+        </ul>
+
+        <h3>Reference & Guides</h3>
+        <ul>
+          <li><a href="settings-reference.html">Settings Reference</a> &mdash; Complete catalog of every setting</li>
+          <li><a href="signals-slots-reference.html">Signals & Slots API</a> &mdash; Every manager's QML-accessible API</li>
+          <li><a href="hardware-setup.html">Hardware Setup</a> &mdash; Wiring, firmware, 3D printed mounts</li>
+          <li><a href="building.html">Building & CI/CD</a> &mdash; PyInstaller, platform builds, GitHub Actions</li>
+          <li><a href="development.html">Development</a> &mdash; Dev mode, mock data, MCP server, profiling</li>
+          <li><a href="troubleshooting.html">Troubleshooting</a> &mdash; Common issues, log locations, debugging</li>
+        </ul>
+
+        <h2>Tech Stack</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Technology</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Backend</td>
+              <td>Python 3.8+</td>
+              <td>All business logic, hardware integration, API calls</td>
+            </tr>
+            <tr>
+              <td>Frontend</td>
+              <td>QML (Qt Quick 2.15)</td>
+              <td>Declarative UI with animations and 3D effects</td>
+            </tr>
+            <tr>
+              <td>Qt Binding</td>
+              <td>PySide6 6.5+</td>
+              <td>Python-Qt bridge with signals/slots</td>
+            </tr>
+            <tr>
+              <td>Audio</td>
+              <td>QMediaPlayer + av</td>
+              <td>Playback and FFT analysis</td>
+            </tr>
+            <tr>
+              <td>Spotify</td>
+              <td>spotipy</td>
+              <td>Spotify Web API wrapper with OAuth2</td>
+            </tr>
+            <tr>
+              <td>OBD-II</td>
+              <td>python-obd</td>
+              <td>ELM327 adapter communication</td>
+            </tr>
+            <tr>
+              <td>Music DL</td>
+              <td>yt-dlp + ytmusicapi</td>
+              <td>YouTube audio extraction with Spotify metadata</td>
+            </tr>
+            <tr>
+              <td>Sensors</td>
+              <td>smbus2</td>
+              <td>I2C communication (BerryIMU, gesture)</td>
+            </tr>
+            <tr>
+              <td>Serial</td>
+              <td>pyserial</td>
+              <td>ESP32 volume knob USB communication</td>
+            </tr>
+            <tr>
+              <td>Credentials</td>
+              <td>keyring</td>
+              <td>Secure OS keychain storage for Spotify tokens</td>
+            </tr>
+            <tr>
+              <td>Build</td>
+              <td>PyInstaller / Buildozer</td>
+              <td>Standalone executables and Android APK</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Quick Links</h2>
+        <div class="related-links">
+          <a href="getting-started.html" class="related-link">Installation Guide</a>
+          <a href="architecture.html" class="related-link">Architecture</a>
+          <a href="settings-reference.html" class="related-link">Settings Reference</a>
+          <a href="building.html" class="related-link">Build Guide</a>
+          <a href="development.html" class="related-link">Developer Guide</a>
+          <a href="troubleshooting.html" class="related-link">Troubleshooting</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

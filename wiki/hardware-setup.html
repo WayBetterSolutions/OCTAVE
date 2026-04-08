@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hardware Setup - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Hardware Setup</div>
+          <h1 class="page-title">Hardware Setup</h1>
+          <p class="page-subtitle">Wiring, firmware, mounting, and configuration for all OCTAVE hardware peripherals.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#esp32-volume">ESP32 Wireless Volume Knob</a></li>
+            <li><a href="#berryimu">BerryIMU v3 IMU Sensor</a></li>
+            <li><a href="#gesture-sensor">PAJ7620U2 Gesture Sensor</a></li>
+            <li><a href="#3d-mounts">3D Printed Mounts</a></li>
+            <li><a href="#power">Power Supply Considerations</a></li>
+            <li><a href="#installation-tips">Vehicle Installation Tips</a></li>
+          </ul>
+        </nav>
+
+        <!-- ESP32 Volume Knob -->
+        <h2 id="esp32-volume">ESP32 Wireless Volume Knob</h2>
+        <span class="platform-badge all">All Platforms</span>
+        <p>The volume knob uses a two-ESP32 architecture with ESP-NOW for wireless communication. A remote encoder unit sends commands to a USB receiver dongle plugged into the computer running OCTAVE.</p>
+
+        <h3>Architecture</h3>
+        <div class="diagram">
+<pre>
+  [Rotary Encoder]          ESP-NOW (2.4GHz)         [USB Serial]
+  [  + Button    ] ----> [ESP32 Dev Board] ~~~~> [ESP32-S3 Dongle] ----> Computer
+  [  + LED Ring  ]         "Encoder Unit"            "Receiver"          (OCTAVE)
+                          Sends: +, -, M           Forwards to USB
+                                                    at 115200 baud
+</pre>
+        </div>
+
+        <h3>Serial Protocol</h3>
+        <p>The ESP32-S3 receiver forwards simple text commands over USB serial at <strong>115200 baud</strong>:</p>
+        <table>
+          <thead><tr><th>Command</th><th>Direction</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>+</code> or <code>+N</code></td><td>ESP32 -> OCTAVE</td><td>Volume up (N ticks clockwise)</td></tr>
+            <tr><td><code>-</code> or <code>-N</code></td><td>ESP32 -> OCTAVE</td><td>Volume down (N ticks counter-clockwise)</td></tr>
+            <tr><td><code>M</code></td><td>ESP32 -> OCTAVE</td><td>Mute toggle (encoder button press)</td></tr>
+            <tr><td><code>P</code></td><td>ESP32 -> OCTAVE</td><td>Play/pause (double-click, not yet implemented)</td></tr>
+            <tr><td><code>V##</code></td><td>OCTAVE -> ESP32</td><td>Current volume level (0-100) for LED display</td></tr>
+            <tr><td><code>M0</code> / <code>M1</code></td><td>OCTAVE -> ESP32</td><td>Mute state (0=unmuted, 1=muted)</td></tr>
+            <tr><td><code>C###,###,###</code></td><td>OCTAVE -> ESP32</td><td>Theme RGB color for LED ring (e.g., C255,128,0)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>ESP32-S3 Auto-Detection</h3>
+        <p>OCTAVE automatically detects ESP32-S3 USB devices by checking for the Espressif VID <code>303A</code> in USB hardware IDs. Platform-specific port scanning:</p>
+        <ul>
+          <li><strong>Windows:</strong> Scans COM ports, looks for VID 303A or "USB JTAG/serial debug unit" in description</li>
+          <li><strong>macOS:</strong> Checks <code>/dev/tty.usbserial*</code>, <code>/dev/cu.usbmodem*</code>, etc.</li>
+          <li><strong>Linux:</strong> Checks <code>/dev/ttyUSB*</code>, <code>/dev/ttyACM*</code></li>
+        </ul>
+
+        <div class="info-box info">
+          <strong>Auto-Connect:</strong> On startup, OCTAVE waits 3 seconds, scans for devices, and auto-selects the ESP32-S3 port if no port is configured. The OBD port is filtered out to avoid conflicts.
+        </div>
+
+        <h3>Reconnection Behavior</h3>
+        <ul>
+          <li>Max 5 reconnect attempts with exponential backoff (3s, 6s, 9s... max 10s)</li>
+          <li>Background port scanning every 10 seconds when disconnected</li>
+          <li>Keepalive timer sends volume updates every 2 seconds to prevent ESP32 LED timeout (5s)</li>
+          <li>Volume updates rate-limited to 20/sec (50ms debounce) to prevent LED flickering</li>
+        </ul>
+
+        <h3>LED Modes</h3>
+        <ul>
+          <li><strong>Theme mode:</strong> LED color follows album art extracted theme colors</li>
+          <li><strong>Static mode:</strong> LED uses a fixed user-chosen color</li>
+          <li><strong>Sleep mode:</strong> LEDs turn off after ESP32 timeout when OCTAVE stops sending keepalives</li>
+        </ul>
+
+        <!-- BerryIMU -->
+        <h2 id="berryimu">BerryIMU v3 IMU Sensor</h2>
+        <span class="platform-badge linux">Linux / Raspberry Pi</span>
+        <p>The BerryIMU v3 provides 10 degrees of freedom (accelerometer, gyroscope, magnetometer, barometer) over I2C. OCTAVE uses Madgwick 9DOF AHRS for sensor fusion, outputting a quaternion directly to the QML 3D model.</p>
+
+        <h3>I2C Wiring</h3>
+        <div class="diagram">
+<pre>
+  BerryIMU v3                  Raspberry Pi / SBC
+  +-----------+                +-----------------+
+  |  VCC  (1) |----[ 3.3V ]---|  Pin 1 (3.3V)   |
+  |  GND  (2) |----[ GND  ]---|  Pin 6 (GND)    |
+  |  SDA  (3) |----[ SDA  ]---|  Pin 3 (GPIO2)  |   I2C Bus 2
+  |  SCL  (4) |----[ SCL  ]---|  Pin 5 (GPIO3)  |
+  +-----------+                +-----------------+
+</pre>
+        </div>
+
+        <h3>I2C Chip Addresses</h3>
+        <table>
+          <thead><tr><th>Chip</th><th>Address</th><th>Function</th><th>Init Rate</th></tr></thead>
+          <tbody>
+            <tr><td>LSM6DSL</td><td><code>0x6A</code></td><td>Accelerometer + Gyroscope</td><td>416 Hz, +/-4g, 245 dps</td></tr>
+            <tr><td>LIS3MDL</td><td><code>0x1C</code></td><td>Magnetometer</td><td>155 Hz, +/-8 gauss</td></tr>
+            <tr><td>BMP388</td><td><code>0x77</code></td><td>Barometer + Temperature</td><td>Continuous mode with 21-byte calibration</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Madgwick AHRS Filter</h3>
+        <p>The Madgwick filter fuses all 9 axes into a single quaternion, avoiding gimbal lock entirely. Key parameters:</p>
+        <ul>
+          <li><strong>Beta (gain):</strong> 0.03 (lower = smoother, higher = more responsive)</li>
+          <li><strong>Gyro deadband:</strong> 0.4 deg/s (zeros out noise when stationary)</li>
+          <li><strong>Emit interval:</strong> ~60 Hz (16ms between signal emissions)</li>
+        </ul>
+
+        <h3>Mounting Orientation</h3>
+        <div class="info-box tip">
+          <strong>Tare Calibration:</strong> Mount the BerryIMU in any orientation, then use the "Calibrate Tare" button in the sensor page to set the current position as zero reference. The tare offset is stored as a quaternion and applied to all subsequent readings.
+        </div>
+
+        <h3>Startup Sequence</h3>
+        <ol class="steps">
+          <li>1 second delay after app start (QTimer.singleShot)</li>
+          <li>Open I2C bus 2 via smbus2</li>
+          <li>Initialize LSM6DSL (accel 416Hz +/-4g, gyro 416Hz 245dps, BDU + auto-increment)</li>
+          <li>Initialize LIS3MDL (ultra-high perf 155Hz, +/-8 gauss, continuous)</li>
+          <li>Initialize BMP388 (read 21-byte calibration, enable continuous mode)</li>
+          <li>Calibrate gyro bias (samples at rest)</li>
+          <li>Start background read thread (daemon)</li>
+        </ol>
+
+        <h3>Reconnection</h3>
+        <p>If initialization fails, OCTAVE retries up to 5 times with linear backoff (5s, 10s, 15s, 20s, 25s). Permission errors do not trigger retries (user must fix I2C permissions).</p>
+
+        <!-- Gesture Sensor -->
+        <h2 id="gesture-sensor">PAJ7620U2 Gesture Sensor</h2>
+        <span class="platform-badge linux">Linux / Raspberry Pi</span>
+        <p>The PAJ7620U2 is a 9-gesture recognition sensor that detects hand motions for touchless control. It communicates over I2C and is polled at ~50Hz.</p>
+
+        <h3>I2C Wiring</h3>
+        <div class="diagram">
+<pre>
+  PAJ7620U2                    Raspberry Pi / SBC
+  +-----------+                +-----------------+
+  |  VCC  (1) |----[ 3.3V ]---|  Pin 1 (3.3V)   |
+  |  GND  (2) |----[ GND  ]---|  Pin 6 (GND)    |
+  |  SDA  (3) |----[ SDA  ]---|  Pin 3 (GPIO2)  |   I2C Bus 2
+  |  SCL  (4) |----[ SCL  ]---|  Pin 5 (GPIO3)  |
+  +-----------+                +-----------------+
+
+  I2C Address: 0x73
+  Chip ID: 0x7620 (verified on init)
+</pre>
+        </div>
+
+        <h3>Supported Gestures</h3>
+        <table>
+          <thead><tr><th>Gesture</th><th>Register Flag</th><th>Default Action</th></tr></thead>
+          <tbody>
+            <tr><td>RIGHT</td><td>0x01 (reg 0x43)</td><td>next_track</td></tr>
+            <tr><td>LEFT</td><td>0x02 (reg 0x43)</td><td>previous_track</td></tr>
+            <tr><td>UP</td><td>0x04 (reg 0x43)</td><td>volume_up</td></tr>
+            <tr><td>DOWN</td><td>0x08 (reg 0x43)</td><td>volume_down</td></tr>
+            <tr><td>FORWARD</td><td>0x10 (reg 0x43)</td><td>play_pause</td></tr>
+            <tr><td>BACKWARD</td><td>0x20 (reg 0x43)</td><td>mute_toggle</td></tr>
+            <tr><td>CLOCKWISE</td><td>0x40 (reg 0x43)</td><td>volume_up</td></tr>
+            <tr><td>COUNTER-CLOCKWISE</td><td>0x80 (reg 0x43)</td><td>volume_down</td></tr>
+            <tr><td>WAVE</td><td>0x01 (reg 0x44)</td><td>play_pause</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Two-Pass Gesture Disambiguation</h3>
+        <p>Forward and backward gestures are compound motions that the sensor initially reports as directional. The driver uses a two-pass approach:</p>
+        <ol class="steps">
+          <li>Detect initial gesture flag</li>
+          <li>If FORWARD: wait 300ms, re-read. If a directional gesture followed, use that instead.</li>
+          <li>If BACKWARD: wait 400ms, re-read. Same disambiguation logic.</li>
+          <li>For directional/rotation gestures: confirm with a second read after 20ms to reject glitches</li>
+          <li>After confirming, flush sensor for 100ms to prevent echo/ghost detections</li>
+        </ol>
+
+        <h3>Timing Parameters</h3>
+        <ul>
+          <li><strong>Poll interval:</strong> 20ms (~50Hz)</li>
+          <li><strong>Cooldown between gestures:</strong> 300ms (configurable via settings)</li>
+          <li><strong>Forward wait:</strong> 300ms</li>
+          <li><strong>Backward wait:</strong> 400ms</li>
+          <li><strong>Post-flush duration:</strong> 100ms</li>
+        </ul>
+
+        <h3>Initialization</h3>
+        <p>The sensor requires writing 220 register pairs from the DFRobot reference initialization table. The driver verifies chip ID <code>0x7620</code> before proceeding. A wakeup sequence is used to bring the sensor out of sleep.</p>
+
+        <h3>Mounting Position</h3>
+        <div class="info-box tip">
+          <strong>Optimal Position:</strong> Mount the gesture sensor facing the driver, approximately 30-50cm away, at chest height. Ensure no obstructions in the sensor's field of view. The sensor works best with open-hand gestures at moderate speed.
+        </div>
+
+        <!-- 3D Printed Mounts -->
+        <h2 id="3d-mounts">3D Printed Mounts</h2>
+        <p>The <span class="file-path">hardware/</span> directory contains 3D model files for vehicle-specific mounting brackets.</p>
+
+        <h3>2003 Jeep TJ Media Console</h3>
+        <p>Located in <span class="file-path">hardware/2003-jeep-tj/media-console/</span>:</p>
+        <table>
+          <thead><tr><th>File</th><th>Format</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>bracket-for-screen.STL</code></td><td>STL (3D print)</td><td>Screen mounting bracket for the dash</td></tr>
+            <tr><td><code>bracket-for-screen.SLDPRT</code></td><td>SolidWorks</td><td>Source CAD file for the screen bracket</td></tr>
+            <tr><td><code>media-console-bracket-mk2.STL</code></td><td>STL (3D print)</td><td>Mk2 revision of the full media console bracket</td></tr>
+            <tr><td><code>media-console-bracket-mk2.SLDPRT</code></td><td>SolidWorks</td><td>Source CAD file for the Mk2 bracket</td></tr>
+          </tbody>
+        </table>
+
+        <div class="info-box info">
+          <strong>Print Settings:</strong> Recommended: PETG or ABS filament for heat resistance in a vehicle cabin. 0.2mm layer height, 40% infill. The Mk2 bracket is the improved version with better fitment.
+        </div>
+
+        <!-- Power Supply -->
+        <h2 id="power">Power Supply Considerations</h2>
+        <ul>
+          <li><strong>Raspberry Pi:</strong> Use a regulated 5V supply rated for at least 3A. Vehicle 12V must be stepped down with a buck converter. Avoid powering from the vehicle's USB ports (insufficient current).</li>
+          <li><strong>BerryIMU / PAJ7620U2:</strong> Both run on 3.3V from the Pi's GPIO header. Total I2C bus current is minimal (&lt;50mA).</li>
+          <li><strong>ESP32 Volume Knob:</strong> The receiver dongle is USB-powered from the host computer. The encoder unit needs its own 3.3V or 5V supply (battery or vehicle power).</li>
+          <li><strong>Display:</strong> Ensure the display has a separate power feed or is rated for the current draw. HDMI displays for Pi typically need their own 5V supply.</li>
+        </ul>
+
+        <div class="info-box warning">
+          <strong>Vehicle Power:</strong> Always use a proper voltage regulator and consider adding a capacitor to smooth out voltage spikes from the alternator. Sudden power loss can corrupt the SD card on a Raspberry Pi. Consider a UPS HAT or supercapacitor-based graceful shutdown circuit.
+        </div>
+
+        <!-- Installation Tips -->
+        <h2 id="installation-tips">Vehicle Installation Tips</h2>
+        <ol class="steps">
+          <li><strong>I2C Cable Length:</strong> Keep I2C cables under 30cm for reliable communication. Use shielded cable if running near power wires.</li>
+          <li><strong>Vibration:</strong> Secure all connections with hot glue or cable ties. Vibration can cause intermittent I2C failures.</li>
+          <li><strong>Heat:</strong> Vehicle cabins can exceed 60C in summer. Use heat-rated filament for 3D prints and keep electronics out of direct sunlight.</li>
+          <li><strong>Grounding:</strong> Ensure a common ground between all components. Ground loops cause sensor noise.</li>
+          <li><strong>I2C Permissions:</strong> On Linux, add your user to the <code>i2c</code> group: <code>sudo usermod -aG i2c $USER</code></li>
+          <li><strong>Serial Permissions:</strong> For ESP32 USB, add user to <code>dialout</code> group: <code>sudo usermod -aG dialout $USER</code></li>
+          <li><strong>OBD-II:</strong> The Bluetooth OBD adapter connects via rfcomm. Pair the adapter first, then set the port in settings (default: <code>/dev/rfcomm0</code>).</li>
+        </ol>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="settings-reference.html" class="related-link">Settings Reference</a>
+          <a href="signals-slots-reference.html" class="related-link">Signals &amp; Slots Reference</a>
+          <a href="troubleshooting.html" class="related-link">Troubleshooting</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

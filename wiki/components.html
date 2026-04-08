@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Components - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Components</div>
+          <h1 class="page-title">Components</h1>
+          <p class="page-subtitle">Reusable QML components: AlbumArtCarousel, CoverflowCard, LazyImage, GForceDisplay, SensorCard, OBDParameterModel, TerminalFeedback, and CornerBrackets</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#album-art-carousel">AlbumArtCarousel</a></li>
+            <li><a href="#coverflow-card">CoverflowCard</a></li>
+            <li><a href="#lazy-image">LazyImage</a></li>
+            <li><a href="#gforce-display">GForceDisplay</a></li>
+            <li><a href="#sensor-card">SensorCard</a></li>
+            <li><a href="#obd-parameter-model">OBDParameterModel</a></li>
+            <li><a href="#terminal-feedback">TerminalFeedback</a></li>
+            <li><a href="#corner-brackets">CornerBrackets</a></li>
+          </ul>
+        </nav>
+
+        <!-- AlbumArtCarousel -->
+        <h2 id="album-art-carousel">AlbumArtCarousel</h2>
+
+        <p><span class="file-path">frontend/AlbumArtCarousel.qml</span> is the album art display component used in MediaRoom. It supports two categories of transition animations and configurable visual modes.</p>
+
+        <h3>Animation Modes</h3>
+
+        <table>
+          <thead><tr><th>Mode</th><th>Condition</th><th>Styles Available</th></tr></thead>
+          <tbody>
+            <tr><td>Single-card</td><td><code>previewEnabled: false</code></td><td>Crossfade, Slide, Vinyl Lift, Dissolve, Flip</td></tr>
+            <tr><td>3D preview</td><td><code>previewEnabled: true</code></td><td>Coverflow, Conveyor, Stack, Depth, Swing</td></tr>
+          </tbody>
+        </table>
+
+        <p>When 3D preview is active, previous and next side cards are visible at idle, and all three cards participate in the transition animation.</p>
+
+        <h3>Public API</h3>
+
+        <pre><code><span class="cmt">// Navigation direction</span>
+<span class="prop">property int</span> direction: <span class="num">1</span>
+
+<span class="cmt">// Art sources (center, previous, next)</span>
+<span class="prop">property url</span> artSource: <span class="str">""</span>
+<span class="prop">property url</span> prevArtSource: <span class="str">""</span>
+<span class="prop">property url</span> nextArtSource: <span class="str">""</span>
+
+<span class="cmt">// Animation state</span>
+<span class="prop">property bool</span> animBusy: <span class="kw">false</span>
+
+<span class="cmt">// Transition configuration</span>
+<span class="prop">property string</span> transitionStyle: <span class="str">"Crossfade"</span>
+<span class="prop">property string</span> transition3DStyle: <span class="str">"Coverflow"</span>
+
+<span class="cmt">// Visual settings</span>
+<span class="prop">property bool</span> previewEnabled: <span class="kw">false</span>
+<span class="prop">property bool</span> roundedArt: <span class="kw">false</span>
+<span class="prop">property real</span> artRadius: <span class="num">0</span>
+<span class="prop">property bool</span> vinylMode: <span class="kw">false</span>
+<span class="prop">property real</span> sideCardAngle: <span class="num">30</span>
+<span class="prop">property real</span> sideCardOpacity: <span class="num">0.4</span>
+<span class="prop">property bool</span> showShadow: <span class="kw">false</span>
+
+<span class="cmt">// Vinyl rotation tracking</span>
+<span class="prop">property real</span> playbackPosition: <span class="num">0</span>
+<span class="prop">property real</span> playbackDuration: <span class="num">0</span>
+
+<span class="cmt">// Dissolve state (exposed for background sync)</span>
+<span class="kw">readonly property bool</span> dissolveActive
+<span class="kw">readonly property real</span> dissolveProgress
+<span class="kw">readonly property url</span> dissolveNewArt
+
+<span class="cmt">// Signals</span>
+<span class="kw">signal</span> <span class="fn">animationFinished</span>()
+<span class="kw">signal</span> <span class="fn">settled</span>()
+<span class="kw">signal</span> <span class="fn">artClicked</span>()
+<span class="kw">signal</span> <span class="fn">artLoadFailed</span>()</code></pre>
+
+        <h3>Animation Constants</h3>
+        <table>
+          <thead><tr><th>Animation</th><th>Duration</th><th>Key Parameter</th></tr></thead>
+          <tbody>
+            <tr><td>Crossfade</td><td>250ms</td><td>Scale: 0.97</td></tr>
+            <tr><td>Slide</td><td>280ms</td><td>Distance: 80px</td></tr>
+            <tr><td>Vinyl Lift</td><td>180ms + 60ms pause</td><td>Scale: 0.85</td></tr>
+            <tr><td>Dissolve</td><td>900ms</td><td>Grid: 20px, Smoothness: 0.1</td></tr>
+            <tr><td>Flip</td><td>350ms</td><td>Full 3D Y-axis rotation</td></tr>
+            <tr><td>3D modes</td><td>350ms</td><td>Side offset: 0.42, Side scale: 0.72</td></tr>
+          </tbody>
+        </table>
+
+        <div class="info-box tip">
+          <strong>Dissolve Sync:</strong> The dissolve animation exposes its progress and new art source as readonly properties so the parent (MediaRoom) can sync the blurred background transition with the album art dissolve.
+        </div>
+
+        <!-- CoverflowCard -->
+        <h2 id="coverflow-card">CoverflowCard</h2>
+
+        <p><span class="file-path">frontend/CoverflowCard.qml</span> is a single album art card with 3D perspective transform, used by AlbumArtCarousel for coverflow-style animations.</p>
+
+        <h3>Properties</h3>
+
+        <pre><code><span class="cmt">// Coverflow transform properties (animated by parent)</span>
+<span class="prop">property real</span> cfOffset: <span class="num">0</span>     <span class="cmt">// X translation</span>
+<span class="prop">property real</span> cfAngle: <span class="num">0</span>      <span class="cmt">// Y-axis rotation angle</span>
+<span class="prop">property real</span> cfScale: <span class="num">1.0</span>    <span class="cmt">// Scale factor</span>
+<span class="prop">property real</span> cfOpacity: <span class="num">1.0</span>  <span class="cmt">// Opacity</span>
+
+<span class="cmt">// Image configuration</span>
+<span class="prop">property url</span> artSource: <span class="str">""</span>
+<span class="prop">property real</span> artSize: width
+<span class="prop">property bool</span> asynchronous: <span class="kw">true</span>
+
+<span class="cmt">// Masking modes</span>
+<span class="prop">property bool</span> roundedArt: <span class="kw">false</span>
+<span class="prop">property bool</span> vinylMode: <span class="kw">false</span>
+<span class="prop">property real</span> artRadius: <span class="num">0</span>
+<span class="prop">property Item</span> roundedMask: <span class="kw">null</span>   <span class="cmt">// Shared mask texture</span>
+<span class="prop">property Item</span> vinylMask: <span class="kw">null</span>     <span class="cmt">// Shared mask texture</span>
+
+<span class="cmt">// Vinyl rotation (center card only)</span>
+<span class="prop">property real</span> vinylAngle: <span class="num">0</span>
+
+<span class="cmt">// Drop shadow (center card only)</span>
+<span class="prop">property bool</span> showShadow: <span class="kw">false</span></code></pre>
+
+        <h3>3D Transform</h3>
+        <p>The card applies a <code>Translate</code> and <code>Rotation</code> transform to create the coverflow perspective effect:</p>
+
+        <pre><code><span class="prop">transform</span>: [
+    <span class="cls">Translate</span> { <span class="prop">x</span>: root.cfOffset },
+    <span class="cls">Rotation</span> {
+        <span class="prop">axis</span> { <span class="prop">x</span>: <span class="num">0</span>; <span class="prop">y</span>: <span class="num">1</span>; <span class="prop">z</span>: <span class="num">0</span> }
+        <span class="prop">angle</span>: root.cfAngle
+        <span class="prop">origin.x</span>: root.width / <span class="num">2</span>
+        <span class="prop">origin.y</span>: root.height / <span class="num">2</span>
+    }
+]</code></pre>
+
+        <div class="info-box info">
+          <strong>GPU Optimization:</strong> Mask items (<code>roundedMask</code>, <code>vinylMask</code>) are passed in from the parent rather than created per-card, avoiding duplicate GPU texture allocations.
+        </div>
+
+        <!-- LazyImage -->
+        <h2 id="lazy-image">LazyImage</h2>
+
+        <p><span class="file-path">frontend/LazyImage.qml</span> is a visibility-aware image loader for use in lists and grids. It only loads its source when the component is visible.</p>
+
+        <h3>Properties</h3>
+
+        <pre><code><span class="prop">property string</span> source          <span class="cmt">// Image URL/path</span>
+<span class="prop">property bool</span> rounded: <span class="kw">false</span>     <span class="cmt">// Enable rounded corners</span>
+<span class="prop">property int</span> fidelity: <span class="num">60</span>       <span class="cmt">// sourceSize (lower = faster load)</span>
+<span class="prop">property bool</span> smoothing: <span class="kw">false</span>  <span class="cmt">// Enable smooth filtering</span>
+<span class="prop">property bool</span> mipmap: <span class="kw">false</span>     <span class="cmt">// Enable mipmapping</span>
+<span class="prop">property bool</span> antialiasing: <span class="kw">false</span>
+<span class="prop">property real</span> quality: <span class="num">0.0</span>      <span class="cmt">// Image decode quality</span>
+<span class="prop">property int</span> cacheLimit: <span class="num">2048</span>   <span class="cmt">// Cache size in KB</span></code></pre>
+
+        <h3>Implementation</h3>
+
+        <pre><code><span class="cls">Image</span> {
+    <span class="prop">source</span>: root.visible ? root.source : <span class="str">""</span>
+    <span class="prop">asynchronous</span>: <span class="kw">true</span>
+    <span class="prop">cache</span>: <span class="kw">true</span>
+    <span class="prop">sourceSize.width</span>: root.fidelity
+    <span class="prop">sourceSize.height</span>: root.fidelity
+    <span class="prop">visible</span>: status === Image.Ready
+}</code></pre>
+
+        <p>The key optimization is <code>source: root.visible ? root.source : ""</code>. When a LazyImage scrolls off-screen, its source is cleared, freeing the decoded image from memory. The low <code>fidelity</code> default (60px) means thumbnail-sized images decode very fast.</p>
+
+        <h3>Usage Example</h3>
+        <pre><code><span class="cls">LazyImage</span> {
+    <span class="prop">source</span>: mediaManager.<span class="fn">get_album_art</span>(filename)
+    <span class="prop">fidelity</span>: <span class="num">60</span>
+    <span class="prop">width</span>: App.Spacing.mediaPlayerAlbumArtSize
+    <span class="prop">height</span>: width
+}</code></pre>
+
+        <!-- GForceDisplay -->
+        <h2 id="gforce-display">GForceDisplay</h2>
+
+        <p><span class="file-path">frontend/GForceDisplay.qml</span> is a specialized G-force visualization card for the SensorMenu.</p>
+
+        <h3>Properties</h3>
+
+        <pre><code><span class="prop">property real</span> lateralG: <span class="num">0</span>
+<span class="prop">property real</span> longitudinalG: <span class="num">0</span>
+<span class="prop">property real</span> magnitude: <span class="num">0</span>
+<span class="prop">property bool</span> connected: <span class="kw">false</span>
+<span class="prop">property int</span> decimalPlaces: <span class="num">2</span>
+<span class="prop">property real</span> maxG: <span class="num">1.5</span></code></pre>
+
+        <h3>Features</h3>
+        <ul>
+          <li><strong>Trail history</strong> &mdash; A <code>ListModel</code> stores the last 30 G-force readings (sampled every 50ms). These are rendered as a fading trail behind the current position indicator.</li>
+          <li><strong>2D plot</strong> &mdash; Lateral G maps to X-axis, longitudinal G to Y-axis, rendered within a circular boundary defined by <code>maxG</code></li>
+          <li><strong>Label header</strong> with icon and "G-FORCE" text</li>
+          <li><strong>Themed</strong> &mdash; Uses <code>App.Style.headerBackgroundColor</code> for the card background and <code>App.Style.accent</code> for the indicator</li>
+        </ul>
+
+        <pre><code><span class="cmt">// Trail sampling timer</span>
+<span class="cls">Timer</span> {
+    <span class="prop">running</span>: connected
+    <span class="prop">interval</span>: <span class="num">50</span>
+    <span class="prop">repeat</span>: <span class="kw">true</span>
+    <span class="prop">onTriggered</span>: {
+        trailModel.<span class="fn">append</span>({ <span class="str">"gx"</span>: lateralG, <span class="str">"gy"</span>: longitudinalG })
+        <span class="kw">if</span> (trailModel.count > <span class="num">30</span>)
+            trailModel.<span class="fn">remove</span>(<span class="num">0</span>)
+    }
+}</code></pre>
+
+        <!-- SensorCard -->
+        <h2 id="sensor-card">SensorCard</h2>
+
+        <p><span class="file-path">frontend/SensorCard.qml</span> is a generic sensor reading display card used in SensorMenu.</p>
+
+        <h3>Properties</h3>
+
+        <pre><code><span class="prop">property string</span> label: <span class="str">""</span>     <span class="cmt">// Sensor name</span>
+<span class="prop">property string</span> value: <span class="str">"--"</span>   <span class="cmt">// Current reading</span>
+<span class="prop">property string</span> unit: <span class="str">""</span>      <span class="cmt">// Unit suffix</span>
+<span class="prop">property string</span> icon: <span class="str">""</span>      <span class="cmt">// Unicode icon</span>
+<span class="prop">property real</span> barValue: <span class="num">-1</span>    <span class="cmt">// 0-1 for progress bar, -1 hides it</span>
+<span class="prop">property bool</span> connected: <span class="kw">false</span></code></pre>
+
+        <h3>Layout</h3>
+        <p>A vertical <code>ColumnLayout</code> with:</p>
+        <ol>
+          <li><strong>Label row</strong> &mdash; Icon + sensor name in secondary text, centered</li>
+          <li><strong>Value</strong> &mdash; Large <code>dp(36)</code> bold text, centered. Shows "--" when disconnected.</li>
+          <li><strong>Unit</strong> &mdash; Smaller text below the value</li>
+          <li><strong>Optional progress bar</strong> &mdash; Only visible when <code>barValue >= 0</code></li>
+        </ol>
+
+        <h3>Usage Example</h3>
+        <pre><code><span class="cls">SensorCard</span> {
+    <span class="prop">label</span>: <span class="str">"HEADING"</span>
+    <span class="prop">icon</span>: <span class="str">"\u2B07"</span>
+    <span class="prop">value</span>: currentHeading.<span class="fn">toFixed</span>(<span class="num">1</span>) + <span class="str">"° "</span> + <span class="fn">headingToCardinal</span>(currentHeading)
+    <span class="prop">unit</span>: <span class="str">"degrees"</span>
+    <span class="prop">connected</span>: imuConnected
+}</code></pre>
+
+        <!-- OBDParameterModel -->
+        <h2 id="obd-parameter-model">OBDParameterModel</h2>
+
+        <p><span class="file-path">frontend/OBDParameterModel.qml</span> is a <code>pragma Singleton</code> that defines all 93 OBD-II parameters with display metadata.</p>
+
+        <h3>Parameter Structure</h3>
+        <pre><code>{ <span class="prop">id</span>: <span class="str">"SPEED"</span>,
+  <span class="prop">title</span>: <span class="str">"Speed"</span>,
+  <span class="prop">unit</span>: <span class="str">"MPH"</span>,
+  <span class="prop">min</span>: <span class="num">0</span>,
+  <span class="prop">max</span>: <span class="num">160</span> }</code></pre>
+
+        <h3>Key Properties</h3>
+        <pre><code><span class="cmt">// All 93 parameter definitions</span>
+<span class="kw">readonly property var</span> allParameters: [ ... ]
+
+<span class="cmt">// Live values updated via obdManager signals</span>
+<span class="prop">property var</span> paramValues: ({})  <span class="cmt">// e.g., { "SPEED": 65, "RPM": 3200 }</span></code></pre>
+
+        <h3>Parameter Categories</h3>
+        <table>
+          <thead><tr><th>Category</th><th>Count</th><th>Examples</th></tr></thead>
+          <tbody>
+            <tr><td>Core engine</td><td>18</td><td>SPEED, RPM, COOLANT_TEMP, ENGINE_LOAD, THROTTLE_POS</td></tr>
+            <tr><td>Fuel system</td><td>8+</td><td>FUEL_LEVEL, SHORT/LONG_FUEL_TRIM, FUEL_PRESSURE, ETHANOL_PERCENT</td></tr>
+            <tr><td>O2 sensors</td><td>24+</td><td>O2_B1S1-B2S4, wide-range voltage/current variants</td></tr>
+            <tr><td>Catalyst</td><td>4</td><td>CATALYST_TEMP_B1S1, B1S2, B2S1, B2S2</td></tr>
+            <tr><td>Throttle/Accel</td><td>5+</td><td>THROTTLE_POS_B/C, ACCELERATOR_POS_D/E, RELATIVE_THROTTLE</td></tr>
+            <tr><td>Emissions</td><td>3+</td><td>COMMANDED_EGR, EGR_ERROR, EVAP_VAPOR_PRESSURE</td></tr>
+            <tr><td>Diagnostic</td><td>3+</td><td>RUN_TIME, DISTANCE_W_MIL, WARMUPS_SINCE_DTC_CLEAR</td></tr>
+          </tbody>
+        </table>
+
+        <p>The singleton pattern ensures all OBD views (MainMenu HomeOBDView, OBDMenu, settings) share the same parameter definitions and live values.</p>
+
+        <!-- TerminalFeedback -->
+        <h2 id="terminal-feedback">TerminalFeedback</h2>
+
+        <p><span class="file-path">frontend/TerminalFeedback.qml</span> is a retro terminal-style output component used for displaying backend operation progress.</p>
+
+        <h3>Properties</h3>
+
+        <pre><code><span class="prop">property int</span> maxLines: <span class="num">50</span>
+<span class="prop">property bool</span> autoScroll: <span class="kw">true</span>
+<span class="prop">property string</span> title: <span class="str">"Output"</span>
+<span class="prop">property bool</span> showHeader: <span class="kw">true</span>
+<span class="prop">property color</span> terminalBackground: <span class="str">"#1a1a1a"</span>
+<span class="prop">property color</span> textColor: <span class="str">"#00ff00"</span>   <span class="cmt">// Classic terminal green</span>
+<span class="prop">property color</span> errorColor: <span class="str">"#ff4444"</span>
+<span class="prop">property color</span> infoColor: <span class="str">"#4a9eff"</span>
+<span class="prop">property color</span> successColor: <span class="str">"#44ff44"</span>
+<span class="prop">property color</span> warningColor: <span class="str">"#ffaa00"</span></code></pre>
+
+        <h3>API</h3>
+        <pre><code><span class="cmt">// Add a line (auto-colors based on [PREFIX])</span>
+terminalOutput.<span class="fn">appendLine</span>(<span class="str">"[SUCCESS] DTC cleared"</span>)
+terminalOutput.<span class="fn">appendLine</span>(<span class="str">"[ERROR] Connection failed"</span>)
+terminalOutput.<span class="fn">appendLine</span>(<span class="str">"[WARN] Check Engine Light is ON"</span>)
+
+<span class="cmt">// Clear all output</span>
+terminalOutput.<span class="fn">clear</span>()</code></pre>
+
+        <h3>Environment Features</h3>
+        <ul>
+          <li><strong>Corner brackets</strong> &mdash; Uses the <code>CornerBrackets</code> component when <code>terminalCornerBrackets</code> is active (Spacecraft)</li>
+          <li><strong>Scanline overlay</strong> &mdash; A <code>Canvas</code> draws horizontal lines every 3px at 4% opacity to simulate CRT scanlines (Spacecraft)</li>
+          <li><strong>Accent border</strong> &mdash; Border color uses the theme accent at 40% opacity when enabled</li>
+          <li><strong>Top-edge highlight</strong> &mdash; Accent-colored 1px line along the top edge</li>
+          <li><strong>Accent scroll bar</strong> &mdash; Themed scrollbar for the Flickable content area</li>
+        </ul>
+
+        <h3>Usage</h3>
+        <pre><code><span class="cls">TerminalFeedback</span> {
+    <span class="prop">id</span>: terminalOutput
+    <span class="prop">title</span>: <span class="str">"OBD Diagnostics"</span>
+    <span class="prop">maxLines</span>: <span class="num">100</span>
+    Layout.fillWidth: <span class="kw">true</span>
+    Layout.fillHeight: <span class="kw">true</span>
+}</code></pre>
+
+        <!-- CornerBrackets -->
+        <h2 id="corner-brackets">CornerBrackets</h2>
+
+        <p><span class="file-path">frontend/CornerBrackets.qml</span> is a pulsing corner bracket overlay for the Spacecraft environment theme.</p>
+
+        <h3>Implementation</h3>
+
+        <p>Eight <code>Rectangle</code> primitives (two per corner, one horizontal and one vertical) are positioned at the parent's corners. They pulse with a slow sine-wave opacity animation:</p>
+
+        <pre><code><span class="cls">Item</span> {
+    <span class="prop">id</span>: brackets
+    <span class="prop">anchors.fill</span>: parent
+    <span class="prop">property real</span> bracketLength: App.Spacing.<span class="fn">dp</span>(<span class="num">12</span>)
+
+    <span class="cmt">// Pulsing opacity</span>
+    <span class="prop">property real</span> _pulse: <span class="num">0.5</span>
+    <span class="cls">SequentialAnimation on</span> _pulse {
+        <span class="prop">running</span>: brackets.visible
+        <span class="prop">loops</span>: Animation.Infinite
+        <span class="cls">NumberAnimation</span> { <span class="prop">to</span>: <span class="num">0.8</span>; <span class="prop">duration</span>: <span class="num">2000</span>; <span class="prop">easing.type</span>: Easing.InOutSine }
+        <span class="cls">NumberAnimation</span> { <span class="prop">to</span>: <span class="num">0.3</span>; <span class="prop">duration</span>: <span class="num">2000</span>; <span class="prop">easing.type</span>: Easing.InOutSine }
+    }
+
+    <span class="prop">property color</span> _color: Qt.<span class="fn">rgba</span>(
+        App.Style.accent.r, App.Style.accent.g,
+        App.Style.accent.b, _pulse)
+
+    <span class="cmt">// Top Left (horizontal + vertical)</span>
+    <span class="cls">Rectangle</span> { width: bracketLength; height: <span class="num">1</span>; color: _color
+        anchors.top: parent.top; anchors.left: parent.left }
+    <span class="cls">Rectangle</span> { width: <span class="num">1</span>; height: bracketLength; color: _color
+        anchors.top: parent.top; anchors.left: parent.left }
+
+    <span class="cmt">// ... same pattern for Top Right, Bottom Left, Bottom Right</span>
+}</code></pre>
+
+        <h3>Usage</h3>
+        <p>Drop inside any <code>Rectangle</code> parent. The caller controls visibility; the pulse animation runs automatically:</p>
+
+        <pre><code><span class="cls">Rectangle</span> {
+    <span class="prop">id</span>: myCard
+    <span class="prop">radius</span>: <span class="num">2</span>
+
+    <span class="cls">CornerBrackets</span> {
+        <span class="prop">visible</span>: App.EnvironmentTheme.active.cornerBrackets
+    }
+}</code></pre>
+
+        <div class="info-box info">
+          <strong>Performance:</strong> The animation only runs when <code>brackets.visible</code> is true, so there is zero cost in Standard and Deep Sea environments where corner brackets are disabled.
+        </div>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="pages.html" class="related-link">Pages</a>
+          <a href="theme-system.html" class="related-link">Theme System</a>
+          <a href="settings-ui.html" class="related-link">Settings UI</a>
+          <a href="audio-analyzer.html" class="related-link">Audio Analyzer</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

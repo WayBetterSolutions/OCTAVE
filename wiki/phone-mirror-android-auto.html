@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phone Mirror &amp; Android Auto - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Phone Mirror &amp; Android Auto</div>
+          <h1 class="page-title">Phone Mirror &amp; Android Auto</h1>
+          <p class="page-subtitle">scrcpy-based phone mirroring and Google DHU-based Android Auto integration</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#phone-mirror">Phone Mirror</a>
+              <ul class="toc-list">
+                <li><a href="#pm-manager">PhoneMirrorManager</a></li>
+                <li><a href="#pm-scrcpy-discovery">scrcpy &amp; ADB Discovery</a></li>
+                <li><a href="#pm-device-management">ADB Device Management</a></li>
+                <li><a href="#pm-process">scrcpy Process Lifecycle</a></li>
+                <li><a href="#pm-capture">ScrcpyCapture &amp; Frame Streaming</a></li>
+                <li><a href="#pm-input">Touch Input Forwarding</a></li>
+                <li><a href="#pm-embedded">EmbeddedScrcpyItem</a></li>
+                <li><a href="#pm-imageprovider">ScrcpyFrameProvider</a></li>
+              </ul>
+            </li>
+            <li><a href="#android-auto">Android Auto</a>
+              <ul class="toc-list">
+                <li><a href="#aa-manager">AndroidAutoManager</a></li>
+                <li><a href="#aa-dhu">Google DHU Integration</a></li>
+                <li><a href="#aa-adb-setup">ADB Connection Setup</a></li>
+                <li><a href="#aa-capture">DhuCapture &amp; Frame Provider</a></li>
+                <li><a href="#aa-input">Touch Input Forwarding</a></li>
+                <li><a href="#aa-embedded">EmbeddedDhuItem</a></li>
+              </ul>
+            </li>
+            <li><a href="#qml-types">Custom QML Types</a></li>
+            <li><a href="#image-providers">Image Providers</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <section id="overview">
+          <h2>Overview</h2>
+          <p>
+            OCTAVE supports two methods of integrating a connected Android phone into the infotainment display:
+          </p>
+          <ul>
+            <li><strong>Phone Mirror</strong> -- Mirrors the entire phone screen using <a href="https://github.com/Genymobile/scrcpy">scrcpy</a>, providing full access to all phone apps</li>
+            <li><strong>Android Auto</strong> -- Runs Google's Desktop Head Unit (DHU) to provide the standard Android Auto car experience</li>
+          </ul>
+          <p>
+            Both systems use the same architectural pattern: launch an external process, capture its window
+            content, and display it within OCTAVE's QML interface via custom <code>QQuickImageProvider</code>
+            subclasses. This avoids file I/O for frame transfer.
+          </p>
+          <span class="platform-badge desktop">Windows</span>
+
+          <div class="info-box warning">
+            <div class="info-box-title">Platform Limitation</div>
+            Window capture and embedding currently use Windows-specific APIs (GDI, PrintWindow, SetParent).
+            The capture classes check <code>platform.system() == "Windows"</code> and emit errors on other
+            platforms. Linux/macOS support would require alternative capture backends.
+          </div>
+
+          <div class="diagram">
++------------------+     USB/ADB      +------------------+
+|  Android Phone   | <--------------> |     OCTAVE       |
++------------------+                  |                  |
+                                      |  +-----------+   |
+                          scrcpy <----|  | Phone     |   |
+                          process     |  | Mirror    |   |
+                                      |  | Manager   |   |
+                          DHU    <----|  +-----------+   |
+                          process     |                  |
+                                      |  +-----------+   |
+                     Window Capture ---->| Frame     |   |
+                     (PrintWindow)    |  | Provider  |   |
+                                      |  +-----------+   |
+                                      |       |          |
+                                      |  QML Image       |
+                                      |  (scrcpyframe:/) |
+                                      |  (dhuframe:/)    |
+                                      +------------------+
+          </div>
+        </section>
+
+        <!-- ===================== PHONE MIRROR ===================== -->
+        <section id="phone-mirror">
+          <h2>Phone Mirror</h2>
+          <p>
+            The phone mirror subsystem consists of four files in
+            <span class="file-path">backend/phone_mirror/</span>:
+          </p>
+          <table>
+            <thead><tr><th>File</th><th>Class</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="file-path">manager.py</span></td>
+                <td><code>PhoneMirrorManager</code></td>
+                <td>Process lifecycle, ADB device management, scrcpy discovery</td>
+              </tr>
+              <tr>
+                <td><span class="file-path">scrcpy_capture.py</span></td>
+                <td><code>ScrcpyCapture</code>, <code>ScrcpyFrameProvider</code>, <code>ScrcpyCaptureItem</code></td>
+                <td>Window capture, frame streaming, touch input</td>
+              </tr>
+              <tr>
+                <td><span class="file-path">embedded_widget.py</span></td>
+                <td><code>EmbeddedScrcpyItem</code></td>
+                <td>QQuickItem for direct window embedding via SetParent</td>
+              </tr>
+              <tr>
+                <td><span class="file-path">scrcpy_container.py</span></td>
+                <td>Container widget</td>
+                <td>Layout container for the embedded widget</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="pm-manager">
+          <h3>PhoneMirrorManager</h3>
+          <p>
+            The <code>PhoneMirrorManager</code> in <span class="file-path">backend/phone_mirror/manager.py</span>
+            is the central orchestrator. It owns the singleton scrcpy process (only one instance allowed at a time)
+            and handles executable discovery, device detection, and process lifecycle.
+          </p>
+
+          <h4>Signals</h4>
+          <table>
+            <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>scrcpyPathChanged</code></td><td>--</td><td>Effective scrcpy path changed</td></tr>
+              <tr><td><code>error</code></td><td><code>str</code></td><td>Error message</td></tr>
+              <tr><td><code>scrcpyStarted</code></td><td><code>int</code></td><td>Window handle when scrcpy is ready</td></tr>
+              <tr><td><code>scrcpyStopped</code></td><td>--</td><td>scrcpy process ended</td></tr>
+              <tr><td><code>scrcpyError</code></td><td><code>str</code></td><td>scrcpy-specific error</td></tr>
+            </tbody>
+          </table>
+
+          <h4>Properties</h4>
+          <table>
+            <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>isScrcpyInstalled</code></td><td><code>bool</code></td><td>Whether scrcpy is found</td></tr>
+              <tr><td><code>scrcpyPath</code></td><td><code>str</code></td><td>Path to scrcpy executable</td></tr>
+              <tr><td><code>adbPath</code></td><td><code>str</code></td><td>Path to ADB executable</td></tr>
+              <tr><td><code>isRunning</code></td><td><code>bool</code></td><td>Whether scrcpy process is active</td></tr>
+              <tr><td><code>scrcpyWindowHandle</code></td><td><code>int</code></td><td>Native window handle of scrcpy</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="pm-scrcpy-discovery">
+          <h3>scrcpy &amp; ADB Discovery</h3>
+          <p>
+            Both executables are discovered using a priority-based search:
+          </p>
+          <ol class="steps">
+            <li><strong>Bundled location</strong> -- Check <code>tools/scrcpy/</code> relative to the project root (or PyInstaller <code>_MEIPASS</code>)</li>
+            <li><strong>System PATH</strong> -- <code>shutil.which("scrcpy")</code> / <code>shutil.which("adb")</code></li>
+            <li><strong>Common install locations</strong> -- Platform-specific paths (e.g., <code>C:\scrcpy\</code>, <code>/usr/bin/scrcpy</code>, Android SDK paths)</li>
+          </ol>
+          <p>
+            scrcpy is validated by running <code>scrcpy --version</code>. A custom path can be set via
+            <code>setScrcpyPath(path)</code>.
+          </p>
+        </section>
+
+        <section id="pm-device-management">
+          <h3>ADB Device Management</h3>
+          <p>
+            The manager provides several ADB-based device information slots:
+          </p>
+          <table>
+            <thead><tr><th>Slot</th><th>Returns</th><th>ADB Command</th></tr></thead>
+            <tbody>
+              <tr><td><code>hasConnectedDevice()</code></td><td><code>bool</code></td><td><code>adb devices</code> -- parses for "device" lines</td></tr>
+              <tr><td><code>getDeviceSerial()</code></td><td><code>str</code></td><td><code>adb devices</code> -- extracts first serial</td></tr>
+              <tr><td><code>getDeviceName()</code></td><td><code>str</code></td><td><code>adb shell getprop ro.product.model</code></td></tr>
+              <tr><td><code>getDeviceResolution()</code></td><td><code>str</code></td><td><code>adb shell wm size</code> -- parses "Physical size: WxH"</td></tr>
+            </tbody>
+          </table>
+          <p>
+            All ADB commands use <code>subprocess.CREATE_NO_WINDOW</code> on Windows to prevent console flicker,
+            and have a 10-second timeout.
+          </p>
+        </section>
+
+        <section id="pm-process">
+          <h3>scrcpy Process Lifecycle</h3>
+          <h4>Launch</h4>
+          <p>
+            The <code>startScrcpy()</code> slot launches scrcpy with these arguments:
+          </p>
+          <pre><code>scrcpy
+    --video-codec=h264
+    --video-bit-rate=8M
+    --max-fps=60
+    --window-borderless
+    --stay-awake
+    --no-audio           <span class="cmt"># unless audio forwarding is enabled</span>
+    -s DEVICE_SERIAL     <span class="cmt"># if a specific device serial is known</span></code></pre>
+          <p>
+            After launching, a background thread polls for the scrcpy window to appear (up to 10 seconds,
+            checking every 100ms). On Windows, the window is found by enumerating all windows and matching
+            the process ID via <code>GetWindowThreadProcessId</code>.
+          </p>
+
+          <h4>Singleton Guard</h4>
+          <p>
+            The manager prevents duplicate scrcpy instances. If <code>startScrcpy()</code> is called while
+            already running, it re-emits the existing window handle. An <code>_is_starting</code> flag
+            prevents race conditions during the window-finding phase.
+          </p>
+
+          <h4>Stop</h4>
+          <p>
+            <code>stopScrcpy()</code> terminates the process with <code>SIGTERM</code>, waits 2 seconds,
+            then falls back to <code>SIGKILL</code> if still running.
+          </p>
+        </section>
+
+        <section id="pm-capture">
+          <h3>ScrcpyCapture &amp; Frame Streaming</h3>
+          <p>
+            The <code>ScrcpyCapture</code> class in <span class="file-path">backend/phone_mirror/scrcpy_capture.py</span>
+            captures the scrcpy window at <strong>60 FPS</strong> and provides frames to QML via an image provider.
+          </p>
+
+          <h4>Capture Strategy</h4>
+          <p>
+            The scrcpy window is kept <strong>off-screen</strong> at coordinates (-3000, -3000) to hide it
+            from the user. Its content is captured using the Windows GDI API:
+          </p>
+          <ol class="steps">
+            <li><strong>Hide from taskbar</strong> -- Set <code>WS_EX_TOOLWINDOW</code> style, remove <code>WS_EX_APPWINDOW</code></li>
+            <li><strong>Position off-screen</strong> -- <code>SetWindowPos(hwnd, 0, -3000, -3000, ...)</code></li>
+            <li><strong>Show (required for capture)</strong> -- <code>ShowWindow(hwnd, SW_SHOWNOACTIVATE)</code></li>
+            <li><strong>Capture loop</strong> -- QTimer at 60 FPS calls <code>_capture_frame()</code></li>
+          </ol>
+
+          <h4>Frame Capture (Windows GDI)</h4>
+          <pre><code><span class="cmt"># Each frame:</span>
+<span class="num">1.</span> GetClientRect(hwnd)          <span class="cmt"># Get window dimensions</span>
+<span class="num">2.</span> GetDC(hwnd)                  <span class="cmt"># Get device context</span>
+<span class="num">3.</span> CreateCompatibleDC/Bitmap    <span class="cmt"># Memory DC for capture</span>
+<span class="num">4.</span> PrintWindow(hwnd, memDC,     <span class="cmt"># Capture (PW_RENDERFULLCONTENT</span>
+              PW_RENDERFULLCONTENT) <span class="cmt">#   for hardware-accelerated)</span>
+<span class="num">5.</span> GetDIBits()                  <span class="cmt"># Extract BGRA pixel data</span>
+<span class="num">6.</span> QImage(buffer, Format_ARGB32) <span class="cmt"># Create Qt image</span>
+<span class="num">7.</span> frame_provider.update_frame() <span class="cmt"># Push to image provider</span>
+<span class="num">8.</span> frameReady.emit()            <span class="cmt"># Trigger QML refresh</span></code></pre>
+          <p>
+            If <code>PrintWindow</code> fails (some GPU-accelerated windows), it falls back to
+            <code>BitBlt</code> with <code>SRCCOPY</code>.
+          </p>
+
+          <h4>Signals</h4>
+          <table>
+            <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>frameReady</code></td><td>--</td><td>New frame available in provider</td></tr>
+              <tr><td><code>captureStarted</code></td><td>--</td><td>Capture loop started</td></tr>
+              <tr><td><code>captureStopped</code></td><td>--</td><td>Capture loop stopped</td></tr>
+              <tr><td><code>error</code></td><td><code>str</code></td><td>Capture error</td></tr>
+              <tr><td><code>frameSizeChanged</code></td><td><code>int, int</code></td><td>Frame dimensions changed (width, height)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="pm-input">
+          <h3>Touch Input Forwarding</h3>
+          <p>
+            Touch events from the QML display are forwarded to the phone using <strong>ADB shell input</strong>
+            commands. This approach bypasses all window manipulation issues that arise with off-screen windows.
+          </p>
+
+          <h4>Coordinate Mapping</h4>
+          <p>
+            QML sends relative coordinates (0.0-1.0) which are converted to device pixel coordinates.
+            The system handles orientation correctly:
+          </p>
+          <pre><code><span class="kw">def</span> <span class="fn">_convert_to_device_coords</span>(<span class="prop">self</span>, rel_x, rel_y):
+    is_landscape = <span class="prop">self</span>._last_width > <span class="prop">self</span>._last_height
+    <span class="kw">if</span> is_landscape:
+        <span class="cmt"># Landscape: effective resolution is height x width</span>
+        device_x = <span class="fn">int</span>(rel_x * <span class="prop">self</span>._device_height)
+        device_y = <span class="fn">int</span>(rel_y * <span class="prop">self</span>._device_width)
+    <span class="kw">else</span>:
+        <span class="cmt"># Portrait: direct mapping</span>
+        device_x = <span class="fn">int</span>(rel_x * <span class="prop">self</span>._device_width)
+        device_y = <span class="fn">int</span>(rel_y * <span class="prop">self</span>._device_height)</code></pre>
+
+          <h4>Tap vs Swipe Detection</h4>
+          <p>
+            The <code>sendTouchEvent</code> slot tracks press and release positions. If the finger moved
+            more than 5% of the screen in either axis, it is classified as a swipe; otherwise it is a tap.
+          </p>
+          <pre><code><span class="cmt"># Tap threshold: 5% of screen in either axis</span>
+<span class="kw">if</span> <span class="prop">self</span>._touch_moved <span class="kw">and</span> (dx > <span class="num">0.05</span> <span class="kw">or</span> dy > <span class="num">0.05</span>):
+    <span class="prop">self</span>.sendSwipe(start_x, start_y, end_x, end_y, <span class="num">200</span>)
+<span class="kw">else</span>:
+    <span class="prop">self</span>.sendTap(start_x, start_y)</code></pre>
+          <p>
+            ADB commands run in background threads to avoid blocking the UI:
+          </p>
+          <pre><code><span class="cmt"># Tap:</span>  adb -s SERIAL shell input tap X Y
+<span class="cmt"># Swipe:</span> adb -s SERIAL shell input swipe X1 Y1 X2 Y2 DURATION_MS</code></pre>
+        </section>
+
+        <section id="pm-embedded">
+          <h3>EmbeddedScrcpyItem</h3>
+          <p>
+            The <code>EmbeddedScrcpyItem</code> in <span class="file-path">backend/phone_mirror/embedded_widget.py</span>
+            provides an alternative display method: directly embedding the scrcpy window as a child of the
+            OCTAVE Qt window using <code>SetParent</code>.
+          </p>
+          <pre><code><span class="cmt"># Embedding steps:</span>
+<span class="num">1.</span> ShowWindow(hwnd, SW_HIDE)           <span class="cmt"># Hide to prevent flicker</span>
+<span class="num">2.</span> SetWindowLongW(hwnd, GWL_STYLE,     <span class="cmt"># Remove decorations,</span>
+     WS_CHILD | WS_VISIBLE)             <span class="cmt">#   make child window</span>
+<span class="num">3.</span> SetWindowLongW(hwnd, GWL_EXSTYLE,   <span class="cmt"># Hide from taskbar</span>
+     WS_EX_TOOLWINDOW)
+<span class="num">4.</span> SetParent(hwnd, qt_window_handle)    <span class="cmt"># Reparent into OCTAVE</span>
+<span class="num">5.</span> MoveWindow(hwnd, x, y, w, h, True)  <span class="cmt"># Position within layout</span>
+<span class="num">6.</span> ShowWindow(hwnd, SW_SHOW)            <span class="cmt"># Show embedded</span></code></pre>
+          <p>
+            A 16ms update timer (~60 FPS) continuously repositions the embedded window to track QML layout
+            changes. The item connects to geometry change signals (<code>widthChanged</code>, <code>heightChanged</code>,
+            <code>xChanged</code>, <code>yChanged</code>) for immediate updates.
+          </p>
+
+          <h4>Detach / Reattach</h4>
+          <p>
+            When the user navigates away from the phone mirror view, <code>detach()</code> hides the embedded
+            window and stops the update timer. When returning, <code>reattach()</code> re-embeds and shows it.
+            This prevents the embedded window from being visible over other QML pages.
+          </p>
+        </section>
+
+        <section id="pm-imageprovider">
+          <h3>ScrcpyFrameProvider</h3>
+          <p>
+            The <code>ScrcpyFrameProvider</code> extends <code>QQuickImageProvider</code> to serve captured
+            frames directly to QML without file I/O:
+          </p>
+          <pre><code><span class="kw">class</span> <span class="cls">ScrcpyFrameProvider</span>(QQuickImageProvider):
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="prop">self</span>):
+        <span class="fn">super</span>().__init__(QQuickImageProvider.Image)
+        <span class="prop">self</span>._current_image = <span class="num">None</span>
+        <span class="prop">self</span>._lock = threading.Lock()
+
+    <span class="kw">def</span> <span class="fn">requestImage</span>(<span class="prop">self</span>, id, size, requestedSize):
+        <span class="kw">with</span> <span class="prop">self</span>._lock:
+            <span class="kw">if</span> <span class="prop">self</span>._current_image:
+                <span class="kw">return</span> <span class="prop">self</span>._current_image
+            <span class="kw">return</span> QImage(<span class="num">720</span>, <span class="num">1280</span>, QImage.Format_RGB32)</code></pre>
+          <p>
+            QML accesses frames via the <code>image://scrcpyframe/</code> URI scheme. A frame counter is
+            appended to force cache invalidation on each new frame.
+          </p>
+        </section>
+
+        <!-- ===================== ANDROID AUTO ===================== -->
+        <section id="android-auto">
+          <h2>Android Auto</h2>
+          <p>
+            The Android Auto subsystem consists of three files in
+            <span class="file-path">backend/android_auto/</span>:
+          </p>
+          <table>
+            <thead><tr><th>File</th><th>Class</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="file-path">manager.py</span></td>
+                <td><code>AndroidAutoManager</code></td>
+                <td>DHU process lifecycle, ADB setup, window discovery</td>
+              </tr>
+              <tr>
+                <td><span class="file-path">dhu_capture.py</span></td>
+                <td><code>DhuCapture</code>, <code>DhuFrameProvider</code></td>
+                <td>Window capture at 30 FPS, frame streaming, click forwarding</td>
+              </tr>
+              <tr>
+                <td><span class="file-path">embedded_dhu.py</span></td>
+                <td><code>EmbeddedDhuItem</code></td>
+                <td>QQuickItem for direct window embedding</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="aa-manager">
+          <h3>AndroidAutoManager</h3>
+          <p>
+            The <code>AndroidAutoManager</code> in <span class="file-path">backend/android_auto/manager.py</span>
+            manages the full Android Auto lifecycle: finding the DHU executable, preparing ADB connections,
+            launching DHU, and setting up window capture.
+          </p>
+
+          <h4>Signals</h4>
+          <table>
+            <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>connectionProgress</code></td><td><code>str</code></td><td>Human-readable status updates</td></tr>
+              <tr><td><code>error</code></td><td><code>str</code></td><td>Error messages</td></tr>
+              <tr><td><code>dhuWindowReady</code></td><td><code>int</code></td><td>DHU window handle found</td></tr>
+              <tr><td><code>dhuEmbeddedChanged</code></td><td><code>bool</code></td><td>DHU embedding state changed</td></tr>
+            </tbody>
+          </table>
+
+          <h4>Properties</h4>
+          <table>
+            <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>isDhuInstalled</code></td><td><code>bool</code></td><td>Whether Google DHU is found</td></tr>
+              <tr><td><code>dhuPath</code></td><td><code>str</code></td><td>Path to DHU executable</td></tr>
+              <tr><td><code>isDhuEmbedded</code></td><td><code>bool</code></td><td>Whether DHU is currently embedded</td></tr>
+              <tr><td><code>dhuWindowHandle</code></td><td><code>int</code></td><td>Native window handle of DHU</td></tr>
+              <tr><td><code>dhuCapture</code></td><td><code>QObject</code></td><td>The DhuCapture instance (for QML access)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="aa-dhu">
+          <h3>Google DHU Integration</h3>
+          <p>
+            Google's Desktop Head Unit (DHU) is part of the Android SDK and provides a complete Android Auto
+            head unit implementation. OCTAVE discovers it at the standard SDK path:
+          </p>
+          <pre><code><span class="cmt"># SDK_PATH / extras / google / auto / desktop-head-unit[.exe]</span>
+
+<span class="cmt"># Common SDK locations checked:</span>
+Windows: %LOCALAPPDATA%\Android\Sdk
+macOS:   ~/Library/Android/sdk
+Linux:   ~/Android/Sdk, /opt/android-sdk</code></pre>
+
+          <h4>DHU Configuration</h4>
+          <p>
+            Before launching, a config file is written to <code>~/.android/headunit.ini</code>:
+          </p>
+          <pre><code>[general]
+resolution = 1920 1080
+dpi = 160</code></pre>
+        </section>
+
+        <section id="aa-adb-setup">
+          <h3>ADB Connection Setup</h3>
+          <p>
+            The <code>_prepare_adb_connection()</code> method handles the full ADB setup sequence:
+          </p>
+          <ol class="steps">
+            <li>
+              <strong>Check device</strong> -- Run <code>adb devices</code> and verify at least one device
+              is connected and not offline.
+            </li>
+            <li>
+              <strong>Port forwarding</strong> -- Remove existing forwards with <code>adb forward --remove-all</code>,
+              then set up <code>adb forward tcp:5277 tcp:5277</code> (the DHU communication port).
+            </li>
+            <li>
+              <strong>Head unit server</strong> -- Check if the head unit server is running on the phone
+              via <code>dumpsys activity services</code>. If not running, attempt to start it via:
+              <ul>
+                <li><code>am start -n com.google.android.projection.gearhead/.companion.MainActivity</code></li>
+                <li>Fallback: <code>am startservice -n ...DeveloperHeadUnitNetworkService</code></li>
+              </ul>
+              If neither works, wait up to 60 seconds for the user to manually start it.
+            </li>
+          </ol>
+        </section>
+
+        <section id="aa-capture">
+          <h3>DhuCapture &amp; Frame Provider</h3>
+          <p>
+            The <code>DhuCapture</code> class in <span class="file-path">backend/android_auto/dhu_capture.py</span>
+            captures the DHU window at <strong>30 FPS</strong> using the same Windows GDI approach as
+            ScrcpyCapture, with <code>PrintWindow(hwnd, memDC, PW_CLIENTONLY)</code>.
+          </p>
+
+          <h4>DhuFrameProvider</h4>
+          <p>
+            The <code>DhuFrameProvider</code> extends <code>QQuickImageProvider</code> identically to
+            ScrcpyFrameProvider. It returns a default 800x480 placeholder when no frame is available.
+            QML accesses frames via the <code>image://dhuframe/</code> URI scheme.
+          </p>
+
+          <h4>DHU Window Hiding</h4>
+          <p>
+            The DHU is launched minimized (<code>SW_MINIMIZE</code> via <code>STARTUPINFO</code>). An
+            aggressive poll loop (every 100ms, up to 5 seconds) finds the window by title ("Desktop Head Unit"
+            or "Android Auto") and immediately:
+          </p>
+          <pre><code><span class="cmt"># 1. Make it a tool window (hide from taskbar)</span>
+SetWindowLongW(hwnd, GWL_EXSTYLE, old_style | WS_EX_TOOLWINDOW)
+
+<span class="cmt"># 2. Move off-screen</span>
+SetWindowPos(hwnd, <span class="num">0</span>, <span class="num">-3000</span>, <span class="num">-3000</span>, ...)
+
+<span class="cmt"># 3. Restore from minimized (needed for PrintWindow)</span>
+ShowWindow(hwnd, SW_RESTORE)
+
+<span class="cmt"># 4. Ensure it stays off-screen after restore</span>
+SetWindowPos(hwnd, <span class="num">0</span>, <span class="num">-3000</span>, <span class="num">-3000</span>, ...)</code></pre>
+        </section>
+
+        <section id="aa-input">
+          <h3>Touch Input Forwarding</h3>
+          <p>
+            DHU click forwarding is more complex than phone mirror because the DHU window expects
+            direct mouse clicks (not ADB shell input). The <code>sendMouseClick</code> method:
+          </p>
+          <ol class="steps">
+            <li><strong>Save state</strong> -- Capture current cursor position and foreground window</li>
+            <li><strong>Scale coordinates</strong> -- Map from QML's 1920x1080 coordinate space to the actual DHU client area dimensions</li>
+            <li><strong>Make nearly invisible</strong> -- Set <code>WS_EX_LAYERED</code> with alpha=1 (nearly transparent)</li>
+            <li><strong>Move on-screen</strong> -- Position at screen edge (needed for real mouse clicks)</li>
+            <li><strong>Activate and click</strong> -- SetForegroundWindow, convert to screen coords, SetCursorPos, mouse_event</li>
+            <li><strong>Restore</strong> -- Set alpha back to 255, move off-screen, restore cursor and foreground window</li>
+          </ol>
+
+          <div class="info-box tip">
+            <div class="info-box-title">Why Real Clicks?</div>
+            Unlike scrcpy (which uses ADB), the DHU expects standard Windows mouse input. SendMessage-based
+            clicks (<code>WM_LBUTTONDOWN</code>/<code>WM_LBUTTONUP</code>) are available via <code>sendMouseEvent()</code>
+            as an alternative for simpler cases.
+          </div>
+        </section>
+
+        <section id="aa-embedded">
+          <h3>EmbeddedDhuItem</h3>
+          <p>
+            The <code>EmbeddedDhuItem</code> in <span class="file-path">backend/android_auto/embedded_dhu.py</span>
+            mirrors the <code>EmbeddedScrcpyItem</code> pattern -- it embeds the DHU window as a child of
+            the OCTAVE Qt window. The embedding removes decorations (caption, border, system menu,
+            minimize/maximize boxes) and continuously repositions at ~60 FPS.
+          </p>
+          <p>
+            It connects to the <code>AndroidAutoManager</code> via <code>connectToManager()</code> and
+            listens for <code>dhuWindowReady</code> and <code>dhuEmbeddedChanged</code> signals.
+            Detach/reattach behavior is identical to the phone mirror embedded widget.
+          </p>
+        </section>
+
+        <!-- Custom QML Types -->
+        <section id="qml-types">
+          <h2>Custom QML Types</h2>
+          <p>
+            Both systems register custom QML types via <code>qmlRegisterType</code> in
+            <span class="file-path">main.py</span>:
+          </p>
+          <pre><code><span class="cmt"># Phone Mirror</span>
+qmlRegisterType(EmbeddedScrcpyItem, <span class="str">"OCTAVE.PhoneMirror"</span>, <span class="num">1</span>, <span class="num">0</span>, <span class="str">"EmbeddedScrcpyItem"</span>)
+qmlRegisterType(ScrcpyCaptureItem,  <span class="str">"OCTAVE.PhoneMirror"</span>, <span class="num">1</span>, <span class="num">0</span>, <span class="str">"ScrcpyCaptureItem"</span>)
+
+<span class="cmt"># Android Auto</span>
+qmlRegisterType(EmbeddedDhuItem,    <span class="str">"OCTAVE.AndroidAuto"</span>, <span class="num">1</span>, <span class="num">0</span>, <span class="str">"EmbeddedDhuItem"</span>)</code></pre>
+          <p>
+            QML imports these as:
+          </p>
+          <pre><code><span class="kw">import</span> OCTAVE.PhoneMirror <span class="num">1.0</span>
+<span class="kw">import</span> OCTAVE.AndroidAuto <span class="num">1.0</span></code></pre>
+        </section>
+
+        <!-- Image Providers -->
+        <section id="image-providers">
+          <h2>Image Providers</h2>
+          <p>
+            Both frame providers are registered on the QML engine in <span class="file-path">main.py</span>:
+          </p>
+          <table>
+            <thead><tr><th>Provider</th><th>URI Scheme</th><th>Class</th><th>Default Size</th><th>FPS</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>Phone Mirror</td>
+                <td><code>image://scrcpyframe/</code></td>
+                <td><code>ScrcpyFrameProvider</code></td>
+                <td>720x1280 (portrait)</td>
+                <td>60</td>
+              </tr>
+              <tr>
+                <td>Android Auto</td>
+                <td><code>image://dhuframe/</code></td>
+                <td><code>DhuFrameProvider</code></td>
+                <td>800x480 (landscape)</td>
+                <td>30</td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            Both providers use a thread-safe lock to protect the current frame image, since the capture
+            timer runs on the main thread while QML's image loading may happen on a render thread.
+          </p>
+
+          <h3>QML Usage Pattern</h3>
+          <pre><code><span class="cmt">// In QML, refresh the image by changing the source URL</span>
+Image {
+    source: <span class="str">"image://scrcpyframe/"</span> + captureItem.frameCounter
+    cache: <span class="num">false</span>
+}</code></pre>
+        </section>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a class="related-link" href="architecture.html">Architecture Overview</a>
+          <a class="related-link" href="hardware-managers.html">Hardware Managers</a>
+          <a class="related-link" href="getting-started.html">Getting Started</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

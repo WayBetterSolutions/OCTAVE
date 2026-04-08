@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Manager - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Network Manager</div>
+          <h1 class="page-title">Network Manager</h1>
+          <p class="page-subtitle">WiFi connectivity detection, GitHub-based update checking, and self-update capability</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#connectivity">WiFi Connectivity Detection</a></li>
+            <li><a href="#update-checking">Update Checking Mechanism</a></li>
+            <li><a href="#self-update">Self-Update System</a></li>
+            <li><a href="#app-restart">Application Restart</a></li>
+            <li><a href="#device-shutdown">Device Shutdown</a></li>
+            <li><a href="#signals">Signals Reference</a></li>
+            <li><a href="#properties">Properties Reference</a></li>
+            <li><a href="#slots">Slots Reference</a></li>
+            <li><a href="#integration">System Integration</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <section id="overview">
+          <h2>Overview</h2>
+          <p>
+            The <strong>NetworkManager</strong> is responsible for three core functions within OCTAVE: detecting
+            network connectivity status, checking for application updates via the GitHub API, and performing
+            git-based self-updates when running from source. It is defined in
+            <span class="file-path">backend/network_manager.py</span> and registered as a QML context property
+            in <span class="file-path">main.py</span>.
+          </p>
+
+          <div class="info-box info">
+            <div class="info-box-title">Thread Safety</div>
+            All blocking I/O operations (subprocess calls, HTTP requests) run on a background
+            <code>ThreadPoolExecutor</code> with a single worker. Results are polled back to the main Qt thread
+            via a <code>QTimer</code> at 250ms intervals, ensuring signals are always emitted on the main thread.
+          </div>
+
+          <p>
+            The manager targets the GitHub repository <code>WayBetterSolutions/OCTAVE</code> and compares the
+            local git HEAD against the remote <code>main</code> branch to determine update availability.
+          </p>
+        </section>
+
+        <!-- Architecture -->
+        <section id="architecture">
+          <h2>Architecture</h2>
+          <div class="diagram">
+NetworkManager
+  |
+  |-- ThreadPoolExecutor (1 worker)
+  |     |-- _do_network_check()      Network name + internet check
+  |     |-- _do_update_check_sync()  GitHub API comparison
+  |     |-- _do_self_update_sync()   git fetch + reset + verify
+  |
+  |-- QTimer (_poll_timer)           30s network polling
+  |-- QTimer (_result_poll_timer)    250ms result/progress polling
+  |
+  |-- Signals --> QML
+        networkNameChanged(str)
+        isConnectedChanged(bool)
+        updateStatusChanged(str)
+        selfUpdateStatusChanged(str)
+          </div>
+
+          <h3>Background Work Pattern</h3>
+          <p>
+            Only one background job runs at a time. The <code>_submit_work()</code> method accepts a callable
+            and a result type tag, submits to the executor, and starts the result poll timer:
+          </p>
+          <pre><code><span class="kw">def</span> <span class="fn">_submit_work</span>(<span class="prop">self</span>, fn, result_type):
+    <span class="str">"""Submit blocking work to the thread pool. Only one job at a time."""</span>
+    <span class="kw">if</span> <span class="prop">self</span>._pending_future <span class="kw">and not</span> <span class="prop">self</span>._pending_future.done():
+        <span class="kw">return</span>  <span class="cmt"># Already busy</span>
+    <span class="prop">self</span>._pending_future = <span class="prop">self</span>._executor.submit(fn)
+    <span class="prop">self</span>._pending_future._result_type = result_type
+    <span class="prop">self</span>._result_poll_timer.start()</code></pre>
+          <p>
+            When the poll timer fires, <code>_check_pending_result()</code> checks if the future is done,
+            extracts the result, and routes it to the appropriate handler based on the <code>_result_type</code>
+            tag: <code>"network_status"</code>, <code>"update_check"</code>, or <code>"self_update"</code>.
+          </p>
+        </section>
+
+        <!-- Connectivity -->
+        <section id="connectivity">
+          <h2>WiFi Connectivity Detection</h2>
+          <p>
+            Network status is polled every <strong>30 seconds</strong> via <code>_poll_timer</code>, with an
+            initial check 2 seconds after startup to let the UI load first. Each check runs two operations
+            on the worker thread:
+          </p>
+
+          <h3>Network Name Detection</h3>
+          <p>
+            The static method <code>_get_network_name_sync()</code> uses platform-specific commands to
+            determine the active connection name:
+          </p>
+
+          <table>
+            <thead>
+              <tr><th>Platform</th><th>Method</th><th>Command</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="platform-badge linux">Linux</span></td>
+                <td>NetworkManager CLI</td>
+                <td><code>nmcli -t -f ACTIVE,SSID dev wifi</code></td>
+              </tr>
+              <tr>
+                <td><span class="platform-badge desktop">macOS</span></td>
+                <td>networksetup</td>
+                <td><code>networksetup -getairportnetwork en0</code></td>
+              </tr>
+              <tr>
+                <td><span class="platform-badge desktop">Windows</span></td>
+                <td>netsh</td>
+                <td><code>netsh wlan show interfaces</code></td>
+              </tr>
+              <tr>
+                <td><span class="platform-badge android">Android</span></td>
+                <td>dumpsys</td>
+                <td><code>dumpsys wifi</code> (rooted devices)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>Each platform also has a fallback check for wired Ethernet connections. All subprocess calls use a 5-second timeout.</p>
+
+          <h3>Internet Connectivity Check</h3>
+          <p>
+            The <code>_check_internet_sync()</code> method makes a lightweight HTTP request to Google's
+            204-response endpoint:
+          </p>
+          <pre><code><span class="kw">@staticmethod</span>
+<span class="kw">def</span> <span class="fn">_check_internet_sync</span>():
+    <span class="kw">try</span>:
+        urllib.request.urlopen(<span class="str">"https://clients3.google.com/generate_204"</span>, timeout=<span class="num">5</span>)
+        <span class="kw">return</span> <span class="num">True</span>
+    <span class="kw">except</span> Exception:
+        <span class="kw">pass</span>
+    <span class="kw">return</span> <span class="num">False</span></code></pre>
+
+          <h3>Auto Update Check on First Connect</h3>
+          <p>
+            When connectivity is first detected (<code>_auto_update_checked</code> flag), the manager
+            automatically triggers <code>checkForUpdates()</code> with a 500ms delay. This ensures users
+            are notified of available updates as soon as the system comes online.
+          </p>
+        </section>
+
+        <!-- Update Checking -->
+        <section id="update-checking">
+          <h2>Update Checking Mechanism</h2>
+          <p>
+            The update checker compares the local git commit hash against the latest commit on the
+            <code>main</code> branch of the GitHub repository.
+          </p>
+
+          <h3>Step-by-Step Flow</h3>
+          <ol class="steps">
+            <li>
+              <strong>Get local commit hash</strong> -- Runs <code>git rev-parse --short HEAD</code>
+              from the repository root directory to get the 7-character short hash.
+            </li>
+            <li>
+              <strong>Query GitHub API</strong> -- Fetches <code>https://api.github.com/repos/WayBetterSolutions/OCTAVE/commits/main</code>
+              with a <code>User-Agent: OCTAVE-Updater</code> header.
+            </li>
+            <li>
+              <strong>Compare hashes</strong> -- Truncates the remote SHA to 7 characters and compares with the local hash.
+            </li>
+            <li>
+              <strong>Emit result</strong> -- Sets <code>updateStatus</code> to one of: <code>"up-to-date"</code>,
+              <code>"update-available"</code>, or <code>"error"</code>. Also populates the remote commit hash
+              and message for display in the UI.
+            </li>
+          </ol>
+
+          <h3>Update Status Values</h3>
+          <pre><code><span class="cmt"># updateStatus can be one of:</span>
+<span class="str">"checking"</span>          <span class="cmt"># Currently checking</span>
+<span class="str">"up-to-date"</span>        <span class="cmt"># Local matches remote</span>
+<span class="str">"update-available"</span>  <span class="cmt"># Remote has newer commits</span>
+<span class="str">"error"</span>             <span class="cmt"># Check failed (no internet, API error)</span></code></pre>
+        </section>
+
+        <!-- Self-Update -->
+        <section id="self-update">
+          <h2>Self-Update System</h2>
+
+          <div class="info-box warning">
+            <div class="info-box-title">Availability</div>
+            Self-update is only available when running from source (not a frozen PyInstaller build or Android).
+            The <code>canSelfUpdate</code> property checks for git availability and non-frozen execution.
+          </div>
+
+          <h3>Pre-Conditions</h3>
+          <pre><code><span class="kw">@staticmethod</span>
+<span class="kw">def</span> <span class="fn">_check_can_self_update</span>():
+    <span class="kw">from</span> backend.platform_config <span class="kw">import</span> IS_ANDROID
+    <span class="kw">if</span> IS_ANDROID <span class="kw">or</span> <span class="fn">getattr</span>(sys, <span class="str">'frozen'</span>, <span class="num">False</span>):
+        <span class="kw">return</span> <span class="num">False</span>
+    <span class="cmt"># Check git is available</span>
+    result = subprocess.run([<span class="str">'git'</span>, <span class="str">'--version'</span>], ...)
+    <span class="kw">return</span> result.returncode == <span class="num">0</span></code></pre>
+
+          <h3>Update Pipeline (5 Steps)</h3>
+          <p>
+            The <code>_do_self_update_sync()</code> method executes a multi-step pipeline with full rollback
+            capability. A double-tap guard (<code>_updating</code> flag) prevents concurrent update attempts.
+          </p>
+
+          <ol class="steps">
+            <li>
+              <strong>Save rollback point</strong> -- Captures the current full commit hash via
+              <code>git rev-parse HEAD</code>. This is used to roll back if any subsequent step fails.
+            </li>
+            <li>
+              <strong>Fetch latest changes</strong> -- Runs <code>git fetch origin main</code> with a
+              60-second timeout. Progress message: "Fetching latest changes..."
+            </li>
+            <li>
+              <strong>Apply update</strong> -- Runs <code>git reset --hard origin/main</code> with a
+              30-second timeout. This moves the working tree to the latest remote state.
+            </li>
+            <li>
+              <strong>Pre-flight verification</strong> -- Compiles <span class="file-path">main.py</span>
+              with <code>py_compile</code> to catch syntax errors. If the new code fails to parse,
+              the update is <strong>automatically rolled back</strong> to the saved commit.
+            </li>
+            <li>
+              <strong>Install dependencies</strong> -- Locates the venv pip executable and runs
+              <code>pip install -r requirements.txt</code> with a 10-minute timeout. Dependency install
+              failures are logged but do not trigger a rollback, since the code update already succeeded.
+            </li>
+          </ol>
+
+          <h3>Rollback Mechanism</h3>
+          <p>
+            On any failure (syntax check, timeout, unexpected exception), the manager rolls back:
+          </p>
+          <pre><code><span class="kw">if</span> old_commit:
+    subprocess.run(
+        [<span class="str">'git'</span>, <span class="str">'reset'</span>, <span class="str">'--hard'</span>, old_commit],
+        cwd=repo_dir, capture_output=<span class="num">True</span>, text=<span class="num">True</span>, timeout=<span class="num">30</span>
+    )
+    logger.info(<span class="str">f"Rolled back to {old_commit[:7]}"</span>)</code></pre>
+
+          <h3>Progress Reporting</h3>
+          <p>
+            Worker thread progress is relayed through a thread-safe mechanism. The worker calls
+            <code>_set_progress(msg)</code> which stores the message under a lock, and the main-thread
+            poll timer picks it up and emits <code>selfUpdateMessageChanged</code>.
+          </p>
+
+          <h3>Self-Update Status Values</h3>
+          <pre><code><span class="str">"idle"</span>              <span class="cmt"># No update in progress</span>
+<span class="str">"fetching"</span>          <span class="cmt"># Downloading changes</span>
+<span class="str">"error"</span>             <span class="cmt"># Update failed (with rollback)</span>
+<span class="str">"restart-required"</span>  <span class="cmt"># Update applied, restart needed</span></code></pre>
+        </section>
+
+        <!-- App Restart -->
+        <section id="app-restart">
+          <h2>Application Restart</h2>
+          <p>
+            After a successful self-update, the user can trigger <code>restartApp()</code> from QML.
+            This performs a pre-flight syntax check on <span class="file-path">main.py</span> before
+            restarting. The restart mechanism is platform-dependent:
+          </p>
+          <ul>
+            <li><strong>Windows:</strong> Spawns a new process with <code>subprocess.Popen</code>, then calls <code>QApplication.quit()</code></li>
+            <li><strong>Unix (Linux/macOS):</strong> Connects <code>os.execv</code> to the <code>aboutToQuit</code> signal, then calls <code>QApplication.quit()</code>. This replaces the current process in-place after cleanup.</li>
+          </ul>
+
+          <div class="info-box danger">
+            <div class="info-box-title">Restart Safety</div>
+            If the pre-flight syntax check fails, the restart is aborted and the user is notified
+            via <code>selfUpdateMessage</code>. This prevents booting into broken code.
+          </div>
+        </section>
+
+        <!-- Device Shutdown -->
+        <section id="device-shutdown">
+          <h2>Device Shutdown</h2>
+          <p>
+            The <code>shutdown_device()</code> slot provides a clean shutdown sequence for vehicle-mounted
+            installations: it schedules an OS power-off command and then quits the OCTAVE application.
+          </p>
+          <pre><code><span class="cmt"># Platform-specific shutdown commands:</span>
+Linux:   systemctl --no-block poweroff
+macOS:   sudo shutdown -h +0
+Windows: shutdown /s /t 5</code></pre>
+        </section>
+
+        <!-- Signals -->
+        <section id="signals">
+          <h2>Signals Reference</h2>
+          <table>
+            <thead>
+              <tr><th>Signal</th><th>Parameters</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>networkNameChanged</code></td><td><code>str</code></td><td>WiFi SSID or "Ethernet" changed</td></tr>
+              <tr><td><code>isConnectedChanged</code></td><td><code>bool</code></td><td>Internet reachability changed</td></tr>
+              <tr><td><code>updateStatusChanged</code></td><td><code>str</code></td><td>Update check state changed</td></tr>
+              <tr><td><code>updateMessageChanged</code></td><td><code>str</code></td><td>Human-readable update status</td></tr>
+              <tr><td><code>remoteCommitChanged</code></td><td><code>str</code></td><td>Latest remote commit hash</td></tr>
+              <tr><td><code>remoteCommitMsgChanged</code></td><td><code>str</code></td><td>Latest remote commit message</td></tr>
+              <tr><td><code>selfUpdateStatusChanged</code></td><td><code>str</code></td><td>Self-update state machine</td></tr>
+              <tr><td><code>selfUpdateMessageChanged</code></td><td><code>str</code></td><td>Self-update progress text</td></tr>
+              <tr><td><code>canSelfUpdateChanged</code></td><td><code>bool</code></td><td>Whether git-based update is possible</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Properties -->
+        <section id="properties">
+          <h2>Properties Reference</h2>
+          <table>
+            <thead>
+              <tr><th>Property</th><th>Type</th><th>Notify Signal</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>networkName</code></td><td><code>str</code></td><td><code>networkNameChanged</code></td><td>Current WiFi SSID or "Ethernet"</td></tr>
+              <tr><td><code>isConnected</code></td><td><code>bool</code></td><td><code>isConnectedChanged</code></td><td>True if internet is reachable</td></tr>
+              <tr><td><code>updateStatus</code></td><td><code>str</code></td><td><code>updateStatusChanged</code></td><td>Current update check status</td></tr>
+              <tr><td><code>updateMessage</code></td><td><code>str</code></td><td><code>updateMessageChanged</code></td><td>Human-readable update message</td></tr>
+              <tr><td><code>remoteCommit</code></td><td><code>str</code></td><td><code>remoteCommitChanged</code></td><td>Latest remote commit short hash</td></tr>
+              <tr><td><code>remoteCommitMsg</code></td><td><code>str</code></td><td><code>remoteCommitMsgChanged</code></td><td>Latest remote commit message</td></tr>
+              <tr><td><code>selfUpdateStatus</code></td><td><code>str</code></td><td><code>selfUpdateStatusChanged</code></td><td>Self-update state</td></tr>
+              <tr><td><code>selfUpdateMessage</code></td><td><code>str</code></td><td><code>selfUpdateMessageChanged</code></td><td>Self-update progress message</td></tr>
+              <tr><td><code>canSelfUpdate</code></td><td><code>bool</code></td><td><code>canSelfUpdateChanged</code></td><td>Git-based self-update available</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Slots -->
+        <section id="slots">
+          <h2>Slots Reference</h2>
+          <table>
+            <thead>
+              <tr><th>Slot</th><th>Parameters</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>refreshNetwork()</code></td><td>--</td><td>Manually trigger a network status check</td></tr>
+              <tr><td><code>checkForUpdates()</code></td><td>--</td><td>Start a GitHub update check</td></tr>
+              <tr><td><code>applySelfUpdate()</code></td><td>--</td><td>Begin the git self-update pipeline</td></tr>
+              <tr><td><code>restartApp()</code></td><td>--</td><td>Restart the OCTAVE application</td></tr>
+              <tr><td><code>shutdown_device()</code></td><td>--</td><td>Shut down the host OS and quit OCTAVE</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Integration -->
+        <section id="integration">
+          <h2>System Integration</h2>
+          <p>
+            The NetworkManager is registered in <span class="file-path">main.py</span> as a QML context property:
+          </p>
+          <pre><code>engine.rootContext().setContextProperty(<span class="str">"networkManager"</span>, network_manager)</code></pre>
+          <p>
+            QML views access it directly for network status display and update management:
+          </p>
+          <pre><code><span class="cmt">// Check for updates from QML</span>
+networkManager.checkForUpdates()
+
+<span class="cmt">// Display network name</span>
+Text { text: networkManager.networkName }
+
+<span class="cmt">// Show update notification</span>
+<span class="kw">visible</span>: networkManager.updateStatus === <span class="str">"update-available"</span>
+
+<span class="cmt">// Apply update and restart</span>
+networkManager.applySelfUpdate()
+<span class="cmt">// When selfUpdateStatus === "restart-required":</span>
+networkManager.restartApp()</code></pre>
+
+          <h3>Cleanup</h3>
+          <p>
+            The <code>cleanup()</code> method stops both QTimers and shuts down the thread pool. It should
+            be called from the application's <code>aboutToQuit</code> handler.
+          </p>
+
+          <h3>Timers Summary</h3>
+          <table>
+            <thead>
+              <tr><th>Timer</th><th>Interval</th><th>Purpose</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>_poll_timer</code></td><td>30,000ms</td><td>Periodic network status check</td></tr>
+              <tr><td><code>_result_poll_timer</code></td><td>250ms</td><td>Poll for background task completion and progress</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a class="related-link" href="architecture.html">Architecture Overview</a>
+          <a class="related-link" href="getting-started.html">Getting Started</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

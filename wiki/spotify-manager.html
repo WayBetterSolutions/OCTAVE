@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify Manager - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Spotify Manager</div>
+          <h1 class="page-title">Spotify Manager</h1>
+          <p class="page-subtitle">Spotify Connect integration with OAuth2 authentication, secure token storage, and async API calls</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#dependencies">Dependencies</a></li>
+            <li><a href="#credential-setup">Credential Setup</a></li>
+            <li><a href="#oauth-flow">OAuth2 Authentication Flow</a></li>
+            <li><a href="#keyring-storage">Keyring Token Storage</a></li>
+            <li><a href="#async-pattern">Async API Call Pattern</a></li>
+            <li><a href="#playback-control">Playback Control</a></li>
+            <li><a href="#position-interpolation">Position Interpolation</a></li>
+            <li><a href="#device-management">Device Management</a></li>
+            <li><a href="#playlist-management">Playlist Management</a></li>
+            <li><a href="#queue-and-sidecards">Queue and Side Cards</a></li>
+            <li><a href="#album-art-theming">Album Art Theming</a></li>
+            <li><a href="#disconnect-cleanup">Disconnect and Cleanup</a></li>
+            <li><a href="#error-handling">Error Handling</a></li>
+            <li><a href="#signals">Key Signals</a></li>
+            <li><a href="#slots">Key Slots</a></li>
+            <li><a href="#related">Related Pages</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <h2 id="overview">Overview</h2>
+        <p>
+          The <code>SpotifyManager</code> class in <span class="file-path">backend/spotify_manager.py</span> controls
+          Spotify playback on connected devices (phone, desktop, smart speaker, etc.) via the Spotify Web API.
+          It mirrors the <code>MediaManager</code> signal interface so QML can treat both local and Spotify
+          playback through a unified UI.
+        </p>
+        <p>
+          SpotifyManager does <strong>not</strong> play audio directly -- it acts as a remote control for
+          Spotify Connect devices, sending play/pause/skip/seek/volume commands over the API and polling
+          for playback state updates every 3 seconds.
+        </p>
+
+        <span class="platform-badge desktop">Desktop</span>
+
+        <!-- Dependencies -->
+        <h2 id="dependencies">Dependencies</h2>
+        <table>
+          <thead>
+            <tr><th>Package</th><th>Purpose</th><th>Required?</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>spotipy</code></td><td>Spotify Web API wrapper and OAuth2 management</td><td>Yes (graceful degradation if missing)</td></tr>
+            <tr><td><code>keyring</code></td><td>Secure OS-level token storage (Keychain, Credential Manager)</td><td>Optional (falls back to file cache)</td></tr>
+          </tbody>
+        </table>
+
+        <p>Both libraries are checked at import time with feature flags:</p>
+        <pre><code><span class="kw">try</span>:
+    <span class="kw">import</span> spotipy
+    <span class="kw">from</span> spotipy.oauth2 <span class="kw">import</span> SpotifyOAuth
+    SPOTIPY_AVAILABLE = <span class="kw">True</span>
+<span class="kw">except</span> ImportError:
+    SPOTIPY_AVAILABLE = <span class="kw">False</span>
+
+<span class="kw">try</span>:
+    <span class="kw">import</span> keyring
+    KEYRING_AVAILABLE = <span class="kw">True</span>
+<span class="kw">except</span> ImportError:
+    KEYRING_AVAILABLE = <span class="kw">False</span></code></pre>
+
+        <!-- Credential Setup -->
+        <h2 id="credential-setup">Credential Setup</h2>
+        <p>
+          Users must provide a Spotify Developer application's Client ID and Client Secret. These are stored
+          in <code>settingsConfigure.json</code> via SettingsManager:
+        </p>
+        <pre><code>@Slot(<span class="cls">str</span>, <span class="cls">str</span>)
+<span class="kw">def</span> <span class="fn">set_credentials</span>(self, client_id, client_secret):
+    self._client_id = client_id
+    self._client_secret = client_secret
+    <span class="kw">if</span> self._settings_manager:
+        self._settings_manager.save_spotify_credentials(client_id, client_secret)</code></pre>
+
+        <p>
+          Credentials are loaded from SettingsManager when <code>connect_settings_manager()</code> is called
+          during app initialization.
+        </p>
+
+        <div class="info-box warning">
+          <div class="info-box-title">Security Note</div>
+          Client ID and Secret are stored in the settings JSON file, not in the OS keychain.
+          Only the <strong>OAuth tokens</strong> are stored securely via keyring. The redirect URI is
+          hardcoded to <code>http://127.0.0.1:8888/callback</code>.
+        </div>
+
+        <!-- OAuth Flow -->
+        <h2 id="oauth-flow">OAuth2 Authentication Flow</h2>
+        <p>
+          The <code>authenticate()</code> method implements the full OAuth2 Authorization Code flow with
+          CSRF protection:
+        </p>
+
+        <div class="diagram">
++------------------+     +------------------+     +------------------+
+|   OCTAVE QML     |     | SpotifyManager   |     |  Spotify API     |
+|                  |     |                  |     |                  |
+| authenticate() --|---->| Check cached     |     |                  |
+|                  |     | token via        |     |                  |
+|                  |     | KeyringCache     |     |                  |
+|                  |     |                  |     |                  |
+|                  |     | If cached:       |     |                  |
+|                  |     |  Create client --|---->| Validate token   |
+|                  |     |  Start polling   |     |                  |
+|                  |     |                  |     |                  |
+|                  |     | If no token:     |     |                  |
+|                  |     |  Generate state  |     |                  |
+|  authUrlReady <--|-----|- Get auth URL   |     |                  |
+|  (open browser)  |     |  Start HTTP srv  |     |                  |
+|                  |     |  on :8888        |     |                  |
+|                  |     |                  |     |                  |
+|                  |     | Callback:        |     |                  |
+|                  |     |  Validate state  |     |                  |
+|                  |     |  Exchange code --|---->| Return tokens    |
+|                  |     |  _authCompleted  |     |                  |
+|                  |     |  (main thread)   |     |                  |
++------------------+     +------------------+     +------------------+
+        </div>
+
+        <h3>Required OAuth Scopes</h3>
+        <pre><code>scope = (
+    <span class="str">"user-read-playback-state "</span>
+    <span class="str">"user-modify-playback-state "</span>
+    <span class="str">"user-read-currently-playing "</span>
+    <span class="str">"playlist-read-private "</span>
+    <span class="str">"playlist-read-collaborative "</span>
+    <span class="str">"user-library-read"</span>
+)</code></pre>
+
+        <h3>CSRF Protection</h3>
+        <p>
+          A cryptographically random state parameter is generated via <code>secrets.token_urlsafe(32)</code>
+          and stored in <code>self._oauth_state</code>. The callback handler validates this state before
+          accepting the authorization code:
+        </p>
+        <pre><code>received_state = params.get(<span class="str">'state'</span>, [<span class="kw">None</span>])[<span class="num">0</span>]
+<span class="kw">if</span> received_state != manager._oauth_state:
+    <span class="cmt"># Return 403 - possible CSRF attack</span>
+    manager.errorOccurred.emit(<span class="str">"OAuth state mismatch"</span>)
+    <span class="kw">return</span></code></pre>
+
+        <h3>Local Callback Server</h3>
+        <p>
+          A one-shot HTTP server runs on <code>127.0.0.1:8888</code> in a daemon thread. It handles a single
+          request (the OAuth callback) with a 2-minute timeout, then shuts down. The server class is defined
+          inline as <code>CallbackHandler(BaseHTTPRequestHandler)</code>.
+        </p>
+
+        <h3>Thread-Safe Post-Auth Setup</h3>
+        <p>
+          After the callback receives the token, the auth_manager is stored in <code>_pending_auth_manager</code>
+          and the internal <code>_authCompleted</code> signal is emitted. This signal is connected to
+          <code>_on_auth_completed()</code> which runs on the main thread and sets up the Spotipy client,
+          starts polling timers, and refreshes devices and playlists.
+        </p>
+
+        <!-- Keyring Storage -->
+        <h2 id="keyring-storage">Keyring Token Storage</h2>
+        <p>
+          The <code>KeyringCacheHandler</code> class implements Spotipy's <code>CacheHandler</code> interface
+          to store OAuth tokens securely in the OS keychain:
+        </p>
+        <table>
+          <thead>
+            <tr><th>Platform</th><th>Storage Backend</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Windows</td><td>Windows Credential Manager</td></tr>
+            <tr><td>macOS</td><td>macOS Keychain</td></tr>
+            <tr><td>Linux</td><td>Secret Service (GNOME Keyring / KWallet)</td></tr>
+          </tbody>
+        </table>
+
+        <pre><code><span class="kw">class</span> <span class="cls">KeyringCacheHandler</span>(_CacheHandlerBase):
+    SERVICE_NAME = <span class="str">"OCTAVE_Spotify"</span>
+    USERNAME = <span class="str">"spotify_token"</span>
+
+    <span class="kw">def</span> <span class="fn">get_cached_token</span>(self):
+        <span class="kw">if</span> KEYRING_AVAILABLE:
+            token_string = keyring.get_password(self.SERVICE_NAME, self.USERNAME)
+            <span class="kw">if</span> token_string:
+                <span class="kw">return</span> json.loads(token_string)
+        <span class="cmt"># Fallback to file cache</span>
+        <span class="kw">if</span> os.path.exists(self._cache_file):
+            <span class="kw">with</span> open(self._cache_file, <span class="str">'r'</span>) <span class="kw">as</span> f:
+                <span class="kw">return</span> json.load(f)
+        <span class="kw">return</span> <span class="kw">None</span></code></pre>
+
+        <p>
+          If keyring is unavailable, tokens fall back to a file-based cache at
+          <code>backend/.spotify_token_cache</code>.
+        </p>
+
+        <p>Key methods:</p>
+        <ul>
+          <li><code>get_cached_token()</code> - Read from keyring, fall back to file</li>
+          <li><code>save_token_to_cache(token_info)</code> - Write to keyring, fall back to file</li>
+          <li><code>delete_cached_token()</code> - Remove from both keyring and file</li>
+        </ul>
+
+        <!-- Async Pattern -->
+        <h2 id="async-pattern">Async API Call Pattern</h2>
+        <p>
+          All Spotify API calls run asynchronously via a <code>ThreadPoolExecutor</code> with a maximum of
+          2 concurrent workers (to avoid rate limiting):
+        </p>
+        <pre><code>self._executor = ThreadPoolExecutor(max_workers=<span class="num">2</span>)</code></pre>
+
+        <h3>The <code>_run_async()</code> Helper</h3>
+        <pre><code><span class="kw">def</span> <span class="fn">_run_async</span>(self, func, success_callback=<span class="kw">None</span>, error_msg=<span class="str">"Operation failed"</span>):
+    <span class="kw">def</span> <span class="fn">on_done</span>(future):
+        <span class="kw">if not</span> self._sp:  <span class="cmt"># Skip if shutting down</span>
+            <span class="kw">return</span>
+        <span class="kw">try</span>:
+            result = future.result()
+            <span class="kw">if</span> success_callback:
+                QMetaObject.invokeMethod(self, success_callback, Qt.QueuedConnection)
+        <span class="kw">except</span> Exception <span class="kw">as</span> e:
+            <span class="kw">if</span> self._sp:
+                self.errorOccurred.emit(f<span class="str">"{error_msg}: {str(e)}"</span>)
+    self._executor.submit(func).add_done_callback(on_done)</code></pre>
+
+        <h3>Internal Signals for Thread Safety</h3>
+        <p>
+          Results from background threads are delivered to the main thread via internal signals that are
+          connected in the constructor:
+        </p>
+        <table>
+          <thead>
+            <tr><th>Internal Signal</th><th>Connected To</th><th>Purpose</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>_playbackStateReady</code></td><td><code>_handle_playback_state</code></td><td>Playback poll results</td></tr>
+            <tr><td><code>_queueReady</code></td><td><code>_handle_queue_result</code></td><td>Queue data for side cards</td></tr>
+            <tr><td><code>_colorsReady</code></td><td><code>_handle_colors_result</code></td><td>Album art theme colors</td></tr>
+            <tr><td><code>_devicesReady</code></td><td><code>_handle_devices_result</code></td><td>Available Spotify devices</td></tr>
+            <tr><td><code>_playlistsReady</code></td><td><code>_handle_playlists_result</code></td><td>User playlists</td></tr>
+            <tr><td><code>_authCompleted</code></td><td><code>_on_auth_completed</code></td><td>Post-OAuth setup</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Optimistic UI Updates</h3>
+        <p>
+          Playback commands (play, pause, shuffle, seek, volume) apply <strong>optimistic UI updates</strong> --
+          the local state and QML signals are updated immediately before the API call completes. This makes
+          the UI feel instant even with network latency:
+        </p>
+        <pre><code>@Slot()
+<span class="kw">def</span> <span class="fn">play</span>(self):
+    <span class="cmt"># Optimistic UI update</span>
+    self._is_playing = <span class="kw">True</span>
+    self.playStateChanged.emit(<span class="kw">True</span>)
+    <span class="cmt"># Actual API call runs in background</span>
+    <span class="kw">def</span> <span class="fn">do_play</span>():
+        self._sp.start_playback(device_id=self._active_device_id)
+    self._run_async(do_play, error_msg=<span class="str">"Play failed"</span>)</code></pre>
+
+        <!-- Playback Control -->
+        <h2 id="playback-control">Playback Control</h2>
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>API Method</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>play()</code></td><td><code>start_playback()</code></td><td>Resume playback on active device</td></tr>
+            <tr><td><code>pause()</code></td><td><code>pause_playback()</code></td><td>Pause playback</td></tr>
+            <tr><td><code>toggle_play()</code></td><td>-</td><td>Toggle between play and pause</td></tr>
+            <tr><td><code>next_track()</code></td><td><code>next_track()</code></td><td>Skip to next track</td></tr>
+            <tr><td><code>previous_track()</code></td><td><code>previous_track()</code></td><td>Skip to previous track</td></tr>
+            <tr><td><code>set_position(ms)</code></td><td><code>seek_track()</code></td><td>Seek to position in ms</td></tr>
+            <tr><td><code>set_volume(percent)</code></td><td><code>volume()</code></td><td>Set volume 0-100</td></tr>
+            <tr><td><code>toggle_shuffle()</code></td><td><code>shuffle()</code></td><td>Toggle shuffle mode</td></tr>
+            <tr><td><code>play_uri(uri)</code></td><td><code>start_playback()</code></td><td>Play a specific track/album/playlist URI</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Playing a Specific Track in Playlist Context</h3>
+        <p>
+          When <code>play_uri()</code> is called with a track URI and a playlist is loaded, it plays the
+          track within the playlist context (so next/previous follow the playlist order):
+        </p>
+        <pre><code><span class="kw">if</span> uri.startswith(<span class="str">'spotify:track:'</span>):
+    <span class="kw">if</span> playlist_id:
+        playlist_uri = f<span class="str">"spotify:playlist:{playlist_id}"</span>
+        <span class="cmt"># Find the track's offset in the playlist</span>
+        <span class="kw">for</span> i, track <span class="kw">in</span> enumerate(tracks):
+            <span class="kw">if</span> track.get(<span class="str">'uri'</span>) == uri:
+                offset = i; <span class="kw">break</span>
+        self._sp.start_playback(context_uri=playlist_uri, offset={<span class="str">"position"</span>: offset})
+    <span class="kw">else</span>:
+        self._sp.start_playback(uris=[uri])</code></pre>
+
+        <!-- Position Interpolation -->
+        <h2 id="position-interpolation">Position Interpolation</h2>
+        <p>
+          The Spotify API is polled every 3 seconds (<code>_poll_timer</code>), but the UI progress bar needs
+          smooth updates. A fast local timer (<code>_interpolation_timer</code>, 250ms interval) interpolates
+          the position between API polls:
+        </p>
+        <pre><code><span class="cmt"># Poll timer: actual API calls every 3 seconds</span>
+self._poll_timer = QTimer()
+self._poll_timer.setInterval(<span class="num">3000</span>)
+self._poll_timer.timeout.connect(self._poll_playback_state)
+
+<span class="cmt"># Interpolation timer: smooth UI updates 4x per second (no API calls)</span>
+self._interpolation_timer = QTimer()
+self._interpolation_timer.setInterval(<span class="num">250</span>)
+self._interpolation_timer.timeout.connect(self._interpolate_position)</code></pre>
+
+        <p>
+          The interpolation uses <code>_last_known_position_ms</code> and <code>_last_poll_timestamp</code>
+          to calculate the estimated current position based on elapsed wall-clock time.
+        </p>
+
+        <!-- Device Management -->
+        <h2 id="device-management">Device Management</h2>
+        <p>
+          Spotify Connect devices (phones, speakers, desktops) are discovered via the
+          <code>current_user_devices()</code> API and stored as a list of dicts:
+        </p>
+        <pre><code>{
+    <span class="str">'id'</span>: <span class="str">"device_id_string"</span>,
+    <span class="str">'name'</span>: <span class="str">"Living Room Speaker"</span>,
+    <span class="str">'type'</span>: <span class="str">"Speaker"</span>,
+    <span class="str">'is_active'</span>: <span class="kw">True</span>,
+    <span class="str">'volume'</span>: <span class="num">65</span>
+}</code></pre>
+
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>refresh_devices()</code></td><td>Triggers async device refresh, emits <code>devicesChanged</code></td></tr>
+            <tr><td><code>set_active_device(device_id)</code></td><td>Transfers playback to a specific device via <code>transfer_playback()</code></td></tr>
+            <tr><td><code>get_devices()</code></td><td>Returns cached device list</td></tr>
+          </tbody>
+        </table>
+
+        <p>
+          The active device ID is tracked in <code>_active_device_id</code> and passed to all playback
+          commands. When devices are refreshed, the first active device is automatically selected.
+        </p>
+
+        <!-- Playlist Management -->
+        <h2 id="playlist-management">Playlist Management</h2>
+        <p>
+          User playlists are fetched from the API (limit 50) and stored as a list of dicts:
+        </p>
+        <pre><code>{
+    <span class="str">'id'</span>: <span class="str">"playlist_id"</span>,
+    <span class="str">'name'</span>: <span class="str">"My Playlist"</span>,
+    <span class="str">'uri'</span>: <span class="str">"spotify:playlist:..."</span>,
+    <span class="str">'track_count'</span>: <span class="num">42</span>,
+    <span class="str">'image'</span>: <span class="str">"https://i.scdn.co/image/..."</span>
+}</code></pre>
+
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>get_playlists()</code></td><td>Returns cached playlist list</td></tr>
+            <tr><td><code>get_playlist_tracks(playlist_id)</code></td><td>Fetches up to 100 tracks from a playlist. Returns list of track dicts with id, name, uri, artist, album, duration_ms, image.</td></tr>
+            <tr><td><code>select_spotify_playlist(playlist_id)</code></td><td>Loads tracks, sets current playlist, emits <code>spotifyTracksChanged</code> and <code>currentSpotifyPlaylistChanged</code></td></tr>
+          </tbody>
+        </table>
+
+        <!-- Queue and Side Cards -->
+        <h2 id="queue-and-sidecards">Queue and Side Cards</h2>
+        <p>
+          When no playlist is loaded, SpotifyManager fetches the Spotify queue to populate the 3D album
+          preview side cards. The queue is cached in <code>_cached_queue</code> (list of track dicts with
+          name, artist, album, image) and the previous track is stored in <code>_previous_track</code>.
+        </p>
+        <p>
+          The <code>queueUpdated</code> signal is emitted when queue data is ready, allowing QML to update
+          side card artwork.
+        </p>
+
+        <!-- Album Art Theming -->
+        <h2 id="album-art-theming">Album Art Theming</h2>
+        <p>
+          Like MediaManager, SpotifyManager supports the "Album Art Capture" theme. When active
+          (<code>_album_art_capture_active</code>), it downloads album art from the Spotify image URL,
+          extracts dominant colors, and pushes the theme JSON to SettingsManager via
+          <code>set_album_art_colors()</code>.
+        </p>
+        <p>
+          A deduplication check (<code>_last_extracted_image_url</code>) prevents re-extracting colors
+          when the same track's art URL is seen again.
+        </p>
+
+        <!-- Disconnect and Cleanup -->
+        <h2 id="disconnect-cleanup">Disconnect and Cleanup</h2>
+
+        <h3>Disconnect</h3>
+        <pre><code>@Slot()
+<span class="kw">def</span> <span class="fn">disconnect</span>(self):
+    self._poll_timer.stop()
+    self._interpolation_timer.stop()
+    self._sp = <span class="kw">None</span>
+    self._is_connected = <span class="kw">False</span>
+    self._cache_handler.delete_cached_token()  <span class="cmt"># Remove from keychain</span>
+    self.connectionStateChanged.emit(<span class="kw">False</span>)</code></pre>
+
+        <h3>Cleanup (App Exit)</h3>
+        <pre><code>@Slot()
+<span class="kw">def</span> <span class="fn">cleanup</span>(self):
+    self._poll_timer.stop()
+    self._interpolation_timer.stop()
+    self._is_connected = <span class="kw">False</span>
+    self._sp = <span class="kw">None</span>
+    self._executor.shutdown(wait=<span class="kw">False</span>, cancel_futures=<span class="kw">True</span>)</code></pre>
+
+        <!-- Error Handling -->
+        <h2 id="error-handling">Error Handling</h2>
+        <p>
+          Errors are handled at multiple levels:
+        </p>
+        <ul>
+          <li><strong>Import failures</strong>: <code>SPOTIPY_AVAILABLE</code> and <code>KEYRING_AVAILABLE</code> flags allow graceful degradation</li>
+          <li><strong>Authentication errors</strong>: Caught and emitted via <code>errorOccurred</code> signal</li>
+          <li><strong>API call failures</strong>: The <code>_run_async</code> callback catches exceptions and emits errors (only if not shutting down)</li>
+          <li><strong>Shutdown safety</strong>: All callbacks check <code>self._sp</code> before proceeding to avoid crashes during cleanup</li>
+          <li><strong>Duplicate prevention</strong>: <code>_poll_in_progress</code> flag prevents overlapping poll requests</li>
+        </ul>
+
+        <p>The <code>statusProgress</code> signal provides terminal-style feedback with prefixes:</p>
+        <ul>
+          <li><code>[INFO]</code> - Informational messages</li>
+          <li><code>[SUCCESS]</code> - Successful operations</li>
+          <li><code>[ERROR]</code> - Error messages</li>
+          <li><code>[WARN]</code> - Warnings (e.g., no devices found)</li>
+          <li><code>[FOUND]</code> - Discovery results</li>
+          <li><code>[DONE]</code> - Operation complete</li>
+        </ul>
+
+        <!-- Key Signals -->
+        <h2 id="signals">Key Signals</h2>
+        <table>
+          <thead>
+            <tr><th>Signal</th><th>Type</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>connectionStateChanged</code></td><td>bool</td><td>True when authenticated and connected</td></tr>
+            <tr><td><code>errorOccurred</code></td><td>str</td><td>Error message from any operation</td></tr>
+            <tr><td><code>playStateChanged</code></td><td>bool</td><td>Playing/paused state (mirrors MediaManager)</td></tr>
+            <tr><td><code>currentTrackChanged</code></td><td>str, str, str, str</td><td>Title, artist, album, art_url</td></tr>
+            <tr><td><code>durationChanged</code></td><td>int</td><td>Track duration in ms</td></tr>
+            <tr><td><code>positionChanged</code></td><td>int</td><td>Playback position in ms (interpolated)</td></tr>
+            <tr><td><code>shuffleStateChanged</code></td><td>bool</td><td>Shuffle mode toggled</td></tr>
+            <tr><td><code>volumeChanged</code></td><td>int</td><td>Volume 0-100</td></tr>
+            <tr><td><code>devicesChanged</code></td><td>list</td><td>Available Spotify Connect devices updated</td></tr>
+            <tr><td><code>activeDeviceChanged</code></td><td>str</td><td>Active device name changed</td></tr>
+            <tr><td><code>playlistsChanged</code></td><td>list</td><td>User playlists refreshed</td></tr>
+            <tr><td><code>spotifyTracksChanged</code></td><td>list</td><td>Tracks from selected playlist</td></tr>
+            <tr><td><code>currentSpotifyPlaylistChanged</code></td><td>str</td><td>Active playlist name</td></tr>
+            <tr><td><code>authUrlReady</code></td><td>str</td><td>OAuth URL for browser authentication</td></tr>
+            <tr><td><code>statusProgress</code></td><td>str</td><td>Terminal-style status messages</td></tr>
+            <tr><td><code>albumColorsExtracted</code></td><td>str</td><td>Theme colors JSON from album art</td></tr>
+            <tr><td><code>queueUpdated</code></td><td>(none)</td><td>Queue data ready for side cards</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Key Slots -->
+        <h2 id="slots">Key Slots</h2>
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Signature</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>is_available</code></td><td>() -> bool</td><td>Check if spotipy is installed</td></tr>
+            <tr><td><code>is_connected</code></td><td>() -> bool</td><td>Check authentication status</td></tr>
+            <tr><td><code>has_credentials</code></td><td>() -> bool</td><td>Check if client ID/secret are set</td></tr>
+            <tr><td><code>set_credentials</code></td><td>(str, str)</td><td>Set client ID and secret</td></tr>
+            <tr><td><code>authenticate</code></td><td>()</td><td>Start OAuth flow</td></tr>
+            <tr><td><code>disconnect</code></td><td>()</td><td>Disconnect and clear tokens</td></tr>
+            <tr><td><code>cleanup</code></td><td>()</td><td>Stop timers and shutdown executor</td></tr>
+            <tr><td><code>play</code></td><td>()</td><td>Resume playback</td></tr>
+            <tr><td><code>pause</code></td><td>()</td><td>Pause playback</td></tr>
+            <tr><td><code>toggle_play</code></td><td>()</td><td>Toggle play/pause</td></tr>
+            <tr><td><code>next_track</code></td><td>()</td><td>Skip to next track</td></tr>
+            <tr><td><code>previous_track</code></td><td>()</td><td>Skip to previous track</td></tr>
+            <tr><td><code>set_position</code></td><td>(int)</td><td>Seek to position in ms</td></tr>
+            <tr><td><code>set_volume</code></td><td>(int)</td><td>Set volume 0-100</td></tr>
+            <tr><td><code>toggle_shuffle</code></td><td>()</td><td>Toggle shuffle mode</td></tr>
+            <tr><td><code>play_uri</code></td><td>(str)</td><td>Play track/album/playlist URI</td></tr>
+            <tr><td><code>refresh_devices</code></td><td>()</td><td>Refresh device list</td></tr>
+            <tr><td><code>set_active_device</code></td><td>(str)</td><td>Transfer playback to device</td></tr>
+            <tr><td><code>get_devices</code></td><td>() -> list</td><td>Get cached device list</td></tr>
+            <tr><td><code>get_playlists</code></td><td>() -> list</td><td>Get cached playlist list</td></tr>
+            <tr><td><code>select_spotify_playlist</code></td><td>(str)</td><td>Load playlist tracks</td></tr>
+            <tr><td><code>connect_settings_manager</code></td><td>(QObject)</td><td>Connect to settings for credentials</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Related Pages -->
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="settings-manager.html" class="related-link">Settings Manager</a>
+          <a href="media-manager.html" class="related-link">Media Manager</a>
+          <a href="obd-manager.html" class="related-link">OBD Manager</a>
+          <a href="architecture.html" class="related-link">Architecture Overview</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signals &amp; Slots Reference - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Signals &amp; Slots Reference</div>
+          <h1 class="page-title">Signals &amp; Slots Reference</h1>
+          <p class="page-subtitle">Complete API reference for every Signal, Slot, and Property exposed to QML by backend managers.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#media-manager">MediaManager</a></li>
+            <li><a href="#spotify-manager">SpotifyManager</a></li>
+            <li><a href="#obd-manager">OBDManager</a></li>
+            <li><a href="#settings-manager">SettingsManager</a></li>
+            <li><a href="#clock">Clock</a></li>
+            <li><a href="#esp32-volume">ESP32VolumeManager</a></li>
+            <li><a href="#berryimu">BerryIMUManager</a></li>
+            <li><a href="#gesture">GestureManager</a></li>
+            <li><a href="#audio-analyzer">AudioAnalyzer</a></li>
+            <li><a href="#perf-monitor">PerfMonitor</a></li>
+          </ul>
+        </nav>
+
+        <div class="info-box info">
+          <strong>Context Properties:</strong> All managers are registered in <span class="file-path">main.py</span> via <code>engine.rootContext().setContextProperty()</code>. QML accesses them by name: <code>mediaManager.next_track()</code>, <code>settingsManager.themeSetting</code>, etc.
+        </div>
+
+        <!-- MediaManager -->
+        <h2 id="media-manager">MediaManager</h2>
+        <p><span class="file-path">backend/media_manager.py</span> &mdash; QML name: <code>mediaManager</code></p>
+        <p>Local MP3/M4A/FLAC/OGG/OPUS/WAV playback via QMediaPlayer. Manages playlists, metadata, album art extraction, and color theming.</p>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>playbackStateChanged</code></td><td>int (QMediaPlayer state)</td><td>Player state changes (playing/paused/stopped)</td></tr>
+            <tr><td><code>playStateChanged</code></td><td>bool (isPlaying)</td><td>Play/pause state toggles</td></tr>
+            <tr><td><code>currentMediaChanged</code></td><td>str (filename)</td><td>Current track changes</td></tr>
+            <tr><td><code>mediaListChanged</code></td><td>list (filenames)</td><td>Media library file list updates</td></tr>
+            <tr><td><code>muteChanged</code></td><td>bool (isMuted)</td><td>Mute state toggles</td></tr>
+            <tr><td><code>durationChanged</code></td><td>int (ms)</td><td>Track duration becomes known</td></tr>
+            <tr><td><code>positionChanged</code></td><td>int (ms)</td><td>Playback position updates (every 100ms)</td></tr>
+            <tr><td><code>metadataChanged</code></td><td>str, str, str (title, artist, album)</td><td>ID3 metadata loaded for current track</td></tr>
+            <tr><td><code>durationFormatChanged</code></td><td>str (formatted)</td><td>Duration formatted as "M:SS" changes</td></tr>
+            <tr><td><code>volumeChanged</code></td><td>float (0.0-1.0)</td><td>Volume level changes</td></tr>
+            <tr><td><code>shuffleStateChanged</code></td><td>bool</td><td>Shuffle on/off toggles</td></tr>
+            <tr><td><code>totalDurationChanged</code></td><td>str (formatted)</td><td>Library total duration recalculated</td></tr>
+            <tr><td><code>albumCountChanged</code></td><td>int</td><td>Unique album count changes</td></tr>
+            <tr><td><code>artistCountChanged</code></td><td>int</td><td>Unique artist count changes</td></tr>
+            <tr><td><code>playlistsChanged</code></td><td>(none)</td><td>Playlist list updates (subfolder scan)</td></tr>
+            <tr><td><code>currentPlaylistChanged</code></td><td>str (name)</td><td>Active playlist changes</td></tr>
+            <tr><td><code>scanProgress</code></td><td>str (message)</td><td>Terminal-style feedback during library scan</td></tr>
+            <tr><td><code>albumColorsExtracted</code></td><td>str (JSON)</td><td>Album art colors extracted for theming</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Key Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>play()</code></td><td>-</td><td>-</td><td>Start/resume playback</td></tr>
+            <tr><td><code>pause()</code></td><td>-</td><td>-</td><td>Pause playback</td></tr>
+            <tr><td><code>toggle_play()</code></td><td>-</td><td>-</td><td>Toggle play/pause</td></tr>
+            <tr><td><code>next_track()</code></td><td>-</td><td>-</td><td>Skip to next track</td></tr>
+            <tr><td><code>previous_track()</code></td><td>-</td><td>-</td><td>Skip to previous track</td></tr>
+            <tr><td><code>toggle_mute()</code></td><td>-</td><td>-</td><td>Toggle mute (guard prevents rapid toggles)</td></tr>
+            <tr><td><code>toggle_shuffle()</code></td><td>-</td><td>-</td><td>Toggle shuffle mode</td></tr>
+            <tr><td><code>setVolume(float)</code></td><td>float (0.0-1.0)</td><td>-</td><td>Set audio output volume</td></tr>
+            <tr><td><code>set_position(int)</code></td><td>int (ms)</td><td>-</td><td>Seek to position</td></tr>
+            <tr><td><code>set_media_file(str)</code></td><td>str (filename)</td><td>-</td><td>Play a specific file by name</td></tr>
+            <tr><td><code>get_current_file()</code></td><td>-</td><td>str</td><td>Get current playing filename</td></tr>
+            <tr><td><code>get_display_name(str)</code></td><td>str (filename)</td><td>str</td><td>Get cleaned display name for a file</td></tr>
+            <tr><td><code>get_album_art(str)</code></td><td>str (filename)</td><td>str (URL)</td><td>Get album art URL (cached, extracted from ID3)</td></tr>
+            <tr><td><code>get_band(str)</code></td><td>str (filename)</td><td>str</td><td>Get artist name from metadata</td></tr>
+            <tr><td><code>get_album(str)</code></td><td>str (filename)</td><td>str</td><td>Get album name from metadata</td></tr>
+            <tr><td><code>load_media_files()</code></td><td>-</td><td>-</td><td>Scan media folder and load files</td></tr>
+            <tr><td><code>is_playing()</code></td><td>-</td><td>bool</td><td>Check if currently playing</td></tr>
+            <tr><td><code>is_muted()</code></td><td>-</td><td>bool</td><td>Check mute state</td></tr>
+            <tr><td><code>is_shuffled()</code></td><td>-</td><td>bool</td><td>Check shuffle state</td></tr>
+          </tbody>
+        </table>
+
+        <!-- SpotifyManager -->
+        <h2 id="spotify-manager">SpotifyManager</h2>
+        <p><span class="file-path">backend/spotify_manager.py</span> &mdash; QML name: <code>spotifyManager</code></p>
+        <p>Spotify Connect API integration via spotipy. Controls playback on connected devices. Credentials stored in OS keychain via <code>keyring</code>.</p>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>connectionStateChanged</code></td><td>bool</td><td>Authenticated/disconnected from Spotify</td></tr>
+            <tr><td><code>errorOccurred</code></td><td>str</td><td>API error or auth failure</td></tr>
+            <tr><td><code>playStateChanged</code></td><td>bool</td><td>Play/pause state on Spotify device</td></tr>
+            <tr><td><code>currentTrackChanged</code></td><td>str, str, str, str (title, artist, album, art_url)</td><td>Track changes on Spotify</td></tr>
+            <tr><td><code>durationChanged</code></td><td>int (ms)</td><td>Track duration available</td></tr>
+            <tr><td><code>positionChanged</code></td><td>int (ms)</td><td>Position updated (interpolated at 250ms locally, polled at 3s from API)</td></tr>
+            <tr><td><code>shuffleStateChanged</code></td><td>bool</td><td>Shuffle toggled on Spotify</td></tr>
+            <tr><td><code>volumeChanged</code></td><td>int (0-100)</td><td>Volume changed on Spotify device</td></tr>
+            <tr><td><code>devicesChanged</code></td><td>list</td><td>Available Spotify Connect devices update</td></tr>
+            <tr><td><code>activeDeviceChanged</code></td><td>str</td><td>Active playback device changes</td></tr>
+            <tr><td><code>playlistsChanged</code></td><td>list</td><td>User playlists loaded from Spotify</td></tr>
+            <tr><td><code>spotifyTracksChanged</code></td><td>list</td><td>Tracks from selected playlist loaded</td></tr>
+            <tr><td><code>authUrlReady</code></td><td>str (URL)</td><td>OAuth URL ready for user browser auth</td></tr>
+            <tr><td><code>statusProgress</code></td><td>str</td><td>Terminal-style status messages during auth/load</td></tr>
+            <tr><td><code>albumColorsExtracted</code></td><td>str (JSON)</td><td>Album art colors extracted from Spotify cover</td></tr>
+            <tr><td><code>queueUpdated</code></td><td>(none)</td><td>Queue neighbor art data ready for side cards</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Key Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>start_auth()</code></td><td>-</td><td>-</td><td>Begin OAuth flow (opens browser)</td></tr>
+            <tr><td><code>toggle_play()</code></td><td>-</td><td>-</td><td>Toggle play/pause on Spotify</td></tr>
+            <tr><td><code>next_track()</code></td><td>-</td><td>-</td><td>Skip to next track</td></tr>
+            <tr><td><code>previous_track()</code></td><td>-</td><td>-</td><td>Skip to previous track</td></tr>
+            <tr><td><code>set_volume(int)</code></td><td>int (0-100)</td><td>-</td><td>Set Spotify volume</td></tr>
+            <tr><td><code>is_connected()</code></td><td>-</td><td>bool</td><td>Check if authenticated</td></tr>
+            <tr><td><code>disconnect()</code></td><td>-</td><td>-</td><td>Disconnect and clear tokens</td></tr>
+          </tbody>
+        </table>
+
+        <!-- OBDManager -->
+        <h2 id="obd-manager">OBDManager</h2>
+        <p><span class="file-path">backend/obd_manager.py</span> &mdash; QML name: <code>obdManager</code></p>
+        <p>OBD-II vehicle diagnostics via python-obd. Uses a dedicated QThread worker for non-blocking connection. Supports 87+ PIDs, DTC reading/clearing, and vehicle scanning.</p>
+
+        <h3>Sensor Signals (87+ total)</h3>
+        <p>Each emits <code>float</code> when the sensor value updates. Original 18 core signals:</p>
+        <table>
+          <thead><tr><th>Signal</th><th>OBD PID</th><th>Unit</th></tr></thead>
+          <tbody>
+            <tr><td><code>rpmChanged</code></td><td>RPM</td><td>rev/min</td></tr>
+            <tr><td><code>speedMPHChanged</code></td><td>SPEED</td><td>mph</td></tr>
+            <tr><td><code>coolantTempChanged</code></td><td>COOLANT_TEMP</td><td>deg F</td></tr>
+            <tr><td><code>voltageChanged</code></td><td>CONTROL_MODULE_VOLTAGE</td><td>V</td></tr>
+            <tr><td><code>engineLoadChanged</code></td><td>ENGINE_LOAD</td><td>%</td></tr>
+            <tr><td><code>throttlePositionChanged</code></td><td>THROTTLE_POS</td><td>%</td></tr>
+            <tr><td><code>intakeAirTempChanged</code></td><td>INTAKE_TEMP</td><td>deg F</td></tr>
+            <tr><td><code>timingAdvanceChanged</code></td><td>TIMING_ADVANCE</td><td>degrees</td></tr>
+            <tr><td><code>massAirFlowChanged</code></td><td>MAF</td><td>g/s</td></tr>
+            <tr><td><code>airFuelRatioChanged</code></td><td>COMMANDED_EQUIV_RATIO</td><td>ratio</td></tr>
+            <tr><td><code>fuelLevelChanged</code></td><td>FUEL_LEVEL</td><td>%</td></tr>
+            <tr><td><code>intakeManifoldPressureChanged</code></td><td>INTAKE_PRESSURE</td><td>kPa</td></tr>
+            <tr><td><code>shortTermFuelTrimChanged</code></td><td>SHORT_FUEL_TRIM_1</td><td>%</td></tr>
+            <tr><td><code>longTermFuelTrimChanged</code></td><td>LONG_FUEL_TRIM_1</td><td>%</td></tr>
+            <tr><td><code>oxygenSensorVoltageChanged</code></td><td>O2_B1S1</td><td>V</td></tr>
+            <tr><td><code>fuelPressureChanged</code></td><td>FUEL_PRESSURE</td><td>kPa</td></tr>
+            <tr><td><code>engineOilTempChanged</code></td><td>OIL_TEMP</td><td>deg F</td></tr>
+            <tr><td><code>ignitionTimingChanged</code></td><td>IGNITION_TIMING</td><td>degrees</td></tr>
+          </tbody>
+        </table>
+        <p>Additional signals include: <code>runTimeChanged</code>, <code>barometricPressureChanged</code>, <code>ambientAirTempChanged</code>, <code>catalystTempB1S1Changed</code>/<code>B1S2</code>/<code>B2S1</code>/<code>B2S2</code>, 8 wide-range O2 voltage signals (<code>o2S1WRVoltageChanged</code> through <code>o2S8WRVoltageChanged</code>), 8 wide-range O2 current signals, and many more. See <span class="file-path">backend/obd_manager.py</span> for the complete list.</p>
+
+        <h3>Connection Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>connectionStatusChanged</code></td><td>str</td><td>Connection status text changes</td></tr>
+            <tr><td><code>connectionStatusDetailChanged</code></td><td>str</td><td>Detailed status message updates</td></tr>
+            <tr><td><code>connectionProgressChanged</code></td><td>int (0-100)</td><td>Connection progress bar updates</td></tr>
+            <tr><td><code>devicePresenceChanged</code></td><td>bool</td><td>OBD adapter detected/lost on USB/BT</td></tr>
+            <tr><td><code>availablePortsChanged</code></td><td>list</td><td>Serial port scan discovers new ports</td></tr>
+            <tr><td><code>scanProgressChanged</code></td><td>int, str (progress, message)</td><td>Vehicle PID scan progress</td></tr>
+            <tr><td><code>scanCompleteChanged</code></td><td>list</td><td>Vehicle scan completed with supported PIDs</td></tr>
+            <tr><td><code>scanOutputChanged</code></td><td>str</td><td>Terminal-style scan output text</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Diagnostic Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>dtcCodesChanged</code></td><td>list (tuples)</td><td>DTC codes read from vehicle</td></tr>
+            <tr><td><code>dtcCountChanged</code></td><td>int</td><td>Number of DTCs changes</td></tr>
+            <tr><td><code>milStatusChanged</code></td><td>bool</td><td>Check Engine Light status read</td></tr>
+            <tr><td><code>dtcClearResult</code></td><td>bool, str</td><td>DTC clear operation completes (success, message)</td></tr>
+            <tr><td><code>freezeFrameChanged</code></td><td>list</td><td>Freeze frame DTCs read</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Key Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>reconnect()</code></td><td>-</td><td>-</td><td>Attempt to reconnect to OBD adapter</td></tr>
+            <tr><td><code>force_connect()</code></td><td>-</td><td>-</td><td>Force a connection attempt (resets retry counter)</td></tr>
+            <tr><td><code>close()</code></td><td>-</td><td>-</td><td>Disconnect and stop monitoring</td></tr>
+            <tr><td><code>is_connected()</code></td><td>-</td><td>bool</td><td>Check connection status</td></tr>
+            <tr><td><code>get_connection_status()</code></td><td>-</td><td>str</td><td>Get human-readable connection status</td></tr>
+            <tr><td><code>scan_vehicle()</code></td><td>-</td><td>-</td><td>Scan vehicle for supported PIDs</td></tr>
+            <tr><td><code>enter_diagnostic_mode()</code></td><td>-</td><td>-</td><td>Pause async polling, switch to sync for DTC operations</td></tr>
+            <tr><td><code>exit_diagnostic_mode()</code></td><td>-</td><td>-</td><td>Resume async polling after diagnostics</td></tr>
+            <tr><td><code>get_available_ports()</code></td><td>-</td><td>list</td><td>Get detected serial ports</td></tr>
+          </tbody>
+        </table>
+
+        <!-- SettingsManager (abbreviated) -->
+        <h2 id="settings-manager">SettingsManager</h2>
+        <p><span class="file-path">backend/settings_manager.py</span> &mdash; QML name: <code>settingsManager</code></p>
+        <p>Central settings store with 60+ signals, 60+ properties, and 60+ save slots. See <a href="settings-reference.html">Settings Reference</a> for the complete list of every setting with its type and default. Key patterns:</p>
+
+        <h3>Signal Naming Convention</h3>
+        <p>Every setting follows the pattern: <code>{propertyName}Changed</code> signal, <code>{propertyName}</code> Property, <code>save_{snake_case_name}()</code> Slot.</p>
+        <pre><code><span class="cmt">// Example: themeSetting</span>
+<span class="kw">Signal:</span>  themeSettingChanged(str)
+<span class="kw">Property:</span> themeSetting -> str  <span class="cmt">(notify: themeSettingChanged)</span>
+<span class="kw">Slot:</span>    save_theme_setting(str)</code></pre>
+
+        <h3>Special Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>setCurrentVolume(int)</code></td><td>int (0-100)</td><td>-</td><td>Set unified volume across all audio outputs</td></tr>
+            <tr><td><code>set_media_source(str)</code></td><td>"local" or "spotify"</td><td>-</td><td>Switch media source</td></tr>
+            <tr><td><code>toggle_media_source()</code></td><td>-</td><td>-</td><td>Toggle between local and spotify</td></tr>
+            <tr><td><code>save_playback_state(str, int, str)</code></td><td>song, position_ms, playlist</td><td>-</td><td>Save all playback resume state at once</td></tr>
+            <tr><td><code>reset_to_defaults()</code></td><td>-</td><td>-</td><td>Reset all settings to factory defaults</td></tr>
+            <tr><td><code>get_setting(str)</code></td><td>key</td><td>QVariant</td><td>Generic get any setting by key</td></tr>
+            <tr><td><code>save_setting(str, QVariant)</code></td><td>key, value</td><td>-</td><td>Generic save any setting by key</td></tr>
+            <tr><td><code>toggle_pin_setting(str)</code></td><td>setting_id</td><td>-</td><td>Pin/unpin a setting to Quick Panel</td></tr>
+            <tr><td><code>get_settings_registry()</code></td><td>-</td><td>str (JSON)</td><td>Get full settings registry for dynamic UI</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Clock -->
+        <h2 id="clock">Clock</h2>
+        <p><span class="file-path">backend/clock.py</span> &mdash; QML name: <code>clock</code></p>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>timeChanged</code></td><td>str (formatted time)</td><td>Every second via QTimer. Format follows settingsManager.clockFormat24Hour. Emits "" when showClock is false.</td></tr>
+          </tbody>
+        </table>
+
+        <!-- ESP32VolumeManager -->
+        <h2 id="esp32-volume">ESP32VolumeManager</h2>
+        <p><span class="file-path">backend/esp32_volume_manager.py</span> &mdash; QML name: <code>esp32VolumeManager</code></p>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>connectionStatusChanged</code></td><td>str</td><td>Status changes: "Connected", "Disconnected", "Connecting", "Error"</td></tr>
+            <tr><td><code>connectionDetailChanged</code></td><td>str</td><td>Human-readable detail message updates</td></tr>
+            <tr><td><code>availablePortsChanged</code></td><td>list</td><td>Serial port scan completes</td></tr>
+            <tr><td><code>volumeChangeRequested</code></td><td>float (delta)</td><td>Rotary encoder turned (+ or - step_size * ticks)</td></tr>
+            <tr><td><code>muteToggleRequested</code></td><td>(none)</td><td>Encoder button pressed (mute toggle)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Properties</h3>
+        <table>
+          <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>connected</code></td><td>bool</td><td>Whether ESP32 is connected via USB serial</td></tr>
+            <tr><td><code>connectionStatus</code></td><td>str</td><td>Connection status string</td></tr>
+            <tr><td><code>connectionDetail</code></td><td>str</td><td>Detailed connection message</td></tr>
+            <tr><td><code>availablePorts</code></td><td>list</td><td>List of detected serial ports</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>connect_device()</code></td><td>-</td><td>-</td><td>Connect to ESP32 on configured port (115200 baud)</td></tr>
+            <tr><td><code>disconnect_device()</code></td><td>-</td><td>-</td><td>Disconnect from ESP32</td></tr>
+            <tr><td><code>get_available_ports()</code></td><td>-</td><td>list</td><td>Scan and return available ports</td></tr>
+            <tr><td><code>get_ports_with_descriptions()</code></td><td>-</td><td>str (JSON)</td><td>Ports with labels (ESP32-S3 auto-detected via VID 303A)</td></tr>
+            <tr><td><code>refresh_ports()</code></td><td>-</td><td>-</td><td>Manually trigger port scan</td></tr>
+            <tr><td><code>cleanup()</code></td><td>-</td><td>-</td><td>Stop all timers, disconnect, clean up</td></tr>
+          </tbody>
+        </table>
+
+        <!-- BerryIMUManager -->
+        <h2 id="berryimu">BerryIMUManager</h2>
+        <p><span class="file-path">backend/berryimu_manager.py</span> &mdash; QML name: <code>berryIMUManager</code></p>
+        <p>Reads BerryIMU v3 sensors (LSM6DSL accel/gyro, LIS3MDL mag, BMP388 baro) via I2C. Uses Madgwick 9DOF AHRS for gimbal-lock-free quaternion output.</p>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>orientationChanged</code></td><td>float, float, float, float (w, x, y, z)</td><td>Quaternion updates at ~60Hz for 3D model rendering</td></tr>
+            <tr><td><code>pitchChanged</code></td><td>float (degrees)</td><td>Pitch angle updates (derived from quaternion for gauges)</td></tr>
+            <tr><td><code>rollChanged</code></td><td>float (degrees)</td><td>Roll angle updates</td></tr>
+            <tr><td><code>headingChanged</code></td><td>float (degrees, 0-360)</td><td>Compass heading updates</td></tr>
+            <tr><td><code>altitudeChanged</code></td><td>float (meters)</td><td>Barometric altitude updates</td></tr>
+            <tr><td><code>accelMagnitudeChanged</code></td><td>float (g)</td><td>Total acceleration magnitude</td></tr>
+            <tr><td><code>lateralGChanged</code></td><td>float (g)</td><td>Lateral G-force (side-to-side)</td></tr>
+            <tr><td><code>longitudinalGChanged</code></td><td>float (g)</td><td>Longitudinal G-force (front-to-back)</td></tr>
+            <tr><td><code>baroTempChanged</code></td><td>float</td><td>Barometer temperature updates</td></tr>
+            <tr><td><code>connectionStatusChanged</code></td><td>str</td><td>Sensor connection state changes</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>setEnabled(bool)</code></td><td>bool</td><td>-</td><td>Enable/disable sensor reading</td></tr>
+            <tr><td><code>isEnabled()</code></td><td>-</td><td>bool</td><td>Check if enabled</td></tr>
+            <tr><td><code>setEmitRate(int)</code></td><td>int (Hz)</td><td>-</td><td>Set signal emission rate</td></tr>
+            <tr><td><code>calibrateTare()</code></td><td>-</td><td>-</td><td>Set current orientation as zero reference</td></tr>
+            <tr><td><code>resetTare()</code></td><td>-</td><td>-</td><td>Clear tare offset</td></tr>
+            <tr><td><code>cleanup()</code></td><td>-</td><td>-</td><td>Stop thread, close I2C bus</td></tr>
+          </tbody>
+        </table>
+
+        <!-- GestureManager -->
+        <h2 id="gesture">GestureManager</h2>
+        <p><span class="file-path">backend/gesture_manager.py</span> &mdash; QML name: <code>gestureManager</code></p>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>gestureDetected</code></td><td>str (gesture name)</td><td>Raw gesture detected: RIGHT, LEFT, UP, DOWN, FORWARD, BACKWARD, CLOCKWISE, COUNTER-CLOCKWISE, WAVE</td></tr>
+            <tr><td><code>actionTriggered</code></td><td>str (action name)</td><td>Mapped action triggered: next_track, previous_track, volume_up, volume_down, play_pause, mute_toggle</td></tr>
+            <tr><td><code>connectionStatusChanged</code></td><td>str</td><td>"Connected", "Disconnected", "Disabled", "Error"</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>setGestureAction(str, str)</code></td><td>gesture, action</td><td>-</td><td>Map a gesture to an action</td></tr>
+            <tr><td><code>getGestureAction(str)</code></td><td>gesture</td><td>str</td><td>Get action for a gesture</td></tr>
+            <tr><td><code>resetMappingToDefaults()</code></td><td>-</td><td>-</td><td>Reset all gesture mappings to defaults</td></tr>
+            <tr><td><code>setEnabled(bool)</code></td><td>bool</td><td>-</td><td>Enable/disable gesture sensor</td></tr>
+            <tr><td><code>setCooldown(int)</code></td><td>int (ms)</td><td>-</td><td>Set minimum time between gestures</td></tr>
+            <tr><td><code>isEnabled()</code></td><td>-</td><td>bool</td><td>Check if enabled</td></tr>
+          </tbody>
+        </table>
+
+        <!-- AudioAnalyzer -->
+        <h2 id="audio-analyzer">AudioAnalyzer</h2>
+        <p><span class="file-path">backend/audio_analyzer.py</span> &mdash; QML name: <code>audioAnalyzer</code></p>
+
+        <h3>Signals</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Parameters</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>fftDataChanged</code></td><td>list (ints 0-8)</td><td>FFT visualization levels update for current position</td></tr>
+            <tr><td><code>analysisComplete</code></td><td>(none)</td><td>Track FFT pre-computation finished</td></tr>
+            <tr><td><code>analysisStarted</code></td><td>(none)</td><td>Track FFT analysis begins</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Slots</h3>
+        <table>
+          <thead><tr><th>Slot</th><th>Parameters</th><th>Returns</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>analyze_file(str)</code></td><td>str (file path)</td><td>-</td><td>Pre-compute FFT data for a track (runs off main thread via ThreadPoolExecutor)</td></tr>
+          </tbody>
+        </table>
+
+        <!-- PerfMonitor -->
+        <h2 id="perf-monitor">PerfMonitor</h2>
+        <p><span class="file-path">backend/perf_monitor.py</span> &mdash; QML name: <code>perfMonitor</code> (only when <code>--profile</code> flag is used)</p>
+
+        <h3>Properties</h3>
+        <table>
+          <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>loopLatencyMs</code></td><td>float</td><td>Rolling average event-loop latency in ms</td></tr>
+            <tr><td><code>loopP99Ms</code></td><td>float</td><td>99th percentile loop latency (stutter indicator)</td></tr>
+            <tr><td><code>gilJitterMs</code></td><td>float</td><td>Average GIL acquisition jitter from background probe thread</td></tr>
+            <tr><td><code>cpuPercent</code></td><td>float</td><td>Process CPU usage (requires psutil)</td></tr>
+            <tr><td><code>memMb</code></td><td>float</td><td>Process RSS memory in MB</td></tr>
+            <tr><td><code>threadCount</code></td><td>int</td><td>Active Python thread count</td></tr>
+            <tr><td><code>summaryText</code></td><td>str</td><td>One-line status for on-screen HUD</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Signal</h3>
+        <table>
+          <thead><tr><th>Signal</th><th>Fires When</th></tr></thead>
+          <tbody>
+            <tr><td><code>metricsUpdated</code></td><td>Every 1 second reporting cycle</td></tr>
+          </tbody>
+        </table>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="settings-reference.html" class="related-link">Settings Reference</a>
+          <a href="architecture.html" class="related-link">Architecture Overview</a>
+          <a href="development.html" class="related-link">Development Guide</a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

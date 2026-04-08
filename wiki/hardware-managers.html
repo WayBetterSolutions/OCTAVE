@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hardware Managers - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Hardware Managers</div>
+          <h1 class="page-title">Hardware Managers</h1>
+          <p class="page-subtitle">ESP32 Volume Controller, BerryIMU v3 Sensor Fusion, and PAJ7620U2 Gesture Sensor</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#esp32-overview">ESP32 Volume Manager</a>
+              <ul class="toc-list">
+                <li><a href="#esp32-protocol">ESP-NOW Protocol</a></li>
+                <li><a href="#esp32-serial">Serial Communication</a></li>
+                <li><a href="#esp32-discovery">Device Discovery</a></li>
+                <li><a href="#esp32-commands">Command Protocol</a></li>
+                <li><a href="#esp32-leds">LED Color Sync</a></li>
+                <li><a href="#esp32-reconnect">Auto-Reconnect</a></li>
+                <li><a href="#esp32-api">Signals, Properties &amp; Slots</a></li>
+              </ul>
+            </li>
+            <li><a href="#imu-overview">BerryIMU v3 Manager</a>
+              <ul class="toc-list">
+                <li><a href="#imu-sensors">I2C Sensor Chips</a></li>
+                <li><a href="#imu-madgwick">Madgwick AHRS Filter</a></li>
+                <li><a href="#imu-quaternion">Quaternion Output</a></li>
+                <li><a href="#imu-calibration">Calibration &amp; Tare</a></li>
+                <li><a href="#imu-readloop">Read Loop</a></li>
+                <li><a href="#imu-api">Signals, Properties &amp; Slots</a></li>
+              </ul>
+            </li>
+            <li><a href="#gesture-overview">Gesture Manager</a>
+              <ul class="toc-list">
+                <li><a href="#gesture-sensor">PAJ7620U2 Sensor</a></li>
+                <li><a href="#gesture-types">Recognized Gestures</a></li>
+                <li><a href="#gesture-mapping">Action Mapping</a></li>
+                <li><a href="#gesture-disambiguation">Two-Pass Disambiguation</a></li>
+                <li><a href="#gesture-api">Signals, Properties &amp; Slots</a></li>
+              </ul>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- ===================== ESP32 VOLUME MANAGER ===================== -->
+        <section id="esp32-overview">
+          <h2>ESP32 Volume Manager</h2>
+          <p>
+            The <strong>ESP32VolumeManager</strong> in <span class="file-path">backend/esp32_volume_manager.py</span>
+            provides wireless rotary encoder volume control via a two-ESP32 setup communicating over ESP-NOW.
+            An ESP32-S3 "receiver dongle" plugs into the computer via USB and forwards commands from a remote
+            ESP32 encoder unit over serial.
+          </p>
+          <span class="platform-badge linux">Linux</span>
+          <span class="platform-badge desktop">Windows</span>
+          <span class="platform-badge desktop">macOS</span>
+        </section>
+
+        <section id="esp32-protocol">
+          <h3>ESP-NOW Wireless Protocol</h3>
+          <div class="diagram">
++-------------------+         ESP-NOW         +-------------------+
+|  ESP32 Encoder    | ~~~~~~~~~~~~~~~~~~~~~~> |  ESP32-S3 Dongle  |
+|  (Rotary Knob)    |      (Wireless)         |  (USB Receiver)   |
+|  - Rotary encoder |                         |  - USB Serial     |
+|  - Button press   |                         |  - LED ring       |
++-------------------+                         +--------+----------+
+                                                       |
+                                                  USB Serial
+                                                  115200 baud
+                                                       |
+                                              +--------v----------+
+                                              |     OCTAVE        |
+                                              |  ESP32VolumeManager|
+                                              +-------------------+
+          </div>
+          <p>
+            ESP-NOW is Espressif's low-latency peer-to-peer wireless protocol. The encoder unit detects
+            rotary knob rotation and button presses, then transmits simple text commands to the receiver
+            dongle wirelessly. The dongle forwards these over USB serial to OCTAVE.
+          </p>
+        </section>
+
+        <section id="esp32-serial">
+          <h3>Serial Communication</h3>
+          <p>
+            The serial connection uses <strong>115200 baud</strong> with a 1-second read/write timeout.
+            A dedicated background thread (<code>_read_loop</code>) reads incoming data, buffering until
+            complete newline-terminated lines are received:
+          </p>
+          <pre><code><span class="kw">def</span> <span class="fn">_read_loop</span>(<span class="prop">self</span>):
+    buffer = <span class="str">""</span>
+    <span class="kw">while not</span> <span class="prop">self</span>._stop_thread <span class="kw">and</span> <span class="prop">self</span>._serial_connection:
+        <span class="kw">if</span> <span class="prop">self</span>._serial_connection.in_waiting > <span class="num">0</span>:
+            data = <span class="prop">self</span>._serial_connection.read(
+                <span class="prop">self</span>._serial_connection.in_waiting
+            )
+            buffer += data.decode(<span class="str">'utf-8'</span>, errors=<span class="str">'ignore'</span>)
+            <span class="kw">while</span> <span class="str">'\n'</span> <span class="kw">in</span> buffer:
+                line, buffer = buffer.split(<span class="str">'\n'</span>, <span class="num">1</span>)
+                <span class="prop">self</span>._process_command(line.strip())
+        <span class="kw">else</span>:
+            time.sleep(<span class="num">0.01</span>)  <span class="cmt"># Prevent CPU spinning</span></code></pre>
+        </section>
+
+        <section id="esp32-discovery">
+          <h3>Device Discovery</h3>
+          <p>
+            The manager scans for serial ports using <code>pyserial</code>'s <code>list_ports</code> utility.
+            ESP32-S3 devices are identified by Espressif's USB Vendor ID <strong>0x303A</strong> or keywords
+            like "JTAG" in the device description.
+          </p>
+          <table>
+            <thead>
+              <tr><th>Platform</th><th>Detection Method</th><th>Common Paths</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="platform-badge desktop">Windows</span></td>
+                <td>COM port enumeration, VID:PID matching</td>
+                <td><code>COM3</code>, <code>COM4</code>, etc.</td>
+              </tr>
+              <tr>
+                <td><span class="platform-badge desktop">macOS</span></td>
+                <td>VID matching + glob patterns</td>
+                <td><code>/dev/tty.usbmodem*</code>, <code>/dev/cu.usbserial*</code></td>
+              </tr>
+              <tr>
+                <td><span class="platform-badge linux">Linux</span></td>
+                <td>VID matching + glob patterns</td>
+                <td><code>/dev/ttyUSB*</code>, <code>/dev/ttyACM*</code></td>
+              </tr>
+            </tbody>
+          </table>
+          <p>
+            The OBD-II Bluetooth port is excluded from results to prevent conflicts. Background scanning
+            runs every <strong>10 seconds</strong> when disconnected, and stops while connected.
+          </p>
+          <p>
+            On startup (after a 3-second delay), the manager auto-selects the ESP32-S3 port if detected.
+            If no ESP32-S3 is found, it falls back to the first available USB serial port.
+          </p>
+        </section>
+
+        <section id="esp32-commands">
+          <h3>Command Protocol</h3>
+          <h4>Incoming Commands (ESP32 to OCTAVE)</h4>
+          <table>
+            <thead>
+              <tr><th>Command</th><th>Meaning</th><th>Example</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>+</code></td><td>Volume up 1 tick</td><td>Single clockwise rotation</td></tr>
+              <tr><td><code>+N</code></td><td>Volume up N ticks</td><td><code>+3</code> = 3 ticks clockwise</td></tr>
+              <tr><td><code>-</code></td><td>Volume down 1 tick</td><td>Single counter-clockwise rotation</td></tr>
+              <tr><td><code>-N</code></td><td>Volume down N ticks</td><td><code>-2</code> = 2 ticks CCW</td></tr>
+              <tr><td><code>M</code></td><td>Mute toggle</td><td>Encoder button press</td></tr>
+              <tr><td><code>P</code></td><td>Play/pause (reserved)</td><td>Double-click (not implemented)</td></tr>
+            </tbody>
+          </table>
+          <p>
+            Volume changes are multiplied by the configurable <code>_step_size</code> (default 1.0) and
+            emitted as a float delta via <code>volumeChangeRequested</code>. This allows multi-tick
+            accumulation for fast knob rotation.
+          </p>
+
+          <h4>Outgoing Commands (OCTAVE to ESP32)</h4>
+          <table>
+            <thead>
+              <tr><th>Command</th><th>Format</th><th>Description</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Volume level</td><td><code>V##\n</code></td><td><code>V75</code> = set LED ring to 75%</td></tr>
+              <tr><td>Mute state</td><td><code>M0\n</code> / <code>M1\n</code></td><td>Sync mute indicator LED</td></tr>
+              <tr><td>Theme color</td><td><code>C###,###,###\n</code></td><td><code>C255,128,0</code> = set LED RGB color</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="esp32-leds">
+          <h3>LED Color Sync</h3>
+          <p>
+            The ESP32 receiver has an LED ring that displays volume level. OCTAVE sends:
+          </p>
+          <ul>
+            <li><strong>Volume updates</strong> -- Rate-limited to max 20 updates/sec (50ms debounce timer) to prevent LED flickering during rapid slider drags</li>
+            <li><strong>Theme colors</strong> -- <code>send_theme_color(r, g, b)</code> sends the current album art theme color to the LED ring</li>
+            <li><strong>Mute state</strong> -- <code>send_mute_state(muted)</code> syncs the mute indicator</li>
+          </ul>
+
+          <h4>Keepalive System</h4>
+          <p>
+            The ESP32 has a 5-second LED timeout. When <strong>LED sleep is disabled</strong>, OCTAVE sends
+            keepalive volume updates every <strong>2 seconds</strong>. When LED sleep is enabled, keepalives
+            are stopped, allowing the LEDs to turn off after the timeout.
+          </p>
+        </section>
+
+        <section id="esp32-reconnect">
+          <h3>Auto-Reconnect</h3>
+          <p>
+            On connection loss (serial read error), the manager schedules automatic reconnection with
+            exponential backoff:
+          </p>
+          <pre><code>delay = <span class="fn">min</span>(<span class="num">10000</span>, <span class="num">3000</span> * attempt_number)  <span class="cmt"># 3s, 6s, 9s, 10s, 10s</span></code></pre>
+          <p>
+            Maximum <strong>5 reconnect attempts</strong> before giving up. The attempt counter resets
+            on successful connection. Auto-reconnect can be disabled via settings.
+          </p>
+        </section>
+
+        <section id="esp32-api">
+          <h3>ESP32 Signals, Properties &amp; Slots</h3>
+          <h4>Signals</h4>
+          <table>
+            <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>connectionStatusChanged</code></td><td><code>str</code></td><td>"Connected", "Disconnected", "Connecting", "Error"</td></tr>
+              <tr><td><code>connectionDetailChanged</code></td><td><code>str</code></td><td>Human-readable status message</td></tr>
+              <tr><td><code>availablePortsChanged</code></td><td><code>list</code></td><td>Detected serial ports updated</td></tr>
+              <tr><td><code>volumeChangeRequested</code></td><td><code>float</code></td><td>Relative volume delta (can be fractional)</td></tr>
+              <tr><td><code>muteToggleRequested</code></td><td>--</td><td>Encoder button was pressed</td></tr>
+            </tbody>
+          </table>
+          <h4>Properties</h4>
+          <table>
+            <thead><tr><th>Property</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>connected</code></td><td><code>bool</code></td><td>Connection state</td></tr>
+              <tr><td><code>connectionStatus</code></td><td><code>str</code></td><td>Status string</td></tr>
+              <tr><td><code>connectionDetail</code></td><td><code>str</code></td><td>Detail message</td></tr>
+              <tr><td><code>availablePorts</code></td><td><code>list</code></td><td>Available serial ports</td></tr>
+            </tbody>
+          </table>
+          <h4>Slots</h4>
+          <table>
+            <thead><tr><th>Slot</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>connect_device()</code></td><td>Connect to the configured ESP32 port</td></tr>
+              <tr><td><code>disconnect_device()</code></td><td>Disconnect and stop all timers</td></tr>
+              <tr><td><code>get_available_ports()</code></td><td>Scan and return available ports</td></tr>
+              <tr><td><code>get_ports_with_descriptions()</code></td><td>Return JSON with port labels (marks ESP32-S3)</td></tr>
+              <tr><td><code>refresh_ports()</code></td><td>Manually trigger a port scan</td></tr>
+              <tr><td><code>reset_reconnect_attempts()</code></td><td>Reset the reconnect counter</td></tr>
+            </tbody>
+          </table>
+
+          <h4>Timers</h4>
+          <table>
+            <thead><tr><th>Timer</th><th>Interval</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>_reconnect_timer</code></td><td>3-10s (backoff)</td><td>Auto-reconnect attempts</td></tr>
+              <tr><td><code>_scan_timer</code></td><td>10,000ms</td><td>Background port scanning</td></tr>
+              <tr><td><code>_startup_timer</code></td><td>3,000ms (one-shot)</td><td>Delayed initial connection</td></tr>
+              <tr><td><code>_volume_send_timer</code></td><td>50ms (debounce)</td><td>Rate-limit volume LED updates</td></tr>
+              <tr><td><code>_keepalive_timer</code></td><td>2,000ms</td><td>Prevent ESP32 LED timeout</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- ===================== BERRYIMU MANAGER ===================== -->
+        <section id="imu-overview">
+          <h2>BerryIMU v3 Manager</h2>
+          <p>
+            The <strong>BerryIMUManager</strong> in <span class="file-path">backend/berryimu_manager.py</span>
+            reads accelerometer, gyroscope, magnetometer, and barometer data from the BerryIMU v3 board
+            via I2C. It uses a <strong>Madgwick AHRS 9DOF sensor fusion</strong> algorithm to output a
+            quaternion -- completely avoiding gimbal lock -- for driving a 3D car model in the QML UI.
+          </p>
+          <span class="platform-badge linux">Linux (Raspberry Pi)</span>
+        </section>
+
+        <section id="imu-sensors">
+          <h3>I2C Sensor Chips</h3>
+          <p>
+            The BerryIMU v3 contains three sensor chips on I2C bus <strong>2</strong>:
+          </p>
+          <table>
+            <thead>
+              <tr><th>Chip</th><th>I2C Address</th><th>Sensors</th><th>Init Rate</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>LSM6DSL</strong></td>
+                <td><code>0x6A</code></td>
+                <td>Accelerometer (+/-4g) + Gyroscope (245 dps)</td>
+                <td>416 Hz</td>
+              </tr>
+              <tr>
+                <td><strong>LIS3MDL</strong></td>
+                <td><code>0x1C</code></td>
+                <td>Magnetometer (+/-8 gauss, ultra-high performance)</td>
+                <td>155 Hz</td>
+              </tr>
+              <tr>
+                <td><strong>BMP388</strong></td>
+                <td><code>0x77</code></td>
+                <td>Barometric pressure + Temperature</td>
+                <td>~5 Hz (read every 80th loop)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h4>Sensor Initialization</h4>
+          <pre><code><span class="kw">def</span> <span class="fn">_init_lsm6dsl</span>(<span class="prop">self</span>):
+    <span class="prop">self</span>._bus.write_byte_data(LSM6DSL_ADDR, <span class="num">0x10</span>, <span class="num">0x68</span>)  <span class="cmt"># Accel: 416Hz, +/-4g</span>
+    <span class="prop">self</span>._bus.write_byte_data(LSM6DSL_ADDR, <span class="num">0x11</span>, <span class="num">0x60</span>)  <span class="cmt"># Gyro: 416Hz, 245dps</span>
+    <span class="prop">self</span>._bus.write_byte_data(LSM6DSL_ADDR, <span class="num">0x12</span>, <span class="num">0x44</span>)  <span class="cmt"># BDU + auto-inc</span>
+
+<span class="kw">def</span> <span class="fn">_init_lis3mdl</span>(<span class="prop">self</span>):
+    <span class="prop">self</span>._bus.write_byte_data(LIS3MDL_ADDR, <span class="num">0x20</span>, <span class="num">0xFE</span>)  <span class="cmt"># Ultra-high perf, 155Hz</span>
+    <span class="prop">self</span>._bus.write_byte_data(LIS3MDL_ADDR, <span class="num">0x21</span>, <span class="num">0x20</span>)  <span class="cmt"># +/-8 gauss</span>
+    <span class="prop">self</span>._bus.write_byte_data(LIS3MDL_ADDR, <span class="num">0x22</span>, <span class="num">0x00</span>)  <span class="cmt"># Continuous</span>
+    <span class="prop">self</span>._bus.write_byte_data(LIS3MDL_ADDR, <span class="num">0x23</span>, <span class="num">0x0C</span>)  <span class="cmt"># Ultra-high Z</span></code></pre>
+
+          <h4>BMP388 Calibration</h4>
+          <p>
+            The barometer requires reading 21 bytes of factory calibration data (12 coefficients: T1-T3, P1-P11)
+            from register <code>0x31</code>. These are used in a multi-stage compensation algorithm to convert
+            raw ADC readings into calibrated pressure (hPa) and temperature (C). Altitude is derived using
+            the barometric formula with <code>SEA_LEVEL_PRESSURE = 1013.25 hPa</code>.
+          </p>
+        </section>
+
+        <section id="imu-madgwick">
+          <h3>Madgwick AHRS 9DOF Filter</h3>
+          <p>
+            The <code>MadgwickAHRS</code> class implements Sebastian Madgwick's gradient descent orientation
+            filter, fusing accelerometer, gyroscope, and magnetometer into a single quaternion.
+          </p>
+
+          <div class="info-box info">
+            <div class="info-box-title">Why Madgwick?</div>
+            Unlike complementary filters or Kalman filters, Madgwick AHRS produces a quaternion directly,
+            avoiding Euler angle representation entirely. This eliminates gimbal lock and provides smooth
+            1:1 mapping to QML's 3D model rotation.
+          </div>
+
+          <h4>Key Parameters</h4>
+          <table>
+            <thead><tr><th>Constant</th><th>Value</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>MADGWICK_BETA</code></td><td><code>0.03</code></td><td>Filter gain. Lower = smoother/less jitter, higher = more responsive</td></tr>
+              <tr><td><code>GYRO_DEADBAND</code></td><td><code>0.4</code> deg/s</td><td>Zero out small gyro readings to prevent stationary drift</td></tr>
+              <tr><td><code>EMIT_INTERVAL</code></td><td><code>0.016</code>s (~60 Hz)</td><td>Signal emission rate to QML</td></tr>
+            </tbody>
+          </table>
+
+          <h4>Filter Update Cycle</h4>
+          <pre><code><span class="kw">def</span> <span class="fn">update</span>(<span class="prop">self</span>, gx, gy, gz, ax, ay, az, mx, my, mz, dt):
+    <span class="cmt"># 1. Compute gyro quaternion rate of change</span>
+    <span class="cmt"># 2. Normalize accelerometer + magnetometer</span>
+    <span class="cmt"># 3. Compute gradient descent corrective step</span>
+    <span class="cmt">#    (9DOF with mag, or 6DOF fallback without)</span>
+    <span class="cmt"># 4. Apply correction to gyro rate (scaled by beta)</span>
+    <span class="cmt"># 5. Integrate quaternion</span>
+    <span class="cmt"># 6. Normalize result</span></code></pre>
+          <p>
+            The filter automatically falls back to <strong>6DOF</strong> (accel-only correction, no heading)
+            when magnetometer data is invalid (<code>m_norm &lt; 0.001</code>).
+          </p>
+        </section>
+
+        <section id="imu-quaternion">
+          <h3>Quaternion Output</h3>
+          <p>
+            The raw filter quaternion undergoes two post-processing steps before emission:
+          </p>
+          <ol class="steps">
+            <li>
+              <strong>Yaw stripping</strong> -- Decomposes the quaternion into yaw and tilt components,
+              keeping only pitch and roll. This prevents heading drift from affecting the 3D car model:
+              <pre><code><span class="cmt"># q = q_yaw * q_tilt</span>
+<span class="cmt"># We want q_tilt = q_yaw_inverse * q</span>
+yaw_norm = math.sqrt(qw*qw + qz*qz)
+yw = qw / yaw_norm
+yz = qz / yaw_norm
+<span class="cmt"># Quaternion multiply: [yw, 0, 0, -yz] * [qw, qx, qy, qz]</span></code></pre>
+            </li>
+            <li>
+              <strong>Tare offset</strong> -- A stored reference quaternion (<code>_tare_q</code>) is applied
+              via quaternion multiplication to zero out a reference orientation. This lets the user set
+              "level" at any mounting angle.
+            </li>
+          </ol>
+          <p>
+            The final quaternion <code>(w, x, y, z)</code> is emitted via <code>orientationChanged</code> at ~60 Hz.
+          </p>
+        </section>
+
+        <section id="imu-calibration">
+          <h3>Calibration &amp; Tare</h3>
+          <h4>Gyro Calibration (Automatic)</h4>
+          <p>
+            On startup, the gyroscope is sampled <strong>200 times</strong> over ~1 second while stationary.
+            The average readings become the bias offsets, subtracted from all subsequent readings.
+          </p>
+
+          <h4>Tare (User-Triggered)</h4>
+          <p>
+            The <code>calibrateTare()</code> slot captures the current yaw-stripped quaternion and stores
+            its conjugate as the tare offset. It also captures the current accelerometer readings as
+            G-force zero reference for the lateral/longitudinal G displays.
+          </p>
+          <pre><code><span class="cmt"># Inverse of a unit quaternion is its conjugate: (w, -x, -y, -z)</span>
+<span class="prop">self</span>._tare_q = [tw, -tx, -ty, -tz]
+<span class="prop">self</span>._accel_bias_x = <span class="prop">self</span>._last_ax
+<span class="prop">self</span>._accel_bias_y = <span class="prop">self</span>._last_ay</code></pre>
+        </section>
+
+        <section id="imu-readloop">
+          <h3>Read Loop</h3>
+          <p>
+            The background thread reads all sensors continuously with a 1ms sleep between iterations.
+            Key behaviors:
+          </p>
+          <ul>
+            <li><strong>Deadband gating</strong> -- Gyro readings below <code>GYRO_DEADBAND</code> (0.4 deg/s) are zeroed. The Madgwick filter is only updated when there is actual motion, freezing the quaternion when stationary to prevent visible settling.</li>
+            <li><strong>Signal emission</strong> -- Orientation, pitch, roll, heading, accel magnitude, lateral G, and longitudinal G are emitted at ~60 Hz</li>
+            <li><strong>Barometer</strong> -- Read every 80th iteration (~5 Hz), emitting altitude and temperature</li>
+            <li><strong>Heading</strong> -- Computed directly from raw magnetometer (<code>atan2(my, mx)</code>), not from the Madgwick filter, to avoid drift</li>
+          </ul>
+        </section>
+
+        <section id="imu-api">
+          <h3>BerryIMU Signals, Properties &amp; Slots</h3>
+          <h4>Signals</h4>
+          <table>
+            <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>orientationChanged</code></td><td><code>float, float, float, float</code></td><td>Quaternion (w, x, y, z) for 3D model</td></tr>
+              <tr><td><code>pitchChanged</code></td><td><code>float</code></td><td>Pitch angle in degrees</td></tr>
+              <tr><td><code>rollChanged</code></td><td><code>float</code></td><td>Roll angle in degrees</td></tr>
+              <tr><td><code>headingChanged</code></td><td><code>float</code></td><td>Compass heading (0-360)</td></tr>
+              <tr><td><code>altitudeChanged</code></td><td><code>float</code></td><td>Barometric altitude in meters</td></tr>
+              <tr><td><code>accelMagnitudeChanged</code></td><td><code>float</code></td><td>Total G-force magnitude</td></tr>
+              <tr><td><code>lateralGChanged</code></td><td><code>float</code></td><td>Lateral G-force (tare-corrected)</td></tr>
+              <tr><td><code>longitudinalGChanged</code></td><td><code>float</code></td><td>Longitudinal G-force (tare-corrected)</td></tr>
+              <tr><td><code>baroTempChanged</code></td><td><code>float</code></td><td>Barometric temperature in Celsius</td></tr>
+              <tr><td><code>connectionStatusChanged</code></td><td><code>str</code></td><td>"Connected", "Disconnected", "Error", "Disabled"</td></tr>
+            </tbody>
+          </table>
+          <h4>Slots</h4>
+          <table>
+            <thead><tr><th>Slot</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>setEnabled(bool)</code></td><td>Enable/disable the IMU sensor</td></tr>
+              <tr><td><code>isEnabled()</code></td><td>Returns whether the IMU is enabled</td></tr>
+              <tr><td><code>setEmitRate(hz)</code></td><td>Set signal emission rate (10-120 Hz)</td></tr>
+              <tr><td><code>calibrateTare()</code></td><td>Set current orientation as zero reference</td></tr>
+              <tr><td><code>resetTare()</code></td><td>Clear the tare offset to identity</td></tr>
+              <tr><td><code>getConnectionStatus()</code></td><td>Returns "Connected" or "Disconnected"</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- ===================== GESTURE MANAGER ===================== -->
+        <section id="gesture-overview">
+          <h2>Gesture Manager</h2>
+          <p>
+            The <strong>GestureManager</strong> in <span class="file-path">backend/gesture_manager.py</span>
+            drives a PAJ7620U2 gesture sensor over I2C for touchless control of OCTAVE. It recognizes
+            8 gesture types and maps them to configurable actions like next track, volume control, and play/pause.
+          </p>
+          <span class="platform-badge linux">Linux (Raspberry Pi)</span>
+        </section>
+
+        <section id="gesture-sensor">
+          <h3>PAJ7620U2 Sensor</h3>
+          <p>
+            The PAJ7620U2 is a PixArt gesture recognition sensor communicating over I2C bus <strong>2</strong>
+            at address <strong>0x73</strong>. It uses an infrared LED and photodiode array to detect hand gestures.
+          </p>
+          <h4>Initialization</h4>
+          <ol class="steps">
+            <li><strong>Wake up</strong> -- Write to bank select register (<code>0xEF</code>) to wake the sensor from sleep. Includes a retry on OSError.</li>
+            <li><strong>Verify chip ID</strong> -- Read registers <code>0x00</code> and <code>0x01</code>, expect <code>0x7620</code></li>
+            <li><strong>Write init table</strong> -- Program 220 register pairs (DFRobot reference configuration) across Bank 0 and Bank 1. This configures sensitivity, detection thresholds, and gain parameters.</li>
+          </ol>
+
+          <h4>I2C Registers</h4>
+          <table>
+            <thead><tr><th>Register</th><th>Address</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>REG_BANK_SEL</code></td><td><code>0xEF</code></td><td>Bank select (0 or 1)</td></tr>
+              <tr><td><code>REG_CHIP_ID_L</code></td><td><code>0x00</code></td><td>Chip ID low byte</td></tr>
+              <tr><td><code>REG_CHIP_ID_H</code></td><td><code>0x01</code></td><td>Chip ID high byte</td></tr>
+              <tr><td><code>REG_GESTURE_0</code></td><td><code>0x43</code></td><td>Gesture flags register 0</td></tr>
+              <tr><td><code>REG_GESTURE_1</code></td><td><code>0x44</code></td><td>Gesture flags register 1 (wave)</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="gesture-types">
+          <h3>Recognized Gestures</h3>
+          <table>
+            <thead><tr><th>Gesture</th><th>Flag (Reg 0x43)</th><th>Bit</th></tr></thead>
+            <tbody>
+              <tr><td>RIGHT</td><td><code>GES_RIGHT</code></td><td><code>0x01</code></td></tr>
+              <tr><td>LEFT</td><td><code>GES_LEFT</code></td><td><code>0x02</code></td></tr>
+              <tr><td>UP</td><td><code>GES_UP</code></td><td><code>0x04</code></td></tr>
+              <tr><td>DOWN</td><td><code>GES_DOWN</code></td><td><code>0x08</code></td></tr>
+              <tr><td>FORWARD</td><td><code>GES_FORWARD</code></td><td><code>0x10</code></td></tr>
+              <tr><td>BACKWARD</td><td><code>GES_BACKWARD</code></td><td><code>0x20</code></td></tr>
+              <tr><td>CLOCKWISE</td><td><code>GES_CLOCKWISE</code></td><td><code>0x40</code></td></tr>
+              <tr><td>COUNTER-CLOCKWISE</td><td><code>GES_COUNTERCLOCKWISE</code></td><td><code>0x80</code></td></tr>
+              <tr><td>WAVE</td><td>Reg <code>0x44</code> bit <code>0x01</code></td><td><code>GES_WAVE</code></td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="gesture-mapping">
+          <h3>Action Mapping System</h3>
+          <p>
+            Each gesture maps to an action string via a configurable dictionary. The default mapping:
+          </p>
+          <pre><code>DEFAULT_GESTURE_MAPPING = {
+    <span class="str">"RIGHT"</span>:             <span class="str">"next_track"</span>,
+    <span class="str">"LEFT"</span>:              <span class="str">"previous_track"</span>,
+    <span class="str">"UP"</span>:                <span class="str">"volume_up"</span>,
+    <span class="str">"DOWN"</span>:              <span class="str">"volume_down"</span>,
+    <span class="str">"FORWARD"</span>:           <span class="str">"play_pause"</span>,
+    <span class="str">"BACKWARD"</span>:          <span class="str">"mute_toggle"</span>,
+    <span class="str">"CLOCKWISE"</span>:         <span class="str">"volume_up"</span>,
+    <span class="str">"COUNTER-CLOCKWISE"</span>: <span class="str">"volume_down"</span>,
+    <span class="str">"WAVE"</span>:              <span class="str">"play_pause"</span>,
+}</code></pre>
+          <p>
+            Users can remap gestures via <code>setGestureAction(gesture, action)</code>. Custom mappings
+            are persisted through the SettingsManager.
+          </p>
+        </section>
+
+        <section id="gesture-disambiguation">
+          <h3>Two-Pass Disambiguation</h3>
+          <p>
+            Forward and backward gestures are compound motions (hand approaching/leaving) that the sensor
+            often initially reports as directional. The read loop implements a two-pass disambiguation strategy:
+          </p>
+          <ol class="steps">
+            <li>
+              <strong>Initial detection</strong> -- If <code>GES_FORWARD</code> flag is set, wait
+              <strong>300ms</strong> (<code>GES_FORWARD_WAIT</code>). If <code>GES_BACKWARD</code>,
+              wait <strong>400ms</strong> (<code>GES_BACKWARD_WAIT</code>).
+            </li>
+            <li>
+              <strong>Re-read</strong> -- Read gesture registers again. If a different directional gesture
+              resolved, use that instead. Otherwise confirm the forward/backward gesture.
+            </li>
+            <li>
+              <strong>Confirmation for directional gestures</strong> -- Non-compound gestures get a 20ms
+              confirmation read to reject single-sample glitches.
+            </li>
+            <li>
+              <strong>Post-flush</strong> -- After confirming any gesture, the sensor is flushed for
+              <strong>100ms</strong> (<code>GES_POST_FLUSH</code>) to prevent echo/ghost detections from
+              the same hand motion.
+            </li>
+          </ol>
+
+          <h4>Cooldown</h4>
+          <p>
+            A configurable cooldown (<code>GESTURE_COOLDOWN = 0.3s</code> default) rejects duplicate
+            detections within the window. The sensor is polled at <strong>~50 Hz</strong>
+            (<code>POLL_INTERVAL = 0.02s</code>).
+          </p>
+        </section>
+
+        <section id="gesture-api">
+          <h3>Gesture Signals, Properties &amp; Slots</h3>
+          <h4>Signals</h4>
+          <table>
+            <thead><tr><th>Signal</th><th>Parameters</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>gestureDetected</code></td><td><code>str</code></td><td>Raw gesture name (e.g., "RIGHT", "WAVE")</td></tr>
+              <tr><td><code>actionTriggered</code></td><td><code>str</code></td><td>Mapped action (e.g., "next_track", "volume_up")</td></tr>
+              <tr><td><code>connectionStatusChanged</code></td><td><code>str</code></td><td>"Connected", "Disconnected", "Error", "Disabled"</td></tr>
+            </tbody>
+          </table>
+          <h4>Slots</h4>
+          <table>
+            <thead><tr><th>Slot</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>setGestureAction(gesture, action)</code></td><td>Remap a gesture to an action</td></tr>
+              <tr><td><code>getGestureAction(gesture)</code></td><td>Get current action for a gesture</td></tr>
+              <tr><td><code>resetMappingToDefaults()</code></td><td>Restore default gesture mapping</td></tr>
+              <tr><td><code>setEnabled(bool)</code></td><td>Enable/disable the gesture sensor</td></tr>
+              <tr><td><code>setCooldown(ms)</code></td><td>Set gesture cooldown in milliseconds</td></tr>
+              <tr><td><code>isEnabled()</code></td><td>Returns whether the sensor is enabled</td></tr>
+              <tr><td><code>getConnectionStatus()</code></td><td>Returns "Connected" or "Disconnected"</td></tr>
+            </tbody>
+          </table>
+
+          <h4>Reconnection</h4>
+          <p>
+            Both the BerryIMU and Gesture managers share the same reconnection pattern: linear backoff
+            with <code>_retry_delay_ms * attempt_number</code> (5s, 10s, 15s, 20s, 25s), maximum
+            <strong>5 retries</strong>. The I2C bus is cleaned up between attempts.
+          </p>
+        </section>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a class="related-link" href="architecture.html">Architecture Overview</a>
+          <a class="related-link" href="getting-started.html">Getting Started</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

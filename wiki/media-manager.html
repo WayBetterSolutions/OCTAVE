@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Manager - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Media Manager</div>
+          <h1 class="page-title">Media Manager</h1>
+          <p class="page-subtitle">Local media playback engine with QMediaPlayer, album art extraction, color theming, and playlist management</p>
+        </div>
+
+        <nav class="toc">
+          <h3>Table of Contents</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#supported-formats">Supported Audio Formats</a></li>
+            <li><a href="#qmediaplayer">QMediaPlayer Integration</a></li>
+            <li><a href="#library-scanning">Library Scanning</a></li>
+            <li><a href="#metadata-caching">Metadata Caching</a></li>
+            <li><a href="#album-art">Album Art Extraction</a></li>
+            <li><a href="#color-extraction">Color Extraction and Theming</a></li>
+            <li><a href="#playback-control">Playback Control</a></li>
+            <li><a href="#shuffle-repeat">Shuffle Logic</a></li>
+            <li><a href="#playlist-management">Playlist Management</a></li>
+            <li><a href="#volume-mute">Volume and Mute</a></li>
+            <li><a href="#playback-resume">Playback State Resume</a></li>
+            <li><a href="#precaching">Neighbor Pre-caching</a></li>
+            <li><a href="#error-recovery">Error Recovery</a></li>
+            <li><a href="#signals">Key Signals</a></li>
+            <li><a href="#slots">Key Slots</a></li>
+            <li><a href="#extending">How to Modify / Extend</a></li>
+            <li><a href="#related">Related Pages</a></li>
+          </ul>
+        </nav>
+
+        <!-- Overview -->
+        <h2 id="overview">Overview</h2>
+        <p>
+          The <code>MediaManager</code> class in <span class="file-path">backend/media_manager.py</span> handles all
+          local audio file playback for OCTAVE. It wraps PySide6's <code>QMediaPlayer</code> and <code>QAudioOutput</code>,
+          manages a metadata and album art cache, extracts dominant colors from album art for dynamic theming, and
+          provides full playlist support with shuffle, skip, and playback resume.
+        </p>
+        <p>
+          It is registered as a QML context property named <code>mediaManager</code> and exposes all playback controls
+          as Slots, with state changes broadcast via Signals.
+        </p>
+
+        <span class="platform-badge all">All Platforms</span>
+
+        <!-- Supported Formats -->
+        <h2 id="supported-formats">Supported Audio Formats</h2>
+        <p>The following file extensions are recognized during library scanning:</p>
+        <pre><code>AUDIO_EXTENSIONS = (<span class="str">'.mp3'</span>, <span class="str">'.m4a'</span>, <span class="str">'.flac'</span>, <span class="str">'.ogg'</span>, <span class="str">'.opus'</span>, <span class="str">'.wav'</span>)</code></pre>
+        <p>
+          MP3 files use the <code>mutagen</code> library's <code>ID3</code> and <code>MP3</code> classes for metadata.
+          M4A/MP4/AAC files use <code>mutagen.mp4.MP4</code>. Other formats fall back to <code>mutagen.File</code>
+          for basic duration information.
+        </p>
+
+        <!-- QMediaPlayer Integration -->
+        <h2 id="qmediaplayer">QMediaPlayer Integration</h2>
+        <p>
+          MediaManager creates a <code>QMediaPlayer</code> with a <code>QAudioOutput</code> in its constructor.
+          Key configuration:
+        </p>
+        <pre><code>self._player = QMediaPlayer()
+self._audio_output = QAudioOutput()
+self._player.setAudioOutput(self._audio_output)
+self._audio_output.setVolume(<span class="num">0.5</span>)
+
+<span class="cmt"># Increase probe size for reliable format detection</span>
+self._player.setProperty(<span class="str">"probe-size"</span>, <span class="num">10000000</span>)  <span class="cmt"># 10MB</span>
+self._player.setProperty(<span class="str">"analyzeduration"</span>, <span class="num">5000000</span>)  <span class="cmt"># 5 seconds</span></code></pre>
+
+        <p>Connected signals from QMediaPlayer:</p>
+        <ul>
+          <li><code>durationChanged</code> - forwarded directly to QML</li>
+          <li><code>positionChanged</code> - forwarded directly to QML</li>
+          <li><code>mediaStatusChanged</code> - routed to <code>_handle_media_status()</code> for end-of-track and error detection</li>
+          <li><code>errorOccurred</code> - triggers automatic playback recovery</li>
+        </ul>
+
+        <p>A <code>QTimer</code> at 100ms interval supplements position updates for smooth UI slider tracking.</p>
+
+        <!-- Library Scanning -->
+        <h2 id="library-scanning">Library Scanning</h2>
+        <p>
+          The media directory defaults to <code>backend/media/</code> but is typically overridden by the user via
+          SettingsManager's <code>mediaFolder</code> property (defaults to <code>~/Music</code> on desktop,
+          <code>/sdcard/Music</code> on Android).
+        </p>
+        <p>
+          <code>get_media_files()</code> scans the configured directory for files matching <code>AUDIO_EXTENSIONS</code>:
+        </p>
+        <pre><code>@Slot(result=<span class="cls">list</span>)
+<span class="kw">def</span> <span class="fn">get_media_files</span>(self, emit_signal=<span class="kw">True</span>):
+    mp3_files = []
+    <span class="kw">if</span> os.path.exists(self.media_dir):
+        <span class="kw">for</span> file <span class="kw">in</span> os.listdir(self.media_dir):
+            <span class="kw">if</span> file.lower().endswith(AUDIO_EXTENSIONS):
+                mp3_files.append(file)
+    <span class="kw">if</span> emit_signal:
+        self.mediaListChanged.emit(mp3_files)
+    <span class="kw">return</span> mp3_files</code></pre>
+
+        <p>
+          The <code>scanProgress</code> signal provides terminal-style feedback during deeper scans (e.g., when
+          building the "All Music" playlist across subdirectories).
+        </p>
+
+        <div class="info-box info">
+          <div class="info-box-title">Path Safety</div>
+          The helper <code>is_safe_path(base_path, target_path)</code> validates that any resolved path stays
+          within the base directory, preventing path traversal attacks from malicious filenames.
+        </div>
+
+        <!-- Metadata Caching -->
+        <h2 id="metadata-caching">Metadata Caching</h2>
+        <p>
+          Metadata is cached in <code>self._metadata_cache</code> (dict: filename to metadata dict) with a
+          maximum of 1000 entries. Each entry stores:
+        </p>
+        <pre><code>{
+    <span class="str">"artist"</span>: <span class="str">"Artist Name"</span>,
+    <span class="str">"album"</span>: <span class="str">"Album Name"</span>,
+    <span class="str">"title"</span>: <span class="str">"Track Title"</span>,
+    <span class="str">"duration"</span>: <span class="num">245</span>  <span class="cmt"># seconds</span>
+}</code></pre>
+
+        <p>The <code>_cache_metadata()</code> method handles format-specific extraction:</p>
+        <ul>
+          <li><strong>MP3</strong>: Uses <code>ID3()</code> for tags (TPE1, TALB, TIT2) and <code>MP3()</code> for duration. Also extracts album art from APIC frames in the same read.</li>
+          <li><strong>M4A/MP4/AAC</strong>: Uses <code>mutagen.mp4.MP4</code>. Tags are <code>\xa9ART</code>, <code>\xa9alb</code>, <code>\xa9nam</code>. Album art from <code>covr</code> tags.</li>
+          <li><strong>Others (FLAC, OGG, etc.)</strong>: Falls back to <code>mutagen.File</code> for duration only.</li>
+        </ul>
+
+        <p>All metadata strings are sanitized by <code>sanitize_metadata()</code> which:</p>
+        <ul>
+          <li>Removes control characters</li>
+          <li>Collapses multiple spaces</li>
+          <li>Truncates to 200 characters with ellipsis</li>
+        </ul>
+
+        <!-- Album Art Extraction -->
+        <h2 id="album-art">Album Art Extraction</h2>
+        <p>
+          Album art is cached in <code>self._album_art_cache</code> (dict: album_id to <code>file://</code> URL)
+          with a maximum of 500 cached files on disk in the <code>backend/temp/</code> directory.
+        </p>
+
+        <h3>Album ID Generation</h3>
+        <p>
+          Each album is identified by a composite key: <code>"{album}_{artist}"</code>. If metadata is unavailable,
+          a SHA-256 hash of the filename is used as fallback.
+        </p>
+
+        <h3>Extraction Flow</h3>
+        <ol class="steps">
+          <li>Check if album_id is already in <code>_album_art_cache</code> (instant return)</li>
+          <li>Run LRU cache management (evict least-accessed item if at capacity)</li>
+          <li>Read album art from the audio file:
+            <ul>
+              <li>MP3: iterate <code>ID3</code> frames for <code>APIC</code> tags</li>
+              <li>M4A: read <code>covr</code> tags</li>
+            </ul>
+          </li>
+          <li>Write image data to temp file with SHA-256 hash-based filename (e.g., <code>cover_a1b2c3d4.jpg</code>)</li>
+          <li>Store the <code>file://</code> URL in the cache and return it</li>
+        </ol>
+
+        <h3>Optimization: Single-Read Cache Population</h3>
+        <p>
+          The <code>_cache_metadata()</code> method also calls <code>_cache_album_art_from_id3()</code> to extract
+          album art from the already-loaded ID3 object. This means a single file read populates both the metadata
+          cache and the album art cache, making subsequent <code>get_album_art()</code> calls instant.
+        </p>
+
+        <h3>LRU Cache Management</h3>
+        <pre><code><span class="kw">def</span> <span class="fn">_manage_cache</span>(self, new_album_id):
+    <span class="kw">if</span> len(self._album_art_cache) >= self._max_cache_files:
+        <span class="cmt"># Find least recently accessed item</span>
+        items = [(k, v) <span class="kw">for</span> k, v <span class="kw">in</span> self._access_count.items()
+                 <span class="kw">if</span> k != new_album_id]
+        least_used = min(items, key=<span class="kw">lambda</span> x: x[<span class="num">1</span>])[<span class="num">0</span>]
+        <span class="cmt"># Remove file from disk and cache</span>
+        ...</code></pre>
+
+        <!-- Color Extraction -->
+        <h2 id="color-extraction">Color Extraction and Theming</h2>
+        <p>
+          When the "Album Art Capture" theme is active, MediaManager extracts dominant colors from album art
+          to generate a complete dynamic theme palette. This requires PIL (Pillow).
+        </p>
+
+        <h3>Extraction Pipeline</h3>
+        <ol class="steps">
+          <li>Resize album art to 50x50 pixels (LANCZOS resampling)</li>
+          <li>Run k-means clustering (<code>_kmeans_colors()</code>, pure Python, k=5, max 10 iterations) to find 5 dominant colors</li>
+          <li>Sort colors by vibrancy (saturation * value in HSV space)</li>
+          <li>Determine if image is dark or light based on average luminance</li>
+          <li>Call <code>_generate_theme_from_colors()</code> to build a full theme object</li>
+        </ol>
+
+        <h3>Theme Generation</h3>
+        <p>
+          <code>_generate_theme_from_colors()</code> takes the sorted color palette and generates a comprehensive
+          theme JSON with keys for every UI element:
+        </p>
+        <ul>
+          <li><code>base</code>, <code>baseAlt</code> - Background colors (dark/light variants of primary)</li>
+          <li><code>accent</code> - Primary accent with boosted saturation</li>
+          <li><code>text.primary</code>, <code>text.secondary</code> - WCAG-contrast-checked text colors</li>
+          <li><code>states.hover</code>, <code>states.paused</code>, <code>states.playing</code> - Interaction states</li>
+          <li><code>sliders.volume</code>, <code>sliders.media</code>, <code>sliders.settings</code> - Per-slider accent colors</li>
+          <li><code>bottombar.*</code> - 12+ individual colors for navigation buttons</li>
+          <li><code>mediaroom.*</code> - Player control colors</li>
+          <li><code>obd.*</code> - OBD gauge colors</li>
+        </ul>
+
+        <p>All icon/accent colors are run through <code>ensure_icon_contrast()</code> which enforces a minimum
+        WCAG contrast ratio of 3.0 against the background, brightening or darkening as needed.</p>
+
+        <p>Colors are capped at 85% brightness via <code>cap_brightness()</code> to prevent washed-out pastels.</p>
+
+        <!-- Playback Control -->
+        <h2 id="playback-control">Playback Control</h2>
+
+        <h3>Playing a File</h3>
+        <pre><code>@Slot(<span class="cls">str</span>)
+<span class="kw">def</span> <span class="fn">play_file</span>(self, filename):
+    <span class="cmt"># Initialize playlist if needed</span>
+    <span class="cmt"># Find file index in current playlist</span>
+    <span class="cmt"># Resolve full path via _get_file_path() (handles All Music multi-folder)</span>
+    file_path = self._get_file_path(filename)
+    url = QUrl.fromLocalFile(file_path)
+    self._player.setSource(url)
+    self._player.play()
+    <span class="cmt"># Pre-populate metadata + album art caches BEFORE emitting</span>
+    <span class="cmt"># currentMediaChanged so QML bindings get instant cache hits</span>
+    self._emit_metadata(filename)
+    self.currentMediaChanged.emit(filename)
+    self._precache_timer.start()</code></pre>
+
+        <h3>Track Navigation</h3>
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Behavior</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>next_track()</code></td><td>Advances index by 1 (wraps around), calls <code>play_file()</code>, starts debounced state save</td></tr>
+            <tr><td><code>previous_track()</code></td><td>Decrements index by 1 (wraps around), calls <code>play_file()</code>, starts debounced state save</td></tr>
+            <tr><td><code>toggle_play()</code></td><td>If no source set, plays current file. If playing, pauses. If paused, resumes with error state recovery.</td></tr>
+            <tr><td><code>pause()</code></td><td>Pauses player, emits <code>playStateChanged(False)</code>, saves playback state</td></tr>
+            <tr><td><code>set_position(position)</code></td><td>Seeks to position in milliseconds</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Peek Methods (No Side Effects)</h3>
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Returns</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>get_current_file()</code></td><td>Current filename without triggering playback</td></tr>
+            <tr><td><code>get_next_track_name()</code></td><td>Next track filename</td></tr>
+            <tr><td><code>get_previous_track_name()</code></td><td>Previous track filename</td></tr>
+            <tr><td><code>get_next_track_album_art()</code></td><td>Album art URL for next track</td></tr>
+            <tr><td><code>get_previous_track_album_art()</code></td><td>Album art URL for previous track</td></tr>
+            <tr><td><code>get_neighbor_album_arts()</code></td><td>Returns <code>[prevArtUrl, nextArtUrl]</code> in a single call (halves QML bridge crossings)</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Shuffle Logic -->
+        <h2 id="shuffle-repeat">Shuffle Logic</h2>
+        <p>
+          Shuffle is a toggle stored in <code>self._shuffle</code>. When enabled, the current playlist is
+          randomized via <code>_shuffle_playlist()</code>:
+        </p>
+        <pre><code><span class="kw">def</span> <span class="fn">_shuffle_playlist</span>(self):
+    files = self._get_current_playlist_files()
+    <span class="kw">if not</span> files:
+        files = self.get_media_files()
+    shuffled = files.copy()
+    random.shuffle(shuffled)
+    <span class="kw">return</span> shuffled</code></pre>
+
+        <p>
+          When shuffle is toggled off, the playlist reverts to alphabetical order (sorted with punctuation
+          and underscores stripped: <code>re.sub(r'[^\w\s]|_', '', x.lower())</code>).
+        </p>
+        <p>
+          Shuffle state can be persisted across restarts via SettingsManager's <code>persistShuffleState</code>
+          and <code>lastShuffleState</code> settings.
+        </p>
+
+        <!-- Playlist Management -->
+        <h2 id="playlist-management">Playlist Management</h2>
+        <p>
+          MediaManager supports multiple playlists discovered from the media folder structure:
+        </p>
+        <ul>
+          <li><code>self._playlists</code> - Dict: playlist name to <code>{path, files, song_count}</code></li>
+          <li><code>self._playlist_names</code> - Ordered list of playlist names</li>
+          <li><code>self._current_playlist_name</code> - Active playlist name</li>
+          <li><code>self._library_root</code> - Main source folder path</li>
+        </ul>
+
+        <h3>"All Music" Playlist</h3>
+        <p>
+          A special "All Music" mode aggregates files from all subdirectories. Since files from different
+          folders may have the same name, <code>self._all_music_file_paths</code> maps each filename to its
+          full directory path. The <code>_get_file_path()</code> helper resolves the correct path:
+        </p>
+        <pre><code><span class="cmt"># When All Music is active, lookup the directory for this filename</span>
+<span class="kw">if</span> self._is_all_music_active <span class="kw">and</span> filename <span class="kw">in</span> self._all_music_file_paths:
+    <span class="kw">return</span> os.path.join(self._all_music_file_paths[filename], filename)</code></pre>
+
+        <h3>Display Name Mapping</h3>
+        <p>
+          <code>self._display_names</code> maps filenames to cleaned display names, persisted in
+          <code>display_names.json</code> within the app data directory. This allows cleaned names to survive
+          across sessions without re-scanning.
+        </p>
+
+        <!-- Volume and Mute -->
+        <h2 id="volume-mute">Volume and Mute</h2>
+
+        <h3>Volume Control</h3>
+        <pre><code>@Slot(<span class="cls">float</span>)
+<span class="kw">def</span> <span class="fn">setVolume</span>(self, volume):
+    volume = max(<span class="num">0.0</span>, min(<span class="num">1.0</span>, float(volume)))
+    <span class="kw">if</span> self._is_muted:
+        self._previous_volume = volume  <span class="cmt"># Store for unmute</span>
+        self._audio_output.setVolume(<span class="num">0.0</span>)  <span class="cmt"># Keep muted</span>
+    <span class="kw">else</span>:
+        self._audio_output.setVolume(volume)
+    self.volumeChanged.emit(volume)</code></pre>
+
+        <h3>Mute Toggle with Guard</h3>
+        <p>
+          The <code>toggle_mute()</code> method uses a lock guard (<code>_mute_toggle_locked</code>) with a
+          150ms debounce to prevent rapid toggling from corrupting the volume state:
+        </p>
+        <pre><code>@Slot()
+<span class="kw">def</span> <span class="fn">toggle_mute</span>(self):
+    <span class="kw">if</span> self._mute_toggle_locked:
+        <span class="kw">return</span>
+    self._mute_toggle_locked = <span class="kw">True</span>
+    <span class="kw">try</span>:
+        <span class="kw">if</span> self._is_muted:
+            restore_vol = self._previous_volume <span class="kw">if</span> self._previous_volume > <span class="num">0.0</span> <span class="kw">else</span> <span class="num">0.5</span>
+            self._audio_output.setVolume(restore_vol)
+        <span class="kw">else</span>:
+            <span class="kw">if</span> self._audio_output.volume() > <span class="num">0.0</span>:
+                self._previous_volume = self._audio_output.volume()
+            self._audio_output.setVolume(<span class="num">0.0</span>)
+        self._is_muted = <span class="kw">not</span> self._is_muted
+        self.muteChanged.emit(self._is_muted)
+    <span class="kw">finally</span>:
+        QTimer.singleShot(<span class="num">150</span>, self._unlock_mute_toggle)</code></pre>
+
+        <!-- Playback Resume -->
+        <h2 id="playback-resume">Playback State Resume</h2>
+        <p>
+          MediaManager persists the current song, position, and playlist name via SettingsManager for resume
+          on next startup. A <strong>debounce timer</strong> (<code>_save_state_timer</code>, 1 second, single-shot)
+          prevents disk writes on every rapid track change:
+        </p>
+        <pre><code>self._save_state_timer = QTimer()
+self._save_state_timer.setInterval(<span class="num">1000</span>)
+self._save_state_timer.setSingleShot(<span class="kw">True</span>)
+self._save_state_timer.timeout.connect(self._save_playback_state_now)</code></pre>
+
+        <p>
+          On shutdown, if the debounce timer is active, it is stopped and the state is flushed immediately
+          in <code>__del__</code>.
+        </p>
+
+        <!-- Precaching -->
+        <h2 id="precaching">Neighbor Pre-caching</h2>
+        <p>
+          After a track change, a single-shot timer (<code>_precache_timer</code>, 80ms) triggers
+          <code>_precache_neighbors_start()</code> which pre-populates metadata and album art caches for
+          the previous and next tracks in a background thread. This ensures that the next skip is instant
+          with no visible loading delay in the QML UI.
+        </p>
+
+        <!-- Error Recovery -->
+        <h2 id="error-recovery">Error Recovery</h2>
+        <p>
+          MediaManager includes automatic recovery for common playback failures:
+        </p>
+        <ul>
+          <li><strong>EndOfMedia</strong> - Automatically calls <code>next_track()</code></li>
+          <li><strong>StalledMedia / InvalidMedia</strong> - Triggers <code>_attempt_playback_recovery()</code></li>
+          <li><strong>Player errors</strong> - Also triggers recovery</li>
+        </ul>
+
+        <p>The recovery method re-seats the source and restores position:</p>
+        <pre><code><span class="kw">def</span> <span class="fn">_attempt_playback_recovery</span>(self):
+    current_file = self.get_current_file()
+    position = self._player.position()
+    was_playing = self._is_playing
+    file_path = self._get_file_path(current_file)
+    self._player.setSource(QUrl.fromLocalFile(file_path))
+    <span class="kw">if</span> position > <span class="num">0</span>:
+        self._player.setPosition(position)
+    <span class="kw">if</span> was_playing:
+        self._player.play()
+    <span class="cmt"># Restore mute state after recovery</span>
+    <span class="kw">if</span> self._is_muted:
+        self._audio_output.setVolume(<span class="num">0.0</span>)</code></pre>
+
+        <p>
+          The <code>toggle_play()</code> method also checks for bad player states (InvalidMedia, NoMedia,
+          StalledMedia) before resuming and triggers recovery if needed.
+        </p>
+
+        <!-- Key Signals -->
+        <h2 id="signals">Key Signals</h2>
+        <table>
+          <thead>
+            <tr><th>Signal</th><th>Type</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>playStateChanged</code></td><td>bool</td><td>True when playing, False when paused/stopped</td></tr>
+            <tr><td><code>currentMediaChanged</code></td><td>str</td><td>Filename of the now-playing track</td></tr>
+            <tr><td><code>mediaListChanged</code></td><td>list</td><td>Updated file list after scan</td></tr>
+            <tr><td><code>metadataChanged</code></td><td>str, str, str</td><td>Title, artist, album for current track</td></tr>
+            <tr><td><code>durationChanged</code></td><td>int</td><td>Track duration in milliseconds</td></tr>
+            <tr><td><code>positionChanged</code></td><td>int</td><td>Playback position in milliseconds</td></tr>
+            <tr><td><code>volumeChanged</code></td><td>float</td><td>Volume level (0.0-1.0)</td></tr>
+            <tr><td><code>muteChanged</code></td><td>bool</td><td>Mute state changed</td></tr>
+            <tr><td><code>shuffleStateChanged</code></td><td>bool</td><td>Shuffle toggled on/off</td></tr>
+            <tr><td><code>albumColorsExtracted</code></td><td>str</td><td>JSON string with extracted theme colors</td></tr>
+            <tr><td><code>playlistsChanged</code></td><td>(none)</td><td>Playlist list updated</td></tr>
+            <tr><td><code>currentPlaylistChanged</code></td><td>str</td><td>Active playlist name changed</td></tr>
+            <tr><td><code>scanProgress</code></td><td>str</td><td>Terminal-style feedback during library scan</td></tr>
+            <tr><td><code>totalDurationChanged</code></td><td>str</td><td>Formatted total library duration</td></tr>
+            <tr><td><code>albumCountChanged</code></td><td>int</td><td>Number of unique albums</td></tr>
+            <tr><td><code>artistCountChanged</code></td><td>int</td><td>Number of unique artists</td></tr>
+          </tbody>
+        </table>
+
+        <!-- Key Slots -->
+        <h2 id="slots">Key Slots</h2>
+        <table>
+          <thead>
+            <tr><th>Slot</th><th>Signature</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>play_file</code></td><td>(str)</td><td>Play a specific file by filename</td></tr>
+            <tr><td><code>next_track</code></td><td>()</td><td>Advance to next track</td></tr>
+            <tr><td><code>previous_track</code></td><td>()</td><td>Go to previous track</td></tr>
+            <tr><td><code>toggle_play</code></td><td>()</td><td>Toggle play/pause with error recovery</td></tr>
+            <tr><td><code>pause</code></td><td>()</td><td>Pause playback</td></tr>
+            <tr><td><code>set_position</code></td><td>(int)</td><td>Seek to position in ms</td></tr>
+            <tr><td><code>toggle_mute</code></td><td>()</td><td>Toggle mute with debounce guard</td></tr>
+            <tr><td><code>setVolume</code></td><td>(float)</td><td>Set volume (0.0-1.0)</td></tr>
+            <tr><td><code>get_media_files</code></td><td>() -> list</td><td>Scan and return available files</td></tr>
+            <tr><td><code>get_album_art</code></td><td>(str) -> str</td><td>Get album art URL for filename</td></tr>
+            <tr><td><code>get_band</code></td><td>(str) -> str</td><td>Get artist from metadata</td></tr>
+            <tr><td><code>get_album</code></td><td>(str) -> str</td><td>Get album from metadata</td></tr>
+            <tr><td><code>get_formatted_duration</code></td><td>(str) -> str</td><td>Get "M:SS" duration string</td></tr>
+            <tr><td><code>extract_colors_from_album_art</code></td><td>(str)</td><td>Extract and emit theme colors from album art</td></tr>
+            <tr><td><code>get_neighbor_album_arts</code></td><td>() -> list</td><td>Returns [prevArt, nextArt] URLs</td></tr>
+            <tr><td><code>invalidate_stats_cache</code></td><td>()</td><td>Force recalculation of library statistics</td></tr>
+          </tbody>
+        </table>
+
+        <!-- How to Extend -->
+        <h2 id="extending">How to Modify / Extend</h2>
+
+        <h3>Adding a New Audio Format</h3>
+        <ol class="steps">
+          <li>Add the extension to <code>AUDIO_EXTENSIONS</code> tuple</li>
+          <li>Add format-specific metadata extraction in <code>_cache_metadata()</code> (add an <code>elif</code> branch)</li>
+          <li>Add album art extraction in <code>get_album_art()</code> if the format supports embedded art</li>
+        </ol>
+
+        <h3>Adding a New Playback Feature</h3>
+        <ol class="steps">
+          <li>Add a Signal at the class level</li>
+          <li>Add internal state variable in <code>__init__</code></li>
+          <li>Add a <code>@Slot</code> method that QML can call</li>
+          <li>Emit the signal when state changes</li>
+          <li>If the feature should persist, add a corresponding setting in SettingsManager</li>
+        </ol>
+
+        <div class="info-box warning">
+          <div class="info-box-title">Threading Note</div>
+          MediaManager runs on the main thread. Heavy operations like library scanning emit progress
+          signals but the scan itself is synchronous. The pre-cache neighbor operation uses a background
+          thread to avoid blocking the UI during track transitions.
+        </div>
+
+        <!-- Related Pages -->
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="settings-manager.html" class="related-link">Settings Manager</a>
+          <a href="spotify-manager.html" class="related-link">Spotify Manager</a>
+          <a href="obd-manager.html" class="related-link">OBD Manager</a>
+          <a href="architecture.html" class="related-link">Architecture Overview</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>
