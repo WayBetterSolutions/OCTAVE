@@ -3,20 +3,21 @@ import os
 import platform
 from datetime import datetime
 
-# On Android, main.py runs from a temp dir — add the app directory to sys.path
-_android_app_dir = os.environ.get('ANDROID_APP_PATH', '')
-if not _android_app_dir:
-    # Check common Android app data paths
-    _candidate = '/data/user/0/org.octave.octave/files/app'
-    if os.path.isdir(_candidate):
-        _android_app_dir = _candidate
-if _android_app_dir:
-    _sp = os.path.join(_android_app_dir, '_python_bundle', 'site-packages')
-    if os.path.isdir(_sp) and _sp not in sys.path:
-        sys.path.insert(0, _sp)
-    if _android_app_dir not in sys.path:
-        sys.path.insert(0, _android_app_dir)
-    os.chdir(_android_app_dir)
+# On Android, main.py may run from a temp dir — ensure the app directory is in sys.path
+for _candidate in [
+    os.environ.get('ANDROID_PRIVATE', ''),
+    os.environ.get('ANDROID_APP_PATH', ''),
+    '/data/user/0/org.octave.octave/files/app',
+    '/data/data/org.octave.octave/files/app',
+]:
+    if _candidate and os.path.isdir(os.path.join(_candidate, 'backend')):
+        if _candidate not in sys.path:
+            sys.path.insert(0, _candidate)
+        _sp = os.path.join(_candidate, '_python_bundle', 'site-packages')
+        if os.path.isdir(_sp) and _sp not in sys.path:
+            sys.path.insert(0, _sp)
+        os.chdir(_candidate)
+        break
 
 from backend.platform_config import IS_ANDROID
 
@@ -67,8 +68,8 @@ from backend.download_manager import DownloadManager
 # backend imports — platform-conditional (stubs on Android)
 if IS_ANDROID:
     from backend.stubs import (
-        StubOBDManager as OBDManager,
-        StubBerryIMUManager as BerryIMUManager,
+        StubOBDManager,
+        StubBerryIMUManager,
         StubGestureManager as GestureManager,
         StubESP32VolumeManager as ESP32VolumeManager,
         StubPhoneMirrorManager as PhoneMirrorManager,
@@ -78,6 +79,20 @@ if IS_ANDROID:
         StubEmbeddedScrcpyItem as EmbeddedScrcpyItem,
         StubScrcpyCaptureItem as ScrcpyCaptureItem,
     )
+    # Use Android Bluetooth OBD instead of stub
+    try:
+        from backend.android_obd_manager import AndroidOBDManager as OBDManager
+        logger.info("Using Android Bluetooth OBD manager")
+    except Exception:
+        OBDManager = StubOBDManager
+        logger.info("Android OBD unavailable, using stub")
+    # Use Android device sensors instead of BerryIMU stub
+    try:
+        from backend.android_sensors import AndroidSensorManager as BerryIMUManager
+        logger.info("Using Android device sensors for IMU")
+    except Exception:
+        BerryIMUManager = StubBerryIMUManager
+        logger.info("Android sensors unavailable, using stub")
 else:
     from backend.obd_manager import OBDManager
     from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
@@ -118,9 +133,8 @@ engine.rootContext().setContextProperty("isAndroid", IS_ANDROID)
 settings_manager = SettingsManager()
 engine.rootContext().setContextProperty("settingsManager", settings_manager)
 
-# Hide hardware-only settings sections on Android
+# Hide hardware-only settings sections on Android (OBD works via Bluetooth)
 if IS_ANDROID:
-    settings_manager.save_settings_section_visibility("obdSettings", False)
     settings_manager.save_settings_section_visibility("phoneDockSettings", False)
     settings_manager.save_settings_section_visibility("accessoriesSettings", False)
 

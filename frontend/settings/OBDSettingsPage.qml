@@ -311,18 +311,202 @@ Item {
 
             SettingsDivider {}
 
-            // Bluetooth Device Path
+            // Bluetooth Device — Android: Classic BT scan + picker, Desktop: port text field
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
 
                 SettingLabel {
-                    text: "Bluetooth Device"
+                    text: (typeof isAndroid !== "undefined" && isAndroid) ? "Bluetooth OBD Adapter" : "Bluetooth Device"
                 }
 
+                // Android: Scan + Pair + Connect buttons and device list
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.dp(8)
+                    visible: typeof isAndroid !== "undefined" && isAndroid
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.dp(6)
+
+                        // Scan button
+                        Rectangle {
+                            Layout.preferredWidth: App.Spacing.dp(90)
+                            Layout.preferredHeight: App.Spacing.dp(40)
+                            radius: App.Spacing.dpMin(6, 2)
+                            color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: obdManager && obdManager.is_scanning() ? "Scanning..." : "Scan"
+                                color: "white"
+                                font.pixelSize: App.Spacing.overallText
+                                font.family: App.Style.fontFamily
+                                font.bold: true
+                            }
+
+                            MouseArea {
+                                id: scanMouseArea
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (obdManager) {
+                                        obdManager.refresh_ports()
+                                        deviceListModel.clear()
+                                    }
+                                }
+                            }
+                        }
+
+                        // Pair in Settings button
+                        Rectangle {
+                            Layout.preferredWidth: App.Spacing.dp(130)
+                            Layout.preferredHeight: App.Spacing.dp(40)
+                            radius: App.Spacing.dpMin(6, 2)
+                            color: pairMouseArea.pressed ? Qt.darker("#8e44ad", 1.3) : "#8e44ad"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "Pair in Settings"
+                                color: "white"
+                                font.pixelSize: App.Spacing.overallText
+                                font.family: App.Style.fontFamily
+                                font.bold: true
+                            }
+
+                            MouseArea {
+                                id: pairMouseArea
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (obdManager) obdManager.open_bluetooth_settings()
+                                }
+                            }
+                        }
+
+                        // Connect button
+                        Rectangle {
+                            Layout.preferredWidth: App.Spacing.dp(100)
+                            Layout.preferredHeight: App.Spacing.dp(40)
+                            radius: App.Spacing.dpMin(6, 2)
+                            color: connectMouseArea.pressed ? Qt.darker("#27ae60", 1.3) : "#27ae60"
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: obdManager && obdManager.is_connected() ? "Connected" : "Connect"
+                                color: "white"
+                                font.pixelSize: App.Spacing.overallText
+                                font.family: App.Style.fontFamily
+                                font.bold: true
+                            }
+
+                            MouseArea {
+                                id: connectMouseArea
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (obdManager) obdManager.force_connect()
+                                }
+                            }
+                        }
+                    }
+
+                    // Device list
+                    ListModel {
+                        id: deviceListModel
+                    }
+
+                    Connections {
+                        target: obdManager
+                        function onAvailablePortsChanged(ports) {
+                            deviceListModel.clear()
+                            for (var i = 0; i < ports.length; i++) {
+                                deviceListModel.append({"deviceText": ports[i]})
+                            }
+                        }
+                    }
+
+                    // Discovered devices
+                    Repeater {
+                        model: deviceListModel
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: App.Spacing.dp(40)
+                            radius: App.Spacing.dpMin(4, 2)
+                            color: deviceItemMouse.pressed ? Qt.darker(App.Style.cardBackground, 1.2) : App.Style.cardBackground
+                            border.width: 1
+                            border.color: App.Style.accent
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: model.deviceText
+                                color: App.Style.textColor
+                                font.pixelSize: App.Spacing.overallText * 0.9
+                                font.family: App.Style.fontFamily
+                            }
+
+                            MouseArea {
+                                id: deviceItemMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    if (obdManager) {
+                                        var addr = model.deviceText.match(/\(([^)]+)\)/)
+                                        if (addr && addr[1]) {
+                                            obdManager.set_target_address(addr[1])
+                                        }
+                                        obdManager.force_connect()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Android: Manual MAC address entry
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.dp(8)
+                    visible: typeof isAndroid !== "undefined" && isAndroid
+
+                    SettingsTextField {
+                        id: manualMacField
+                        Layout.fillWidth: true
+                        placeholderText: "MAC address (e.g. 88:1B:99:00:11:22)"
+                        text: settingsManager ? settingsManager.obdBluetoothPort : ""
+                    }
+
+                    Rectangle {
+                        Layout.preferredWidth: App.Spacing.dp(80)
+                        Layout.preferredHeight: App.Spacing.dp(40)
+                        radius: App.Spacing.dpMin(6, 2)
+                        color: manualConnectMouse.pressed ? Qt.darker("#27ae60", 1.3) : "#27ae60"
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Go"
+                            color: "white"
+                            font.pixelSize: App.Spacing.overallText
+                            font.family: App.Style.fontFamily
+                            font.bold: true
+                        }
+
+                        MouseArea {
+                            id: manualConnectMouse
+                            anchors.fill: parent
+                            onClicked: {
+                                var mac = manualMacField.text.trim()
+                                if (mac && obdManager) {
+                                    obdManager.set_target_address(mac)
+                                    obdManager.force_connect()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Desktop: text field for port path
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: App.Spacing.overallSpacing
+                    visible: typeof isAndroid === "undefined" || !isAndroid
 
                     SettingsTextField {
                         id: bluetoothPortField
@@ -345,7 +529,64 @@ Item {
                 }
 
                 SettingDescription {
-                    text: "Serial port for your Bluetooth OBD adapter"
+                    text: (typeof isAndroid !== "undefined" && isAndroid)
+                        ? "Pair your OBD adapter in Android Settings first, then Scan to find it."
+                        : "Serial port for your Bluetooth OBD adapter"
+                }
+
+                // ── Connection Log (Android only) ──────────────────
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.dp(4)
+                    visible: typeof isAndroid !== "undefined" && isAndroid
+
+                    SettingLabel {
+                        text: "Connection Log"
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: App.Spacing.dp(160)
+                        radius: App.Spacing.dpMin(4, 2)
+                        color: Qt.darker(App.Style.cardBackground, 1.4)
+                        clip: true
+
+                        Flickable {
+                            id: logFlickable
+                            anchors.fill: parent
+                            anchors.margins: App.Spacing.dp(6)
+                            contentWidth: width
+                            contentHeight: logText.implicitHeight
+                            flickableDirection: Flickable.VerticalFlick
+                            boundsBehavior: Flickable.StopAtBounds
+
+                            Text {
+                                id: logText
+                                width: parent.width
+                                text: ""
+                                color: "#88cc88"
+                                font.pixelSize: App.Spacing.overallText * 0.75
+                                font.family: "monospace"
+                                wrapMode: Text.Wrap
+                            }
+
+                            // Auto-scroll to bottom on new content
+                            onContentHeightChanged: {
+                                if (contentHeight > height)
+                                    contentY = contentHeight - height
+                            }
+                        }
+                    }
+
+                    Connections {
+                        target: obdManager
+                        function onConnectionLogChanged(msg) {
+                            if (logText.text.length > 0)
+                                logText.text += "\n" + msg
+                            else
+                                logText.text = msg
+                        }
+                    }
                 }
             }
 

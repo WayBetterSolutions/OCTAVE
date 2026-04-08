@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Qt-Commercial OR LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only
 from __future__ import annotations
 
+import os
 import shutil
 import zipfile
 from pathlib import Path
@@ -9,10 +10,17 @@ from pathlib import Path
 from pythonforandroid.logger import info
 from pythonforandroid.recipe import PythonRecipe
 
+# Wheel files should be placed in deployment/wheels/
+# Download PySide6 Android wheels from: https://download.qt.io/official_releases/QtForPython/
+# Required: PySide6 6.11.0 wheels built for android_aarch64, CPython 3.11 (cp311)
+# Override location with OCTAVE_WHEELS_DIR env var if needed
+_deployment_dir = Path(__file__).resolve().parent.parent.parent
+_wheels_dir = Path(os.environ.get('OCTAVE_WHEELS_DIR', str(_deployment_dir / 'wheels')))
+
 
 class PySideRecipe(PythonRecipe):
     version = '6.11.0'
-    wheel_path = '/home/rhea/Dropbox/Oasis/_OCTAVE_ANDROID_WHEELS/pyside6-6.11.0-6.11.0-cp311-cp311-android_aarch64.whl'
+    wheel_path = str(_wheels_dir / 'pyside6-6.11.0-6.11.0-cp311-cp311-android_aarch64.whl')
     depends = ["shiboken6"]
     call_hostpython_via_targetpython = False
     install_in_hostpython = False
@@ -105,6 +113,29 @@ class PySideRecipe(PythonRecipe):
                             (Path(self.ctx.get_libs_dir(arch.arch)) /
                              f"libplugins_multimedia_androidmediaplugin_{arch.arch}.so"))
           # noqa: E999
+        # Copy image format plugins (needed for album art, SVGs, etc.)
+        for fmt in ["qjpeg", "qsvg", "qgif", "qico", "qwebp"]:
+            plugin = (lib_dir.parent / "plugins" / "imageformats" /
+                      f"libplugins_imageformats_{fmt}_{arch.arch}.so")
+            if plugin.exists():
+                shutil.copyfile(plugin,
+                                Path(self.ctx.get_libs_dir(arch.arch)) / plugin.name)
+                info(f"Copied {fmt} image format plugin")
+
+        # Copy SVG icon engine
+        iconengine = (lib_dir.parent / "plugins" / "iconengines" /
+                      f"libplugins_iconengines_qsvgicon_{arch.arch}.so")
+        if iconengine.exists():
+            shutil.copyfile(iconengine,
+                            Path(self.ctx.get_libs_dir(arch.arch)) / iconengine.name)
+            info("Copied SVG icon engine plugin")
+
+        # Copy SVG and Bluetooth shared libraries
+        for extra_lib in ["libQt6Svg", "libQt6SvgWidgets", "libQt6Bluetooth"]:
+            extra_so = lib_dir / f"{extra_lib}_{arch.arch}.so"
+            if extra_so.exists():
+                shutil.copyfile(extra_so,
+                                Path(self.ctx.get_libs_dir(arch.arch)) / extra_so.name)
 
 
 recipe = PySideRecipe()

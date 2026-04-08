@@ -28,6 +28,9 @@ Item {
     // ── Optional: vinyl rotation (only used by the center card) ──
     property real vinylAngle: 0
 
+    // ── Animation state (disables smooth filtering for performance) ──
+    property bool animating: false
+
     // ── Optional: drop shadow (only used by the center card) ──
     property bool showShadow: false
     property bool shadowLive: true
@@ -55,7 +58,7 @@ Item {
         source: root.artSource
         sourceSize: Qt.size(root.artSize * 2, root.artSize * 2)
         fillMode: Image.PreserveAspectFit
-        smooth: true
+        smooth: !root.animating
         antialiasing: true
         asynchronous: root.asynchronous
         cache: true

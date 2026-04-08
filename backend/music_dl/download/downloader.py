@@ -86,13 +86,19 @@ class Downloader:
                 "No audio providers specified. Please specify at least one."
             )
 
-        # FFmpeg setup
+        # FFmpeg setup — on Android, ffmpeg is optional (downloads use m4a natively)
         self.ffmpeg = self.settings["ffmpeg"]
         if self.ffmpeg == "ffmpeg" and shutil.which("ffmpeg") is None:
             ffmpeg_exec = get_ffmpeg_path()
             if ffmpeg_exec is None:
-                raise DownloaderError("ffmpeg is not installed")
-            self.ffmpeg = str(ffmpeg_exec.absolute())
+                from backend.platform_config import IS_ANDROID
+                if IS_ANDROID:
+                    logger.warning("ffmpeg not found — conversion disabled (Android m4a mode)")
+                    self.ffmpeg = None
+                else:
+                    raise DownloaderError("ffmpeg is not installed")
+            else:
+                self.ffmpeg = str(ffmpeg_exec.absolute())
 
         logger.debug("FFmpeg path: %s", self.ffmpeg)
 
@@ -367,6 +373,11 @@ class Downloader:
                 success = True
                 result = None
             else:
+                if self.ffmpeg is None:
+                    raise DownloaderError(
+                        "Conversion needed but ffmpeg is not available"
+                    )
+
                 if self.settings["bitrate"] in ["auto", None]:
                     bitrate = (
                         f"{int(download_info['abr'])}k"

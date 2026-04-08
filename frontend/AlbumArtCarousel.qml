@@ -29,7 +29,8 @@ Item {
     readonly property int  kLiftPause: 60
 
     readonly property int  kDissolveDuration: 900
-    readonly property int  kDissolveGridSize: 20   // 20x20 = 400 cells
+    readonly property int  kDissolveGridSize: 20
+    readonly property real kDissolveSmoothness: 0.1
 
     readonly property int  kFlipDuration: 350
 
@@ -40,7 +41,7 @@ Item {
     readonly property real k3dSideOffsetFactor: 0.42
     readonly property real k3dSideScale: 0.72
     readonly property real k3dFarScale: 0.5
-    readonly property int  k3dDuration: 300
+    readonly property int  k3dDuration: 350
 
     // ═══════════════════════════════════════════════════════════════════
     //  Public API
@@ -266,18 +267,19 @@ Item {
         crossfadeAnim.start()
     }
 
+    // All Animator types → entire group runs on the render thread
     ParallelAnimation {
         id: crossfadeAnim
         onStarted: carousel.animBusy = true
         onFinished: carousel._onAnimDone()
 
-        NumberAnimation { target: exitSnapshot; property: "opacity"
+        OpacityAnimator { target: exitSnapshot
             from: 1.0; to: 0; duration: carousel.kCrossfadeDuration; easing.type: Easing.InQuad }
-        NumberAnimation { target: exitSnapshot; property: "scale"
+        ScaleAnimator { target: exitSnapshot
             from: 1.0; to: carousel.kCrossfadeScale; duration: carousel.kCrossfadeDuration; easing.type: Easing.InQuad }
-        NumberAnimation { target: centerCard; property: "opacity"
+        OpacityAnimator { target: centerCard
             from: 0; to: 1.0; duration: carousel.kCrossfadeDuration; easing.type: Easing.OutQuad }
-        NumberAnimation { target: centerCard; property: "scale"
+        ScaleAnimator { target: centerCard
             from: carousel.kCrossfadeScale; to: 1.0; duration: carousel.kCrossfadeDuration; easing.type: Easing.OutQuad }
     }
 
@@ -325,17 +327,18 @@ Item {
         onStarted: carousel.animBusy = true
         onFinished: carousel._onAnimDone()
 
+        // Each inner ParallelAnimation is all-Animators → render thread
         ParallelAnimation {
-            NumberAnimation { target: exitSnapshot; property: "scale"
+            ScaleAnimator { target: exitSnapshot
                 from: 1.0; to: carousel.kLiftScale; duration: carousel.kLiftDuration; easing.type: Easing.InQuad }
-            NumberAnimation { target: exitSnapshot; property: "opacity"
+            OpacityAnimator { target: exitSnapshot
                 from: 1.0; to: 0; duration: carousel.kLiftDuration; easing.type: Easing.InQuad }
         }
         PauseAnimation { duration: carousel.kLiftPause }
         ParallelAnimation {
-            NumberAnimation { target: centerCard; property: "scale"
+            ScaleAnimator { target: centerCard
                 from: carousel.kLiftScale; to: 1.0; duration: carousel.kLiftDuration; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
-            NumberAnimation { target: centerCard; property: "opacity"
+            OpacityAnimator { target: centerCard
                 from: 0; to: 1.0; duration: carousel.kLiftDuration; easing.type: Easing.OutQuad }
         }
     }
@@ -352,13 +355,7 @@ Item {
         _dissolveProgress = 0.0
         _dissolveActive = true
 
-        // Randomize per-cell thresholds
-        for (var i = 0; i < dissolveGridRepeater.count; i++) {
-            var cell = dissolveGridRepeater.itemAt(i)
-            if (cell) cell._threshold = Math.random()
-        }
-
-        // Current art stays visible via centerCard, new art dissolves in on top
+        // Current art stays visible via centerCard, new art dissolves in on top via shader
         centerCard.opacity = 1.0
         dissolveAnim.start()
     }
@@ -450,7 +447,7 @@ Item {
             from: carousel.k3dSideScale
             to: coverflowAnim._dir === 1 ? carousel.k3dFarScale : 1.0
             duration: carousel.k3dDuration
-            easing.type: coverflowAnim._dir === 1 ? Easing.InCubic : Easing.OutBack; easing.overshoot: 2.0 }
+            easing.type: coverflowAnim._dir === 1 ? Easing.InCubic : Easing.OutBack; easing.overshoot: 1.4 }
         NumberAnimation { target: prevCard; property: "cfOpacity"
             from: coverflowAnim._opacity
             to: coverflowAnim._dir === 1 ? 0 : 1.0
@@ -472,7 +469,7 @@ Item {
             from: carousel.k3dSideScale
             to: coverflowAnim._dir === 1 ? 1.0 : carousel.k3dFarScale
             duration: carousel.k3dDuration
-            easing.type: coverflowAnim._dir === 1 ? Easing.OutBack : Easing.InCubic; easing.overshoot: 2.0 }
+            easing.type: coverflowAnim._dir === 1 ? Easing.OutBack : Easing.InCubic; easing.overshoot: 1.4 }
         NumberAnimation { target: nextCard; property: "cfOpacity"
             from: coverflowAnim._opacity
             to: coverflowAnim._dir === 1 ? 1.0 : 0
@@ -755,8 +752,9 @@ Item {
         artRadius: carousel.artRadius
         roundedMask: artRoundedMask
         vinylMask: vinylMaskRect
+        animating: carousel.animBusy
 
-        image.layer.enabled: carousel.roundedArt || carousel.vinylMode || carousel.animBusy
+        image.layer.enabled: carousel.roundedArt || carousel.vinylMode
         image.layer.live: !carousel.animBusy
     }
 
@@ -781,8 +779,9 @@ Item {
         artRadius: carousel.artRadius
         roundedMask: artRoundedMask
         vinylMask: vinylMaskRect
+        animating: carousel.animBusy
 
-        image.layer.enabled: carousel.roundedArt || carousel.vinylMode || carousel.animBusy
+        image.layer.enabled: carousel.roundedArt || carousel.vinylMode
         image.layer.live: !carousel.animBusy
     }
 
@@ -822,50 +821,35 @@ Item {
         }
     }
 
-    // Dissolve grid — new art takes over the current art square by square
-    Item {
-        id: dissolveGrid
+    // Dissolve — GPU shader replaces the old 400-item grid.
+    // A single ShaderEffect with one draw call dissolves the new art in
+    // over the old art (visible via centerCard underneath).
+    Image {
+        id: dissolveNewArtImage
+        visible: false
+        width: carousel.artSize; height: width
+        source: carousel._dissolveNewArt
+        sourceSize: Qt.size(carousel.artSize, carousel.artSize)
+        fillMode: Image.PreserveAspectFit
+        asynchronous: true
+        layer.enabled: carousel._dissolveActive
+        layer.smooth: true
+    }
+
+    ShaderEffect {
+        id: dissolveShader
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
         width: carousel.artSize; height: width
         z: 2
         visible: carousel._dissolveActive
 
-        Grid {
-            anchors.fill: parent
-            columns: carousel.kDissolveGridSize
+        property var source: dissolveNewArtImage
+        property real progress: carousel._dissolveProgress
+        property real gridSize: carousel.kDissolveGridSize
+        property real smoothness: carousel.kDissolveSmoothness
 
-            Repeater {
-                id: dissolveGridRepeater
-                model: carousel.kDissolveGridSize * carousel.kDissolveGridSize
-
-                Item {
-                    id: dissolveCell
-                    property real _threshold: 0.5
-                    property int _col: index % carousel.kDissolveGridSize
-                    property int _row: Math.floor(index / carousel.kDissolveGridSize)
-
-                    width: dissolveGrid.width / carousel.kDissolveGridSize
-                    height: dissolveGrid.height / carousel.kDissolveGridSize
-                    clip: true
-                    opacity: carousel._dissolveProgress > _threshold ? 1 : 0
-
-                    Behavior on opacity {
-                        NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                    }
-
-                    Image {
-                        source: carousel._dissolveNewArt
-                        x: -dissolveCell._col * dissolveCell.width
-                        y: -dissolveCell._row * dissolveCell.height
-                        width: dissolveGrid.width
-                        height: dissolveGrid.height
-                        fillMode: Image.PreserveAspectFit
-                        sourceSize: Qt.size(carousel.artSize, carousel.artSize)
-                    }
-                }
-            }
-        }
+        fragmentShader: "shaders/dissolve_squares.frag.qsb"
 
         // Clip to rounded or vinyl shape
         layer.enabled: carousel.roundedArt || carousel.vinylMode
@@ -890,6 +874,7 @@ Item {
         roundedMask: artRoundedMask
         vinylMask: vinylMaskRect
         asynchronous: true
+        animating: carousel.animBusy
 
         vinylAngle: carousel.vinylMode ? carousel._vinylAngleInternal : 0
 

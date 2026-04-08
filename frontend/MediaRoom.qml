@@ -284,58 +284,6 @@ Item {
                     }
                 }
             }
-            // Background dissolve — synced to album art carousel dissolve
-            Item {
-                id: bgDissolveGrid
-                anchors.fill: parent
-                z: 1
-                visible: albumArtStack.dissolveActive
-
-                Grid {
-                    anchors.fill: parent
-                    columns: 12
-
-                    Repeater {
-                        id: bgDissolveRepeater
-                        model: 144  // 12x12
-
-                        Item {
-                            property real _threshold: 0.5
-                            property int _col: index % 12
-                            property int _row: Math.floor(index / 12)
-
-                            width: bgDissolveGrid.width / 12
-                            height: bgDissolveGrid.height / 12
-                            clip: true
-                            opacity: albumArtStack.dissolveProgress > _threshold ? 1 : 0
-
-                            Behavior on opacity {
-                                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                            }
-
-                            Image {
-                                source: albumArtStack.dissolveNewArt
-                                x: -parent._col * parent.width
-                                y: -parent._row * parent.height
-                                width: bgDissolveGrid.width
-                                height: bgDissolveGrid.height
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                            }
-                        }
-                    }
-                }
-
-                // Match the blur of the background
-                layer.enabled: true
-                layer.effect: GaussianBlur {
-                    radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
-                    samples: Math.min(32, Math.max(1, radius))
-                    deviation: radius / 2.5
-                    transparentBorder: false
-                }
-            }
-
             Rectangle { // Black layer
                 id: colorOverlay
                 anchors.fill: parent
@@ -1099,16 +1047,6 @@ Item {
 
                     // Sync busy flag back to MediaRoom (drives blur freeze, viz pause, etc.)
                     onAnimBusyChanged: mediaRoom._cardAnimBusy = animBusy
-
-                    // Randomize background dissolve grid when album dissolve starts
-                    onDissolveActiveChanged: {
-                        if (dissolveActive) {
-                            for (var i = 0; i < bgDissolveRepeater.count; i++) {
-                                var cell = bgDissolveRepeater.itemAt(i)
-                                if (cell) cell._threshold = Math.random()
-                            }
-                        }
-                    }
 
                     onAnimationFinished: sideCardRefreshTimer.restart()
 

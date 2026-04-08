@@ -34,7 +34,10 @@ except ImportError:
     logger.warning("keyring not installed. Token storage will be less secure.")
 
 
-class KeyringCacheHandler(CacheHandler):
+_CacheHandlerBase = CacheHandler if SPOTIPY_AVAILABLE else object
+
+
+class KeyringCacheHandler(_CacheHandlerBase):
     """
     Secure token cache using OS keychain (Windows Credential Manager, macOS Keychain, etc.)
     Falls back to file-based cache if keyring is not available.

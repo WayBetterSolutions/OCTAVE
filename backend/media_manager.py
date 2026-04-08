@@ -20,6 +20,8 @@ except ImportError:
 
 from backend.logging_config import get_logger
 from backend.settings_manager import get_app_data_dir
+
+AUDIO_EXTENSIONS = ('.mp3', '.m4a', '.flac', '.ogg', '.opus', '.wav')
 logger = get_logger(__name__)
 
 
@@ -300,28 +302,62 @@ class MediaManager(QObject):
                 # Remove oldest entry
                 self._metadata_cache.pop(next(iter(self._metadata_cache)))
 
-            # Read metadata once
-            audio = ID3(file_path)
-            mp3 = MP3(file_path)
+            # Read metadata — handle MP3 and M4A/MP4 formats
+            ext = os.path.splitext(file_path)[1].lower()
+            base_name = os.path.splitext(display_name)[0]
 
-            # Store all required metadata at once
-            self._metadata_cache[filename] = {
-                "artist": self._extract_id3_text(audio.get('TPE1'), "Unknown Artist"),
-                "album": self._extract_id3_text(audio.get('TALB'), "Unknown Album"),
-                "title": self._extract_id3_text(audio.get('TIT2'), display_name.replace('.mp3', '')),
-                "duration": int(mp3.info.length)
-            }
-
-            # Piggyback album art extraction on the same ID3 read
-            self._cache_album_art_from_id3(filename, audio)
+            if ext == '.mp3':
+                audio = ID3(file_path)
+                mp3 = MP3(file_path)
+                self._metadata_cache[filename] = {
+                    "artist": self._extract_id3_text(audio.get('TPE1'), "Unknown Artist"),
+                    "album": self._extract_id3_text(audio.get('TALB'), "Unknown Album"),
+                    "title": self._extract_id3_text(audio.get('TIT2'), base_name),
+                    "duration": int(mp3.info.length)
+                }
+                self._cache_album_art_from_id3(filename, audio)
+            elif ext in ('.m4a', '.mp4', '.aac'):
+                from mutagen.mp4 import MP4 as M4A, MP4Cover
+                m4a = M4A(file_path)
+                self._metadata_cache[filename] = {
+                    "artist": (m4a.tags.get('\xa9ART', ['Unknown Artist'])[0] if m4a.tags else "Unknown Artist"),
+                    "album": (m4a.tags.get('\xa9alb', ['Unknown Album'])[0] if m4a.tags else "Unknown Album"),
+                    "title": (m4a.tags.get('\xa9nam', [base_name])[0] if m4a.tags else base_name),
+                    "duration": int(m4a.info.length) if m4a.info else 0
+                }
+                # Cache album art from m4a covr tag
+                covers = m4a.tags.get('covr', []) if m4a.tags else []
+                if covers:
+                    album_id = self._get_album_id(filename)
+                    if album_id not in self._album_art_cache:
+                        self._manage_cache(album_id)
+                        cover = covers[0]
+                        art_ext = 'png' if cover.imageformat == MP4Cover.FORMAT_PNG else 'jpg'
+                        cache_hash = hashlib.sha256(f"{album_id}_0".encode('utf-8')).hexdigest()[:16]
+                        temp_path = os.path.join(self.temp_dir, f'cover_{cache_hash}.{art_ext}')
+                        if not os.path.exists(temp_path):
+                            with open(temp_path, 'wb') as img_file:
+                                img_file.write(bytes(cover))
+                        self._album_art_cache[album_id] = QUrl.fromLocalFile(temp_path).toString()
+            else:
+                # Generic fallback using mutagen.File
+                from mutagen import File as MutagenFile
+                mf = MutagenFile(file_path)
+                self._metadata_cache[filename] = {
+                    "artist": "Unknown Artist",
+                    "album": "Unknown Album",
+                    "title": base_name,
+                    "duration": int(mf.info.length) if mf and mf.info else 0
+                }
         except Exception as e:
-            logger.error(f"Metadata caching error")
+            logger.error(f"Metadata caching error for {filename}: {e}")
             # Set fallback values
             display_name = self._get_original_filename(filename)
+            base_name = os.path.splitext(display_name)[0]
             self._metadata_cache[filename] = {
                 "artist": "Unknown Artist",
                 "album": "Unknown Album",
-                "title": display_name.replace('.mp3', ''),
+                "title": base_name,
                 "duration": 0
             }
     
@@ -468,7 +504,7 @@ class MediaManager(QObject):
         try:
             if os.path.exists(self.media_dir):
                 for file in os.listdir(self.media_dir):
-                    if file.lower().endswith('.mp3'):
+                    if file.lower().endswith(AUDIO_EXTENSIONS):
                         mp3_files.append(file)
                         
                 # Only emit signal if requested
@@ -513,7 +549,7 @@ class MediaManager(QObject):
 
     @Slot(str, result=str)
     def get_album_art(self, filename):
-        """Extract and cache album art"""
+        """Extract and cache album art. Returns file:// URL or empty string."""
         try:
             album_id = self._get_album_id(filename)
             
@@ -522,6 +558,7 @@ class MediaManager(QObject):
 
             # Return if already cached
             if album_id in self._album_art_cache:
+                logger.info(f"Album art cache hit for {filename}: {self._album_art_cache[album_id][:80]}")
                 return self._album_art_cache[album_id]
             
             # Manage cache BEFORE adding new entry
@@ -529,42 +566,56 @@ class MediaManager(QObject):
 
             # Extract and cache new album art - use helper for correct path
             file_path = self._get_file_path(filename)
-            audio = ID3(file_path)
-            
+            file_ext = os.path.splitext(file_path)[1].lower()
+
             found_apic = False
             apic_index = 0
-            for tag in audio.values():
-                if tag.FrameID == 'APIC':
-                    found_apic = True
-                    # Determine file extension from MIME type
-                    mime = tag.mime.lower()
-                    if mime == 'image/jpeg' or mime == 'image/jpg':
-                        ext = 'jpg'
-                    elif mime == 'image/png':
-                        ext = 'png'
-                    elif mime == 'image/gif':
-                        ext = 'gif'
-                    else:
-                        ext = 'img'  # fallback
 
-                    # Create a unique name for this album art (support multiple APIC frames)
-                    # Use SHA256 for deterministic, collision-resistant naming
+            if file_ext in ('.m4a', '.mp4', '.aac'):
+                # M4A/MP4: cover art stored as 'covr' tag
+                from mutagen.mp4 import MP4 as M4A, MP4Cover
+                m4a = M4A(file_path)
+                covers = m4a.tags.get('covr', []) if m4a.tags else []
+                for cover in covers:
+                    found_apic = True
+                    ext = 'png' if cover.imageformat == MP4Cover.FORMAT_PNG else 'jpg'
                     cache_key = f"{album_id}_{apic_index}"
                     cache_hash = hashlib.sha256(cache_key.encode('utf-8')).hexdigest()[:16]
                     temp_path = os.path.join(self.temp_dir, f'cover_{cache_hash}.{ext}')
-                    
-                    # Write the image data (skip if temp file already exists from this session)
                     if not os.path.exists(temp_path):
                         with open(temp_path, 'wb') as img_file:
-                            img_file.write(tag.data)
-                    
-                    # Convert to URL and cache (cache only the first one for this album_id)
+                            img_file.write(bytes(cover))
+
                     if album_id not in self._album_art_cache:
                         url = QUrl.fromLocalFile(temp_path).toString()
                         self._album_art_cache[album_id] = url
-                        # Optionally, you could return here if you only want the first image
                         return url
                     apic_index += 1
+            else:
+                # MP3: cover art stored as APIC ID3 frames
+                audio = ID3(file_path)
+                for tag in audio.values():
+                    if tag.FrameID == 'APIC':
+                        found_apic = True
+                        mime = tag.mime.lower()
+                        if mime in ('image/jpeg', 'image/jpg'):
+                            ext = 'jpg'
+                        elif mime == 'image/png':
+                            ext = 'png'
+                        else:
+                            ext = 'jpg'
+                        cache_key = f"{album_id}_{apic_index}"
+                        cache_hash = hashlib.sha256(cache_key.encode('utf-8')).hexdigest()[:16]
+                        temp_path = os.path.join(self.temp_dir, f'cover_{cache_hash}.{ext}')
+                        if not os.path.exists(temp_path):
+                            with open(temp_path, 'wb') as img_file:
+                                img_file.write(tag.data)
+
+                        if album_id not in self._album_art_cache:
+                            url = QUrl.fromLocalFile(temp_path).toString()
+                            self._album_art_cache[album_id] = url
+                            return url
+                        apic_index += 1
 
             if not found_apic:
                 return ""
@@ -575,27 +626,26 @@ class MediaManager(QObject):
             return ""
 
     def _extract_album_colors(self, image_path):
-        """Extract dominant colors from album art image using k-means clustering"""
-        if not _COLOR_EXTRACTION_AVAILABLE:
+        """Extract dominant colors from album art image using k-means clustering.
+        Works with Pillow only — no numpy required.
+        """
+        try:
+            from PIL import Image as PILImage
+        except ImportError:
             return None
         try:
-            # Open and resize image for faster processing
-            img = Image.open(image_path)
+            img = PILImage.open(image_path)
             img = img.convert('RGB')
-            # Use LANCZOS resampling - handle both old and new Pillow versions
             try:
-                resample = Image.Resampling.LANCZOS
+                resample = PILImage.Resampling.LANCZOS
             except AttributeError:
-                resample = Image.LANCZOS
+                resample = PILImage.LANCZOS
             img = img.resize((50, 50), resample)
 
-            # Convert to numpy array
-            pixels = np.array(img).reshape(-1, 3)
+            pixels = list(img.getdata())  # list of (r, g, b) tuples
 
-            # Use simple k-means to find dominant colors
             colors = self._kmeans_colors(pixels, k=5)
 
-            # Sort colors by vibrancy (saturation * brightness)
             def color_vibrancy(rgb):
                 r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
                 h, s, v = colorsys.rgb_to_hsv(r, g, b)
@@ -603,18 +653,15 @@ class MediaManager(QObject):
 
             colors = sorted(colors, key=color_vibrancy, reverse=True)
 
-            # Calculate luminance to determine if we need light or dark theme
             def luminance(rgb):
                 r, g, b = rgb[0] / 255, rgb[1] / 255, rgb[2] / 255
                 return 0.299 * r + 0.587 * g + 0.114 * b
 
-            # Average luminance of the image
-            avg_luminance = np.mean([luminance(p) for p in pixels[:1000]])  # Sample 1000 pixels
+            sample = pixels[:1000]
+            avg_luminance = sum(luminance(p) for p in sample) / len(sample)
             is_dark_image = avg_luminance < 0.5
 
-            # Generate theme colors with all extracted colors for variety
             theme_colors = self._generate_theme_from_colors(colors, is_dark_image)
-
             return theme_colors
 
         except Exception as e:
@@ -622,28 +669,46 @@ class MediaManager(QObject):
             return None
 
     def _kmeans_colors(self, pixels, k=5, max_iterations=10):
-        """Simple k-means clustering to find dominant colors"""
-        # Random initialization
-        np.random.seed(42)  # For consistency
-        indices = np.random.choice(len(pixels), k, replace=False)
-        centroids = pixels[indices].astype(float)
+        """Simple k-means clustering to find dominant colors. Pure Python."""
+        import random
+        random.seed(42)
+        n = len(pixels)
+        indices = random.sample(range(n), min(k, n))
+        centroids = [list(pixels[i]) for i in indices]
 
+        labels = [0] * n
         for _ in range(max_iterations):
-            # Assign pixels to nearest centroid
-            distances = ((pixels[:, np.newaxis] - centroids) ** 2).sum(axis=2)
-            labels = np.argmin(distances, axis=1)
+            # Assign each pixel to nearest centroid
+            for i, px in enumerate(pixels):
+                min_dist = float('inf')
+                for j, c in enumerate(centroids):
+                    d = (px[0] - c[0]) ** 2 + (px[1] - c[1]) ** 2 + (px[2] - c[2]) ** 2
+                    if d < min_dist:
+                        min_dist = d
+                        labels[i] = j
 
             # Update centroids
-            new_centroids = np.array([
-                pixels[labels == i].mean(axis=0) if np.sum(labels == i) > 0 else centroids[i]
-                for i in range(k)
-            ])
+            new_centroids = []
+            converged = True
+            for j in range(k):
+                members = [pixels[i] for i in range(n) if labels[i] == j]
+                if members:
+                    nr, ng, nb = 0, 0, 0
+                    for m in members:
+                        nr += m[0]; ng += m[1]; nb += m[2]
+                    cnt = len(members)
+                    nc = [nr / cnt, ng / cnt, nb / cnt]
+                else:
+                    nc = centroids[j]
+                if abs(nc[0] - centroids[j][0]) > 1 or abs(nc[1] - centroids[j][1]) > 1 or abs(nc[2] - centroids[j][2]) > 1:
+                    converged = False
+                new_centroids.append(nc)
 
-            if np.allclose(centroids, new_centroids):
-                break
             centroids = new_centroids
+            if converged:
+                break
 
-        return centroids.astype(int).tolist()
+        return [[int(c[0]), int(c[1]), int(c[2])] for c in centroids]
 
     def _generate_theme_from_colors(self, colors, is_dark):
         """Generate a complete theme palette from extracted colors with variety"""
@@ -1346,7 +1411,7 @@ class MediaManager(QObject):
         try:
             for item in os.listdir(self._library_root):
                 item_path = os.path.join(self._library_root, item)
-                if os.path.isfile(item_path) and item.lower().endswith('.mp3'):
+                if os.path.isfile(item_path) and item.lower().endswith(AUDIO_EXTENSIONS):
                     root_mp3s.append(item)
                     # Track for All Music - store the directory path for this file
                     self._all_music_file_paths[item] = self._library_root
@@ -1379,7 +1444,7 @@ class MediaManager(QObject):
                 mp3_files = []
                 try:
                     for f in os.listdir(subfolder_path):
-                        if f.lower().endswith('.mp3'):
+                        if f.lower().endswith(AUDIO_EXTENSIONS):
                             mp3_files.append(f)
                             # Track for All Music - handle duplicate filenames by appending folder
                             unique_name = f
@@ -1905,7 +1970,7 @@ class MediaManager(QObject):
     def _strip_single_filename(self, filename):
         """Strip a single filename and return the cleaned name, or None if unchanged."""
         name = filename
-        if name.lower().endswith('.mp3'):
+        if name.lower().endswith(AUDIO_EXTENSIONS):
             name = name[:-4]
 
         original_name = name
@@ -2002,7 +2067,7 @@ class MediaManager(QObject):
             cleaned = self._strip_single_filename(filename)
             if cleaned:
                 self._display_names[filename] = cleaned
-                original = filename[:-4] if filename.lower().endswith('.mp3') else filename
+                original = filename[:-4] if filename.lower().endswith(AUDIO_EXTENSIONS) else filename
                 self.scanProgress.emit(f'[STRIP] "{original}" → "{cleaned}"')
                 changed += 1
 

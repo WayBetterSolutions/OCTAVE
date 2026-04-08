@@ -15,7 +15,11 @@ appimagetool-*.AppImage
 *.apk
 *.aab
 .buildozer/
-buildozer.spec
+/buildozer.spec
+!deployment/buildozer.spec
+deployment/wheels/*
+!deployment/wheels/.gitkeep
+deployment/.buildozer/
 
 # Spotify credentials and cache
 backend/settingsConfigure.json
