@@ -54,7 +54,8 @@ jobs:
             libxcb-cursor0 \
             libxkbcommon0 \
             libgl1-mesa-glx \
-            libegl1
+            libegl1 \
+            libpulse0
 
       - name: Install Python dependencies
         run: |
