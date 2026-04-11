@@ -544,8 +544,8 @@ After installation, click "Launch Android Auto" button."""
                 logger.error(f"Error closing DHU: {e}")
                 try:
                     self._dhu_process.kill()
-                except:
-                    pass
+                except Exception as kill_err:
+                    logger.warning(f"DHU kill failed: {kill_err}")
             self._dhu_process = None
 
         self._dhu_hwnd = 0

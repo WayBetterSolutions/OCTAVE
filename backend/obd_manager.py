@@ -605,8 +605,8 @@ class OBDManager(QObject):
             try:
                 self._last_successful_protocol = connection.protocol_name()
                 logger.info(f"[OBD] Caching successful protocol: {self._last_successful_protocol}")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[OBD] Could not cache protocol name: {e}")
 
             self.connectionStatusChanged.emit("Connected")
             self.connectionStatusDetailChanged.emit("OBD interface connected successfully")
@@ -650,8 +650,8 @@ class OBDManager(QObject):
             if connection:
                 try:
                     connection.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[OBD] Error closing failed connection: {e}")
 
             self.connectionStatusChanged.emit("Connection Failed")
             self.connectionStatusDetailChanged.emit("Could not connect to OBD adapter")
@@ -1536,8 +1536,8 @@ class OBDManager(QObject):
             try:
                 self._connection.stop()
                 self._connection.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[OBD] Error closing connection during cleanup: {e}")
             self._connection = None
         self._connected = False
 
@@ -1710,7 +1710,11 @@ class OBDManager(QObject):
         except Exception as e:
             logger.info(f"[OBD] Scan error: {e}")
             self._emit_scan_output(f"[ERROR] Scan failed: {e}")
-            QTimer.singleShot(0, lambda: self.scanProgressChanged.emit(0, f"Scan error: {e}"))
+            # Bind `e` into a default arg — except-scope variables are cleared
+            # when the block exits, so the lambda would otherwise reference a
+            # deleted name when QTimer fires it.
+            err_msg = str(e)
+            QTimer.singleShot(0, lambda msg=err_msg: self.scanProgressChanged.emit(0, f"Scan error: {msg}"))
 
         finally:
             self._is_scanning = False
@@ -1808,8 +1812,10 @@ class OBDManager(QObject):
                     self._connection.start()
                     self._last_data_received = time.time()
                     self._data_watchdog_timer.start()
-                except:
-                    pass
+                except Exception as resume_err:
+                    logger.error(
+                        f"[OBD] Failed to resume async polling after diagnostic entry error: {resume_err}"
+                    )
 
     @Slot()
     def exit_diagnostic_mode(self):
@@ -1820,7 +1826,11 @@ class OBDManager(QObject):
                 logger.info("[OBD] Not in diagnostic mode")
                 return
 
-            # Cancel any in-progress entry
+            # Cancel any in-progress entry. This is the cancellation handshake for
+            # rapid menu switches: enter_diagnostic_mode sets _transitioning=True,
+            # releases the lock to do blocking I/O (connection.stop + 0.2s sleep),
+            # then re-checks the flag at L1770. If we clear it here during that
+            # window, enter_diagnostic_mode bails out and restores async polling.
             if self._diagnostic_mode_transitioning and not self._diagnostic_mode:
                 logger.info("[OBD] Cancelling diagnostic mode entry in progress")
                 self._diagnostic_mode_transitioning = False

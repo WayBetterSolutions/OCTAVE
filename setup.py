@@ -50,10 +50,10 @@ def detect_platform():
     elif system == "linux":
         # Check if Raspberry Pi
         try:
-            with open("/sys/firmware/devicetree/base/model", "r") as f:
+            with open("/sys/firmware/devicetree/base/model") as f:
                 if "raspberry" in f.read().lower():
                     return "raspberry"
-        except:
+        except OSError:
             pass
         return "linux"
     return "unknown"
@@ -62,7 +62,7 @@ def detect_linux_distro():
     """Detect the Linux distribution family."""
     # Check for os-release file (standard on modern Linux)
     try:
-        with open("/etc/os-release", "r") as f:
+        with open("/etc/os-release") as f:
             os_release = f.read().lower()
             if "arch" in os_release or "manjaro" in os_release or "endeavouros" in os_release:
                 return "arch"
@@ -70,7 +70,7 @@ def detect_linux_distro():
                 return "debian"
             elif "fedora" in os_release or "rhel" in os_release or "centos" in os_release or "rocky" in os_release:
                 return "fedora"
-    except:
+    except OSError:
         pass
 
     # Fallback: check for package managers
@@ -86,9 +86,9 @@ def detect_linux_distro():
 def is_wsl():
     """Check if running in Windows Subsystem for Linux."""
     try:
-        with open("/proc/version", "r") as f:
+        with open("/proc/version") as f:
             return "microsoft" in f.read().lower()
-    except:
+    except OSError:
         return False
 
 def check_display():

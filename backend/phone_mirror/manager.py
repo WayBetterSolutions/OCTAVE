@@ -503,11 +503,18 @@ class PhoneMirrorManager(QObject):
             try:
                 self._process.terminate()
                 self._process.wait(timeout=2)
-            except:
+            except subprocess.TimeoutExpired:
+                logger.warning("scrcpy did not terminate within 2s, killing")
                 try:
                     self._process.kill()
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"scrcpy kill failed: {e}")
+            except Exception as e:
+                logger.warning(f"scrcpy terminate failed: {e}")
+                try:
+                    self._process.kill()
+                except Exception as kill_err:
+                    logger.warning(f"scrcpy kill failed: {kill_err}")
             self._process = None
 
         self.scrcpyStopped.emit()

@@ -27,7 +27,7 @@
             <li><a href="#command-server">Command Server (TCP)</a></li>
             <li><a href="#screenshots">Screenshot Tool</a></li>
             <li><a href="#adding-features">How to Add New Features</a></li>
-            <li><a href="#testing">Testing Approach</a></li>
+            <li><a href="#testing">Testing &amp; Linting</a></li>
           </ul>
         </nav>
 
@@ -325,10 +325,43 @@ cap.capture(<span class="str">"media_view"</span>, <span class="str">"Media play
         </ol>
 
         <!-- Testing -->
-        <h2 id="testing">Testing Approach</h2>
-        <div class="info-box warning">
-          <strong>No Automated Tests:</strong> OCTAVE does not have an automated test suite or linter configured. All testing is manual.
+        <h2 id="testing">Testing &amp; Linting</h2>
+        <div class="info-box">
+          <strong>Minimal automation:</strong> OCTAVE ships with a headless smoke test suite under <span class="file-path">tests/</span> and a ruff linter configured in <span class="file-path">pyproject.toml</span>. Both run in CI on every push and PR to <code>main</code>. Most testing is still manual — the smoke suite only catches import-time crashes and basic manager instantiation.
         </div>
+
+        <h3>Linter (ruff)</h3>
+        <p>Ruff is configured in <span class="file-path">pyproject.toml</span> under <code>[tool.ruff]</code> with a conservative rule set: pycodestyle (<code>E</code>, <code>W</code>), pyflakes (<code>F</code>), bare-except detection (<code>E722</code>), bugbear (<code>B</code>), and pyupgrade (<code>UP</code>). Initial ignores cover long lines (<code>E501</code>), out-of-order imports (<code>E402</code>), and unused imports (<code>F401</code>) since the existing codebase has known patterns for each.</p>
+        <pre><code><span class="cmt"># Run ruff locally</span>
+<span class="fn">source</span> venv/bin/activate
+<span class="fn">ruff</span> check .
+
+<span class="cmt"># Check only critical rules (bare except + undefined names)</span>
+<span class="fn">ruff</span> check . --select E722,F821</code></pre>
+        <div class="info-box">
+          <strong>Critical rules are enforced in CI:</strong> <code>E722</code> (bare except) and <code>F821</code> (undefined name) are hard failures in the <code>lint</code> job. The full ruff ruleset runs in warn-only mode (<code>|| true</code>) — existing long lines and style noise are tracked but don't block merges. Broaden enforcement as the codebase cleans up.
+        </div>
+
+        <h3>Smoke Test Suite</h3>
+        <p>The <span class="file-path">tests/</span> directory contains a minimal pytest suite that proves:</p>
+        <ul>
+          <li>Every backend manager module imports cleanly (no syntax errors, no import-time crashes)</li>
+          <li><code>QApplication</code> can initialize headlessly under <code>QT_QPA_PLATFORM=offscreen</code></li>
+          <li>Hardware-free managers (<code>SettingsManager</code>, <code>AudioAnalyzer</code>, <code>NetworkManager</code>) can be constructed without touching the developer's real config directory</li>
+        </ul>
+        <p>Hardware-bound managers (OBD, ESP32, BerryIMU, Gesture, PhoneMirror, AndroidAuto) are imported but not instantiated — instantiation would probe for hardware and is not safe on headless runners. <code>MediaManager</code> is also excluded because <code>QAudioOutput</code> hangs without a real audio backend.</p>
+        <pre><code><span class="cmt"># Run smoke tests locally</span>
+<span class="fn">source</span> venv/bin/activate
+<span class="ev">QT_QPA_PLATFORM</span>=offscreen <span class="fn">pytest</span> tests/ -v</code></pre>
+
+        <h3>Continuous Integration</h3>
+        <p>The <span class="file-path">.github/workflows/build.yml</span> workflow has four jobs:</p>
+        <ul>
+          <li><code>lint</code> — runs ruff on Ubuntu 22.04 (Python 3.11). Triggered on every push/PR to <code>main</code>.</li>
+          <li><code>test</code> — runs the headless pytest smoke suite on Ubuntu 22.04. Triggered on every push/PR to <code>main</code>.</li>
+          <li><code>build-windows</code> / <code>build-macos</code> / <code>build-linux</code> — PyInstaller builds. Gated on <code>lint</code> + <code>test</code> passing, and only run on version tags (<code>v*</code>) or manual <code>workflow_dispatch</code>.</li>
+          <li><code>release</code> — publishes artifacts to GitHub Releases when the trigger is a version tag.</li>
+        </ul>
 
         <h3>Manual Testing Workflow</h3>
         <ol class="steps">

@@ -27,9 +27,16 @@ python dev/dev_main.py
 
 # Build for distribution
 python build_scripts/build.py
+
+# Lint (ruff — configured in pyproject.toml)
+source venv/bin/activate
+ruff check .
+
+# Smoke tests (headless — imports + safe manager instantiation)
+QT_QPA_PLATFORM=offscreen pytest tests/
 ```
 
-There is no automated test suite or linter configured.
+A minimal smoke test suite lives in `tests/` and runs in CI on every push and PR to `main`. Ruff runs in warn-only mode during Phase 1 cleanup — see the TODO in `.github/workflows/build.yml` for when to flip critical rules (E722, F821) to blocking.
 
 ## Architecture
 
@@ -77,7 +84,7 @@ Custom QML types (for embedded video frames) are registered with `qmlRegisterTyp
 
 ### Volume System
 
-Volume uses a **logarithmic curve** (`(volume/100)^2.0`) applied consistently across local media, Spotify, phone mirror, and ESP32 LED feedback. Changes from any source (UI slider, ESP32 knob, gesture sensor) sync to all outputs.
+Volume uses a **quadratic curve** (`(volume/100)^2.0`) for the UI percent → linear audio mapping. `backend/volume_utils.py` owns the curve math and the `VolumeController` QObject, which is the single entry point for routing a 0–100 percent to every output (local media, Spotify, phone mirror, ESP32 LED). Both Python handlers (gesture sensor, ESP32 knob) and QML slider widgets call `volume_controller.applyVolume(percent)` — never touch the individual manager `setVolume` methods or hardcode the curve. Changing the curve only requires editing `to_linear()` in one place.
 
 ### Threading
 
@@ -106,7 +113,7 @@ Rotating log files in `logs/` subdirectory of the config path:
 
 ### Build & CI
 
-PyInstaller creates standalone executables. GitHub Actions (`.github/workflows/build.yml`) builds for Windows, macOS, and Linux on version tags (`v*`), producing platform-specific installers (Inno Setup, DMG, AppImage).
+PyInstaller creates standalone executables. GitHub Actions (`.github/workflows/build.yml`) runs `lint` (ruff) and `test` (headless pytest smoke suite) on every push and PR to `main`, and builds for Windows, macOS, and Linux on version tags (`v*`) or manual dispatch, producing platform-specific installers (Inno Setup, DMG, AppImage). Build jobs depend on lint + test passing.
 
 ## Key Conventions
 
@@ -114,3 +121,19 @@ PyInstaller creates standalone executables. GitHub Actions (`.github/workflows/b
 - QML import path includes `frontend/` — QML files there are importable by name
 - The `dev/` directory is gitignored and fully isolated from production code
 - Backend modules use hierarchical loggers via `get_logger(__name__)`
+
+## Wiki Maintenance
+
+The project wiki lives in `wiki/` (static HTML pages — `architecture.html`, `development.html`, `media-manager.html`, `spotify-manager.html`, `obd-manager.html`, etc., plus `index.html` as the entry point and `search-index.js` for full-text search).
+
+**Whenever a code change affects documented behavior, update the corresponding wiki page in the same commit.** This includes:
+
+- Adding, removing, or renaming a backend manager or its public Slots/Signals/Properties → update the relevant manager page and `signals-slots-reference.html`
+- Changing the settings schema or adding a new setting → update `settings-reference.html` and `settings-manager.html`
+- New build/test/lint commands or CI changes → update `development.html` and `building.html`
+- New dev tools, keyboard shortcuts, or MCP capabilities → update `development.html`
+- New QML components or view-level changes → update `components.html` / `pages.html` / `frontend-overview.html`
+- New hardware support (sensors, controllers, protocols) → update `hardware-managers.html` and `hardware-setup.html`
+- Theme, style token, or animation system changes → update `theme-system.html`
+
+If you are unsure which page to update, `wiki/index.html` lists all pages. Rebuild the search index if wiki content changes: `python wiki/build_search_index.py`. The wiki is the user-facing reference — stale docs are worse than missing docs, so treat wiki updates as part of "done" for any feature or refactor.

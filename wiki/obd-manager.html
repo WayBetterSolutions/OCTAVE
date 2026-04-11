@@ -343,7 +343,15 @@ self._data_watchdog_timeout = <span class="num">30.0</span>  <span class="cmt">#
           A <code>_diagnostic_mode</code> flag pauses the async polling loop during DTC operations.
           A separate synchronous connection (<code>_diagnostic_sync_conn</code>) is used for diagnostic
           commands to avoid conflicts with the async watcher system. A threading lock
-          (<code>_diagnostic_mode_lock</code>) prevents race conditions on rapid menu switching.
+          (<code>_diagnostic_mode_lock</code>) protects the mode flags on rapid menu switching.
+        </p>
+        <p>
+          <strong>Cancellation handshake:</strong> <code>enter_diagnostic_mode</code> sets
+          <code>_diagnostic_mode_transitioning = True</code> under the lock, releases it to do blocking I/O
+          (<code>connection.stop()</code> plus a 200 ms sleep), then re-checks the flag. If
+          <code>exit_diagnostic_mode</code> runs in that window and clears the flag,
+          <code>enter_diagnostic_mode</code> bails out and restores async polling — this is how rapid
+          menu switches are cancelled mid-transition rather than racing to completion.
         </p>
 
         <!-- elm327_protocol.py -->

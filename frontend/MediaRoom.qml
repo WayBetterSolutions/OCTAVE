@@ -456,27 +456,12 @@ Item {
                     // Volume change logic
                     onValueChanged: {
                         volumeControl.currentValue = value
-                        var normalizedValue = value / 100
-                        var logVolume = Math.pow(normalizedValue, 2.0)
+                        // Single dispatch to settings + every audio output.
+                        volumeController.applyVolume(Math.round(value))
 
-                        // Update unified volume in settings
-                        if (settingsManager) {
-                            settingsManager.setCurrentVolume(Math.round(value))
-                        }
-
-                        // Apply to local media
-                        if (mediaManager) {
-                            mediaManager.setVolume(logVolume)
-
-                            // Unmute if volume was raised while user is dragging the slider
-                            if (volumeSlider.pressed && value > 0 && volumeControl.isMuted) {
-                                mediaManager.toggle_mute()
-                            }
-                        }
-
-                        // Apply to Spotify if connected
-                        if (spotifyManager && spotifyManager.is_connected()) {
-                            spotifyManager.set_volume(Math.round(value))
+                        // Unmute if volume was raised while user is dragging the slider
+                        if (mediaManager && volumeSlider.pressed && value > 0 && volumeControl.isMuted) {
+                            mediaManager.toggle_mute()
                         }
 
                         // Update icon

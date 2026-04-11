@@ -16,3 +16,39 @@ dependencies = [
 
 [tool.pyside6-android-deploy]
 input_file = "main.py"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = [
+    "venv",
+    "dev",
+    "dist",
+    "build",
+    "__pycache__",
+    "backend/stubs.py",
+    "build_scripts",
+    "tools",
+    "wiki",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "E722", # bare except
+    "B",    # flake8-bugbear (includes B904 raise-from)
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501", # line too long — existing long lines, revisit later
+    "E402", # module import not at top — main.py does sys.path twiddling first
+    "F401", # imported but unused — re-exports and conditional imports
+    "B008", # function call in default arg — common Qt pattern
+    "UP007", # Optional/Union style — keep flexible for now
+]
+
+[tool.ruff.lint.per-file-ignores]
+"main.py" = ["E402"]
+"tests/*" = ["E402"]

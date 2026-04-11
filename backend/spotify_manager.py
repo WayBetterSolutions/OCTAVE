@@ -218,6 +218,15 @@ class SpotifyManager(QObject):
         # Track pending async operations to avoid duplicates
         self._poll_in_progress = False
 
+        # Rate-limited background poll error surfacing. Playback polls run on a
+        # ~1–10s timer, so raw failures would spam the UI on a dropped network.
+        # Only surface to the user after several consecutive failures and at
+        # most once per POLL_ERROR_EMIT_INTERVAL seconds.
+        self._consecutive_playback_errors = 0
+        self._last_playback_error_ts = 0.0
+        self.POLL_ERROR_THRESHOLD = 5
+        self.POLL_ERROR_EMIT_INTERVAL = 30.0
+
         self._settings_manager = None
 
         # Album Art Capture theme state
@@ -687,6 +696,7 @@ class SpotifyManager(QObject):
                 return result.get('devices', [])
             except Exception as e:
                 logger.error(f"Device refresh error: {e}")
+                self.errorOccurred.emit(f"Could not load Spotify devices: {e}")
                 return []
 
         def on_done(future):
@@ -695,8 +705,8 @@ class SpotifyManager(QObject):
             try:
                 devices = future.result()
                 self._devicesReady.emit(devices)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Device refresh callback error: {e}", exc_info=True)
 
         self._executor.submit(fetch).add_done_callback(on_done)
 
@@ -767,6 +777,7 @@ class SpotifyManager(QObject):
                 } for p in results.get('items', [])]
             except Exception as e:
                 logger.error(f"Playlist refresh error: {e}")
+                self.errorOccurred.emit(f"Could not load Spotify playlists: {e}")
                 return []
 
         def on_done(future):
@@ -775,8 +786,8 @@ class SpotifyManager(QObject):
             try:
                 playlists = future.result()
                 self._playlistsReady.emit(playlists)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Playlist refresh callback error: {e}", exc_info=True)
 
         self._executor.submit(fetch).add_done_callback(on_done)
 
@@ -940,8 +951,25 @@ class SpotifyManager(QObject):
 
         def fetch():
             try:
-                return self._sp.current_playback()
+                result = self._sp.current_playback()
+                self._consecutive_playback_errors = 0
+                return result
             except Exception as e:
+                # Background poll: log at debug to avoid filling logs on dropped
+                # network, and rate-limit user-facing error emission.
+                self._consecutive_playback_errors += 1
+                logger.debug(
+                    f"Playback poll error ({self._consecutive_playback_errors} consecutive): {e}"
+                )
+                if self._consecutive_playback_errors >= self.POLL_ERROR_THRESHOLD:
+                    now = time.time()
+                    if now - self._last_playback_error_ts >= self.POLL_ERROR_EMIT_INTERVAL:
+                        self._last_playback_error_ts = now
+                        logger.warning(
+                            f"Spotify playback poll failed {self._consecutive_playback_errors} "
+                            f"times in a row: {e}"
+                        )
+                        self.errorOccurred.emit(f"Spotify connection lost: {e}")
                 return None
 
         def on_done(future):
@@ -953,8 +981,8 @@ class SpotifyManager(QObject):
                 playback = future.result()
                 # Emit signal to handle result on main thread
                 self._playbackStateReady.emit(playback)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(f"Playback poll callback error: {e}", exc_info=True)
             finally:
                 self._poll_in_progress = False
 
@@ -1057,7 +1085,8 @@ class SpotifyManager(QObject):
         def fetch():
             try:
                 return self._sp.queue()
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Spotify queue fetch failed: {e}")
                 return None
 
         def on_done(future):
@@ -1067,8 +1096,8 @@ class SpotifyManager(QObject):
                 result = future.result()
                 if result:
                     self._queueReady.emit(result.get('queue', []))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Spotify queue callback error: {e}")
 
         self._executor.submit(fetch).add_done_callback(on_done)
 

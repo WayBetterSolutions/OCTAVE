@@ -64,6 +64,7 @@ from backend.spotify_manager import SpotifyManager
 from backend.audio_analyzer import AudioAnalyzer
 from backend.network_manager import NetworkManager
 from backend.download_manager import DownloadManager
+from backend.volume_utils import VolumeController
 
 # backend imports — platform-conditional (stubs on Android)
 if IS_ANDROID:
@@ -185,8 +186,8 @@ if not IS_ANDROID:
     if saved_scrcpy_path:
         phone_mirror_manager.setScrcpyPath(saved_scrcpy_path)
     phone_mirror_manager.setAudioEnabled(settings_manager.get_scrcpy_audio_enabled())
-    initial_volume = settings_manager.currentVolume / 100.0
-    phone_mirror_manager.setVolume(initial_volume ** 2.0)
+    # Startup volume is applied to all outputs by VolumeController below,
+    # after every manager is constructed.
     settings_manager.scrcpyAudioEnabledChanged.connect(
         lambda enabled: phone_mirror_manager.setAudioEnabled(enabled)
     )
@@ -195,6 +196,21 @@ if not IS_ANDROID:
 esp32_volume_manager = ESP32VolumeManager()
 esp32_volume_manager.connect_settings_manager(settings_manager)
 engine.rootContext().setContextProperty("esp32VolumeManager", esp32_volume_manager)
+
+# Volume Controller — single entry point for routing a 0–100 percent to
+# every audio output (local media, Spotify, phone mirror, ESP32). Both
+# Python handlers (gesture, knob) and QML sliders funnel through this to
+# keep outputs in sync and the quadratic curve in one place.
+volume_controller = VolumeController(
+    settings_manager=settings_manager,
+    media_manager=media_manager,
+    spotify_manager=spotify_manager,
+    phone_mirror_manager=None if IS_ANDROID else phone_mirror_manager,
+    esp32_manager=None if IS_ANDROID else esp32_volume_manager,
+)
+engine.rootContext().setContextProperty("volumeController", volume_controller)
+# Apply saved volume to every output at startup.
+volume_controller.applyVolume(settings_manager.currentVolume)
 
 # BerryIMU v3 Manager - live accelerometer/gyro/mag/baro for CarMenu
 berryimu_manager = BerryIMUManager()
@@ -233,26 +249,10 @@ if not IS_ANDROID:
             media_manager.toggle_mute()
         elif action == "volume_up":
             step = settings_manager.gestureVolumeStep
-            current = settings_manager.currentVolume
-            new_volume = min(100, current + step)
-            settings_manager.setCurrentVolume(new_volume)
-            log_volume = (new_volume / 100.0) ** 2.0
-            media_manager.setVolume(log_volume)
-            if spotify_manager.is_connected():
-                spotify_manager.set_volume(new_volume)
-            phone_mirror_manager.setVolume(log_volume)
-            esp32_volume_manager.send_volume_update(new_volume)
+            volume_controller.applyVolume(settings_manager.currentVolume + step)
         elif action == "volume_down":
             step = settings_manager.gestureVolumeStep
-            current = settings_manager.currentVolume
-            new_volume = max(0, current - step)
-            settings_manager.setCurrentVolume(new_volume)
-            log_volume = (new_volume / 100.0) ** 2.0
-            media_manager.setVolume(log_volume)
-            if spotify_manager.is_connected():
-                spotify_manager.set_volume(new_volume)
-            phone_mirror_manager.setVolume(log_volume)
-            esp32_volume_manager.send_volume_update(new_volume)
+            volume_controller.applyVolume(settings_manager.currentVolume - step)
 
     gesture_manager.actionTriggered.connect(handle_gesture_action)
 
@@ -264,15 +264,7 @@ if not IS_ANDROID:
         if abs(_volume_accumulator) >= 1.0:
             change = int(_volume_accumulator)
             _volume_accumulator -= change
-            current = settings_manager.currentVolume
-            new_volume = max(0, min(100, current + change))
-            settings_manager.setCurrentVolume(new_volume)
-            log_volume = (new_volume / 100.0) ** 2.0
-            media_manager.setVolume(log_volume)
-            if spotify_manager.is_connected():
-                spotify_manager.set_volume(new_volume)
-            phone_mirror_manager.setVolume(log_volume)
-            esp32_volume_manager.send_volume_update(new_volume)
+            volume_controller.applyVolume(settings_manager.currentVolume + change)
 
     def handle_esp32_mute_toggle():
         media_manager.toggle_mute()
@@ -281,10 +273,8 @@ if not IS_ANDROID:
     esp32_volume_manager.volumeChangeRequested.connect(handle_esp32_volume_change)
     esp32_volume_manager.muteToggleRequested.connect(handle_esp32_mute_toggle)
 
-    def sync_volume_to_esp32(volume):
-        esp32_volume_manager.send_volume_update(volume)
-
-    settings_manager.currentVolumeChanged.connect(sync_volume_to_esp32)
+    # ESP32 volume sync is handled by VolumeController.applyVolume() above —
+    # every volume change goes through it, so no separate listener needed.
 
     import json
 

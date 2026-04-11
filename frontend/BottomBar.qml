@@ -490,17 +490,10 @@ Rectangle {
 
                             Component.onCompleted: {
                                 if (settingsManager) {
-                                    // Use the unified currentVolume from settings
                                     currentValue = settingsManager.currentVolume
-                                    var logVolume = Math.pow(currentValue / 100, 2.0)
-
-                                    // Apply startup volume to local media
-                                    mediaManager.setVolume(logVolume)
-
-                                    // Apply startup volume to Spotify if connected
-                                    if (spotifyManager && spotifyManager.is_connected()) {
-                                        spotifyManager.set_volume(currentValue)
-                                    }
+                                    // Route startup volume to every audio output via
+                                    // the shared VolumeController (see backend/volume_utils.py).
+                                    volumeController.applyVolume(currentValue)
                                 } else {
                                     currentValue = 10
                                     mediaManager.setVolume(0.1)
@@ -608,26 +601,8 @@ Rectangle {
                                             // The core functionality
                                             onValueChanged: {
                                                 volumeControl.currentValue = value
-                                                var normalizedValue = value / 100
-                                                var logVolume = Math.pow(normalizedValue, 2.0)
-
-                                                // Update unified volume in settings
-                                                if (settingsManager) {
-                                                    settingsManager.setCurrentVolume(Math.round(value))
-                                                }
-
-                                                // Apply to local media
-                                                mediaManager.setVolume(logVolume)
-
-                                                // Apply to Spotify if connected
-                                                if (spotifyManager && spotifyManager.is_connected()) {
-                                                    spotifyManager.set_volume(Math.round(value))
-                                                }
-
-                                                // Apply to Phone Mirror if running
-                                                if (phoneMirrorManager) {
-                                                    phoneMirrorManager.setVolume(logVolume)
-                                                }
+                                                // Single dispatch to settings + every audio output.
+                                                volumeController.applyVolume(Math.round(value))
 
                                                 if (value > 0 && muteButton.isMuted) {
                                                     muteButton.isMuted = false
@@ -1800,17 +1775,10 @@ Rectangle {
                             
                             Component.onCompleted: {
                                 if (settingsManager) {
-                                    // Use the unified currentVolume from settings
                                     currentValue = settingsManager.currentVolume
-                                    var logVolume = Math.pow(currentValue / 100, 2.0)
-
-                                    // Apply startup volume to local media
-                                    mediaManager.setVolume(logVolume)
-
-                                    // Apply startup volume to Spotify if connected
-                                    if (spotifyManager && spotifyManager.is_connected()) {
-                                        spotifyManager.set_volume(currentValue)
-                                    }
+                                    // Route startup volume to every audio output via
+                                    // the shared VolumeController (see backend/volume_utils.py).
+                                    volumeController.applyVolume(currentValue)
                                 } else {
                                     currentValue = 10
                                     mediaManager.setVolume(0.1)
@@ -1918,21 +1886,8 @@ Rectangle {
                                             // The core functionality
                                             onValueChanged: {
                                                 volumeControlVertical.currentValue = value
-                                                var normalizedValue = value / 100
-                                                var logVolume = Math.pow(normalizedValue, 2.0)
-
-                                                // Update unified volume in settings
-                                                if (settingsManager) {
-                                                    settingsManager.setCurrentVolume(Math.round(value))
-                                                }
-
-                                                // Apply to local media
-                                                mediaManager.setVolume(logVolume)
-
-                                                // Apply to Spotify if connected
-                                                if (spotifyManager && spotifyManager.is_connected()) {
-                                                    spotifyManager.set_volume(Math.round(value))
-                                                }
+                                                // Single dispatch to settings + every audio output.
+                                                volumeController.applyVolume(Math.round(value))
 
                                                 if (value > 0 && muteButtonVertical.isMuted) {
                                                     muteButtonVertical.isMuted = false

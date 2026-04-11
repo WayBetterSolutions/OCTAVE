@@ -125,8 +125,8 @@ class EmbeddedScrcpyItem(QQuickItem):
                 self._manager.scrcpyStarted.disconnect(self._on_scrcpy_started)
                 self._manager.scrcpyStopped.disconnect(self._on_scrcpy_stopped)
                 self._manager.scrcpyError.disconnect(self._on_scrcpy_error)
-            except:
-                pass
+            except (RuntimeError, TypeError):
+                pass  # Signals may already be disconnected
 
         self._manager = manager
         if manager:

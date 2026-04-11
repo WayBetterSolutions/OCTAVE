@@ -392,30 +392,54 @@ self._timer.start(<span class="num">50</span>)  <span class="cmt"># 20 Hz</span>
         <!-- Volume System -->
         <h2 id="volume-system">Volume System</h2>
         <p>
-          Volume uses a <strong>logarithmic curve</strong> to match human perception. The raw
-          0&ndash;100 slider value is transformed before being applied:
+          Volume uses a <strong>quadratic curve</strong> (y = x²) to match human perception. The raw
+          0&ndash;100 slider value is transformed before being applied to linear audio outputs:
         </p>
 
-        <pre><code>log_volume = (volume / <span class="num">100.0</span>) ** <span class="num">2.0</span></code></pre>
+        <pre><code>linear = (percent / <span class="num">100.0</span>) ** <span class="num">2.0</span></code></pre>
 
-        <p>This curve is applied consistently across all audio outputs:</p>
+        <p>
+          The curve math and its dispatch logic both live in <span class="file-path">backend/volume_utils.py</span>.
+          Before this module existed, the curve was hardcoded in ~9 call sites across <code>main.py</code> and QML;
+          changing the curve meant editing every site in lockstep. Now the math lives in <code>to_linear()</code>
+          and every source of a volume change funnels through a single <code>VolumeController.applyVolume(percent)</code>
+          entry point.
+        </p>
+
+        <p>
+          <code>VolumeController</code> is a <code>QObject</code> instantiated in <span class="file-path">main.py</span>
+          with references to every audio output manager and registered as the QML context property
+          <code>volumeController</code>. A call to <code>applyVolume(percent)</code>:
+        </p>
+        <ul>
+          <li>stores the raw percent in <code>settings_manager.setCurrentVolume()</code> (idempotent if unchanged)</li>
+          <li>applies <code>to_linear(percent)</code> to <code>media_manager.setVolume()</code> and <code>phone_mirror_manager.setVolume()</code></li>
+          <li>forwards the raw percent to <code>spotify_manager.set_volume()</code> (Spotify Web API applies its own curve)</li>
+          <li>sends the raw percent to <code>esp32_manager.send_volume_update()</code> for the LED ring display</li>
+        </ul>
+
+        <p>Every source of a volume change routes through the same entry point:</p>
 
         <table>
           <thead>
-            <tr><th>Source</th><th>Flow</th></tr>
+            <tr><th>Source</th><th>Call</th></tr>
           </thead>
           <tbody>
             <tr>
-              <td>UI Slider</td>
-              <td>QML &rarr; settingsManager &rarr; log curve &rarr; mediaManager / spotifyManager / phoneMirrorManager</td>
+              <td>UI Slider (BottomBar or MediaRoom)</td>
+              <td><code>volumeController.applyVolume(Math.round(value))</code> from QML</td>
             </tr>
             <tr>
               <td>ESP32 Knob</td>
-              <td>Serial &rarr; esp32VolumeManager &rarr; settingsManager &rarr; all audio managers + LED update</td>
+              <td>Serial &rarr; <code>volumeChangeRequested</code> signal &rarr; <code>handle_esp32_volume_change()</code> &rarr; <code>volume_controller.applyVolume()</code></td>
             </tr>
             <tr>
               <td>Gesture Sensor</td>
-              <td>I2C &rarr; gestureManager &rarr; actionTriggered &rarr; settingsManager &rarr; all audio managers</td>
+              <td>I2C &rarr; <code>actionTriggered("volume_up"/"volume_down")</code> &rarr; <code>handle_gesture_action()</code> &rarr; <code>volume_controller.applyVolume()</code></td>
+            </tr>
+            <tr>
+              <td>Startup</td>
+              <td><code>main.py</code> calls <code>volume_controller.applyVolume(settings_manager.currentVolume)</code> once after all managers are constructed, restoring the saved volume to every output. QML's <code>Component.onCompleted</code> repeats this idempotently.</td>
             </tr>
           </tbody>
         </table>
@@ -426,7 +450,14 @@ _volume_accumulator += delta
 <span class="kw">if</span> abs(_volume_accumulator) >= <span class="num">1.0</span>:
     change = <span class="cls">int</span>(_volume_accumulator)
     _volume_accumulator -= change
-    new_volume = max(<span class="num">0</span>, min(<span class="num">100</span>, current + change))</code></pre>
+    volume_controller.applyVolume(settings_manager.currentVolume + change)</code></pre>
+
+        <div class="info-box">
+          <strong>Rule:</strong> never call <code>mediaManager.setVolume()</code>, <code>spotifyManager.set_volume()</code>,
+          <code>phoneMirrorManager.setVolume()</code>, or <code>esp32VolumeManager.send_volume_update()</code> directly
+          for a new user-driven volume change. Always go through <code>volumeController.applyVolume()</code>, or the
+          outputs will drift out of sync.
+        </div>
 
         <!-- Image Providers -->
         <h2 id="image-providers">Image Providers</h2>

@@ -128,8 +128,8 @@ class EmbeddedDhuItem(QQuickItem):
             try:
                 self._manager.dhuWindowReady.disconnect(self._on_dhu_started)
                 self._manager.dhuEmbeddedChanged.disconnect(self._on_dhu_state_changed)
-            except:
-                pass
+            except (RuntimeError, TypeError):
+                pass  # Signals may already be disconnected
 
         self._manager = manager
         if manager:

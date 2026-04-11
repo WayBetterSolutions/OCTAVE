@@ -443,7 +443,9 @@ self._interpolation_timer.timeout.connect(self._interpolate_position)</code></pr
         <ul>
           <li><strong>Import failures</strong>: <code>SPOTIPY_AVAILABLE</code> and <code>KEYRING_AVAILABLE</code> flags allow graceful degradation</li>
           <li><strong>Authentication errors</strong>: Caught and emitted via <code>errorOccurred</code> signal</li>
-          <li><strong>API call failures</strong>: The <code>_run_async</code> callback catches exceptions and emits errors (only if not shutting down)</li>
+          <li><strong>User-initiated API failures</strong> (<code>_refresh_devices</code>, <code>_refresh_playlists</code>, device transfer): logged at error level and surfaced to the UI via <code>errorOccurred</code></li>
+          <li><strong>Background poll failures</strong> (<code>_poll_playback_state</code>): logged at debug level and <strong>rate-limited</strong> — <code>errorOccurred</code> only fires after <code>POLL_ERROR_THRESHOLD</code> consecutive failures (default 5) and at most once per <code>POLL_ERROR_EMIT_INTERVAL</code> seconds (default 30s). This avoids UI spam during brief network drops while still surfacing persistent issues like expired tokens.</li>
+          <li><strong>Low-priority fetches</strong> (queue for side-card art): logged at debug level only — failures here degrade UI chrome but don't block playback</li>
           <li><strong>Shutdown safety</strong>: All callbacks check <code>self._sp</code> before proceeding to avoid crashes during cleanup</li>
           <li><strong>Duplicate prevention</strong>: <code>_poll_in_progress</code> flag prevents overlapping poll requests</li>
         </ul>
