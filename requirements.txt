@@ -8,11 +8,7 @@ av>=12.0.0
 requests>=2.25.0
 pyserial>=3.5
 smbus2>=0.4.3; sys_platform == "linux"  # I2C interface for BerryIMU sensors
-pycaw>=20240210; sys_platform == "win32"  # Windows audio control for scrcpy volume
-Pillow>=10.0.0  # Image processing for album art color extraction
 # Music download engine (music_dl) dependencies
 yt-dlp==2026.2.21
 ytmusicapi==1.11.5
 rapidfuzz>=3.0.0
-python-slugify>=8.0.0
-typing_extensions>=4.0.0

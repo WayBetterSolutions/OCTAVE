@@ -197,12 +197,12 @@ self._player.setProperty(<span class="str">"analyzeduration"</span>, <span class
         <h2 id="color-extraction">Color Extraction and Theming</h2>
         <p>
           When the "Album Art Capture" theme is active, MediaManager extracts dominant colors from album art
-          to generate a complete dynamic theme palette. This requires PIL (Pillow).
+          to generate a complete dynamic theme palette. Uses Qt's <code>QImage</code> (no Pillow required).
         </p>
 
         <h3>Extraction Pipeline</h3>
         <ol class="steps">
-          <li>Resize album art to 50x50 pixels (LANCZOS resampling)</li>
+          <li>Resize album art to 50x50 pixels via <code>QImage.scaled()</code> (smooth transformation)</li>
           <li>Run k-means clustering (<code>_kmeans_colors()</code>, pure Python, k=5, max 10 iterations) to find 5 dominant colors</li>
           <li>Sort colors by vibrancy (saturation * value in HSV space)</li>
           <li>Determine if image is dark or light based on average luminance</li>

@@ -9,12 +9,9 @@ dependencies = [
     "mutagen==1.47.0",
     "spotipy>=2.25.2",
     "requests>=2.25.0",
-    "Pillow>=10.0.0",
     "yt-dlp>=2026.2.21",
     "ytmusicapi==1.11.5",
     "rapidfuzz>=3.0.0",
-    "python-slugify>=8.0.0",
-    "typing_extensions>=4.0.0",
 ]
 
 [tool.pyside6-android-deploy]

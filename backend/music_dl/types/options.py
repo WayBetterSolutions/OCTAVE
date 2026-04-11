@@ -4,9 +4,7 @@ Options types have all the fields marked as required.
 Settings types have all the fields marked as optional.
 """
 
-from typing import List, Optional, Union
-
-from typing_extensions import TypedDict
+from typing import List, Optional, TypedDict, Union
 
 __all__ = [
     "SpotifyOptions",

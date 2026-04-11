@@ -4,6 +4,7 @@ Controls Spotify playback on connected devices (phone, desktop, etc.)
 """
 
 from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QMetaObject, Qt, Q_ARG
+from PySide6.QtGui import QImage
 import os
 import json
 import webbrowser
@@ -1226,7 +1227,6 @@ class SpotifyManager(QObject):
         def do_extract():
             import urllib.request
             import colorsys
-            from PIL import Image
             import numpy as np
 
             # Download image to temp file
@@ -1236,15 +1236,15 @@ class SpotifyManager(QObject):
 
             urllib.request.urlretrieve(image_url, temp_path)
 
-            img = Image.open(temp_path)
-            img = img.convert('RGB')
-            try:
-                resample = Image.Resampling.LANCZOS
-            except AttributeError:
-                resample = Image.LANCZOS
-            img = img.resize((100, 100), resample)
+            img = QImage(temp_path)
+            if img.isNull():
+                return None
+            img = img.convertToFormat(QImage.Format.Format_RGBA8888)
+            img = img.scaled(100, 100, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
-            pixels = np.array(img).reshape(-1, 3)
+            # Format_RGBA8888: stride = width*4, no row padding
+            raw = bytes(img.constBits())
+            pixels = np.frombuffer(raw, dtype=np.uint8).reshape(-1, 4)[:, :3]
 
             colors = self._kmeans_colors(pixels, k=5)
 

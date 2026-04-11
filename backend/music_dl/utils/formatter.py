@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional
 from unicodedata import normalize
 
 from rapidfuzz import fuzz
-from slugify import slugify as py_slugify
 from yt_dlp import parse_options
 from yt_dlp.utils import sanitize_filename
 
@@ -132,7 +131,13 @@ def slugify(string: str) -> str:
     if JAP_REGEX.search(string):
         string = JAP_REGEX.sub('', string).strip()
 
-    return py_slugify(string, regex_pattern=DISALLOWED_REGEX.pattern)
+    # NFKD normalize + drop non-ASCII (e.g. "Björk" -> "Bjork")
+    result = normalize("NFKD", string).encode("ascii", "ignore").decode("ascii")
+    result = result.lower()
+    # Replace any disallowed char run with "-", collapse, and strip
+    result = DISALLOWED_REGEX.sub("-", result)
+    result = re.sub(r"-+", "-", result).strip("-")
+    return result
 
 
 def format_query(

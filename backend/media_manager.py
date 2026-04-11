@@ -1,6 +1,6 @@
-from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer
+from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QUrl, Qt
+from PySide6.QtGui import QImage
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
-from PySide6.QtCore import QUrl
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, TIT2, TPE1, TALB
 import os
@@ -11,12 +11,6 @@ import hashlib
 import colorsys
 import shutil
 import threading
-try:
-    from PIL import Image
-    import numpy as np
-    _COLOR_EXTRACTION_AVAILABLE = True
-except ImportError:
-    _COLOR_EXTRACTION_AVAILABLE = False
 
 from backend.logging_config import get_logger
 from backend.settings_manager import get_app_data_dir
@@ -627,22 +621,22 @@ class MediaManager(QObject):
 
     def _extract_album_colors(self, image_path):
         """Extract dominant colors from album art image using k-means clustering.
-        Works with Pillow only — no numpy required.
+        Pure Python + QImage — no Pillow/numpy required.
         """
         try:
-            from PIL import Image as PILImage
-        except ImportError:
-            return None
-        try:
-            img = PILImage.open(image_path)
-            img = img.convert('RGB')
-            try:
-                resample = PILImage.Resampling.LANCZOS
-            except AttributeError:
-                resample = PILImage.LANCZOS
-            img = img.resize((50, 50), resample)
+            img = QImage(image_path)
+            if img.isNull():
+                return None
+            img = img.convertToFormat(QImage.Format.Format_RGBA8888)
+            img = img.scaled(50, 50, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
-            pixels = list(img.getdata())  # list of (r, g, b) tuples
+            # Format_RGBA8888 guarantees 4-byte stride per pixel, no row padding
+            ptr = img.constBits()
+            raw = bytes(ptr)
+            pixels = [
+                (raw[i], raw[i + 1], raw[i + 2])
+                for i in range(0, len(raw), 4)
+            ]
 
             colors = self._kmeans_colors(pixels, k=5)
 
