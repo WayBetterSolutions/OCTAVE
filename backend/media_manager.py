@@ -1913,6 +1913,35 @@ class MediaManager(QObject):
         path = self._get_file_path(filename)
         return path if path else ""
 
+    @Slot(str, result=bool)
+    def play_file_at_path(self, file_path):
+        """
+        Play a specific file by absolute path. Rescans the library so freshly
+        downloaded files are picked up, finds which playlist holds the file,
+        selects that playlist, and plays the file. Returns True on success.
+        """
+        if not file_path or not os.path.exists(file_path):
+            logger.warning("play_file_at_path: path missing or does not exist: %s", file_path)
+            return False
+
+        self.scan_library(reset_display_names=False)
+
+        file_dir = os.path.realpath(os.path.dirname(file_path))
+        filename = os.path.basename(file_path)
+
+        for playlist_name, playlist_data in self._playlists.items():
+            if playlist_data.get("is_combined"):
+                continue
+            playlist_dir = os.path.realpath(playlist_data.get("path", ""))
+            if playlist_dir == file_dir and filename in playlist_data.get("files", []):
+                self.select_playlist(playlist_name)
+                self.play_file(filename)
+                logger.info("play_file_at_path: playing '%s' from playlist '%s'", filename, playlist_name)
+                return True
+
+        logger.warning("play_file_at_path: no playlist contains '%s'", file_path)
+        return False
+
     def _load_display_names(self):
         """Load persisted display names from JSON"""
         try:

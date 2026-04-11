@@ -29,11 +29,26 @@ Item {
     property var searchResults: []
     property bool isSearching: false
     property string statusText: "Search for songs to download"
+    property bool statusVisible: true
     property bool hasMoreResults: false
+
+    onStatusTextChanged: {
+        downloadPage.statusVisible = true
+        statusFadeTimer.restart()
+    }
+
+    Timer {
+        id: statusFadeTimer
+        interval: 10000
+        repeat: false
+        running: true
+        onTriggered: downloadPage.statusVisible = false
+    }
 
     // Download state — keyed by song_id for uniqueness
     property var activeDownloads: ({})    // song_id -> progress (0.0-1.0)
     property var downloadNames: ({})      // song_id -> display name
+    property var downloadedPaths: ({})    // song_id -> absolute file path (captured from backend)
 
     // Queue panel is always visible when items exist (no toggle needed)
 
@@ -131,6 +146,10 @@ Item {
             var names = Object.assign({}, downloadPage.downloadNames)
             delete names[songId]
             downloadPage.downloadNames = names
+            // Remember the exact file path so click-to-play can use it directly
+            var paths = Object.assign({}, downloadPage.downloadedPaths)
+            paths[songId] = filePath
+            downloadPage.downloadedPaths = paths
             downloadPage.statusText = displayName ? ("Downloaded: " + displayName) : "Download complete"
 
             // Update queue model
@@ -192,14 +211,17 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: App.Spacing.dp(16)
+            anchors.topMargin: App.Spacing.mediaRoomMargin
+            anchors.rightMargin: App.Spacing.mediaRoomMargin
+            anchors.bottomMargin: App.Spacing.dp(16)
+            anchors.leftMargin: App.Spacing.dp(16)
             spacing: App.Spacing.dp(12)
 
             // ─── Header ──────────────────────────────────────────
 
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight + App.Spacing.dp(8)
+                Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
                 spacing: App.Spacing.dp(12)
 
                 Text {
@@ -220,6 +242,10 @@ Item {
                     color: dimTextColor
                     elide: Text.ElideRight
                     Layout.maximumWidth: App.Spacing.dp(300)
+                    opacity: downloadPage.statusVisible ? 1.0 : 0.0
+                    Behavior on opacity {
+                        NumberAnimation { duration: 600; easing.type: Easing.InOutQuad }
+                    }
                 }
 
                 // New playlist button (left of dropdown, matches MediaPlayer)
@@ -775,9 +801,60 @@ Item {
                     property real dlProgress: isDownloading ? (downloadPage.activeDownloads[songId] || 0) : 0
                     onDlProgressChanged: if (progressRing.visible) progressRing.requestPaint()
 
-                    width: resultsListView.width
+                    width: resultsListView.width - App.Spacing.dp(14)
                     height: App.Spacing.dp(72)
-                    color: delegateMouseArea.containsMouse ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12) : cardColor
+                    color: cardHover.hovered ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12) : cardColor
+
+                    function handleCardAction() {
+                        if (modelData.is_downloaded) {
+                            var artist = modelData.artist || ""
+                            var name = modelData.name || ""
+                            var playlist = modelData.downloaded_playlist || ""
+                            var knownPath = downloadPage.downloadedPaths[modelData.song_id || ""] || ""
+                            downloadPage.statusText = "Playing: " + artist + " - " + name
+                            if (!mediaManager) return
+                            if (spotifyManager && spotifyManager.is_connected() && spotifyManager.is_playing()) {
+                                spotifyManager.pause()
+                            }
+                            if (settingsManager && settingsManager.mediaSource !== "local") {
+                                settingsManager.set_media_source("local")
+                            }
+                            var ok = false
+                            if (knownPath) {
+                                ok = mediaManager.play_file_at_path(knownPath)
+                            }
+                            if (!ok && artist && name && playlist) {
+                                ok = mediaManager.play_downloaded_song(artist, name, playlist)
+                            }
+                            if (!ok) {
+                                downloadPage.statusText = "Could not find file for: " + artist + " - " + name
+                                return
+                            }
+                            if (downloadPage.stackView) {
+                                downloadPage.stackView.push("MediaRoom.qml", {
+                                    stackView: downloadPage.stackView
+                                })
+                            }
+                        } else if (modelData.is_failed) {
+                            errorPopup.errorMsg = modelData.error_message || "Download failed — no audio source found"
+                            errorPopup.songName = (modelData.artist || "") + " - " + (modelData.name || "")
+                            errorPopup.songJson = JSON.stringify(modelData)
+                            errorPopup.open()
+                        } else {
+                            downloadManager.download_song(JSON.stringify(modelData))
+                        }
+                    }
+
+                    HoverHandler {
+                        id: cardHover
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        cursorShape: songDelegate.isDownloading ? Qt.ArrowCursor : Qt.PointingHandCursor
+                    }
+
+                    TapHandler {
+                        enabled: !songDelegate.isDownloading
+                        onTapped: songDelegate.handleCardAction()
+                    }
                     border.color: {
                         if (modelData.is_downloaded) return Qt.rgba(successColor.r, successColor.g, successColor.b, 0.3)
                         if (modelData.is_failed) return Qt.rgba(failedColor.r, failedColor.g, failedColor.b, 0.3)
@@ -919,7 +996,7 @@ Item {
                                     return Qt.rgba(failedColor.r, failedColor.g, failedColor.b, 0.12)
                                 if (isDownloading)
                                     return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
-                                return dlBtnMouse.pressed ? Qt.darker(accentColor, 1.3) : accentColor
+                                return accentColor
                             }
 
                             // Download icon (shown when available to download)
@@ -1007,58 +1084,14 @@ Item {
                                 visible: modelData.is_failed === true && !modelData.is_downloaded
                             }
 
-                            MouseArea {
-                                id: dlBtnMouse
-                                anchors.fill: parent
-                                enabled: !isDownloading
-                                cursorShape: isDownloading ? Qt.ArrowCursor : Qt.PointingHandCursor
-                                onClicked: {
-                                    if (modelData.is_downloaded) {
-                                        // Play the downloaded song and navigate to MediaRoom
-                                        var artist = modelData.artist || ""
-                                        var name = modelData.name || ""
-                                        var playlist = modelData.downloaded_playlist || ""
-                                        if (mediaManager && artist && name && playlist) {
-                                            if (spotifyManager && spotifyManager.is_connected() && spotifyManager.is_playing()) {
-                                                spotifyManager.pause()
-                                            }
-                                            if (settingsManager && settingsManager.mediaSource !== "local") {
-                                                settingsManager.set_media_source("local")
-                                            }
-                                            mediaManager.play_downloaded_song(artist, name, playlist)
-                                            if (downloadPage.stackView) {
-                                                downloadPage.stackView.push("MediaRoom.qml", {
-                                                    stackView: downloadPage.stackView
-                                                })
-                                            }
-                                        }
-                                    } else if (modelData.is_failed) {
-                                        errorPopup.errorMsg = modelData.error_message || "Download failed — no audio source found"
-                                        errorPopup.songName = (modelData.artist || "") + " - " + (modelData.name || "")
-                                        errorPopup.open()
-                                    } else {
-                                        downloadManager.download_song(JSON.stringify(modelData))
-                                    }
-                                }
-                            }
                         }
-                    }
-
-                    MouseArea {
-                        id: delegateMouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        propagateComposedEvents: true
-                        onClicked: function(mouse) { mouse.accepted = false }
-                        onPressed: function(mouse) { mouse.accepted = false }
-                        onReleased: function(mouse) { mouse.accepted = false }
                     }
                 }
 
                 // ─── Load More footer ───────────────────────────
 
                 footer: Item {
-                    width: resultsListView.width
+                    width: resultsListView.width - App.Spacing.dp(14)
                     height: downloadPage.hasMoreResults ? App.Spacing.dp(52) : 0
                     visible: downloadPage.hasMoreResults
 
@@ -1232,15 +1265,69 @@ Item {
                             }
 
                             delegate: Rectangle {
-                                width: queueListView.width
+                                id: queueItemDelegate
+                                width: queueListView.width - App.Spacing.dp(14)
                                 height: App.Spacing.dp(52)
                                 radius: App.Spacing.dp(6)
                                 color: {
                                     if (model.status === "complete")
-                                        return Qt.rgba(successColor.r, successColor.g, successColor.b, 0.08)
+                                        return queueItemHover.hovered
+                                            ? Qt.rgba(successColor.r, successColor.g, successColor.b, 0.18)
+                                            : Qt.rgba(successColor.r, successColor.g, successColor.b, 0.08)
                                     if (model.status === "failed")
                                         return Qt.rgba(downloadPage.accentColor.r, downloadPage.accentColor.g, downloadPage.accentColor.b, 0.0)
                                     return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.06)
+                                }
+
+                                HoverHandler {
+                                    id: queueItemHover
+                                    enabled: model.status === "complete"
+                                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                                    cursorShape: Qt.PointingHandCursor
+                                }
+
+                                TapHandler {
+                                    enabled: model.status === "complete"
+                                    onTapped: {
+                                        if (!mediaManager) return
+                                        var knownPath = downloadPage.downloadedPaths[model.songId] || ""
+                                        // Fall back to looking up song data from searchResults
+                                        var song = null
+                                        var results = downloadPage.searchResults
+                                        for (var i = 0; i < results.length; i++) {
+                                            if (results[i].song_id === model.songId) {
+                                                song = results[i]
+                                                break
+                                            }
+                                        }
+                                        if (spotifyManager && spotifyManager.is_connected() && spotifyManager.is_playing()) {
+                                            spotifyManager.pause()
+                                        }
+                                        if (settingsManager && settingsManager.mediaSource !== "local") {
+                                            settingsManager.set_media_source("local")
+                                        }
+                                        var ok = false
+                                        if (knownPath) {
+                                            ok = mediaManager.play_file_at_path(knownPath)
+                                        }
+                                        if (!ok && song) {
+                                            ok = mediaManager.play_downloaded_song(
+                                                song.artist || "",
+                                                song.name || "",
+                                                song.downloaded_playlist || ""
+                                            )
+                                        }
+                                        if (!ok) {
+                                            downloadPage.statusText = "Could not play: " + (model.songName || "")
+                                            return
+                                        }
+                                        downloadPage.statusText = "Playing: " + (model.songName || "")
+                                        if (downloadPage.stackView) {
+                                            downloadPage.stackView.push("MediaRoom.qml", {
+                                                stackView: downloadPage.stackView
+                                            })
+                                        }
+                                    }
                                 }
                                 border.width: 1
                                 border.color: {
@@ -1364,6 +1451,7 @@ Item {
 
         property string songName: ""
         property string errorMsg: ""
+        property string songJson: ""
 
         Overlay.modal: Rectangle {
             color: Qt.rgba(0, 0, 0, 0.5)
@@ -1420,29 +1508,65 @@ Item {
                 wrapMode: Text.WordWrap
             }
 
-            Rectangle {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: App.Spacing.dp(36)
-                color: errorDismissMouse.pressed
-                    ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
-                    : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
-                border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
-                border.width: 1
-                radius: App.Spacing.dp(6)
+                spacing: App.Spacing.dp(8)
 
-                Text {
-                    anchors.centerIn: parent
-                    text: "OK"
-                    font.family: downloadPage.globalFont
-                    font.pixelSize: App.Spacing.dp(13)
-                    font.weight: Font.DemiBold
-                    color: textColor
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: App.Spacing.dp(36)
+                    color: errorRetryMouse.pressed
+                        ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.35)
+                        : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.22)
+                    border.color: accentColor
+                    border.width: 1
+                    radius: App.Spacing.dp(6)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Retry"
+                        font.family: downloadPage.globalFont
+                        font.pixelSize: App.Spacing.dp(13)
+                        font.weight: Font.DemiBold
+                        color: textColor
+                    }
+
+                    MouseArea {
+                        id: errorRetryMouse
+                        anchors.fill: parent
+                        onClicked: {
+                            if (errorPopup.songJson.length > 0) {
+                                downloadManager.download_song(errorPopup.songJson)
+                            }
+                            errorPopup.close()
+                        }
+                    }
                 }
 
-                MouseArea {
-                    id: errorDismissMouse
-                    anchors.fill: parent
-                    onClicked: errorPopup.close()
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: App.Spacing.dp(36)
+                    color: errorDismissMouse.pressed
+                        ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
+                        : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
+                    border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
+                    border.width: 1
+                    radius: App.Spacing.dp(6)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "OK"
+                        font.family: downloadPage.globalFont
+                        font.pixelSize: App.Spacing.dp(13)
+                        font.weight: Font.DemiBold
+                        color: textColor
+                    }
+
+                    MouseArea {
+                        id: errorDismissMouse
+                        anchors.fill: parent
+                        onClicked: errorPopup.close()
+                    }
                 }
             }
         }

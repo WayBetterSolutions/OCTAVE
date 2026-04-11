@@ -27,12 +27,14 @@ Item {
           subSections: ["Library", "Playback", "Album Art", "Background", "Effects", "Spotify"] },
         { name: "Phone Dock",  section: "phoneDockSettings",   source: "settings/PhoneDockSettingsPage.qml",   widget: "widgets/PhoneDockWidget.qml",   icon: "\u260E",
           group: "Connectivity",
+          desktopOnly: true,
           subSections: ["Android Auto", "Phone Mirror"] },
         { name: "OBD",         section: "obdSettings",         source: "settings/OBDSettingsPage.qml",         widget: "widgets/OBDWidget.qml",         icon: "\u26A1",
           group: "Connectivity",
           subSections: ["Connection", "Parameters"] },
         { name: "Accessories", section: "accessoriesSettings", source: "settings/AccessoriesSettingsPage.qml", widget: "widgets/AccessoriesWidget.qml", icon: "\u2388",
           group: "Connectivity",
+          desktopOnly: true,
           subSections: ["Volume Knob", "Gesture Sensor"] },
         { name: "Device",      section: "deviceSettings",      source: "settings/DeviceSettingsPage.qml",      widget: "widgets/DeviceWidget.qml",      icon: "\u2699",
           group: "System",
@@ -104,8 +106,10 @@ Item {
 
     function buildHubModel() {
         var model = []
+        var android = (typeof isAndroid !== "undefined" && isAndroid)
         for (var i = 0; i < pageModel.length; i++) {
             var page = pageModel[i]
+            if (page.desktopOnly && android) continue
             if (!isVisible(page.section)) continue
             model.push({
                 name: page.name,
@@ -117,6 +121,12 @@ Item {
             })
         }
         hubModel = model
+    }
+
+    function navigateToHub() {
+        if (layoutLoader.item && typeof layoutLoader.item.navigateToHub === "function") {
+            layoutLoader.item.navigateToHub()
+        }
     }
 
     function navigateToCategory(section) {

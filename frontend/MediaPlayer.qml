@@ -416,7 +416,7 @@ Item {
             // Playlist dropdown (right side, next to download button)
             Item {
                 id: playlistDropdownContainer
-                width: Math.min(App.Spacing.dp(280), parent.width * 0.3)
+                width: Math.min(App.Spacing.dp(220), parent.width * 0.25)
                 height: App.Spacing.bottomBarNavButtonHeight
                 anchors {
                     right: parent.right

@@ -1077,7 +1077,8 @@ Rectangle {
                                 onClicked: {
                                     var currentItem = stackView.currentItem
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
-                                        settingsVisibilityPopup.open()
+                                        if (typeof currentItem.navigateToHub === "function")
+                                            currentItem.navigateToHub()
                                     } else {
                                         // Pop back to root first, then push fresh settings page
                                         while (stackView.depth > 1)
@@ -2372,7 +2373,8 @@ Rectangle {
                                 onClicked: {
                                     var currentItem = stackView.currentItem
                                     if (currentItem && currentItem.objectName === "settingsMenu") {
-                                        settingsVisibilityPopup.open()
+                                        if (typeof currentItem.navigateToHub === "function")
+                                            currentItem.navigateToHub()
                                     } else {
                                         // Pop back to root first, then push fresh settings page
                                         while (stackView.depth > 1)

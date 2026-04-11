@@ -290,6 +290,9 @@ class DownloadManager(QObject):
                 if key.startswith("dl_") and key.endswith(f"_{song_id}"):
                     self.statusMessage.emit(f"Already downloading: {song_name}")
                     return
+            # Clear any prior failed state so the UI reflects the retry immediately
+            self._mark_result_status_by_id(song_id, "is_failed", False)
+            self._mark_result_status_by_id(song_id, "error_message", "")
 
         self.statusMessage.emit(f"Queuing download: {song_name}")
         self.downloadStarted.emit(song_id, song_name)

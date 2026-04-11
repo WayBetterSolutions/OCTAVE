@@ -52,17 +52,6 @@ Item {
         return settingsMenu.pageModel[0].source
     }
 
-    // Dashboard column span — important categories get 2 columns in 3-col mode
-    function getSpanForSection(section) {
-        switch (section) {
-            case "displaySettings":
-            case "mediaSettings":
-                return 2
-            default:
-                return 1
-        }
-    }
-
     // Widget source for a section
     function getWidgetForSection(section) {
         if (!settingsMenu) return ""
@@ -73,58 +62,46 @@ Item {
         return ""
     }
 
-    // Count how many grid rows the model occupies
-    function getRowCount(cols) {
-        var col = 0
-        var rows = 1
-        for (var i = 0; i < dashModel.length; i++) {
-            var span = dashModel[i].span
-            if (cols <= 2) span = 1
-            if (col + span > cols) {
-                rows++
-                col = 0
-            }
-            col += span
-            if (col >= cols) {
-                if (i < dashModel.length - 1) rows++
-                col = 0
-            }
+    // Sections that appear in the top "featured" row of the hub, in order.
+    readonly property var featuredSections: ["displaySettings", "mediaSettings", "obdSettings"]
+
+    function makeHubCard(page) {
+        return {
+            name: page.name,
+            section: page.section,
+            icon: page.icon,
+            widgetItems: [],
+            widgetSource: getWidgetForSection(page.section)
         }
-        return Math.max(rows, 1)
     }
 
-    // Build dashboard model with optimal grid packing order:
-    // Pair each span-2 card with a span-1 card to fill a 3-column row,
-    // then append remaining span-1 cards in groups of 3.
-    property var dashModel: {
-        var wides = []   // span-2 items
-        var narrows = [] // span-1 items
+    // Two-row hub model: top row = featured cards (in featured order, only those visible),
+    // bottom row = remaining visible cards in their original pageModel order.
+    property var pyramidRows: {
+        if (!hubModel || hubModel.length === 0) return []
+        var available = {}
         for (var i = 0; i < hubModel.length; i++) {
-            var page = hubModel[i]
-            var entry = {
-                name: page.name,
-                section: page.section,
-                icon: page.icon,
-                widgetItems: [],
-                widgetSource: getWidgetForSection(page.section),
-                span: getSpanForSection(page.section)
+            available[hubModel[i].section] = hubModel[i]
+        }
+        var top = []
+        for (var f = 0; f < featuredSections.length; f++) {
+            var sec = featuredSections[f]
+            if (available[sec]) {
+                top.push(makeHubCard(available[sec]))
+                delete available[sec]
             }
-            if (entry.span >= 2)
-                wides.push(entry)
-            else
-                narrows.push(entry)
         }
-        // Interleave: wide + narrow fills a 3-col row
-        var model = []
-        for (var w = 0; w < wides.length; w++) {
-            model.push(wides[w])
-            if (narrows.length > 0)
-                model.push(narrows.shift())
+        var bottom = []
+        for (var j = 0; j < hubModel.length; j++) {
+            var page = hubModel[j]
+            if (available[page.section]) {
+                bottom.push(makeHubCard(page))
+            }
         }
-        // Remaining narrows fill in groups of 3
-        for (var n = 0; n < narrows.length; n++)
-            model.push(narrows[n])
-        return model
+        var rows = []
+        if (top.length > 0) rows.push(top)
+        if (bottom.length > 0) rows.push(bottom)
+        return rows
     }
 
     // Navigate to a category detail view
@@ -159,60 +136,65 @@ Item {
         ContentSonar {}
         ContentSolarSystem {}
 
-        GridLayout {
-            id: hubGrid
+        ColumnLayout {
+            id: hubColumn
             anchors.fill: parent
             anchors.margins: App.Spacing.settingsHubGridSpacing
-            columns: width > 800 ? 3 : 2
-            columnSpacing: App.Spacing.settingsHubGridSpacing
-            rowSpacing: App.Spacing.settingsHubGridSpacing
-
-            // Compute card height to fill available space
-            property int rowCount: getRowCount(columns)
-            property real cardHeight: (height - (rowCount - 1) * rowSpacing) / rowCount
+            spacing: App.Spacing.settingsHubGridSpacing
 
             Repeater {
-                model: dashModel.length
+                model: pyramidRows
 
-                SettingsDashboardCard {
+                RowLayout {
+                    id: pyramidRow
                     Layout.fillWidth: true
-                    Layout.preferredHeight: hubGrid.cardHeight
-                    Layout.columnSpan: hubGrid.columns === 3 ? (dashModel[index] ? dashModel[index].span : 1) : 1
-                    categoryName: dashModel[index] ? dashModel[index].name : ""
-                    section: dashModel[index] ? dashModel[index].section : ""
-                    widgetItems: dashModel[index] ? dashModel[index].widgetItems : []
-                    widgetSource: dashModel[index] ? dashModel[index].widgetSource : ""
-                    categoryIcon: dashModel[index] ? dashModel[index].icon : ""
-                    cardSpan: hubGrid.columns === 3 ? (dashModel[index] ? dashModel[index].span : 1) : 1
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
+                    Layout.fillHeight: true
+                    spacing: App.Spacing.settingsHubGridSpacing
+                    property var rowCards: modelData
 
-                    onCategorySelected: function(sec) {
-                        dashboardLayout.navigateToCategory(sec)
-                    }
-                    onSubSectionSelected: function(sec, sub) {
-                        dashboardLayout.navigateToSubSection(sec, sub)
-                    }
+                    Repeater {
+                        model: pyramidRow.rowCards
 
-                    // Update notification dot
-                    Rectangle {
-                        width: App.Spacing.dp(8)
-                        height: App.Spacing.dp(8)
-                        radius: width / 2
-                        color: "#FF9800"
-                        z: 10
-                        anchors.top: parent.top
-                        anchors.right: parent.right
-                        anchors.topMargin: App.Spacing.dp(6)
-                        anchors.rightMargin: App.Spacing.dp(6)
-                        visible: dashModel[index] && dashModel[index].section === "about"
-                                 && settingsMenu && settingsMenu.updateAvailable
+                        SettingsDashboardCard {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            categoryName: modelData.name
+                            section: modelData.section
+                            widgetItems: modelData.widgetItems
+                            widgetSource: modelData.widgetSource
+                            categoryIcon: modelData.icon
+                            cardSpan: 1
+                            radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
 
-                        SequentialAnimation on opacity {
-                            running: dashModel[index] && dashModel[index].section === "about"
-                                     && settingsMenu && settingsMenu.updateAvailable
-                            loops: Animation.Infinite
-                            NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
-                            NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
+                            onCategorySelected: function(sec) {
+                                dashboardLayout.navigateToCategory(sec)
+                            }
+                            onSubSectionSelected: function(sec, sub) {
+                                dashboardLayout.navigateToSubSection(sec, sub)
+                            }
+
+                            // Update notification dot
+                            Rectangle {
+                                width: App.Spacing.dp(8)
+                                height: App.Spacing.dp(8)
+                                radius: width / 2
+                                color: "#FF9800"
+                                z: 10
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.topMargin: App.Spacing.dp(6)
+                                anchors.rightMargin: App.Spacing.dp(6)
+                                visible: modelData.section === "about"
+                                         && settingsMenu && settingsMenu.updateAvailable
+
+                                SequentialAnimation on opacity {
+                                    running: modelData.section === "about"
+                                             && settingsMenu && settingsMenu.updateAvailable
+                                    loops: Animation.Infinite
+                                    NumberAnimation { from: 1.0; to: 0.3; duration: 1200 }
+                                    NumberAnimation { from: 0.3; to: 1.0; duration: 1200 }
+                                }
+                            }
                         }
                     }
                 }
