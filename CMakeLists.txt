@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 # ---- Qt 6 ----
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia Network)
 # Optional modules needed in later phases:
 #   SerialPort Bluetooth NetworkAuth
 
@@ -16,6 +16,14 @@ option(OCTAVE_ENABLE_DOWNLOADS "Enable music download feature (disable for app s
 # ---- Executable ----
 qt_add_executable(octave
     src/main.cpp
+    src/managers/settingsmanager.h
+    src/managers/settingsmanager.cpp
+    src/managers/clock.h
+    src/managers/clock.cpp
+    src/managers/networkmanager.h
+    src/managers/networkmanager.cpp
+    src/managers/volumecontroller.h
+    src/managers/volumecontroller.cpp
 )
 
 target_compile_definitions(octave PRIVATE
@@ -29,6 +37,7 @@ target_link_libraries(octave PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
+    Qt6::Network
 )
 
 # ---- QML import path: reuse existing frontend/ directory ----

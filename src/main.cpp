@@ -6,10 +6,13 @@
 #include <QObject>
 #include <QDir>
 
-// Minimal stub QObject — provides an empty QObject so QML context property
-// references like "settingsManager ? settingsManager.foo : default" resolve
-// to a non-null object without crashing.  Real manager classes will replace
-// these one-by-one as each phase is ported.
+// Phase 1 managers (real C++ implementations)
+#include "managers/settingsmanager.h"
+#include "managers/clock.h"
+#include "managers/networkmanager.h"
+#include "managers/volumecontroller.h"
+
+// Minimal stub for managers not yet ported.
 class Stub : public QObject {
     Q_OBJECT
 public:
@@ -42,20 +45,34 @@ int main(int argc, char *argv[])
     ctx->setContextProperty("screenAutoScale", autoScale);
     ctx->setContextProperty("isAndroid", false);
 
-    // ---- Stub manager objects ----
-    // Each stub is a plain QObject.  QML null-checks these with the
-    // "settingsManager ? settingsManager.foo : fallback" pattern, so a
-    // non-null QObject is enough to avoid binding errors.  Property/slot
-    // access on the stub will produce warnings in the console — that's
-    // expected and shows exactly which APIs each QML file uses.
-    //
-    // Replace each stub with the real C++ manager class as it's ported.
+    // ==================================================================
+    // Phase 1: Real manager objects
+    // ==================================================================
 
-    Stub settingsManager;
+    // Settings Manager — central settings store, everything depends on this
+    SettingsManager settingsManager;
     ctx->setContextProperty("settingsManager", &settingsManager);
 
-    Stub clock;
+    // Clock — time display, depends on settings for format
+    Clock clock(&settingsManager);
     ctx->setContextProperty("clock", &clock);
+
+    // Network Manager — WiFi status, update checking
+    NetworkManager networkManager;
+    ctx->setContextProperty("networkManager", &networkManager);
+
+    // Volume Controller — quadratic curve + dispatch to all audio outputs.
+    // Other manager pointers (media, spotify, etc.) will be wired in when
+    // those managers are ported in Phase 2/3.
+    VolumeController volumeController(&settingsManager);
+    ctx->setContextProperty("volumeController", &volumeController);
+
+    // Apply saved startup volume
+    volumeController.applyVolume(settingsManager.currentVolume());
+
+    // ==================================================================
+    // Stubs for managers not yet ported (Phases 2-5)
+    // ==================================================================
 
     Stub mediaManager;
     ctx->setContextProperty("mediaManager", &mediaManager);
@@ -81,17 +98,11 @@ int main(int argc, char *argv[])
     Stub esp32VolumeManager;
     ctx->setContextProperty("esp32VolumeManager", &esp32VolumeManager);
 
-    Stub volumeController;
-    ctx->setContextProperty("volumeController", &volumeController);
-
     Stub berryIMU;
     ctx->setContextProperty("berryIMU", &berryIMU);
 
     Stub gestureSensor;
     ctx->setContextProperty("gestureSensor", &gestureSensor);
-
-    Stub networkManager;
-    ctx->setContextProperty("networkManager", &networkManager);
 
     Stub downloadManager;
     ctx->setContextProperty("downloadManager", &downloadManager);
@@ -99,7 +110,6 @@ int main(int argc, char *argv[])
     // ---- QML import path: share frontend/ with Python version ----
     QString appDir = QGuiApplication::applicationDirPath();
     // In development, the binary is in build/ — frontend/ is one level up.
-    // Walk up from the binary location to find frontend/.
     QDir frontendDir(appDir);
     if (!frontendDir.cd("frontend")) {
         frontendDir = QDir(appDir);
@@ -119,6 +129,11 @@ int main(int argc, char *argv[])
         qCritical("Failed to load Main.qml from %s", qPrintable(qmlFile));
         return -1;
     }
+
+    // Cleanup on quit
+    QObject::connect(&app, &QGuiApplication::aboutToQuit, [&]() {
+        networkManager.cleanup();
+    });
 
     return app.exec();
 }
