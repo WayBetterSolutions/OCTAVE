@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 # ---- Qt 6 ----
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia Network Concurrent)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia Network Concurrent NetworkAuth)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
 # Optional modules needed in later phases:
@@ -30,6 +30,10 @@ qt_add_executable(octave
     src/managers/mediamanager.cpp
     src/managers/audioanalyzer.h
     src/managers/audioanalyzer.cpp
+    src/managers/spotifymanager.h
+    src/managers/spotifymanager.cpp
+    src/managers/downloadmanager.h
+    src/managers/downloadmanager.cpp
 )
 
 target_compile_definitions(octave PRIVATE
@@ -45,6 +49,7 @@ target_link_libraries(octave PRIVATE
     Qt6::Multimedia
     Qt6::Network
     Qt6::Concurrent
+    Qt6::NetworkAuth
     PkgConfig::TAGLIB
 )
 

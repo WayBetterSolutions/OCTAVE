@@ -381,7 +381,7 @@ void NetworkManager::startConnectivityCheck()
 {
     // Use QNetworkAccessManager to check internet connectivity by hitting
     // Google's generate_204 endpoint (same as the Python version).
-    QNetworkRequest request(QUrl(QStringLiteral("https://clients3.google.com/generate_204")));
+    QNetworkRequest request{QUrl(QStringLiteral("https://clients3.google.com/generate_204"))};
     request.setTransferTimeout(5000);
 
     QNetworkReply *reply = m_nam->get(request);

@@ -5,6 +5,8 @@
 #include <QScreen>
 #include <QObject>
 #include <QDir>
+#include <QWindow>
+#include <QTimer>
 
 // Phase 1 managers
 #include "managers/settingsmanager.h"
@@ -15,6 +17,10 @@
 // Phase 2 managers
 #include "managers/mediamanager.h"
 #include "managers/audioanalyzer.h"
+
+// Phase 3 managers
+#include "managers/spotifymanager.h"
+#include "managers/downloadmanager.h"
 
 // Minimal stub for managers not yet ported.
 // Provides no-op implementations of commonly called methods so QML click
@@ -102,14 +108,7 @@ int main(int argc, char *argv[])
                      &audioAnalyzer, &AudioAnalyzer::set_quality);
     ctx->setContextProperty("audioAnalyzer", &audioAnalyzer);
 
-    // Wire volume controller -> media manager
-    QObject::connect(&volumeController, &VolumeController::volumeApplied,
-                     [&mediaManager](int /*percent*/, float linear) {
-        mediaManager.setVolume(linear);
-    });
-
-    // Apply saved startup volume now that media manager exists
-    volumeController.applyVolume(settingsManager.currentVolume());
+    // Volume wiring moved below after all managers are created
 
     // Auto-rescan library when download completes (wired when downloadManager is ported)
 
@@ -120,7 +119,9 @@ int main(int argc, char *argv[])
     Stub obdManager;
     ctx->setContextProperty("obdManager", &obdManager);
 
-    Stub spotifyManager;
+    // Spotify Manager — Spotify Web API integration
+    SpotifyManager spotifyManager;
+    spotifyManager.setSettingsManager(&settingsManager);
     ctx->setContextProperty("spotifyManager", &spotifyManager);
 
     Stub androidAutoManager;
@@ -141,8 +142,37 @@ int main(int argc, char *argv[])
     Stub gestureSensor;
     ctx->setContextProperty("gestureSensor", &gestureSensor);
 
-    Stub downloadManager;
+    // Download Manager — music search & download via yt-dlp
+    DownloadManager downloadManager;
+    downloadManager.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("downloadManager", &downloadManager);
+
+    // Auto-rescan library when a download completes
+    QObject::connect(&downloadManager, &DownloadManager::downloadComplete,
+                     [&mediaManager](const QString &, const QString &) {
+        mediaManager.scan_library(false);
+    });
+
+    // Wire volume controller -> all audio outputs
+    // Spotify volume is debounced (300ms) to avoid 429 rate limiting
+    static QTimer spotifyVolumeDebounce;
+    spotifyVolumeDebounce.setSingleShot(true);
+    spotifyVolumeDebounce.setInterval(300);
+    static int pendingSpotifyVolume = 0;
+
+    QObject::connect(&spotifyVolumeDebounce, &QTimer::timeout,
+                     [&spotifyManager]() {
+        if (spotifyManager.is_connected())
+            spotifyManager.set_volume(pendingSpotifyVolume);
+    });
+
+    QObject::connect(&volumeController, &VolumeController::volumeApplied,
+                     [&mediaManager](int percent, float linear) {
+        mediaManager.setVolume(linear);
+        pendingSpotifyVolume = percent;
+        spotifyVolumeDebounce.start();
+    });
+    volumeController.applyVolume(settingsManager.currentVolume());
 
     // ---- QML import path: share frontend/ with Python version ----
     QString appDir = QGuiApplication::applicationDirPath();
@@ -167,8 +197,15 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    // Quit the app when the last window is closed (Mod+Q, X button, etc.)
+    app.setQuitOnLastWindowClosed(true);
+    QObject::connect(&app, &QGuiApplication::lastWindowClosed,
+                     &app, &QGuiApplication::quit);
+
     // Cleanup on quit
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&]() {
+        spotifyManager.cleanup();
+        downloadManager.cleanup();
         networkManager.cleanup();
     });
 
