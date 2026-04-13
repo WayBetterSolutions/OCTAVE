@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QWindow>
 #include <QTimer>
+#include <QtQml/qqml.h>
 
 // Phase 1 managers
 #include "managers/settingsmanager.h"
@@ -22,25 +23,20 @@
 #include "managers/spotifymanager.h"
 #include "managers/downloadmanager.h"
 
-// Minimal stub for managers not yet ported.
-// Provides no-op implementations of commonly called methods so QML click
-// handlers don't abort with TypeError before reaching real manager calls.
-class Stub : public QObject {
-    Q_OBJECT
-public:
-    using QObject::QObject;
+// Phase 4 managers
+#include "managers/obdmanager.h"
+#include "managers/esp32volumemanager.h"
+#include "managers/berryimumanager.h"
+#include "managers/gesturemanager.h"
 
-    // Methods QML calls on spotifyManager, obdManager, etc.
-    Q_INVOKABLE bool is_connected() const { return false; }
-    Q_INVOKABLE bool is_playing() const { return false; }
-    Q_INVOKABLE bool has_credentials() const { return false; }
-    Q_INVOKABLE bool is_scanning() const { return false; }
-    Q_INVOKABLE bool is_connected_bool() const { return false; }
-    Q_INVOKABLE QString get_connection_status() const { return QStringLiteral("Disconnected"); }
-    Q_INVOKABLE QString get_current_track_name() const { return QString(); }
-    Q_INVOKABLE void cleanup() {}
-    Q_INVOKABLE void pause() {}
-};
+// Phase 5 managers (desktop only)
+#include "managers/phonemirrormanager.h"
+#include "managers/androidautomanager.h"
+#include "items/scrcpycapture.h"
+#include "items/embeddedscrcpyitem.h"
+#include "items/embeddeddhuitem.h"
+
+// All managers are now real C++ implementations -- no stubs needed.
 
 int main(int argc, char *argv[])
 {
@@ -113,34 +109,70 @@ int main(int argc, char *argv[])
     // Auto-rescan library when download completes (wired when downloadManager is ported)
 
     // ==================================================================
-    // Stubs for managers not yet ported (Phases 3-5)
+    // Phase 3: Online Features
     // ==================================================================
-
-    Stub obdManager;
-    ctx->setContextProperty("obdManager", &obdManager);
 
     // Spotify Manager — Spotify Web API integration
     SpotifyManager spotifyManager;
     spotifyManager.setSettingsManager(&settingsManager);
     ctx->setContextProperty("spotifyManager", &spotifyManager);
 
-    Stub androidAutoManager;
-    ctx->setContextProperty("androidAutoManager", &androidAutoManager);
+    // ==================================================================
+    // Phase 4: Vehicle & Hardware
+    // ==================================================================
 
-    Stub phoneMirrorManager;
-    ctx->setContextProperty("phoneMirrorManager", &phoneMirrorManager);
+    // OBD Manager — vehicle diagnostics via ELM327
+    OBDManager obdManager(&settingsManager);
+    ctx->setContextProperty("obdManager", &obdManager);
 
-    Stub scrcpyCapture;
-    ctx->setContextProperty("scrcpyCapture", &scrcpyCapture);
-
-    Stub esp32VolumeManager;
+    // ESP32 Volume Manager — wireless rotary encoder volume control
+    ESP32VolumeManager esp32VolumeManager;
+    esp32VolumeManager.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("esp32VolumeManager", &esp32VolumeManager);
 
-    Stub berryIMU;
+    // BerryIMU v3 — accelerometer/gyro/mag/barometer sensor
+    BerryIMUManager berryIMU;
+    berryIMU.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("berryIMU", &berryIMU);
 
-    Stub gestureSensor;
+    // Gesture Sensor — PAJ7620U2 gesture recognition
+    GestureManager gestureSensor;
+    gestureSensor.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("gestureSensor", &gestureSensor);
+
+    // ==================================================================
+    // Phase 5: Desktop Integration (phone mirror, Android Auto)
+    // ==================================================================
+
+    // Android Auto Manager
+    AndroidAutoManager androidAutoManager;
+    ctx->setContextProperty("androidAutoManager", &androidAutoManager);
+
+    // Register DHU frame provider for seamless Android Auto display
+    engine.addImageProvider(QStringLiteral("dhuframe"),
+                            androidAutoManager.frameProvider());
+
+    // Phone Mirror Manager
+    PhoneMirrorManager phoneMirrorManager;
+    ctx->setContextProperty("phoneMirrorManager", &phoneMirrorManager);
+
+    // Scrcpy Capture for frame-based phone mirroring
+    ScrcpyCapture scrcpyCapture;
+    scrcpyCapture.setPhoneMirrorManager(&phoneMirrorManager);
+    ctx->setContextProperty("scrcpyCapture", &scrcpyCapture);
+    engine.addImageProvider(QStringLiteral("scrcpyframe"),
+                            scrcpyCapture.frameProvider());
+
+    // Phone mirror settings from saved config
+    QString savedScrcpyPath = settingsManager.get_scrcpy_path();
+    if (!savedScrcpyPath.isEmpty())
+        phoneMirrorManager.setScrcpyPath(savedScrcpyPath);
+    phoneMirrorManager.setAudioEnabled(settingsManager.get_scrcpy_audio_enabled());
+
+    // Register custom QML types for video embedding
+    qmlRegisterType<EmbeddedDhuItem>("OCTAVE.AndroidAuto", 1, 0, "EmbeddedDhuItem");
+    qmlRegisterType<EmbeddedScrcpyItem>("OCTAVE.PhoneMirror", 1, 0, "EmbeddedScrcpyItem");
+    qmlRegisterType<ScrcpyCaptureItem>("OCTAVE.PhoneMirror", 1, 0, "ScrcpyCaptureItem");
 
     // Download Manager — music search & download via yt-dlp
     DownloadManager downloadManager;
@@ -202,8 +234,47 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QGuiApplication::lastWindowClosed,
                      &app, &QGuiApplication::quit);
 
+    // Wire gesture sensor actions -> media control (matching Python main.py)
+    QObject::connect(&gestureSensor, &GestureManager::actionTriggered,
+                     [&mediaManager, &volumeController, &settingsManager](const QString &action) {
+        if (action == "next_track") mediaManager.next_track();
+        else if (action == "previous_track") mediaManager.previous_track();
+        else if (action == "play_pause") mediaManager.toggle_play();
+        else if (action == "mute_toggle") mediaManager.toggle_mute();
+        else if (action == "volume_up") {
+            int step = settingsManager.gestureVolumeStep();
+            volumeController.applyVolume(settingsManager.currentVolume() + step);
+        } else if (action == "volume_down") {
+            int step = settingsManager.gestureVolumeStep();
+            volumeController.applyVolume(settingsManager.currentVolume() - step);
+        }
+    });
+
+    // Wire ESP32 volume knob -> volume controller
+    QObject::connect(&esp32VolumeManager, &ESP32VolumeManager::volumeChangeRequested,
+                     [&volumeController, &settingsManager](float delta) {
+        static float accumulator = 0.0f;
+        accumulator += delta;
+        if (std::abs(accumulator) >= 1.0f) {
+            int change = static_cast<int>(accumulator);
+            accumulator -= change;
+            volumeController.applyVolume(settingsManager.currentVolume() + change);
+        }
+    });
+    QObject::connect(&esp32VolumeManager, &ESP32VolumeManager::muteToggleRequested,
+                     [&mediaManager, &esp32VolumeManager]() {
+        mediaManager.toggle_mute();
+        esp32VolumeManager.send_mute_state(mediaManager.is_muted());
+    });
+
     // Cleanup on quit
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&]() {
+        androidAutoManager.cleanup();
+        phoneMirrorManager.cleanup();
+        obdManager.close();
+        esp32VolumeManager.cleanup();
+        berryIMU.cleanup();
+        gestureSensor.cleanup();
         spotifyManager.cleanup();
         downloadManager.cleanup();
         networkManager.cleanup();

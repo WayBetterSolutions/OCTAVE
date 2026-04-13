@@ -4,9 +4,6 @@
 #include <QObject>
 #include <QVariantList>
 #include <QString>
-#include <QTimer>
-#include <QAudioDecoder>
-#include <QAudioFormat>
 #include <QByteArray>
 #include <QMap>
 #include <QVector>

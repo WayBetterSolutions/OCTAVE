@@ -2,10 +2,7 @@
 
 #include <QUrl>
 #include <QFileInfo>
-#include <QBuffer>
-#include <QAudioDecoder>
-#include <QAudioFormat>
-#include <QEventLoop>
+#include <QProcess>
 #include <QtConcurrent>
 #include <QLoggingCategory>
 
@@ -109,6 +106,11 @@ static int nextPow2(int n)
 // ════════════════════════════════════════════════════════════════
 // Worker: decode audio file and compute per-chunk FFT levels
 // Runs on a QtConcurrent thread — must NOT touch Qt GUI objects.
+//
+// Uses ffmpeg CLI to decode audio to raw PCM float data, matching
+// the Python version's use of PyAV.  QAudioDecoder was previously
+// used here but fails silently on worker threads due to event-loop
+// and thread-affinity issues with the GStreamer/FFmpeg backends.
 // ════════════════════════════════════════════════════════════════
 
 AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
@@ -116,60 +118,38 @@ AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
 {
     AnalysisResult result;
 
-    // ── Decode via QAudioDecoder in a private event loop ───────
-    //    QAudioDecoder needs an event loop, so we spin a local one
-    //    on the worker thread.
-
-    QAudioFormat desiredFormat;
-    desiredFormat.setSampleRate(8000);           // downsample for speed
-    desiredFormat.setChannelCount(1);            // mono
-    desiredFormat.setSampleFormat(QAudioFormat::Float);
-
-    QAudioDecoder decoder;
-    decoder.setAudioFormat(desiredFormat);
-
-    QUrl sourceUrl = QUrl::fromLocalFile(filePath);
-    decoder.setSource(sourceUrl);
-
-    QByteArray pcmBuffer;
-    bool       decodingDone  = false;
-    bool       decodingError = false;
-
-    QEventLoop loop;
-
-    QObject::connect(&decoder, &QAudioDecoder::bufferReady, &decoder, [&]() {
-        QAudioBuffer buf = decoder.read();
-        if (!buf.isValid())
-            return;
-        const char *data = buf.constData<char>();
-        pcmBuffer.append(data, buf.byteCount());
+    // ── Decode via ffmpeg CLI → raw 32-bit float, 8 kHz, mono ────
+    QProcess proc;
+    proc.setProgram(QStringLiteral("ffmpeg"));
+    proc.setArguments({
+        QStringLiteral("-i"), filePath,
+        QStringLiteral("-f"), QStringLiteral("f32le"),   // raw 32-bit float LE
+        QStringLiteral("-acodec"), QStringLiteral("pcm_f32le"),
+        QStringLiteral("-ar"), QStringLiteral("8000"),   // 8 kHz
+        QStringLiteral("-ac"), QStringLiteral("1"),      // mono
+        QStringLiteral("-v"), QStringLiteral("quiet"),
+        QStringLiteral("-")                              // output to stdout
     });
 
-    QObject::connect(&decoder, &QAudioDecoder::finished, &decoder, [&]() {
-        decodingDone = true;
-        loop.quit();
-    });
+    proc.start(QIODevice::ReadOnly);
 
-    QObject::connect(&decoder, qOverload<QAudioDecoder::Error>(&QAudioDecoder::error), &decoder, [&](QAudioDecoder::Error) {
-        decodingError = true;
-        qCWarning(lcAudioAnalyzer)
-            << "QAudioDecoder error:" << decoder.errorString();
-        loop.quit();
-    });
+    if (!proc.waitForFinished(30000)) {
+        qCWarning(lcAudioAnalyzer) << "ffmpeg timed out or failed to start for" << filePath;
+        proc.kill();
+        return result;
+    }
 
-    decoder.start();
+    if (proc.exitCode() != 0) {
+        qCWarning(lcAudioAnalyzer) << "ffmpeg exited with code" << proc.exitCode()
+                                   << "for" << filePath;
+        return result;
+    }
 
-    // 30-second safety timeout so we never hang forever
-    QTimer timeout;
-    timeout.setSingleShot(true);
-    QObject::connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
-    timeout.start(30000);
+    QByteArray pcmBuffer = proc.readAllStandardOutput();
 
-    loop.exec();
-
-    if (decodingError || pcmBuffer.isEmpty()) {
-        qCWarning(lcAudioAnalyzer) << "Audio decoding failed or produced no data for" << filePath;
-        return result;  // success == false
+    if (pcmBuffer.isEmpty()) {
+        qCWarning(lcAudioAnalyzer) << "ffmpeg produced no audio data for" << filePath;
+        return result;
     }
 
     // ── PCM data is now a contiguous float array at 8 kHz mono ─
@@ -203,23 +183,6 @@ AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
     const int fftSize = nextPow2(chunkSize);
     const auto window = hannWindow(chunkSize);
 
-    // Logarithmic bin edges (matches Python's np.logspace)
-    std::vector<int> logIndices(numBars + 1);
-    {
-        const int halfFFT = fftSize / 2;  // usable positive-frequency bins
-        // Skip DC (index 0); usable range is [1 .. halfFFT-1]
-        const int usableBins = halfFFT - 1;
-        if (usableBins <= 0) {
-            return result;
-        }
-        for (int i = 0; i <= numBars; ++i) {
-            double t     = static_cast<double>(i) / numBars;
-            double logVal = std::pow(static_cast<double>(usableBins), t);
-            int idx       = static_cast<int>(std::round(logVal));
-            logIndices[i] = std::clamp(idx, 0, usableBins);
-        }
-    }
-
     // First pass: raw magnitudes per chunk per bar
     std::vector<std::vector<float>> rawFftData(numChunks);
 
@@ -234,16 +197,35 @@ AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
         fft_radix2(buf);
 
         // Magnitude of positive frequencies, skip DC
-        std::vector<float> mag(fftSize / 2 - 1);
+        // For a real signal FFT of size N, positive frequencies are bins 1..N/2-1
+        // This matches Python's: fft = fft[1:len(fft)//2]  after rfft
+        const int halfFFT = fftSize / 2;
+        std::vector<float> mag(halfFFT - 1);
         for (int i = 0; i < static_cast<int>(mag.size()); ++i)
             mag[i] = std::abs(buf[i + 1]);   // +1 to skip DC
+
+        if (mag.empty()) {
+            rawFftData[c].assign(numBars, 0.0f);
+            continue;
+        }
+
+        // Logarithmic bin edges — match Python's np.logspace(0, log10(len(fft)), numBars+1)
+        // np.logspace(0, log10(N), M) produces M values from 10^0=1 to 10^log10(N)=N
+        const int fftLen = static_cast<int>(mag.size());
+        std::vector<int> logIndices(numBars + 1);
+        for (int i = 0; i <= numBars; ++i) {
+            double t = static_cast<double>(i) / numBars;
+            double logVal = std::pow(static_cast<double>(fftLen), t);
+            int idx = static_cast<int>(logVal);
+            logIndices[i] = std::clamp(idx, 0, fftLen);
+        }
 
         // Bin into bars
         std::vector<float> levels(numBars, 0.0f);
         for (int b = 0; b < numBars; ++b) {
             int startIdx = logIndices[b];
             int endIdx   = logIndices[b + 1];
-            if (endIdx > startIdx && endIdx <= static_cast<int>(mag.size())) {
+            if (endIdx > startIdx) {
                 float sum = 0.0f;
                 for (int i = startIdx; i < endIdx; ++i)
                     sum += mag[i];

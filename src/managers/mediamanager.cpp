@@ -417,6 +417,11 @@ QString MediaManager::_get_album_id(const QString &filename)
 
     if (m_metadataCache.contains(filename)) {
         const MediaMetadata &meta = m_metadataCache[filename];
+        // When album is unknown (common for YouTube downloads), each track
+        // likely has its own unique cover art, so include the filename
+        // to avoid all "Unknown Album" tracks sharing one cached image.
+        if (meta.album == QStringLiteral("Unknown Album"))
+            return meta.album + QStringLiteral("_") + meta.artist + QStringLiteral("_") + filename;
         return meta.album + QStringLiteral("_") + meta.artist;
     }
 

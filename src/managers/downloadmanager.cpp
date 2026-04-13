@@ -253,19 +253,48 @@ void DownloadManager::search(const QString &query)
     connect(m_searchProcess, &QProcess::errorOccurred,
             this, &DownloadManager::_onSearchProcessError);
 
-    // Use yt-dlp to search YouTube Music
-    // Each result is one JSON object per line (--dump-json with --flat-playlist)
-    QStringList args = {
-        QStringLiteral("--dump-json"),
-        QStringLiteral("--flat-playlist"),
-        QStringLiteral("--no-download"),
-        QStringLiteral("--no-warnings"),
-        QStringLiteral("--ignore-errors"),
-        QStringLiteral("ytsearch25:") + trimmed,
-    };
+    // Use ytmusicapi via helper script for curated YouTube Music results.
+    // yt-dlp's ytsearch returns generic YouTube videos (wrong thumbnails,
+    // uncurated results); ytmusicapi returns proper song metadata with
+    // real album art, matching the Python backend's behavior.
+    QString appDir = QCoreApplication::applicationDirPath();
+    QDir scriptDir(appDir);
+    QString scriptPath;
+    // In dev: binary is in build/, scripts/ is one level up
+    if (QFile::exists(appDir + QStringLiteral("/../scripts/ytmusic_search.py"))) {
+        scriptPath = QDir::cleanPath(appDir + QStringLiteral("/../scripts/ytmusic_search.py"));
+    } else if (QFile::exists(appDir + QStringLiteral("/scripts/ytmusic_search.py"))) {
+        scriptPath = appDir + QStringLiteral("/scripts/ytmusic_search.py");
+    }
 
-    qCInfo(lcDownload) << "Starting search:" << ytDlp << args;
-    m_searchProcess->start(ytDlp, args);
+    // Find Python with ytmusicapi — prefer venv
+    QString pythonPath;
+    QString venvPython = QDir::cleanPath(appDir + QStringLiteral("/../venv/bin/python3"));
+    if (QFile::exists(venvPython)) {
+        pythonPath = venvPython;
+    } else {
+        pythonPath = QStandardPaths::findExecutable(QStringLiteral("python3"));
+    }
+
+    if (scriptPath.isEmpty() || pythonPath.isEmpty()) {
+        qCWarning(lcDownload) << "ytmusic_search.py or python3 not found, falling back to yt-dlp";
+        // Fallback to yt-dlp generic search
+        QStringList args = {
+            QStringLiteral("--dump-json"),
+            QStringLiteral("--flat-playlist"),
+            QStringLiteral("--no-download"),
+            QStringLiteral("--no-warnings"),
+            QStringLiteral("--ignore-errors"),
+            QStringLiteral("ytsearch25:") + trimmed,
+        };
+        qCInfo(lcDownload) << "Starting search (fallback):" << ytDlp << args;
+        m_searchProcess->start(ytDlp, args);
+        return;
+    }
+
+    QStringList args = { scriptPath, trimmed, QStringLiteral("25") };
+    qCInfo(lcDownload) << "Starting search:" << pythonPath << args;
+    m_searchProcess->start(pythonPath, args);
 }
 
 void DownloadManager::next_search_page()

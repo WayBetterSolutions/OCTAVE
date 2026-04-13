@@ -419,7 +419,11 @@ class MediaManager(QObject):
                 self._cache_metadata(filename)
 
             meta = self._metadata_cache[filename]
-            # Create unique ID from album and artist
+            # When album is unknown (common for YouTube downloads), each track
+            # likely has its own unique cover art, so include the filename
+            # to avoid all "Unknown Album" tracks sharing one cached image.
+            if meta['album'] == "Unknown Album":
+                return f"{meta['album']}_{meta['artist']}_{filename}"
             return f"{meta['album']}_{meta['artist']}"
         except Exception as e:
             logger.error(f"Error getting album ID: {e}")
