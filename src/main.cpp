@@ -6,17 +6,34 @@
 #include <QObject>
 #include <QDir>
 
-// Phase 1 managers (real C++ implementations)
+// Phase 1 managers
 #include "managers/settingsmanager.h"
 #include "managers/clock.h"
 #include "managers/networkmanager.h"
 #include "managers/volumecontroller.h"
 
+// Phase 2 managers
+#include "managers/mediamanager.h"
+#include "managers/audioanalyzer.h"
+
 // Minimal stub for managers not yet ported.
+// Provides no-op implementations of commonly called methods so QML click
+// handlers don't abort with TypeError before reaching real manager calls.
 class Stub : public QObject {
     Q_OBJECT
 public:
     using QObject::QObject;
+
+    // Methods QML calls on spotifyManager, obdManager, etc.
+    Q_INVOKABLE bool is_connected() const { return false; }
+    Q_INVOKABLE bool is_playing() const { return false; }
+    Q_INVOKABLE bool has_credentials() const { return false; }
+    Q_INVOKABLE bool is_scanning() const { return false; }
+    Q_INVOKABLE bool is_connected_bool() const { return false; }
+    Q_INVOKABLE QString get_connection_status() const { return QStringLiteral("Disconnected"); }
+    Q_INVOKABLE QString get_current_track_name() const { return QString(); }
+    Q_INVOKABLE void cleanup() {}
+    Q_INVOKABLE void pause() {}
 };
 
 int main(int argc, char *argv[])
@@ -67,18 +84,38 @@ int main(int argc, char *argv[])
     VolumeController volumeController(&settingsManager);
     ctx->setContextProperty("volumeController", &volumeController);
 
-    // Apply saved startup volume
-    volumeController.applyVolume(settingsManager.currentVolume());
+    // Apply saved startup volume (media wiring below, after MediaManager creation)
 
     // ==================================================================
-    // Stubs for managers not yet ported (Phases 2-5)
+    // Phase 2: Media Playback
     // ==================================================================
 
-    Stub mediaManager;
+    // Media Manager — local music playback, library scanning, playlists
+    MediaManager mediaManager;
+    mediaManager.setSettingsManager(&settingsManager);
     ctx->setContextProperty("mediaManager", &mediaManager);
 
-    Stub audioAnalyzer;
+    // Audio Analyzer — waveform visualization via FFT
+    AudioAnalyzer audioAnalyzer;
+    audioAnalyzer.set_quality(settingsManager.visualizerQuality());
+    QObject::connect(&settingsManager, &SettingsManager::visualizerQualityChanged,
+                     &audioAnalyzer, &AudioAnalyzer::set_quality);
     ctx->setContextProperty("audioAnalyzer", &audioAnalyzer);
+
+    // Wire volume controller -> media manager
+    QObject::connect(&volumeController, &VolumeController::volumeApplied,
+                     [&mediaManager](int /*percent*/, float linear) {
+        mediaManager.setVolume(linear);
+    });
+
+    // Apply saved startup volume now that media manager exists
+    volumeController.applyVolume(settingsManager.currentVolume());
+
+    // Auto-rescan library when download completes (wired when downloadManager is ported)
+
+    // ==================================================================
+    // Stubs for managers not yet ported (Phases 3-5)
+    // ==================================================================
 
     Stub obdManager;
     ctx->setContextProperty("obdManager", &obdManager);

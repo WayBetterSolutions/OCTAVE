@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 # ---- Qt 6 ----
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Multimedia Network Concurrent)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
 # Optional modules needed in later phases:
 #   SerialPort Bluetooth NetworkAuth
 
@@ -24,6 +26,10 @@ qt_add_executable(octave
     src/managers/networkmanager.cpp
     src/managers/volumecontroller.h
     src/managers/volumecontroller.cpp
+    src/managers/mediamanager.h
+    src/managers/mediamanager.cpp
+    src/managers/audioanalyzer.h
+    src/managers/audioanalyzer.cpp
 )
 
 target_compile_definitions(octave PRIVATE
@@ -38,6 +44,8 @@ target_link_libraries(octave PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
     Qt6::Network
+    Qt6::Concurrent
+    PkgConfig::TAGLIB
 )
 
 # ---- QML import path: reuse existing frontend/ directory ----

@@ -702,7 +702,7 @@ void SettingsManager::saveSettings(const QJsonObject &settings)
         QFile::remove(m_settingsFile);
 #endif
     if (!QFile::rename(tmpName, m_settingsFile)) {
-        qCWarning(lcSettings) << "Atomic rename failed, falling back to direct write";
+        qCDebug(lcSettings) << "Atomic rename unavailable, using direct write";
         QFile::remove(tmpName);
         QFile direct(m_settingsFile);
         if (direct.open(QIODevice::WriteOnly | QIODevice::Text)) {
