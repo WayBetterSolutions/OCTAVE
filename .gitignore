@@ -64,3 +64,22 @@ backend/command_server.py
 
 # MCP config
 .mcp.json
+
+# C++ build artifacts
+.qt/
+*.o
+*.a
+*.so
+*.dylib
+*.obj
+*.lib
+*.dll
+*.exe
+*.moc
+moc_*.cpp
+qrc_*.cpp
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json

@@ -137,3 +137,29 @@ The project wiki lives in `wiki/` (static HTML pages — `architecture.html`, `d
 - Theme, style token, or animation system changes → update `theme-system.html`
 
 If you are unsure which page to update, `wiki/index.html` lists all pages. Rebuild the search index if wiki content changes: `python wiki/build_search_index.py`. The wiki is the user-facing reference — stale docs are worse than missing docs, so treat wiki updates as part of "done" for any feature or refactor.
+
+## TODO folder
+
+The `TODO/` directory at the repo root holds standalone plans for work that has been **intentionally deferred** — things we know we want to do eventually but aren't committing to right now. Each plan is a single markdown file that can be picked up cold by a future session (yours, mine, or a collaborator's) without needing conversation history.
+
+**What belongs in `TODO/`:**
+- Refactors that are risky, scoped, and require setup before they're safe to do (e.g. splitting oversized manager files)
+- Feature work that's been scoped but deprioritized (e.g. in-app error notification UI)
+- Time-sensitive maintenance with a known deadline (e.g. third-party API migrations)
+- Test-suite expansions we know we want but haven't committed to
+- Anything the user said "let's come back to this later" about
+
+**What does NOT belong in `TODO/`:**
+- Active in-progress work (that's what tasks/plans/branches are for)
+- Bug reports (file those as issues)
+- General ideas or wishlists — only plans concrete enough that someone could act on them
+- Notes about things we already did
+
+**Format for new TODO files:**
+- Lead with a `**Status:**` line (deferred / parked / time-sensitive) and a `**Last updated:**` date in ISO format
+- Explain **why it's parked**, not just what it is — future-you needs to know whether the rationale still applies
+- Include enough context, file paths, and line numbers that someone could start work without re-investigating
+- Call out prerequisites and dependencies between TODO items (e.g. "don't split `obd_manager.py` until the ELM327 test suite exists")
+- End with a recommended order of operations and a "delete this file when done" reminder
+
+**When the user parks something:** offer to write it up as a TODO file. When you write a TODO file, mention any cross-references to other TODO items so the folder stays internally consistent. When a TODO item is completed, **delete the file** — stale TODOs rot faster than stale code.
