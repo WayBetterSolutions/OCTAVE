@@ -65,6 +65,8 @@ from backend.audio_analyzer import AudioAnalyzer
 from backend.network_manager import NetworkManager
 from backend.download_manager import DownloadManager
 from backend.volume_utils import VolumeController
+from backend.dashboard_manager import DashboardManager
+from backend.settings_manager import get_app_data_dir
 
 # backend imports — platform-conditional (stubs on Android)
 if IS_ANDROID:
@@ -235,6 +237,17 @@ engine.rootContext().setContextProperty("downloadManager", download_manager)
 download_manager.downloadComplete.connect(
     lambda name, path: media_manager.scan_library(reset_display_names=False)
 )
+
+# Dashboard Manager — built-in presets + user-authored dashboards
+# (mirror of src/managers/dashboardmanager.{h,cpp}). Must register before
+# engine.load so QML sees the context property at first binding eval.
+dashboard_manager = DashboardManager()
+dashboard_manager.setPresetsDir(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 "frontend", "dashboards", "presets")
+)
+dashboard_manager.setUserDir(os.path.join(get_app_data_dir(), "dashboards"))
+engine.rootContext().setContextProperty("dashboardManager", dashboard_manager)
 
 # Hardware signal wiring (desktop only — gesture, ESP32, phone mirror)
 if not IS_ANDROID:

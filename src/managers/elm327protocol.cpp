@@ -180,14 +180,12 @@ QHash<PidKey, PidEntry> ELM327Protocol::buildPidTable()
     t[{1, 0x56}] = {"Short O2 Trim B1",        "shortO2TrimB1Changed",          decPctCentered,    1};
     t[{1, 0x57}] = {"Long O2 Trim B1",         "longO2TrimB1Changed",           decPctCentered,    1};
     t[{1, 0x58}] = {"Short O2 Trim B2",        "shortO2TrimB2Changed",          decPctCentered,    1};
-    t[{1, 0x59}] = {"Long O2 Trim B2",         "longO2TrimB2Changed",           decPctCentered,    1};
+    // PID 0x59 is Fuel Rail Absolute Pressure per SAE J1979. Both backends
+    // must agree — see the parity workflow in CLAUDE.md.
+    t[{1, 0x59}] = {"Fuel Rail Pressure Abs",  "fuelRailPressureAbsChanged",    decFuelRailAbs,    2};
     t[{1, 0x5A}] = {"Relative Accel Pos",      "relativeAccelPosChanged",       decPct,            1};
     t[{1, 0x5B}] = {"Hybrid Battery",          "hybridBatteryRemainingChanged", decPct,            1};
     t[{1, 0x2E}] = {"Evaporative Purge",       "evaporativePurgeChanged",       decPct,            1};
-    // Note: Python had (1,0x59) mapped twice -- last wins for fuelRailPressureAbsChanged.
-    // In C++ we keep longO2TrimB2Changed at 0x59 (matches the Python dict's last-write
-    // behavior) and map fuelRailPressureAbsChanged separately for clarity.
-    // The Android OBD manager uses PID 0x59 for fuelRailPressureAbs at runtime.
     t[{1, 0x5D}] = {"Fuel Inject Timing",      "fuelInjectTimingChanged",       decInjectTiming,   2};
     t[{1, 0x5E}] = {"Fuel Rate",               "fuelRateChanged",               decFuelRate,       2};
     t[{1, 0x4F}] = {"Throttle Actuator",       "throttleActuatorChanged",       decPct,            1};

@@ -6,11 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OCTAVE (Open-source Cross-platform Telematics for Augmented Vehicle Experience) is a **C++ / Qt 6 / QML** infotainment system designed for vehicles. It runs on Windows, macOS, Linux, Raspberry Pi, iOS, and Android.
 
-### Backend state: C++ is primary, Python is legacy
+### Backend state: C++ and Python are both first-class, kept in lockstep
 
-The backend was originally Python (PySide6) and has been fully rewritten in C++ as of commit `4c757e0` ("phase 4 + 5, octave has now been rewritten in c++"). The Python tree (`backend/`, `main.py`) is retained as a legacy build path and is **not** where new work goes. All new manager work, bug fixes, and features should land in `src/managers/` (C++ / Qt 6). The QML frontend (`frontend/`) is shared between both backends.
+OCTAVE intentionally maintains **two parallel backends** — C++ / Qt 6 (`src/`) and Python / PySide6 (`backend/`, `main.py`) — that expose the same API surface to the shared QML frontend (`frontend/`). This is deliberate: Python stays alive for tinkering, accessibility, rapid prototyping, and hardware hacking on Raspberry Pi / single-board setups where a Python REPL is invaluable; C++ stays primary for performance-critical paths, app-store distribution, and mobile targets.
 
-Phase in the C++ migration plan at `.claude/plans/wondrous-toasting-biscuit.md` — dual backends coexist in the same repo; Python will be deleted after the C++ path reaches full parity on every target platform.
+**Parity is the rule, not the goal.** When you add a feature, fix a bug, or change behavior in one backend, you must do the equivalent work in the other in the same change set (or explicitly note why parity is deferred and open a `TODO/` entry). The QML frontend must continue to work identically against either backend — no QML file should know or care which backend is running, beyond `typeof someManager !== "undefined"` guards for features legitimately absent on one platform.
+
+**Concrete parity expectations:**
+- Every C++ manager in `src/managers/foo.{h,cpp}` has a Python peer at `backend/foo.py` (and vice versa), with the same class name, same QML context property name, same public Slots/Signals/Properties, and equivalent semantics.
+- Settings schemas must match: a key introduced in `SettingsManager` (either language) is added to the other in the same commit.
+- JSON persistence formats (e.g. settings, dashboards) are shared on disk — both backends must read and write compatible files.
+- Volume curves, threading models, logging categories/loggers, image providers, and custom QML types are mirrored.
+- When a QML file gains a new binding or call (`fooManager.bar()`), both backends must expose `bar` before the QML ships.
+
+**Historical migration plan:** `.claude/plans/wondrous-toasting-biscuit.md` describes the original Python→C++ rewrite. It is **superseded** by this dual-backend policy — Python is no longer slated for deletion.
 
 ## Commands
 
@@ -31,7 +40,7 @@ cmake --build build -j
 
 See `BUILD.md` for the full build matrix (9 targets including iOS / Android / Flatpak / app store variants).
 
-### Python legacy build
+### Python build (equal, supported)
 
 ```bash
 # First-time setup + run (creates venv, installs deps, launches app)
@@ -65,9 +74,9 @@ A minimal smoke test suite lives in `tests/` and runs in CI on every push and PR
 
 ## Architecture
 
-**C++ / Qt 6 backend + QML frontend** communicating via Qt Signals/Slots. The Python `backend/` tree mirrors the same API surface and is retained for legacy builds only.
+**Two parallel backends (C++ / Qt 6 in `src/` and Python / PySide6 in `backend/`) + a shared QML frontend** (`frontend/`) communicating via Qt Signals/Slots. Both backends expose the same manager API surface to QML; any work in one must be mirrored in the other.
 
-### Backend — C++ (`src/`, primary)
+### Backend — C++ (`src/`, primary for builds & distribution)
 
 Every feature is a C++ **manager class** inheriting from `QObject`. Managers expose state to QML via `Q_PROPERTY`, `Q_INVOKABLE`, and Qt signals. All managers are instantiated in `src/main.cpp` and registered as QML context properties via `engine.rootContext()->setContextProperty(...)`. Build system is CMake; sources are listed explicitly in `CMakeLists.txt`'s `qt_add_executable(octave ...)` call.
 
@@ -84,9 +93,9 @@ Key managers (`src/managers/*.{h,cpp}`):
 - `downloadmanager` — yt-dlp wrapper, compiled out for app-store builds via `OCTAVE_ENABLE_DOWNLOADS` CMake option
 - `clock`, `networkmanager`, `volumecontroller` — self-explanatory
 
-When adding a new manager: add `.h`/`.cpp` to `src/managers/`, list both in `CMakeLists.txt`, instantiate in `main.cpp`, register as a QML context property.
+When adding a new manager: add `.h`/`.cpp` to `src/managers/`, list both in `CMakeLists.txt`, instantiate in `main.cpp`, register as a QML context property. **Then immediately do the parallel work on the Python side** — see below.
 
-### Backend — Python (`backend/`, legacy)
+### Backend — Python (`backend/`, first-class peer)
 
 Each feature is a Python **manager class** inheriting from `QObject`. Managers expose state to QML via `Signal`, `Slot`, and `Property` decorators. All managers are instantiated in `main.py` and registered as QML context properties.
 
@@ -102,6 +111,25 @@ Key managers:
 - `android_auto/` — Android Auto via Google Desktop Head Unit (DHU)
 - `phone_mirror/` — Phone screen mirroring via scrcpy
 
+When adding a new manager: add `foo.py` to `backend/`, import + instantiate it in `main.py`, register as a QML context property with the **same name** the C++ side uses. Mirror every `Q_PROPERTY` / `Q_INVOKABLE` / slot / signal from the C++ header as a PySide6 `Property` / `Slot` / `Signal`. Use `get_app_data_dir()` from `backend/settings_manager.py` for storage paths (matches C++ `SettingsManager::getAppDataDir()`).
+
+### Parity workflow (do this on every change)
+
+Whenever you touch a manager, follow this sequence so the backends don't drift:
+
+1. Decide which backend leads (usually whichever has the higher-fidelity need — C++ for perf, Python for quick iteration).
+2. Implement on the leading side.
+3. Port to the other backend in the **same change set**, matching:
+   - class name (`DashboardManager` ↔ `DashboardManager`),
+   - QML context property name (`dashboardManager`),
+   - public method names (`loadDashboard`, `saveDashboard`, `deleteDashboard`, …),
+   - signal names (`dashboardsChanged`),
+   - Property names and types (`QVariantList dashboards` ↔ `Property(list)`),
+   - JSON on-disk formats.
+4. If QML was changed, grep the QML for the new symbol and confirm both backends define it.
+5. Build both: `cmake --build build -j` and `QT_QPA_PLATFORM=offscreen python -c "import main"` (or run `python setup.py --no-run`) to catch import errors.
+6. If you genuinely cannot port immediately (e.g. a C++-only library with no Python binding), add a file under `TODO/` with the missing work, gate the QML with `typeof …`, and note the parity debt in the PR.
+
 ### Frontend (`frontend/`)
 
 QML files using Qt Quick 2.15. Entry point is `Main.qml`.
@@ -116,12 +144,12 @@ QML files using Qt Quick 2.15. Entry point is `Main.qml`.
 
 Backend managers are registered as QML context properties at app startup.
 
-C++ (primary — `src/main.cpp`):
+C++ (`src/main.cpp`):
 ```cpp
 engine.rootContext()->setContextProperty("mediaManager", &mediaManager);
 ```
 
-Python (legacy — `main.py`):
+Python (`main.py`):
 ```python
 engine.rootContext().setContextProperty("mediaManager", media_manager)
 ```
@@ -164,9 +192,9 @@ Rotating log files in `logs/` subdirectory of the config path:
 
 ### Build & CI
 
-**Primary:** CMake + Qt 6 produces native executables per platform (see `BUILD.md`). App store builds use the `OCTAVE_ENABLE_DOWNLOADS=OFF` CMake option to strip out yt-dlp.
+**C++:** CMake + Qt 6 produces native executables per platform (see `BUILD.md`). App store builds use the `OCTAVE_ENABLE_DOWNLOADS=OFF` CMake option to strip out yt-dlp.
 
-**Legacy:** PyInstaller creates standalone executables from the Python tree.
+**Python:** PyInstaller creates standalone executables from the Python tree. Still actively supported — used for Raspberry Pi deploys, rapid iteration, and anywhere a Python REPL beats recompiling.
 
 GitHub Actions (`.github/workflows/build.yml`) runs `lint` (ruff, Python only) and `test` (headless pytest smoke suite) on every push and PR to `main`, and builds for Windows, macOS, and Linux on version tags (`v*`) or manual dispatch, producing platform-specific installers (Inno Setup, DMG, AppImage). Build jobs depend on lint + test passing. CI migration to CMake-native builds is ongoing.
 
@@ -175,7 +203,7 @@ GitHub Actions (`.github/workflows/build.yml`) runs `lint` (ruff, Python only) a
 - Qt Quick Controls style is forced to `"Basic"` for full slider customization
 - QML import path includes `frontend/` — QML files there are importable by name
 - The `dev/` directory is gitignored and fully isolated from production code
-- New backend work lands in C++ (`src/managers/`) — Python (`backend/`) is legacy only
+- Backend work lands in **both** C++ (`src/managers/`) and Python (`backend/`) in the same change set — no language is second-class
 - Python modules use hierarchical loggers via `get_logger(__name__)`; C++ uses `QLoggingCategory`
 
 ## Wiki Maintenance

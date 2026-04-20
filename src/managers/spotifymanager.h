@@ -82,6 +82,9 @@ public slots:
     // Auth
     Q_INVOKABLE void authenticate();
     Q_INVOKABLE void logout();
+    // Alias matching the Python backend's @Slot name — QML's MediaSettingsPage
+    // calls `spotifyManager.disconnect()`, which both backends must honor.
+    Q_INVOKABLE void disconnect() { logout(); }
 
     // Playback control
     Q_INVOKABLE void play();

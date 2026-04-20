@@ -30,6 +30,7 @@ BACKEND_MODULES = [
     "backend.phone_mirror",
     "backend.android_auto",
     "backend.volume_utils",
+    "backend.dashboard_manager",
 ]
 
 
@@ -79,3 +80,33 @@ def test_safe_managers_instantiate(qapp, tmp_path, monkeypatch):
 
     network = NetworkManager()
     assert isinstance(network, QObject)
+
+
+def test_dashboard_manager_discovers_presets(qapp, tmp_path):
+    """
+    The Python DashboardManager must discover the same built-in presets that
+    the C++ peer does (frontend/dashboards/presets/*.json). If a preset is
+    added on the C++ side without landing a JSON file, this breaks.
+    """
+    import os
+
+    from backend.dashboard_manager import DashboardManager
+
+    repo_root = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..")
+    )
+    presets_dir = os.path.join(repo_root, "frontend", "dashboards", "presets")
+
+    dm = DashboardManager()
+    dm.setPresetsDir(presets_dir)
+    dm.setUserDir(str(tmp_path / "dashboards"))
+
+    ids = {entry["id"] for entry in dm.dashboards}
+    assert "minimal" in ids
+    assert all(entry["builtIn"] for entry in dm.dashboards)
+
+    # Duplicate → save → delete round-trip.
+    new_id = dm.duplicateDashboard("minimal", "Copy For Test")
+    assert new_id == "copy-for-test"
+    assert dm.deleteDashboard(new_id) is True
+    assert dm.deleteDashboard("minimal") is False  # built-in is protected
