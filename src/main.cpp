@@ -36,6 +36,9 @@
 #include "items/embeddedscrcpyitem.h"
 #include "items/embeddeddhuitem.h"
 
+// Phase 6 — dashboards feature (see TODO/dashboards-roadmap.md)
+#include "managers/dashboardmanager.h"
+
 // All managers are now real C++ implementations -- no stubs needed.
 
 int main(int argc, char *argv[])
@@ -219,6 +222,17 @@ int main(int argc, char *argv[])
     }
 
     engine.addImportPath(frontendDir.absolutePath());
+
+    // ==================================================================
+    // Phase 6: Dashboards (data-driven dashboards + user-authored presets)
+    // See TODO/dashboards-roadmap.md. Must be registered before engine.load
+    // so QML sees the context property at first binding evaluation.
+    // ==================================================================
+    DashboardManager dashboardManager;
+    dashboardManager.setPresetsDir(frontendDir.absoluteFilePath("dashboards/presets"));
+    dashboardManager.setUserDir(SettingsManager::getAppDataDir()
+                                + QStringLiteral("/dashboards"));
+    ctx->setContextProperty("dashboardManager", &dashboardManager);
 
     // ---- Load Main.qml ----
     QString qmlFile = frontendDir.absoluteFilePath("Main.qml");

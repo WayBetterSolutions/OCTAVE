@@ -1,0 +1,40 @@
+{
+  "id": "fullgrid",
+  "label": "Full Grid",
+  "schema": 1,
+  "gridColumns": 12,
+  "gridRows": 8,
+  "cells": [
+    { "type": "CircularGauge", "paramId": "SPEED",
+      "col": 0, "row": 0, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4 } },
+
+    { "type": "CircularGauge", "paramId": "RPM",
+      "col": 3, "row": 0, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4, "redlineStart": 6500 } },
+
+    { "type": "CircularGauge", "paramId": "COOLANT_TEMP",
+      "col": 6, "row": 0, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4, "redlineStart": 105 } },
+
+    { "type": "CircularGauge", "paramId": "OIL_TEMP",
+      "col": 9, "row": 0, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4, "redlineStart": 130 } },
+
+    { "type": "CircularGauge", "paramId": "THROTTLE_POS",
+      "col": 0, "row": 4, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4 } },
+
+    { "type": "CircularGauge", "paramId": "ENGINE_LOAD",
+      "col": 3, "row": 4, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4 } },
+
+    { "type": "CircularGauge", "paramId": "FUEL_LEVEL",
+      "col": 6, "row": 4, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4 } },
+
+    { "type": "CircularGauge", "paramId": "CONTROL_MODULE_VOLTAGE",
+      "col": 9, "row": 4, "colSpan": 3, "rowSpan": 4,
+      "props": { "majorTickCount": 7, "minorTicksPerMajor": 4, "decimals": 1 } }
+  ]
+}

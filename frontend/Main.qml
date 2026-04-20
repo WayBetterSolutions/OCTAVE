@@ -346,6 +346,7 @@ ApplicationWindow {
             "MainMenu.qml":         { file: "MainMenu.qml",         props: { stackView: stackView, windowWidth: mainWindow.width, windowHeight: mainWindow.height } },
             "MediaRoom.qml":        { file: "MediaRoom.qml",        props: { stackView: stackView } },
             "MediaPlayer.qml":      { file: "MediaPlayer.qml",      props: { stackView: stackView, mainWindow: mainWindow } },
+            "OBDHome.qml":          { file: "OBDHome.qml",          props: { stackView: stackView, mainWindow: mainWindow } },
             "OBDMenu.qml":          { file: "OBDMenu.qml",          props: { stackView: stackView, mainWindow: mainWindow } },
             "OBDDiagnostics.qml":   { file: "OBDDiagnostics.qml",   props: { stackView: stackView, mainWindow: mainWindow } },
             "SettingsMenu.qml":     { file: "SettingsMenu.qml",     props: { stackView: stackView, mainWindow: mainWindow } },

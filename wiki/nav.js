@@ -36,6 +36,7 @@
         { href: "theme-system.html", label: "Theme System" },
         { href: "settings-ui.html", label: "Settings UI" },
         { href: "components.html", label: "Components" },
+        { href: "gauges-dashboards.html", label: "Gauges & Dashboards" },
       ],
     },
     {

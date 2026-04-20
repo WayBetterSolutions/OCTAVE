@@ -816,42 +816,46 @@ Rectangle {
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
+                                    var name = currentItem ? currentItem.objectName : ""
 
-                                    if (currentItem && currentItem.objectName === "obdMenu") {
-                                        // On OBDMenu, go to OBDDiagnostics
-                                        var component = Qt.createComponent("OBDDiagnostics.qml")
-                                        if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window
-                                            })
-                                            if (page) {
-                                                stackView.push(page)
+                                    if (name === "obdHome") {
+                                        // Already on OBD Home �� do nothing
+                                        return
+                                    }
+
+                                    if (name.indexOf("obd") === 0) {
+                                        // On an OBD subpage — go back to OBDHome
+                                        var found = false
+                                        while (stackView.depth > 1) {
+                                            var item = stackView.currentItem
+                                            if (item && item.objectName === "obdHome") {
+                                                found = true
+                                                break
                                             }
+                                            stackView.pop()
                                         }
-                                    } else if (currentItem && currentItem.objectName === "obdDiagnostics") {
-                                        // On OBDDiagnostics, go to OBDMenu
-                                        var component = Qt.createComponent("OBDMenu.qml")
-                                        if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window
-                                            })
-                                            if (page) {
-                                                stackView.push(page)
+                                        if (!found) {
+                                            var component = Qt.createComponent("OBDHome.qml")
+                                            if (component.status === Component.Ready) {
+                                                var page = component.createObject(stackView, {
+                                                    stackView: bottomBar.stackView,
+                                                    mainWindow: stackView.parent.Window.window
+                                                })
+                                                if (page) stackView.push(page)
                                             }
                                         }
                                     } else {
-                                        // From other pages, go to OBDMenu (default)
-                                        var component = Qt.createComponent("OBDMenu.qml")
+                                        // From a non-OBD page — check if we have a remembered subpage
+                                        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastOBDPage", "") : ""
+                                        var target = (lastPage !== "") ? lastPage : "OBDHome.qml"
+
+                                        var component = Qt.createComponent(target)
                                         if (component.status === Component.Ready) {
                                             var page = component.createObject(stackView, {
                                                 stackView: bottomBar.stackView,
                                                 mainWindow: stackView.parent.Window.window
                                             })
-                                            if (page) {
-                                                stackView.push(page)
-                                            }
+                                            if (page) stackView.push(page)
                                         }
                                     }
                                 }
@@ -2090,42 +2094,46 @@ Rectangle {
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
+                                    var name = currentItem ? currentItem.objectName : ""
 
-                                    if (currentItem && currentItem.objectName === "obdMenu") {
-                                        // On OBDMenu, go to OBDDiagnostics
-                                        var component = Qt.createComponent("OBDDiagnostics.qml")
-                                        if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window
-                                            })
-                                            if (page) {
-                                                stackView.push(page)
+                                    if (name === "obdHome") {
+                                        // Already on OBD Home �� do nothing
+                                        return
+                                    }
+
+                                    if (name.indexOf("obd") === 0) {
+                                        // On an OBD subpage — go back to OBDHome
+                                        var found = false
+                                        while (stackView.depth > 1) {
+                                            var item = stackView.currentItem
+                                            if (item && item.objectName === "obdHome") {
+                                                found = true
+                                                break
                                             }
+                                            stackView.pop()
                                         }
-                                    } else if (currentItem && currentItem.objectName === "obdDiagnostics") {
-                                        // On OBDDiagnostics, go to OBDMenu
-                                        var component = Qt.createComponent("OBDMenu.qml")
-                                        if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window
-                                            })
-                                            if (page) {
-                                                stackView.push(page)
+                                        if (!found) {
+                                            var component = Qt.createComponent("OBDHome.qml")
+                                            if (component.status === Component.Ready) {
+                                                var page = component.createObject(stackView, {
+                                                    stackView: bottomBar.stackView,
+                                                    mainWindow: stackView.parent.Window.window
+                                                })
+                                                if (page) stackView.push(page)
                                             }
                                         }
                                     } else {
-                                        // From other pages, go to OBDMenu (default)
-                                        var component = Qt.createComponent("OBDMenu.qml")
+                                        // From a non-OBD page — check if we have a remembered subpage
+                                        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastOBDPage", "") : ""
+                                        var target = (lastPage !== "") ? lastPage : "OBDHome.qml"
+
+                                        var component = Qt.createComponent(target)
                                         if (component.status === Component.Ready) {
                                             var page = component.createObject(stackView, {
                                                 stackView: bottomBar.stackView,
                                                 mainWindow: stackView.parent.Window.window
                                             })
-                                            if (page) {
-                                                stackView.push(page)
-                                            }
+                                            if (page) stackView.push(page)
                                         }
                                     }
                                 }

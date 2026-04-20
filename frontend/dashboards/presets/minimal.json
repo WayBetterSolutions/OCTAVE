@@ -1,0 +1,27 @@
+{
+  "id": "minimal",
+  "label": "Minimal",
+  "schema": 1,
+  "gridColumns": 12,
+  "gridRows": 8,
+  "cells": [
+    {
+      "type": "CircularGauge",
+      "paramId": "SPEED",
+      "col": 0, "row": 0, "colSpan": 4, "rowSpan": 8,
+      "props": { "showTicks": true }
+    },
+    {
+      "type": "CircularGauge",
+      "paramId": "RPM",
+      "col": 4, "row": 0, "colSpan": 4, "rowSpan": 8,
+      "props": { "showTicks": true, "redlineStart": 6500 }
+    },
+    {
+      "type": "CircularGauge",
+      "paramId": "FUEL_LEVEL",
+      "col": 8, "row": 0, "colSpan": 4, "rowSpan": 8,
+      "props": { "showTicks": true }
+    }
+  ]
+}

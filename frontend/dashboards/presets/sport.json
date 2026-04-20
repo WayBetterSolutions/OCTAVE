@@ -1,0 +1,45 @@
+{
+  "id": "sport",
+  "label": "Sport",
+  "schema": 1,
+  "gridColumns": 12,
+  "gridRows": 8,
+  "cells": [
+    {
+      "type": "DigitalReadout",
+      "paramId": "SPEED",
+      "col": 0, "row": 0, "colSpan": 6, "rowSpan": 7,
+      "props": { "valueScale": 7.0, "padDigits": 3 }
+    },
+    {
+      "type": "CircularGauge",
+      "paramId": "RPM",
+      "col": 6, "row": 0, "colSpan": 6, "rowSpan": 7,
+      "props": { "showNeedle": true, "redlineStart": 6500, "majorTickCount": 9 }
+    },
+    {
+      "type": "BarGauge",
+      "paramId": "COOLANT_TEMP",
+      "col": 0, "row": 7, "colSpan": 3, "rowSpan": 1,
+      "props": { "warnAbove": 105, "maxThickness": 40 }
+    },
+    {
+      "type": "BarGauge",
+      "paramId": "OIL_TEMP",
+      "col": 3, "row": 7, "colSpan": 3, "rowSpan": 1,
+      "props": { "warnAbove": 130, "maxThickness": 40 }
+    },
+    {
+      "type": "BarGauge",
+      "paramId": "FUEL_LEVEL",
+      "col": 6, "row": 7, "colSpan": 3, "rowSpan": 1,
+      "props": { "maxThickness": 40 }
+    },
+    {
+      "type": "BarGauge",
+      "paramId": "THROTTLE_POS",
+      "col": 9, "row": 7, "colSpan": 3, "rowSpan": 1,
+      "props": { "maxThickness": 40 }
+    }
+  ]
+}

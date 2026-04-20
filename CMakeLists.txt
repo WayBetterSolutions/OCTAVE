@@ -48,6 +48,8 @@ qt_add_executable(octave
     src/managers/phonemirrormanager.cpp
     src/managers/androidautomanager.h
     src/managers/androidautomanager.cpp
+    src/managers/dashboardmanager.h
+    src/managers/dashboardmanager.cpp
     src/items/scrcpycapture.h
     src/items/scrcpycapture.cpp
     src/items/embeddedscrcpyitem.h

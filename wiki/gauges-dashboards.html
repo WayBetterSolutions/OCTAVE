@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gauges &amp; Dashboards - OCTAVE Wiki</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="wiki-layout">
+    <div class="content">
+      <div class="content-inner">
+        <div class="page-header">
+          <div class="breadcrumb"><a href="index.html">OCTAVE Wiki</a> / Gauges &amp; Dashboards</div>
+          <h1 class="page-title">Gauges &amp; Dashboards</h1>
+          <p class="page-subtitle">Reusable gauge primitives and pre-built dashboards for live OBD data. Accessed from the "Dashboards" pill in the top-right of the OBD menu.</p>
+        </div>
+
+        <nav class="toc">
+          <h3>On This Page</h3>
+          <ul class="toc-list">
+            <li><a href="#overview">Overview</a></li>
+            <li><a href="#primitives">Gauge primitives</a></li>
+            <li><a href="#dashboards">Built-in dashboards</a></li>
+            <li><a href="#authoring">Authoring new gauges &amp; dashboards</a></li>
+          </ul>
+        </nav>
+
+        <h2 id="overview">Overview</h2>
+        <p>OCTAVE ships with a small library of gauge primitives under <span class="file-path">frontend/gauges/</span> and three pre-built dashboards under <span class="file-path">frontend/dashboards/</span>. Dashboards render <strong>inline inside the OBD menu</strong> via a <code>Loader</code> — the default view is the parameter-card grid, and selecting a dashboard swaps the grid for the chosen layout in place. Selection is persisted as the <code>activeDashboard</code> setting.</p>
+        <p>Entry point: a "Dashboards" pill at the top-right of the OBD menu opens a modal chooser listing "Parameter Cards" plus each registered dashboard. Tapping a choice swaps the content and closes the popup.</p>
+        <p>Gauges bind to the <strong>OBDParameterModel</strong> singleton by <code>paramId</code> (e.g. <code>"RPM"</code>, <code>"SPEED"</code>) — title, unit, min and max are auto-populated from the model, and the live value updates reactively as the backend polls each PID. No manual signal wiring is required.</p>
+
+        <h2 id="primitives">Gauge primitives</h2>
+        <table>
+          <thead><tr><th>Primitive</th><th>Use for</th></tr></thead>
+          <tbody>
+            <tr><td><code>CircularGauge</code></td><td>Arc-sweep dial with optional tick marks, needle, redline and center readout. Flagship gauge for RPM, speed, coolant, etc.</td></tr>
+            <tr><td><code>BarGauge</code></td><td>Horizontal or vertical filled bar. Good for fuel, throttle, intake temps. Supports a <code>warnAbove</code> threshold that recolors the fill.</td></tr>
+            <tr><td><code>LinearGauge</code></td><td>Horizontal scale with tick marks and a sliding indicator. Best for <strong>bidirectional</strong> ranges that straddle zero (fuel trim, timing advance, EGR error).</td></tr>
+            <tr><td><code>DigitalReadout</code></td><td>Big numeric value with subdued label and unit. Use as the dominant element on a dashboard when an arc is overkill.</td></tr>
+            <tr><td><code>ArcGauge</code></td><td>Half-dial (180° top arc with readout below the chord). Compact, wide-aspect alternative to <code>CircularGauge</code> for speedometer-style layouts. Shares the same arc/tick/needle/redline engine.</td></tr>
+            <tr><td><code>SparklineGauge</code></td><td>Rolling history line showing recent values. Use when motion matters more than absolute value — boost, load, fuel trim. Timer-sampled so the x-axis scale stays stable; <code>autoScale</code> rescales the y-axis to the visible window for small-swing PIDs.</td></tr>
+            <tr><td><code>WarningLight</code></td><td>Binary tell-tale indicator bound to a <code>triggerAbove</code> / <code>triggerBelow</code> threshold. Composable — drop several into a row for an idiot-light strip, or overlay one atop a larger gauge as a critical alert.</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="dashboards">Built-in dashboards</h2>
+        <table>
+          <thead><tr><th>Dashboard</th><th>Layout</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Sport</strong></td><td>Huge digital speed readout + large RPM dial with redline, vitals strip (coolant / oil / fuel / throttle) along the bottom.</td></tr>
+            <tr><td><strong>Minimal</strong></td><td>Three round circular gauges across the screen: Speed, RPM (with redline), Fuel.</td></tr>
+            <tr><td><strong>Full Grid</strong></td><td>4×2 grid of compact circular gauges covering Speed, RPM, Coolant, Oil, Throttle, Engine Load, Fuel, and System Voltage.</td></tr>
+          </tbody>
+        </table>
+
+        <h2 id="authoring">Authoring new gauges &amp; dashboards</h2>
+        <p>The complete API reference, all 93 supported PID IDs, theme tokens, needle-angle math, and step-by-step recipes for adding a new dashboard or a new primitive live in <span class="file-path">docs/GAUGE_AUTHORING.md</span>. That document is the source of truth — update it whenever the gauge API changes.</p>
+        <p>Quick recipe: create <span class="file-path">frontend/dashboards/MyDashboard.qml</span> that composes gauge primitives in a layout, then append <code>{ id, label, source }</code> to the <code>dashboardRegistry</code> array in <span class="file-path">OBDMenu.qml</span>. The chooser popup picks it up automatically.</p>
+
+        <div class="related-pages">
+          <h3>Related Pages</h3>
+          <a href="obd-manager.html" class="related-link">OBD Manager</a>
+          <a href="components.html" class="related-link">Components</a>
+          <a href="signals-slots-reference.html" class="related-link">Signals &amp; Slots API</a>
+          <a href="theme-system.html" class="related-link">Theme System</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <script src="search-index.js"></script>
+  <script src="search.js"></script>
+  <script src="nav.js"></script>
+</body>
+</html>

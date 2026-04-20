@@ -4,6 +4,8 @@ import QtQuick.Layouts 1.15
 import QtQuick.Shapes 1.15
 import Qt5Compat.GraphicalEffects
 import "." as App
+import "gauges" as Gauges
+import "dashboards" as Dashboards
 
 Item {
     id: obdPage
@@ -23,6 +25,91 @@ Item {
     
     // Card style setting - true for circular gauges, false for square cards
     property bool useCircularCards: settingsManager ? settingsManager.get_setting_with_default("obdCardStyleCircular", false) : false
+
+    // Active dashboard: "grid" = default parameter cards, or one of the registered dashboards
+    property string activeDashboardId: settingsManager
+        ? settingsManager.get_setting_with_default("activeDashboard", "grid")
+        : "grid"
+
+    // Dashboard registry — built-in "grid" (parameter-cards view in this
+    // file) plus every JSON-defined dashboard enumerated by DashboardManager
+    // (presets + user-authored files). Ids like "sport"/"minimal"/"fullgrid"
+    // still resolve to the same dashboards — they just render from JSON via
+    // DashboardRenderer now instead of hand-written QML. See
+    // TODO/dashboards-roadmap.md for the full Phase 2 design.
+    readonly property var _gridSentinel:
+        ({ id: "grid", label: "Parameter Cards", builtIn: true })
+
+    property var dashboardRegistry: _rebuildRegistry()
+
+    function _rebuildRegistry() {
+        var list = [_gridSentinel]
+        if (typeof dashboardManager !== "undefined" && dashboardManager) {
+            list = list.concat(dashboardManager.dashboards)
+        }
+        return list
+    }
+
+    // Refresh the registry whenever DashboardManager's list changes (user
+    // added/deleted a dashboard, or an external edit + refresh()).
+    Connections {
+        target: (typeof dashboardManager !== "undefined") ? dashboardManager : null
+        ignoreUnknownSignals: true
+        function onDashboardsChanged() {
+            obdPage.dashboardRegistry = obdPage._rebuildRegistry()
+        }
+    }
+
+    function setActiveDashboard(id) {
+        activeDashboardId = id
+        if (settingsManager) settingsManager.save_setting("activeDashboard", id)
+    }
+
+    // Display label for the currently-active dashboard, derived from the
+    // registry so custom user dashboards show their real name in the header.
+    readonly property string activeDashboardLabel: {
+        for (var i = 0; i < dashboardRegistry.length; i++) {
+            if (dashboardRegistry[i].id === activeDashboardId)
+                return dashboardRegistry[i].label
+        }
+        return "Dashboard"
+    }
+
+    // Fallback schematic preview for the "Parameter Cards" entry, which
+    // has no standalone QML file (it's the built-in grid in this file).
+    // All other dashboards render as live, scaled miniatures of the real
+    // QML in the chooser popup below.
+    Component {
+        id: gridPreview
+        GridLayout {
+            anchors.fill: parent
+            columns: 3
+            rows: 3
+            rowSpacing: App.Spacing.dpMin(3, 1)
+            columnSpacing: App.Spacing.dpMin(3, 1)
+            Repeater {
+                model: 9
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    radius: App.Spacing.dpMin(3, 1)
+                    color: Qt.darker(App.Style.obdBoxBackground, 1.15)
+                    border.color: Qt.darker(App.Style.obdBarColor, 1.4)
+                    border.width: 1
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        anchors.margins: Math.max(2, parent.width * 0.08)
+                        width: parent.width * 0.55
+                        height: Math.max(2, parent.height * 0.1)
+                        radius: height / 2
+                        color: App.Style.obdBarColor
+                    }
+                }
+            }
+        }
+    }
+
 
     // OBD parameters from centralized singleton
     property var allParameters: App.OBDParameterModel.allParameters
@@ -54,13 +141,143 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: backgroundColor
-        
+
+        // ── Header bar ─────────────────────────────────────────────────
+        // Hosts the current dashboard's label and the chooser button.
+        // Content sits below this.
+        Rectangle {
+            id: obdHeader
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            // Match MediaPlayer's titleBar height exactly so the chooser
+            // button lines up pixel-for-pixel with the YouTube Music
+            // download button: see MediaPlayer.qml:277.
+            height: App.Spacing.bottomBarNavButtonHeight + App.Spacing.mediaRoomMargin * 2
+            color: Qt.darker(obdPage.backgroundColor, 1.12)
+            z: 2
+
+            Text {
+                anchors.centerIn: parent
+                text: obdPage.activeDashboardLabel
+                color: App.Style.obdValueColor
+                font.pixelSize: App.Spacing.overallText * 1.15
+                font.bold: true
+                font.family: obdPage.globalFont
+            }
+
+            // Subtle separator line at the bottom of the header.
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: Qt.darker(App.Style.obdBarColor, 1.8)
+                opacity: 0.6
+            }
+        }
+
+        // Dashboards chooser button — anchored to the outer content
+        // Rectangle (NOT to obdHeader) with the identical top/right
+        // margins the YouTube Music download button uses in
+        // MediaPlayer.qml:650-655. Same parent-relative anchors + same
+        // margins + same button size = exact X/Y match across pages.
+        Control {
+            id: dashboardsButton
+            width: App.Spacing.bottomBarNavButtonWidth
+            height: App.Spacing.bottomBarNavButtonHeight
+            z: 3
+            anchors {
+                top: parent.top
+                right: parent.right
+                topMargin: App.Spacing.mediaRoomMargin
+                rightMargin: App.Spacing.mediaRoomMargin
+            }
+
+            background: Rectangle {
+                color: "transparent"
+                radius: App.Spacing.dpMin(8, 2)
+                border.color: App.Style.accent
+                border.width: 1
+                scale: dashboardsButtonMouse.pressed ? 0.8 : 1.0
+                opacity: dashboardsButtonMouse.pressed ? 0.7 : 1.0
+                Behavior on scale {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                }
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+            }
+
+            contentItem: Item {
+                scale: dashboardsButtonMouse.pressed ? 0.8 : 1.0
+                opacity: dashboardsButtonMouse.pressed ? 0.7 : 1.0
+                Behavior on scale {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                }
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                Image {
+                    id: dashboardsButtonImage
+                    anchors.centerIn: parent
+                    width: parent.width * 0.7
+                    height: parent.height * 0.7
+                    source: "./assets/dashboard_button.svg"
+                    sourceSize: Qt.size(width * 2, height * 2)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    antialiasing: true
+                    mipmap: true
+                    visible: false
+                }
+                ColorOverlay {
+                    anchors.fill: dashboardsButtonImage
+                    source: dashboardsButtonImage
+                    color: App.Style.accent
+                }
+            }
+
+            MouseArea {
+                id: dashboardsButtonMouse
+                width: parent.width * 2
+                height: parent.height * 2
+                anchors.centerIn: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: dashboardChooserPopup.open()
+            }
+        }
+
+        // ── Dashboard renderer (visible only when a dashboard is active) ──
+        // Takes a JSON spec (fetched from DashboardManager) and instantiates
+        // widgets into a grid. Replaces the old per-dashboard QML loader.
+        Dashboards.DashboardRenderer {
+            id: dashboardRenderer
+            anchors {
+                top: obdHeader.bottom
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
+                leftMargin: App.Spacing.dp(10)
+                rightMargin: App.Spacing.dp(10)
+                topMargin: App.Spacing.dp(6)
+                bottomMargin: App.Spacing.dp(10)
+            }
+            visible: obdPage.activeDashboardId !== "grid"
+            spec: (visible && typeof dashboardManager !== "undefined" && dashboardManager)
+                  ? dashboardManager.loadDashboard(obdPage.activeDashboardId)
+                  : null
+        }
+
         GridLayout {
             id: parametersGrid
+            visible: obdPage.activeDashboardId === "grid"
             anchors {
-                fill: parent
-                margins: App.Spacing.dp(10)
-                bottomMargin: App.Spacing.dp(70) // Space for bottom controls
+                top: obdHeader.bottom
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
+                leftMargin: App.Spacing.dp(10)
+                rightMargin: App.Spacing.dp(10)
+                topMargin: App.Spacing.dp(10)
+                bottomMargin: App.Spacing.dp(10)
             }
             columns: 3
             rowSpacing: App.Spacing.dp(10)
@@ -336,6 +553,527 @@ Item {
     // Initialize layout
     Component.onCompleted: {
         updateTimer.start();
+    }
+
+    // ── Dashboard Chooser Popup ──────────────────────────────────────
+    Popup {
+        id: dashboardChooserPopup
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        // Sized to match primitivesGalleryPopup so both popups feel the
+        // same — consistent visual weight when switching between them.
+        width: Math.min(parent.width * 0.92, App.Spacing.dp(960))
+        height: Math.min(
+            parent.height * 0.9,
+            chooserTitle.height + chooserGrid.implicitHeight + App.Spacing.dp(80)
+        )
+        modal: true
+        focus: true
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        // True from aboutToShow until fully closed — gates the miniature
+        // Loaders so instantiation begins *before* the popup animates in,
+        // hiding the gauge value-binding animation that would otherwise
+        // play out after the popup is already visible.
+        property bool preloadMinis: false
+        onAboutToShow: preloadMinis = true
+        onClosed: preloadMinis = false
+
+        background: Rectangle {
+            color: Qt.rgba(App.Style.contentColor.r, App.Style.contentColor.g, App.Style.contentColor.b, 0.97)
+            radius: App.Spacing.overallMargin
+            border.color: App.Style.accent
+            border.width: 2
+        }
+
+        contentItem: Item {
+            id: chooserContent
+
+            Text {
+                id: chooserTitle
+                anchors.top: parent.top
+                anchors.topMargin: App.Spacing.dp(18)
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Dashboards"
+                color: App.Style.primaryTextColor
+                font.pixelSize: App.Spacing.overallText * 1.3
+                font.bold: true
+                font.family: obdPage.globalFont
+            }
+
+            // Primitives gallery button — temporary dev/showcase screen.
+            // Square, pinned tight to the top-right corner of the popup.
+            // Remove this once the Phase 3 in-app dashboard editor lands.
+            Control {
+                id: primitivesButton
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: App.Spacing.dp(6)
+                anchors.rightMargin: App.Spacing.dp(6)
+                width: App.Spacing.bottomBarNavButtonWidth
+                height: App.Spacing.bottomBarNavButtonHeight
+
+                background: Rectangle {
+                    color: "transparent"
+                    radius: App.Spacing.dpMin(8, 2)
+                    border.color: App.Style.accent
+                    border.width: 1
+                    scale: primitivesButtonMouse.pressed ? 0.8 : 1.0
+                    opacity: primitivesButtonMouse.pressed ? 0.7 : 1.0
+                    Behavior on scale {
+                        NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                }
+
+                contentItem: Item {
+                    scale: primitivesButtonMouse.pressed ? 0.8 : 1.0
+                    opacity: primitivesButtonMouse.pressed ? 0.7 : 1.0
+                    Behavior on scale {
+                        NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                    }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    Image {
+                        id: primitivesButtonImage
+                        anchors.centerIn: parent
+                        width: parent.width * 0.7
+                        height: parent.height * 0.7
+                        source: "./assets/primitives_button.svg"
+                        sourceSize: Qt.size(width * 2, height * 2)
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        antialiasing: true
+                        mipmap: true
+                        visible: false
+                    }
+                    ColorOverlay {
+                        anchors.fill: primitivesButtonImage
+                        source: primitivesButtonImage
+                        color: App.Style.accent
+                    }
+                }
+
+                MouseArea {
+                    id: primitivesButtonMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: primitivesGalleryPopup.open()
+                }
+            }
+
+            Flickable {
+                id: chooserScroll
+                anchors {
+                    top: chooserTitle.bottom
+                    bottom: parent.bottom
+                    left: parent.left
+                    right: parent.right
+                    topMargin: App.Spacing.dp(14)
+                    leftMargin: App.Spacing.dp(18)
+                    rightMargin: App.Spacing.dp(18)
+                    bottomMargin: App.Spacing.dp(18)
+                }
+                contentWidth: width
+                contentHeight: chooserGrid.implicitHeight
+                flickableDirection: Flickable.VerticalFlick
+                clip: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1200
+                maximumFlickVelocity: 4000
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+                GridLayout {
+                    id: chooserGrid
+                    width: chooserScroll.width
+                    columns: 2
+                    rowSpacing: App.Spacing.dp(14)
+                    columnSpacing: App.Spacing.dp(14)
+
+                    Repeater {
+                        model: obdPage.dashboardRegistry
+                        delegate: Rectangle {
+                            id: card
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: width * 0.72
+                            radius: App.Spacing.dpMin(12, 4)
+                            color: obdPage.activeDashboardId === modelData.id
+                                   ? Qt.lighter(App.Style.obdBoxBackground, 1.18)
+                                   : (choiceMouse.containsMouse
+                                      ? Qt.lighter(App.Style.obdBoxBackground, 1.1)
+                                      : Qt.darker(App.Style.obdBoxBackground, 1.05))
+                            border.color: obdPage.activeDashboardId === modelData.id
+                                          ? App.Style.obdBarColor
+                                          : Qt.darker(App.Style.obdBarColor, 1.5)
+                            border.width: obdPage.activeDashboardId === modelData.id ? 3 : 1
+
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.width { NumberAnimation { duration: 120 } }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: App.Spacing.dp(10)
+                                spacing: App.Spacing.dp(8)
+
+                                // Preview "screen" — shows a scaled miniature of the
+                                // real dashboard QML. For the built-in "grid" entry
+                                // (Parameter Cards, no standalone QML), falls back to
+                                // the schematic gridPreview Component.
+                                Rectangle {
+                                    id: previewScreen
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    radius: App.Spacing.dpMin(8, 2)
+                                    color: App.Style.backgroundColor
+                                    clip: true
+
+                                    // Schematic fallback for Parameter Cards
+                                    Loader {
+                                        anchors.fill: parent
+                                        anchors.margins: App.Spacing.dp(8)
+                                        active: modelData.id === "grid"
+                                        sourceComponent: active ? gridPreview : null
+                                    }
+
+                                    // Live miniature for everything else: render
+                                    // the real dashboard at full natural size and
+                                    // scale it down to fit the card. Loader is
+                                    // active while the popup is open (starting at
+                                    // aboutToShow so instantiation overlaps the
+                                    // popup enter animation), and the contents
+                                    // fade in only after gauge bindings have
+                                    // settled — hides the 140ms 0→value animation
+                                    // baked into the gauge primitives.
+                                    Item {
+                                        id: miniStage
+                                        visible: modelData.id !== "grid"
+                                        width: Math.max(1, obdPage.width)
+                                        height: Math.max(1, obdPage.height - App.Spacing.dp(80))
+                                        anchors.centerIn: parent
+                                        transformOrigin: Item.Center
+                                        scale: Math.min(
+                                            previewScreen.width / Math.max(1, width),
+                                            previewScreen.height / Math.max(1, height)
+                                        )
+
+                                        property bool settled: false
+                                        opacity: settled ? 1 : 0
+                                        Behavior on opacity {
+                                            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                                        }
+
+                                        // Miniature is a DashboardRenderer bound to the
+                                        // same JSON spec the main view uses — guaranteed
+                                        // 1:1 with what the user will see full-size.
+                                        Dashboards.DashboardRenderer {
+                                            id: miniRenderer
+                                            anchors.fill: parent
+                                            spec: (miniStage.visible
+                                                   && dashboardChooserPopup.preloadMinis
+                                                   && typeof dashboardManager !== "undefined"
+                                                   && dashboardManager)
+                                                  ? dashboardManager.loadDashboard(modelData.id)
+                                                  : null
+
+                                            onSpecChanged: {
+                                                if (spec && Object.keys(spec).length > 0) {
+                                                    settleTimer.restart()
+                                                } else {
+                                                    miniStage.settled = false
+                                                }
+                                            }
+                                        }
+
+                                        Timer {
+                                            id: settleTimer
+                                            interval: 180
+                                            onTriggered: miniStage.settled = true
+                                        }
+
+                                        // Reset on close so the fade replays next open
+                                        Connections {
+                                            target: dashboardChooserPopup
+                                            function onClosed() { miniStage.settled = false }
+                                        }
+                                    }
+                                }
+
+                                // Label row with active indicator dot
+                                Row {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    spacing: App.Spacing.dp(6)
+
+                                    Rectangle {
+                                        visible: obdPage.activeDashboardId === modelData.id
+                                        width: App.Spacing.dp(8)
+                                        height: width
+                                        radius: width / 2
+                                        color: App.Style.obdBarColor
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: modelData.label
+                                        color: obdPage.activeDashboardId === modelData.id
+                                               ? App.Style.obdBarColor
+                                               : App.Style.obdValueColor
+                                        font.pixelSize: App.Spacing.overallText
+                                        font.bold: true
+                                        font.family: obdPage.globalFont
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: choiceMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    obdPage.setActiveDashboard(modelData.id)
+                                    dashboardChooserPopup.close()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ── Primitives Gallery Popup ─────────────────────────────────────
+    // Temporary dev/showcase screen — live preview of every gauge
+    // primitive with hardcoded demo values, so you can see what each
+    // one looks like regardless of OBD connection state. Tear this out
+    // once the Phase 3 in-app editor ships (see TODO/dashboards-roadmap.md).
+    Popup {
+        id: primitivesGalleryPopup
+        parent: Overlay.overlay
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
+        width: Math.min(parent.width * 0.92, App.Spacing.dp(960))
+        height: Math.min(
+            parent.height * 0.9,
+            galleryTitle.height + gallerySubtitle.height + galleryGrid.implicitHeight + App.Spacing.dp(80)
+        )
+        modal: true
+        focus: true
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: Qt.rgba(App.Style.contentColor.r, App.Style.contentColor.g, App.Style.contentColor.b, 0.97)
+            radius: App.Spacing.overallMargin
+            border.color: App.Style.accent
+            border.width: 2
+        }
+
+        contentItem: Item {
+            Text {
+                id: galleryTitle
+                anchors.top: parent.top
+                anchors.topMargin: App.Spacing.dp(18)
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Primitives Gallery"
+                color: App.Style.primaryTextColor
+                font.pixelSize: App.Spacing.overallText * 1.3
+                font.bold: true
+                font.family: obdPage.globalFont
+            }
+
+            Text {
+                id: gallerySubtitle
+                anchors.top: galleryTitle.bottom
+                anchors.topMargin: App.Spacing.dp(4)
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "Live preview of every gauge primitive"
+                color: App.Style.obdLabelColor
+                font.pixelSize: App.Spacing.overallText * 0.85
+                font.family: obdPage.globalFont
+            }
+
+            Flickable {
+                id: galleryScroll
+                anchors {
+                    top: gallerySubtitle.bottom
+                    bottom: parent.bottom
+                    left: parent.left
+                    right: parent.right
+                    topMargin: App.Spacing.dp(16)
+                    leftMargin: App.Spacing.dp(18)
+                    rightMargin: App.Spacing.dp(18)
+                    bottomMargin: App.Spacing.dp(18)
+                }
+                contentWidth: width
+                contentHeight: galleryGrid.implicitHeight
+                flickableDirection: Flickable.VerticalFlick
+                clip: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1200
+                maximumFlickVelocity: 4000
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+                GridLayout {
+                    id: galleryGrid
+                    width: galleryScroll.width
+                    columns: 2
+                    rowSpacing: App.Spacing.dp(14)
+                    columnSpacing: App.Spacing.dp(14)
+
+                    // ── CircularGauge ───────────────────────────────
+                    // Demo value pushed into the redline zone so the
+                    // needle points hard-right instead of straight up —
+                    // otherwise it lands at the same angle as the
+                    // ArcGauge tile's needle and the two look identical.
+                    GalleryTile {
+                        title: "CircularGauge"
+                        props: "paramId: RPM · showNeedle · redlineStart: 6500 (demo in redline)"
+                        Gauges.CircularGauge {
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width, parent.height) * 0.92
+                            height: width
+                            paramId: "RPM"
+                            value: 7200
+                            showNeedle: true
+                            redlineStart: 6500
+                        }
+                    }
+
+                    // ── ArcGauge ────────────────────────────────────
+                    GalleryTile {
+                        title: "ArcGauge"
+                        props: "paramId: SPEED · showNeedle · 180° top arc"
+                        Gauges.ArcGauge {
+                            anchors.fill: parent
+                            anchors.margins: App.Spacing.dp(6)
+                            paramId: "SPEED"
+                            value: 65
+                            showNeedle: true
+                        }
+                    }
+
+                    // ── BarGauge (horizontal, with warn) ────────────
+                    GalleryTile {
+                        title: "BarGauge — horizontal"
+                        props: "paramId: COOLANT_TEMP · warnAbove: 105"
+                        Item {
+                            anchors.fill: parent
+                            anchors.margins: App.Spacing.dp(14)
+                            Gauges.BarGauge {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                height: App.Spacing.dp(56)
+                                paramId: "COOLANT_TEMP"
+                                value: 92
+                                warnAbove: 105
+                                orientation: "horizontal"
+                            }
+                        }
+                    }
+
+                    // ── BarGauge (vertical) ─────────────────────────
+                    GalleryTile {
+                        title: "BarGauge — vertical"
+                        props: "paramId: FUEL_LEVEL · orientation: vertical"
+                        Item {
+                            anchors.fill: parent
+                            anchors.margins: App.Spacing.dp(14)
+                            Gauges.BarGauge {
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: App.Spacing.dp(90)
+                                paramId: "FUEL_LEVEL"
+                                value: 65
+                                orientation: "vertical"
+                            }
+                        }
+                    }
+
+                    // ── LinearGauge (bidirectional) ─────────────────
+                    GalleryTile {
+                        title: "LinearGauge"
+                        props: "paramId: SHORT_FUEL_TRIM_1 · bidirectional (min<0<max)"
+                        Gauges.LinearGauge {
+                            anchors.fill: parent
+                            anchors.margins: App.Spacing.dp(14)
+                            paramId: "SHORT_FUEL_TRIM_1"
+                            value: 6
+                        }
+                    }
+
+                    // ── DigitalReadout ──────────────────────────────
+                    GalleryTile {
+                        title: "DigitalReadout"
+                        props: "paramId: SPEED · padDigits: 3 · valueScale: 5"
+                        Gauges.DigitalReadout {
+                            anchors.fill: parent
+                            paramId: "SPEED"
+                            value: 65
+                            padDigits: 3
+                            valueScale: 5
+                        }
+                    }
+
+                    // ── SparklineGauge (live) ───────────────────────
+                    GalleryTile {
+                        title: "SparklineGauge"
+                        props: "paramId: ENGINE_LOAD · live 500ms sampling · fillBelow"
+                        Gauges.SparklineGauge {
+                            anchors.fill: parent
+                            anchors.margins: App.Spacing.dp(12)
+                            paramId: "ENGINE_LOAD"
+                            // Left live — in dev mode you see real motion;
+                            // on hardware without OBD, flat line at 0.
+                        }
+                    }
+
+                    // ── WarningLight (off + on + pulse) ─────────────
+                    GalleryTile {
+                        title: "WarningLight"
+                        props: "triggerAbove/Below · pulse (right is lit)"
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: App.Spacing.dp(20)
+                            Item {
+                                width: App.Spacing.dp(72); height: width
+                                Gauges.WarningLight {
+                                    anchors.fill: parent
+                                    paramId: "COOLANT_TEMP"
+                                    value: 85            // below trigger — off
+                                    triggerAbove: 110
+                                    label: "TEMP"
+                                }
+                            }
+                            Item {
+                                width: App.Spacing.dp(72); height: width
+                                Gauges.WarningLight {
+                                    anchors.fill: parent
+                                    paramId: "COOLANT_TEMP"
+                                    value: 115           // above trigger — lit
+                                    triggerAbove: 110
+                                    label: "TEMP"
+                                    pulse: true
+                                }
+                            }
+                            Item {
+                                width: App.Spacing.dp(72); height: width
+                                Gauges.WarningLight {
+                                    anchors.fill: parent
+                                    paramId: "FUEL_LEVEL"
+                                    value: 8
+                                    triggerBelow: 12
+                                    label: "FUEL"
+                                    activeColor: "#F1C40F"   // amber
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // RPM Settings Popup
