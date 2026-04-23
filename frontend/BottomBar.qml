@@ -6,6 +6,10 @@ import Qt5Compat.GraphicalEffects
 import "." as App
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: bottomBar
     property bool isVertical: settingsManager && settingsManager.bottomBarOrientation === "side"
 
@@ -519,7 +523,7 @@ Rectangle {
                             Popup {
                                 id: popupSlider
                                 width: parent.Window.width
-                                height: App.Spacing.dp(140)
+                                height: dp(140)
                                 anchors.centerIn: Overlay.overlay
                                 modal: true
                                 focus: true
@@ -528,7 +532,7 @@ Rectangle {
                                 // Simple background
                                 background: Rectangle {
                                     color: App.Style.backgroundColor
-                                    radius: App.Spacing.dpMin(8, 2)
+                                    radius: dpMin(8, 2)
                                     border.color: App.Style.accent
                                     border.width: 1
                                 }
@@ -542,10 +546,10 @@ Rectangle {
                                         id: percentLabel
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         anchors.top: parent.top
-                                        anchors.topMargin: App.Spacing.dp(15)
+                                        anchors.topMargin: dp(15)
                                         text: Math.round(volumeSlider.value) + "%"
                                         color: App.Style.accent
-                                        font.pixelSize: App.Spacing.dp(32)
+                                        font.pixelSize: dp(32)
                                         font.bold: true
                                     }
 
@@ -553,18 +557,18 @@ Rectangle {
                                     Item {
                                         id: sliderContainer
                                         anchors.top: percentLabel.bottom
-                                        anchors.topMargin: App.Spacing.dp(15)
+                                        anchors.topMargin: dp(15)
                                         anchors.left: parent.left
                                         anchors.right: parent.right
                                         anchors.bottom: parent.bottom
-                                        anchors.bottomMargin: App.Spacing.dp(15)
+                                        anchors.bottomMargin: dp(15)
 
                                         // Simplified slider
                                         Slider {
                                             id: volumeSlider
                                             anchors.centerIn: parent
                                             width: parent.width * 0.95
-                                            height: App.Spacing.dp(50)
+                                            height: dp(50)
                                             from: 0
                                             to: 100
                                             stepSize: 1
@@ -575,8 +579,8 @@ Rectangle {
                                                 x: volumeSlider.leftPadding
                                                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
                                                 width: volumeSlider.availableWidth
-                                                height: App.Spacing.dp(16)
-                                                radius: App.Spacing.dpMin(8, 2)
+                                                height: dp(16)
+                                                radius: dpMin(8, 2)
                                                 color: App.Style.hoverColor
 
                                                 // Filled portion
@@ -584,7 +588,7 @@ Rectangle {
                                                     width: volumeSlider.visualPosition * parent.width
                                                     height: parent.height
                                                     color: App.Style.volumeSliderColor
-                                                    radius: App.Spacing.dpMin(8, 2)
+                                                    radius: dpMin(8, 2)
                                                 }
                                             }
 
@@ -592,9 +596,9 @@ Rectangle {
                                             handle: Rectangle {
                                                 x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
                                                 y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
-                                                width: App.Spacing.dp(40)
-                                                height: App.Spacing.dp(40)
-                                                radius: App.Spacing.dpMin(20, 2)  // Circular handle
+                                                width: dp(40)
+                                                height: dp(40)
+                                                radius: dpMin(20, 2)  // Circular handle
                                                 color: App.Style.accent
                                             }
                                             
@@ -629,8 +633,8 @@ Rectangle {
                                                     // Position touch areas evenly along the slider
                                                     x: (index * (volumeSlider.width / 8)) - width/2 + volumeSlider.x
                                                     y: volumeSlider.y + volumeSlider.height/2 - height/2
-                                                    width: App.Spacing.dp(80)  // Large circular area
-                                                    height: App.Spacing.dp(80)
+                                                    width: dp(80)  // Large circular area
+                                                    height: dp(80)
                                                     
                                                     // Make the touch area visually circular (only for debugging)
                                                     // Rectangle {
@@ -683,7 +687,7 @@ Rectangle {
                             
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaHome.pressed ? 0.8 : 1.0
@@ -757,7 +761,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaOBD.pressed ? 0.8 : 1.0
@@ -870,7 +874,7 @@ Rectangle {
                             
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaMedia.pressed ? 0.8 : 1.0
@@ -975,7 +979,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaSettings.pressed ? 0.8 : 1.0
@@ -1028,15 +1032,15 @@ Rectangle {
 
                             // Update notification dot
                             Rectangle {
-                                width: App.Spacing.dp(8)
-                                height: App.Spacing.dp(8)
+                                width: dp(8)
+                                height: dp(8)
                                 radius: width / 2
                                 color: "#FF9800"
                                 z: 10
                                 anchors.top: parent.top
                                 anchors.right: parent.right
-                                anchors.topMargin: App.Spacing.dp(-1)
-                                anchors.rightMargin: App.Spacing.dp(-1)
+                                anchors.topMargin: dp(-1)
+                                anchors.rightMargin: dp(-1)
                                 visible: networkManager && networkManager.updateStatus === "update-available"
 
                                 SequentialAnimation on opacity {
@@ -1082,7 +1086,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaAndroidAuto.pressed ? 0.8 : 1.0
@@ -1164,7 +1168,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaPhoneMirror.pressed ? 0.8 : 1.0
@@ -1271,8 +1275,8 @@ Rectangle {
 
                         Item {
                             id: clockContainer
-                            Layout.preferredWidth: clockText.implicitWidth + App.Spacing.dp(20) // Add some padding
-                            Layout.preferredHeight: clockText.implicitHeight + App.Spacing.dp(10)
+                            Layout.preferredWidth: clockText.implicitWidth + dp(20) // Add some padding
+                            Layout.preferredHeight: clockText.implicitHeight + dp(10)
                             
                             Rectangle {
                                 anchors.fill: parent
@@ -1808,7 +1812,7 @@ Rectangle {
                             Popup {
                                 id: popupSliderVertical
                                 width: parent.Window.width
-                                height: App.Spacing.dp(140)
+                                height: dp(140)
                                 anchors.centerIn: Overlay.overlay
                                 modal: true
                                 focus: true
@@ -1817,7 +1821,7 @@ Rectangle {
                                 // Simple background
                                 background: Rectangle {
                                     color: App.Style.backgroundColor
-                                    radius: App.Spacing.dpMin(8, 2)
+                                    radius: dpMin(8, 2)
                                     border.color: App.Style.accent
                                     border.width: 1
                                 }
@@ -1831,10 +1835,10 @@ Rectangle {
                                         id: percentLabelVertical
                                         anchors.horizontalCenter: parent.horizontalCenter
                                         anchors.top: parent.top
-                                        anchors.topMargin: App.Spacing.dp(15)
+                                        anchors.topMargin: dp(15)
                                         text: Math.round(volumeSliderVertical.value) + "%"
                                         color: App.Style.accent
-                                        font.pixelSize: App.Spacing.dp(32)
+                                        font.pixelSize: dp(32)
                                         font.bold: true
                                     }
 
@@ -1842,18 +1846,18 @@ Rectangle {
                                     Item {
                                         id: sliderContainerVertical
                                         anchors.top: percentLabelVertical.bottom
-                                        anchors.topMargin: App.Spacing.dp(15)
+                                        anchors.topMargin: dp(15)
                                         anchors.left: parent.left
                                         anchors.right: parent.right
                                         anchors.bottom: parent.bottom
-                                        anchors.bottomMargin: App.Spacing.dp(15)
+                                        anchors.bottomMargin: dp(15)
 
                                         // Simplified slider
                                         Slider {
                                             id: volumeSliderVertical
                                             anchors.centerIn: parent
                                             width: parent.width * 0.95
-                                            height: App.Spacing.dp(50)
+                                            height: dp(50)
                                             from: 0
                                             to: 100
                                             stepSize: 1
@@ -1864,8 +1868,8 @@ Rectangle {
                                                 x: volumeSliderVertical.leftPadding
                                                 y: volumeSliderVertical.topPadding + volumeSliderVertical.availableHeight / 2 - height / 2
                                                 width: volumeSliderVertical.availableWidth
-                                                height: App.Spacing.dp(16)
-                                                radius: App.Spacing.dpMin(8, 2)
+                                                height: dp(16)
+                                                radius: dpMin(8, 2)
                                                 color: App.Style.hoverColor
                                                 
                                                 // Filled portion
@@ -1873,7 +1877,7 @@ Rectangle {
                                                     width: volumeSliderVertical.visualPosition * parent.width
                                                     height: parent.height
                                                     color: App.Style.volumeSliderColor
-                                                    radius: App.Spacing.dpMin(8, 2)
+                                                    radius: dpMin(8, 2)
                                                 }
                                             }
                                             
@@ -1881,9 +1885,9 @@ Rectangle {
                                             handle: Rectangle {
                                                 x: volumeSliderVertical.leftPadding + volumeSliderVertical.visualPosition * (volumeSliderVertical.availableWidth - width)
                                                 y: volumeSliderVertical.topPadding + volumeSliderVertical.availableHeight / 2 - height / 2
-                                                width: App.Spacing.dp(40)
-                                                height: App.Spacing.dp(40)
-                                                radius: App.Spacing.dpMin(20, 2)  // Circular handle
+                                                width: dp(40)
+                                                height: dp(40)
+                                                radius: dpMin(20, 2)  // Circular handle
                                                 color: App.Style.accent
                                             }
                                             
@@ -1917,8 +1921,8 @@ Rectangle {
                                                     // Position touch areas evenly along the slider
                                                     x: (index * (volumeSliderVertical.width / 8)) - width/2 + volumeSliderVertical.x
                                                     y: volumeSliderVertical.y + volumeSliderVertical.height/2 - height/2
-                                                    width: App.Spacing.dp(80)  // Large circular area
-                                                    height: App.Spacing.dp(80)
+                                                    width: dp(80)  // Large circular area
+                                                    height: dp(80)
                                                     
                                                     // Handle touch interactions
                                                     onMouseXChanged: {
@@ -1962,7 +1966,7 @@ Rectangle {
                             
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaHomeVertical.pressed ? 0.8 : 1.0
@@ -2035,7 +2039,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaOBDVertical.pressed ? 0.8 : 1.0
@@ -2149,7 +2153,7 @@ Rectangle {
                             
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaMediaVertical.pressed ? 0.8 : 1.0
@@ -2255,7 +2259,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaSettingsVertical.pressed ? 0.8 : 1.0
@@ -2308,15 +2312,15 @@ Rectangle {
 
                             // Update notification dot
                             Rectangle {
-                                width: App.Spacing.dp(8)
-                                height: App.Spacing.dp(8)
+                                width: dp(8)
+                                height: dp(8)
                                 radius: width / 2
                                 color: "#FF9800"
                                 z: 10
                                 anchors.top: parent.top
                                 anchors.right: parent.right
-                                anchors.topMargin: App.Spacing.dp(-1)
-                                anchors.rightMargin: App.Spacing.dp(-1)
+                                anchors.topMargin: dp(-1)
+                                anchors.rightMargin: dp(-1)
                                 visible: networkManager && networkManager.updateStatus === "update-available"
 
                                 SequentialAnimation on opacity {
@@ -2363,7 +2367,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaAndroidAutoVertical.pressed ? 0.8 : 1.0
@@ -2446,7 +2450,7 @@ Rectangle {
 
                             background: Rectangle {
                                 color: "transparent"
-                                radius: App.Spacing.dpMin(8, 2)
+                                radius: dpMin(8, 2)
                                 border.color: App.Style.accent
                                 border.width: 1
                                 scale: mouseAreaPhoneMirrorVertical.pressed ? 0.8 : 1.0
@@ -2547,12 +2551,12 @@ Rectangle {
                             horizontalCenter: parent.horizontalCenter
                         }
                         width: parent.width
-                        height: clockTextVertical.implicitHeight + App.Spacing.dp(20)
+                        height: clockTextVertical.implicitHeight + dp(20)
 
                         Item {
                             id: clockContainerVertical
                             anchors.centerIn: parent
-                            width: clockTextVertical.implicitWidth + App.Spacing.dp(20)
+                            width: clockTextVertical.implicitWidth + dp(20)
                             height: parent.height
                             
                             Rectangle {

@@ -4,6 +4,10 @@ import ".." as App
 import "ScrollMemory.js" as ScrollMemory
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: hubCard
 
     property string categoryName: ""
@@ -17,7 +21,7 @@ Rectangle {
     property var settingsMenu: null
 
     color: "transparent"
-    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
+    radius: dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     clip: true
 
     // Accent border (spacecraft)
@@ -91,8 +95,8 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: App.Spacing.overallSpacing * 0.3
         anchors.rightMargin: App.Spacing.overallSpacing * 0.3
-        anchors.topMargin: App.Spacing.dp(2)
-        anchors.bottomMargin: App.Spacing.dp(2)
+        anchors.topMargin: dp(2)
+        anchors.bottomMargin: dp(2)
 
         Loader {
             id: pageLoader

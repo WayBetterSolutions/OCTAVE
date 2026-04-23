@@ -1,0 +1,578 @@
+/*
+ * OCTAVE Android media bridge.
+ *
+ * Exposes synchronous Java methods to the C++ backend (via QJniObject) for:
+ *   - yt-dlp search + download (junkfood02/youtubedl-android 0.18.1)
+ *   - ffmpeg binary path resolution (library auto-installs it; we grab the
+ *     path via reflection and C++ calls it via QProcess directly)
+ *   - Local file metadata + embedded album art (Android MediaMetadataRetriever)
+ */
+package org.octave.app;
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.media.MediaMetadataRetriever;
+import android.util.Log;
+import com.yausername.youtubedl_android.YoutubeDL;
+import com.yausername.youtubedl_android.YoutubeDLException;
+import com.yausername.youtubedl_android.YoutubeDLRequest;
+import com.yausername.youtubedl_android.YoutubeDLResponse;
+import com.yausername.ffmpeg.FFmpeg;
+import kotlin.Unit;
+import kotlin.jvm.functions.Function3;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.security.MessageDigest;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+public class OctaveMediaBridge {
+    private static final String TAG = "OctaveMediaBridge";
+
+    private static volatile boolean ytInitialized = false;
+    private static volatile boolean ffInitialized = false;
+    private static volatile boolean ytmusicapiReady = false;
+    private static volatile String initError = null;
+
+    // Single-slot progress state
+    private static volatile float currentProgress = 0.0f;
+    private static volatile long currentEta = 0;
+    private static volatile String currentLine = "";
+    private static volatile int lastExitCode = 0;
+
+    // Kotlin Function3 adapter for the yt-dlp progress callback.
+    private static class ProgressFn implements Function3<Float, Long, String, Unit> {
+        @Override
+        public Unit invoke(Float progress, Long etaInSeconds, String line) {
+            currentProgress = progress == null ? 0.0f : progress;
+            currentEta = etaInSeconds == null ? 0 : etaInSeconds;
+            currentLine = line == null ? "" : line;
+            return Unit.INSTANCE;
+        }
+    }
+
+    public static synchronized boolean init(Context ctx) {
+        if (ytInitialized && ffInitialized) return true;
+        try {
+            if (!ytInitialized) {
+                YoutubeDL.getInstance().init(ctx);
+                ytInitialized = true;
+                Log.i(TAG, "yt-dlp initialized");
+            }
+            if (!ffInitialized) {
+                FFmpeg.getInstance().init(ctx);
+                ffInitialized = true;
+                Log.i(TAG, "ffmpeg initialized");
+            }
+            // Opportunistic — non-fatal if it fails, search will fall back to yt-dlp.
+            ensureYtmusicapi(ctx);
+            initError = null;
+            return true;
+        } catch (YoutubeDLException e) {
+            initError = e.getMessage();
+            Log.e(TAG, "init failed", e);
+            return false;
+        } catch (Throwable t) {
+            initError = t.getMessage();
+            Log.e(TAG, "init failed (unexpected)", t);
+            return false;
+        }
+    }
+
+    public static String lastInitError() { return initError == null ? "" : initError; }
+
+    /**
+     * Run yt-dlp with the given args. Blocks until done. Returns combined
+     * stdout+stderr. Exit code via lastExitCode(). Progress via poll*().
+     */
+    public static String runYtDlp(String[] args) {
+        if (!ytInitialized) {
+            lastExitCode = -1;
+            return "[OCTAVE] yt-dlp not initialized";
+        }
+        currentProgress = 0.0f;
+        currentEta = 0;
+        currentLine = "";
+
+        // Split flags from the positional URL/search target.
+        //
+        // Rule: any arg that looks like a URL/search-target (see isUrl) is
+        // positional; otherwise it's a flag, and if a flag is immediately
+        // followed by a non-flag, non-URL value that's paired with the flag
+        // (e.g. "-f FORMAT", "--extractor-args KEY:VALUE", "-o PATH").
+        //
+        // This is more robust than a hardcoded list of value-taking flags —
+        // yt-dlp has hundreds of them.
+        java.util.List<String> urls = new java.util.ArrayList<>();
+        java.util.List<String[]> flagPairs = new java.util.ArrayList<>();  // [flag, value-or-null]
+        for (int i = 0; i < args.length; i++) {
+            String a = args[i];
+            if (isUrl(a)) {
+                urls.add(a);
+            } else if (a.startsWith("-")) {
+                String val = null;
+                if (i + 1 < args.length && !args[i + 1].startsWith("-") && !isUrl(args[i + 1])) {
+                    val = args[i + 1];
+                    i++;
+                }
+                flagPairs.add(new String[]{a, val});
+            } else {
+                // Rare: bare non-URL positional. Treat as URL anyway so we don't drop it.
+                urls.add(a);
+            }
+        }
+
+        YoutubeDLRequest request = new YoutubeDLRequest(urls.isEmpty() ? "" : urls.get(0));
+        // Any additional URLs get appended
+        for (int i = 1; i < urls.size(); i++) request.addOption(urls.get(i));
+        for (String[] pair : flagPairs) {
+            if (pair[1] == null) request.addOption(pair[0]);
+            else request.addOption(pair[0], pair[1]);
+        }
+
+        try {
+            String pid = "octave-" + System.nanoTime();
+            YoutubeDLResponse response = YoutubeDL.getInstance().execute(request, pid, new ProgressFn());
+            lastExitCode = response.getExitCode();
+            return safeOut(response.getOut()) + safeOut(response.getErr());
+        } catch (Throwable t) {
+            lastExitCode = -2;
+            Log.e(TAG, "yt-dlp execute failed", t);
+            return "[OCTAVE] yt-dlp error: " + t.getMessage();
+        }
+    }
+
+    // Detects URL-like positional arguments so the splitter doesn't mistake
+    // them for flag values. Covers http(s) URLs and yt-dlp's ytsearch scheme.
+    private static boolean isUrl(String s) {
+        if (s == null || s.isEmpty()) return false;
+        return s.startsWith("http://") || s.startsWith("https://")
+            || s.startsWith("ftp://") || s.startsWith("ytsearch")
+            || s.startsWith("ytsearchdate") || s.startsWith("ytsearchmusic");
+    }
+
+    /**
+     * Returns the absolute path to the library-installed ffmpeg binary, or ""
+     * if unavailable. Uses reflection to read FFmpeg.INSTANCE.binDir since
+     * that field is private in the AAR's compiled classes.
+     */
+    public static String getFfmpegBinaryPath() {
+        if (!ffInitialized) return "";
+        try {
+            FFmpeg ff = FFmpeg.getInstance();
+            Field binDirField = FFmpeg.class.getDeclaredField("binDir");
+            binDirField.setAccessible(true);
+            File binDir = (File) binDirField.get(ff);
+            if (binDir == null) return "";
+            File bin = new File(binDir, "ffmpeg");
+            if (!bin.exists()) return "";
+            return bin.getAbsolutePath();
+        } catch (Throwable t) {
+            Log.w(TAG, "could not resolve ffmpeg binary path", t);
+            return "";
+        }
+    }
+
+    public static int lastExitCode() { return lastExitCode; }
+    public static float pollProgress() { return currentProgress; }
+    public static long pollEta() { return currentEta; }
+    public static String pollLine() { return currentLine; }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ytmusicapi — curated YouTube Music search via the bundled Python
+    //
+    // youtubedl-android 0.18.1 bundles a Python 3.12 runtime but strips pip
+    // and ensurepip, so we can't install packages at runtime. Instead we ship
+    // ytmusicapi + its pure-Python dep chain (requests, urllib3, idna,
+    // charset_normalizer, certifi) as assets/python-packages/ytmusic-bundle.zip
+    // and extract them into filesDir/pylibs/ on first launch, then point
+    // PYTHONPATH at that dir when invoking ytmusic_search.py.
+    //
+    // The Python interpreter is the AAR-shipped libpython.so, which lives in
+    // the app's native-library dir (Android extracts any lib/<abi>/*.so entry
+    // there with exec permission, which is how the AAR launches it).
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static final String PYBUNDLE_ASSET  = "python-packages/ytmusic-bundle.zip";
+    private static final String PYBUNDLE_MARKER = ".pybundle-v1";
+    private static final String SEARCH_SCRIPT_ASSET = "scripts/ytmusic_search.py";
+    private static final String COVER_SCRIPT_ASSET  = "scripts/embed_cover.py";
+
+    /**
+     * Resolves the libpython.so interpreter binary inside the app's native
+     * library dir. Returns null if not yet extracted (ie. yt-dlp init hasn't
+     * run) or the AAR layout changed.
+     */
+    public static String getPythonBinaryPath(Context ctx) {
+        File bin = new File(ctx.getApplicationInfo().nativeLibraryDir, "libpython.so");
+        return bin.exists() ? bin.getAbsolutePath() : null;
+    }
+
+    /**
+     * Root of the AAR-extracted Python package tree (PYTHONHOME).
+     * Contains lib/python3.12/, etc/tls/cert.pem, and the .so dependencies.
+     */
+    private static File pythonUsrRoot(Context ctx) {
+        return new File(ctx.getNoBackupFilesDir(),
+            "youtubedl-android/packages/python/usr");
+    }
+
+    /**
+     * Root of the AAR-extracted ffmpeg package tree — its lib/ dir contains
+     * native shared objects the Python .so's need on LD_LIBRARY_PATH.
+     */
+    private static File ffmpegUsrRoot(Context ctx) {
+        return new File(ctx.getNoBackupFilesDir(),
+            "youtubedl-android/packages/ffmpeg/usr");
+    }
+
+    /**
+     * Extracts the bundled ytmusicapi site-packages zip from assets into
+     * filesDir/pylibs/ on first launch. Idempotent via a marker file so
+     * subsequent launches are ~free. Blocking — must run off the UI thread.
+     */
+    private static synchronized void ensureYtmusicapi(Context ctx) {
+        if (ytmusicapiReady) return;
+        File pylibs = new File(ctx.getFilesDir(), "pylibs");
+        File marker = new File(pylibs, PYBUNDLE_MARKER);
+        if (marker.exists() && new File(pylibs, "ytmusicapi").isDirectory()) {
+            ytmusicapiReady = true;
+            return;
+        }
+
+        if (pylibs.exists()) deleteRecursive(pylibs);
+        if (!pylibs.mkdirs()) {
+            Log.w(TAG, "could not create pylibs dir at " + pylibs);
+            return;
+        }
+
+        try (InputStream in = ctx.getAssets().open(PYBUNDLE_ASSET);
+             ZipInputStream zis = new ZipInputStream(in)) {
+            ZipEntry entry;
+            byte[] buf = new byte[8192];
+            while ((entry = zis.getNextEntry()) != null) {
+                File out = new File(pylibs, entry.getName());
+                // Defend against zip-slip.
+                if (!out.getCanonicalPath().startsWith(pylibs.getCanonicalPath() + File.separator)) {
+                    Log.w(TAG, "refusing suspicious zip entry: " + entry.getName());
+                    continue;
+                }
+                if (entry.isDirectory()) {
+                    out.mkdirs();
+                } else {
+                    File parent = out.getParentFile();
+                    if (parent != null && !parent.exists()) parent.mkdirs();
+                    try (FileOutputStream fos = new FileOutputStream(out)) {
+                        int n;
+                        while ((n = zis.read(buf)) > 0) fos.write(buf, 0, n);
+                    }
+                }
+                zis.closeEntry();
+            }
+            marker.createNewFile();
+            ytmusicapiReady = true;
+            Log.i(TAG, "ytmusicapi bundle extracted to " + pylibs);
+        } catch (Throwable t) {
+            Log.w(TAG, "ytmusicapi bundle extract failed", t);
+        }
+    }
+
+    /**
+     * Copies a bundled Python helper from assets/ into a writable path the
+     * interpreter can execute. Returns the absolute path, or null on failure.
+     * Re-uses the extracted file on subsequent calls — pass a fresh outName
+     * when the asset changes to force a rewrite.
+     */
+    private static String extractScriptAsset(Context ctx, String assetName, String outName) {
+        File out = new File(ctx.getFilesDir(), outName);
+        if (out.exists() && out.length() > 0) return out.getAbsolutePath();
+        try (InputStream in = ctx.getAssets().open(assetName);
+             FileOutputStream fos = new FileOutputStream(out)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) fos.write(buf, 0, n);
+        } catch (Throwable t) {
+            Log.w(TAG, "script extract failed for " + assetName, t);
+            return null;
+        }
+        return out.getAbsolutePath();
+    }
+
+    public static String extractSearchScript(Context ctx) {
+        return extractScriptAsset(ctx, SEARCH_SCRIPT_ASSET, "ytmusic_search.py");
+    }
+
+    /**
+     * Populates LD_LIBRARY_PATH / PYTHONHOME / PYTHONPATH / SSL_CERT_FILE /
+     * TMPDIR so libpython.so can link and import from the AAR-extracted
+     * Python tree + our pylibs bundle.
+     */
+    private static void applyPythonEnv(Context ctx, ProcessBuilder pb) {
+        File pyUsr = pythonUsrRoot(ctx);
+        File ffUsr = ffmpegUsrRoot(ctx);
+        File pylibs = new File(ctx.getFilesDir(), "pylibs");
+        File certFile = new File(pyUsr, "etc/tls/cert.pem");
+
+        Map<String, String> env = pb.environment();
+        env.put("LD_LIBRARY_PATH",
+            pyUsr.getAbsolutePath() + "/lib"
+            + File.pathSeparator
+            + ffUsr.getAbsolutePath() + "/lib");
+        env.put("PYTHONHOME", pyUsr.getAbsolutePath());
+        env.put("PYTHONPATH", pylibs.getAbsolutePath());
+        env.put("TMPDIR", ctx.getCacheDir().getAbsolutePath());
+        if (certFile.exists()) {
+            env.put("SSL_CERT_FILE", certFile.getAbsolutePath());
+        }
+    }
+
+    /**
+     * Runs ytmusic_search.py under the bundled libpython.so. Returns stdout
+     * (JSON-per-line matching DownloadManager::_parseSearchOutput()). Empty
+     * string on failure — caller falls back to yt-dlp search.
+     */
+    public static String runYtMusicSearch(Context ctx, String query, int limit) {
+        if (!ytmusicapiReady) ensureYtmusicapi(ctx);
+        if (!ytmusicapiReady) {
+            lastExitCode = -1;
+            return "";
+        }
+        String python = getPythonBinaryPath(ctx);
+        String script = extractSearchScript(ctx);
+        if (python == null || script == null) {
+            lastExitCode = -1;
+            return "";
+        }
+
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                python, script, query, String.valueOf(limit));
+            applyPythonEnv(ctx, pb);
+            pb.redirectErrorStream(false);
+            Process p = pb.start();
+
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            try (InputStream stdout = p.getInputStream()) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = stdout.read(buf)) > 0) bos.write(buf, 0, n);
+            }
+            // Drain stderr to logcat so import/network errors aren't silent.
+            try (InputStream stderr = p.getErrorStream()) {
+                ByteArrayOutputStream ebos = new ByteArrayOutputStream();
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = stderr.read(buf)) > 0) ebos.write(buf, 0, n);
+                if (ebos.size() > 0) {
+                    Log.w(TAG, "ytmusic_search.py stderr: " + ebos.toString("UTF-8"));
+                }
+            }
+            if (!p.waitFor(30, TimeUnit.SECONDS)) {
+                p.destroy();
+                lastExitCode = -2;
+                return "";
+            }
+            lastExitCode = p.exitValue();
+            if (lastExitCode != 0) {
+                Log.w(TAG, "ytmusic_search.py exit=" + lastExitCode);
+            }
+            return bos.toString("UTF-8");
+        } catch (Throwable t) {
+            Log.e(TAG, "runYtMusicSearch failed", t);
+            lastExitCode = -2;
+            return "";
+        }
+    }
+
+    /**
+     * Replaces the cover-art atom of an m4a/mp4 file with the given image
+     * bytes using mutagen (which ships in youtubedl-android's Python
+     * site-packages). Returns true on success. Used post-download on Android
+     * to swap yt-dlp's 16:9 YouTube thumbnail for the square ytmusicapi cover
+     * we already cached during search — the bundled ffmpeg has no -vf filters
+     * so we can't crop during embed.
+     */
+    public static boolean runEmbedCover(Context ctx, String audioPath, String coverPath) {
+        String python = getPythonBinaryPath(ctx);
+        String script = extractScriptAsset(ctx, COVER_SCRIPT_ASSET, "embed_cover.py");
+        if (python == null || script == null || audioPath == null || coverPath == null) {
+            return false;
+        }
+        if (!new File(audioPath).exists() || !new File(coverPath).exists()) {
+            return false;
+        }
+
+        try {
+            ProcessBuilder pb = new ProcessBuilder(python, script, audioPath, coverPath);
+            applyPythonEnv(ctx, pb);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            try (InputStream in = p.getInputStream()) {
+                byte[] buf = new byte[4096];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+            }
+            if (!p.waitFor(15, TimeUnit.SECONDS)) {
+                p.destroy();
+                Log.w(TAG, "embed_cover.py timed out");
+                return false;
+            }
+            int exit = p.exitValue();
+            if (exit != 0) {
+                Log.w(TAG, "embed_cover.py exit=" + exit
+                    + " output=" + bos.toString("UTF-8"));
+                return false;
+            }
+            return true;
+        } catch (Throwable t) {
+            Log.e(TAG, "runEmbedCover failed", t);
+            return false;
+        }
+    }
+
+    private static void deleteRecursive(File f) {
+        if (f.isDirectory()) {
+            File[] kids = f.listFiles();
+            if (kids != null) for (File k : kids) deleteRecursive(k);
+        }
+        f.delete();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Local file metadata via Android MediaMetadataRetriever
+    // ═══════════════════════════════════════════════════════════════════
+
+    public static String readMetadata(String filePath) {
+        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+        try {
+            mmr.setDataSource(filePath);
+            String title  = safe(mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE));
+            String artist = safe(mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST));
+            String album  = safe(mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM));
+            String durMs  = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION);
+            long durSecs  = 0;
+            if (durMs != null && !durMs.isEmpty()) {
+                try { durSecs = Long.parseLong(durMs) / 1000L; } catch (NumberFormatException ignored) {}
+            }
+            return "title\n" + title + "\nartist\n" + artist +
+                   "\nalbum\n" + album + "\nduration\n" + durSecs;
+        } catch (Throwable t) {
+            Log.w(TAG, "readMetadata failed for " + filePath, t);
+            return "";
+        } finally {
+            try { mmr.release(); } catch (IOException ignored) {}
+        }
+    }
+
+    /**
+     * Returns an absolute writable directory for downloaded music under the
+     * app's external files dir. Scoped-storage-safe on Android 10+; survives
+     * until the app is uninstalled; no permissions required. Creates it if
+     * missing. Result path is readable by file explorers and MediaStore.
+     */
+    public static String getDownloadsDir(Context ctx) {
+        try {
+            File dir = ctx.getExternalFilesDir("Music");
+            if (dir == null) dir = new File(ctx.getFilesDir(), "Music");
+            if (!dir.exists()) dir.mkdirs();
+            return dir.getAbsolutePath();
+        } catch (Throwable t) {
+            Log.w(TAG, "getDownloadsDir failed", t);
+            return "";
+        }
+    }
+
+    /**
+     * Download a URL (typically an HTTPS thumbnail) to a local file via
+     * Android's HttpURLConnection — uses Android's own SSL stack, which works
+     * even when Qt's OpenSSL backend is missing. Returns the absolute local
+     * file path on success, "" on failure. Caches by URL hash so repeated
+     * calls with the same URL are free.
+     */
+    public static String cacheHttpImage(Context ctx, String url) {
+        if (url == null || url.isEmpty() || !url.startsWith("http")) return "";
+        try {
+            // Hash-based cache key so repeated calls for the same URL hit cache
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(url.getBytes("UTF-8"));
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < 8; i++) hex.append(String.format("%02x", hash[i]));
+            // Always save as .jpg — we re-encode below, so extension is authoritative.
+            File cacheDir = new File(ctx.getCacheDir(), "octave-thumbs");
+            if (!cacheDir.exists()) cacheDir.mkdirs();
+            File out = new File(cacheDir, hex.toString() + ".jpg");
+            if (out.exists() && out.length() > 0) return out.getAbsolutePath();
+
+            HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(10000);
+            conn.setRequestProperty("User-Agent",
+                "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36");
+            int rc = conn.getResponseCode();
+            if (rc != 200) {
+                Log.w(TAG, "cacheHttpImage: HTTP " + rc + " for " + url);
+                return "";
+            }
+
+            // YouTube returns thumbnails as WebP. Qt for Android's image plugins
+            // don't reliably decode WebP, so we read the bytes, decode via
+            // BitmapFactory (handles WebP/JPEG/PNG), then re-encode as JPEG.
+            // This makes the cache Qt-Image-compatible regardless of source format.
+            byte[] bytes;
+            try (InputStream in = conn.getInputStream();
+                 java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                bytes = bos.toByteArray();
+            }
+
+            Bitmap bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            if (bmp == null) {
+                Log.w(TAG, "BitmapFactory could not decode image from " + url);
+                return "";
+            }
+            try (FileOutputStream fos = new FileOutputStream(out)) {
+                bmp.compress(Bitmap.CompressFormat.JPEG, 85, fos);
+            }
+            bmp.recycle();
+            return out.getAbsolutePath();
+        } catch (Throwable t) {
+            Log.w(TAG, "cacheHttpImage failed for " + url, t);
+            return "";
+        }
+    }
+
+    public static boolean extractAlbumArt(String filePath, String outPath) {
+        MediaMetadataRetriever mmr = new MediaMetadataRetriever();
+        try {
+            mmr.setDataSource(filePath);
+            byte[] bytes = mmr.getEmbeddedPicture();
+            if (bytes == null || bytes.length == 0) return false;
+            File parent = new File(outPath).getParentFile();
+            if (parent != null && !parent.exists()) parent.mkdirs();
+            try (FileOutputStream fos = new FileOutputStream(outPath)) {
+                fos.write(bytes);
+            }
+            return true;
+        } catch (Throwable t) {
+            Log.w(TAG, "extractAlbumArt failed for " + filePath, t);
+            return false;
+        } finally {
+            try { mmr.release(); } catch (IOException ignored) {}
+        }
+    }
+
+    private static String safe(String s) { return s == null ? "" : s; }
+    private static String safeOut(String s) { return s == null ? "" : s; }
+}

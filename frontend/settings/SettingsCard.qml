@@ -4,6 +4,10 @@ import ".." as App
 import "ExpandedCards.js" as ExpandedCards
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: card
     default property alias cardContent: contentLayout.data
 
@@ -29,7 +33,7 @@ Rectangle {
 
     Layout.fillWidth: true
     color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.07)
-    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
+    radius: dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     implicitHeight: mainLayout.implicitHeight + App.Spacing.overallSpacing * 3
     clip: true
 
@@ -63,8 +67,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius)
-        anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius)
+        anchors.leftMargin: dp(App.EnvironmentTheme.active.cardRadius)
+        anchors.rightMargin: dp(App.EnvironmentTheme.active.cardRadius)
         height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
         visible: App.EnvironmentTheme.active.accentBorder && !App.EnvironmentTheme.active.cardGlassEffect
@@ -88,8 +92,8 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.topMargin: 1
-        anchors.leftMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius * 0.5)
-        anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.cardRadius * 0.5)
+        anchors.leftMargin: dp(App.EnvironmentTheme.active.cardRadius * 0.5)
+        anchors.rightMargin: dp(App.EnvironmentTheme.active.cardRadius * 0.5)
         height: 1
         radius: 0.5
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.15)
@@ -97,7 +101,7 @@ Rectangle {
     }
 
     App.CornerBrackets {
-        bracketLength: App.Spacing.dp(15)
+        bracketLength: dp(15)
         visible: App.EnvironmentTheme.active.cornerBrackets
     }
 

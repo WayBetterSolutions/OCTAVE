@@ -381,12 +381,20 @@ SettingsManager::SettingsManager(QObject *parent)
     m_obdFastMode       = s(QStringLiteral("obdFastMode")).toBool();
     m_obdAutoReconnectAttempts = s(QStringLiteral("obdAutoReconnectAttempts")).toInt();
 
-    // Media folder: default to ~/Music if empty
+    // Media folder: default to the OS-standard music location if empty.
+    // QStandardPaths::MusicLocation is ~/Music on desktop, /storage/emulated/0/Music
+    // on Android, Documents/Music on Windows, ~/Music on macOS.
     m_mediaFolder = s(QStringLiteral("mediaFolder")).toString();
     if (m_mediaFolder.isEmpty()) {
-        m_mediaFolder = QDir::homePath() + QStringLiteral("/Music");
+        m_mediaFolder = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+        if (m_mediaFolder.isEmpty())
+            m_mediaFolder = QDir::homePath() + QStringLiteral("/Music");
     }
+#ifndef Q_OS_ANDROID
+    // Only mkpath on desktop — on Android the shared Music dir must not be
+    // created by us (and /sdcard/Music exists on every install).
     QDir().mkpath(m_mediaFolder);
+#endif
 
     m_showBackgroundOverlay = s(QStringLiteral("showBackgroundOverlay")).toBool();
     m_fuelTankCapacity      = static_cast<float>(s(QStringLiteral("fuelTankCapacity")).toDouble());
@@ -2015,8 +2023,10 @@ void SettingsManager::reset_to_defaults()
         m_obdParameters[it.key()] = it.value().toVariant();
     emit obdParametersChanged();
 
-    // Media folder: reset to default
-    QString defaultMusic = QDir::homePath() + QStringLiteral("/Music");
+    // Media folder: reset to OS-standard music location
+    QString defaultMusic = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+    if (defaultMusic.isEmpty())
+        defaultMusic = QDir::homePath() + QStringLiteral("/Music");
     m_mediaFolder = m_defaultSettings.value(QStringLiteral("mediaFolder")).toString();
     if (m_mediaFolder.isEmpty())
         m_mediaFolder = defaultMusic;

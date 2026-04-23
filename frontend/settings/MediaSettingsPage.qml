@@ -6,6 +6,10 @@ import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Flickable {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: mediaSettingsRoot
     contentWidth: width
     contentHeight: mediaSettingsContent.implicitHeight
@@ -53,13 +57,32 @@ Flickable {
         }
     }
 
-    // Folder dialog for selecting music library folder
+    // Folder dialog for selecting music library folder.
+    // On Android, this opens Storage Access Framework — the selectedFolder is
+    // a content:// tree URI, not a filesystem path. We decode the SAF URI for
+    // external primary storage back to a /storage/emulated/0/... path.
     FolderDialog {
         id: folderDialog
         title: "Select Music Library Folder"
         onAccepted: {
             var path = selectedFolder.toString()
-            if (path.startsWith("file:///")) {
+
+            if (path.startsWith("content://")) {
+                // SAF tree URI: content://com.android.externalstorage.documents/tree/primary%3AMusic
+                var treeIdx = path.indexOf("/tree/")
+                if (treeIdx >= 0) {
+                    var encoded = path.substring(treeIdx + 6)
+                    // Only convert the primary-storage case we can map to a real path.
+                    var decoded = decodeURIComponent(encoded)
+                    if (decoded.indexOf("primary:") === 0) {
+                        path = "/storage/emulated/0/" + decoded.substring(8)
+                    } else {
+                        // Removable storage (SD card, USB OTG) — can't convert
+                        // reliably. Save the URI and let the user know.
+                        path = decoded
+                    }
+                }
+            } else if (path.startsWith("file:///")) {
                 var afterScheme = path.substring(8)
                 if (afterScheme.length > 1 && afterScheme.charAt(1) === ':') {
                     path = afterScheme
@@ -67,6 +90,7 @@ Flickable {
                     path = path.substring(7)
                 }
             }
+
             mediaFolderField.text = path
             if (settingsManager) {
                 settingsManager.save_media_folder(path)
@@ -152,7 +176,7 @@ Flickable {
                 App.TerminalFeedback {
                     id: scanTerminal
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(300)
+                    Layout.preferredHeight: dp(300)
                     Layout.topMargin: App.Spacing.rowSpacing
                     title: "Library Scan Terminal Output"
 
@@ -1072,7 +1096,7 @@ Flickable {
                     // Client ID field
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: App.Spacing.dp(4)
+                        spacing: dp(4)
 
                         Text {
                             text: "Client ID"
@@ -1107,7 +1131,7 @@ Flickable {
                     // Client Secret field
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: App.Spacing.dp(4)
+                        spacing: dp(4)
 
                         Text {
                             text: "Client Secret"
@@ -1159,7 +1183,7 @@ Flickable {
                     SettingsButton {
                         text: "Disconnect"
                         Layout.preferredHeight: spotifyClientIdField.height
-                        Layout.minimumWidth: App.Spacing.dp(90)
+                        Layout.minimumWidth: dp(90)
                         visible: spotifyManager && spotifyManager.is_connected()
                         buttonColor: App.Style.statusDanger
                         tooltipText: "Disconnect from Spotify"
@@ -1185,7 +1209,7 @@ Flickable {
                 App.TerminalFeedback {
                     id: spotifyTerminal
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(300)
+                    Layout.preferredHeight: dp(300)
                     title: "Spotify Connection Terminal Output"
 
                     Connections {

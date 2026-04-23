@@ -6,6 +6,10 @@ import "settings"
 import "settings/ScrollMemory.js" as ScrollMemory
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: hubLayout
 
     // Required from orchestrator
@@ -189,15 +193,15 @@ Item {
 
                     // Update notification dot
                     Rectangle {
-                        width: App.Spacing.dp(8)
-                        height: App.Spacing.dp(8)
+                        width: dp(8)
+                        height: dp(8)
                         radius: width / 2
                         color: "#FF9800"
                         z: 10
                         anchors.top: parent.top
                         anchors.right: parent.right
-                        anchors.topMargin: App.Spacing.dp(6)
-                        anchors.rightMargin: App.Spacing.dp(6)
+                        anchors.topMargin: dp(6)
+                        anchors.rightMargin: dp(6)
                         visible: cardModel[index] && cardModel[index].section === "about"
                                  && settingsMenu && settingsMenu.updateAvailable
 

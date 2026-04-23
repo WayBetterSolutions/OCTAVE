@@ -3,9 +3,13 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: control
-    height: App.Spacing.dp(44)
-    implicitHeight: App.Spacing.dp(44)
+    height: dp(44)
+    implicitHeight: dp(44)
     Layout.fillWidth: true
 
     property bool checked: false
@@ -17,15 +21,15 @@ Item {
         spacing: App.Spacing.overallSpacing * 1.5
 
         Item {
-            width: App.Spacing.dp(30)
-            height: App.Spacing.dp(30)
+            width: dp(30)
+            height: dp(30)
 
             // Glow behind checkbox (spacecraft, when checked)
             Rectangle {
                 anchors.centerIn: parent
                 width: parent.width + 6
                 height: parent.height + 6
-                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.checkboxRadius + 2, 2)
+                radius: dpMin(App.EnvironmentTheme.active.checkboxRadius + 2, 2)
                 color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
                 visible: App.EnvironmentTheme.active.accentBorder && control.checked
             }
@@ -33,7 +37,7 @@ Item {
             Rectangle {
                 id: checkboxRect
                 anchors.fill: parent
-                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.checkboxRadius, 2)
+                radius: dpMin(App.EnvironmentTheme.active.checkboxRadius, 2)
                 color: control.checked ? App.Style.accent : "transparent"
                 border.color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
                 border.width: 2
@@ -43,7 +47,7 @@ Item {
                 Text {
                     visible: control.checked
                     text: "✓"
-                    font.pixelSize: App.Spacing.dp(22)
+                    font.pixelSize: dp(22)
                     color: "white"
                     anchors.centerIn: parent
                     font.family: App.Style.fontFamily
@@ -52,7 +56,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     color: "white"
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.checkboxRadius, 2)
+                    radius: dpMin(App.EnvironmentTheme.active.checkboxRadius, 2)
                     opacity: checkboxArea.containsMouse ? 0.1 : 0
                 }
             }

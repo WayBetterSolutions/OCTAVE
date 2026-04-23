@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: obdHome
     objectName: "obdHome"
     required property StackView stackView
@@ -64,26 +68,26 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: App.Spacing.dp(20)
-            anchors.bottomMargin: App.Spacing.dp(70)
-            spacing: App.Spacing.dp(20)
+            anchors.margins: dp(20)
+            anchors.bottomMargin: dp(70)
+            spacing: dp(20)
 
             // ── Connection status bar ────────────────────────────
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: App.Spacing.dp(48)
-                radius: App.Spacing.dpMin(8, 3)
+                Layout.preferredHeight: dp(48)
+                radius: dpMin(8, 3)
                 color: Qt.darker(backgroundColor, 0.9)
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: App.Spacing.dp(16)
-                    anchors.rightMargin: App.Spacing.dp(16)
-                    spacing: App.Spacing.dp(10)
+                    anchors.leftMargin: dp(16)
+                    anchors.rightMargin: dp(16)
+                    spacing: dp(10)
 
                     // Status dot
                     Rectangle {
-                        width: App.Spacing.dp(12)
+                        width: dp(12)
                         height: width
                         radius: width / 2
                         color: obdHome.connected ? "#00FF00"
@@ -122,15 +126,15 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 columns: 2
-                rowSpacing: App.Spacing.dp(16)
-                columnSpacing: App.Spacing.dp(16)
+                rowSpacing: dp(16)
+                columnSpacing: dp(16)
 
                 // --- Dashboards card ---
                 Rectangle {
                     id: dashboardsCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: App.Spacing.dpMin(12, 4)
+                    radius: dpMin(12, 4)
                     color: dashboardsMouse.containsMouse
                            ? Qt.lighter(Qt.darker(backgroundColor, 0.85), 1.08)
                            : Qt.darker(backgroundColor, 0.85)
@@ -149,12 +153,12 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing: App.Spacing.dp(12)
+                        spacing: dp(12)
 
                         // Icon placeholder — tachometer shape
                         Rectangle {
                             Layout.alignment: Qt.AlignHCenter
-                            width: App.Spacing.dp(56)
+                            width: dp(56)
                             height: width
                             radius: width / 2
                             color: "transparent"
@@ -197,7 +201,7 @@ Item {
                     id: dtcCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: App.Spacing.dpMin(12, 4)
+                    radius: dpMin(12, 4)
                     color: dtcMouse.containsMouse
                            ? Qt.lighter(Qt.darker(backgroundColor, 0.85), 1.08)
                            : Qt.darker(backgroundColor, 0.85)
@@ -216,18 +220,18 @@ Item {
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing: App.Spacing.dp(12)
+                        spacing: dp(12)
 
                         // Icon placeholder — warning triangle
                         Item {
                             Layout.alignment: Qt.AlignHCenter
-                            width: App.Spacing.dp(56)
+                            width: dp(56)
                             height: width
 
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u26A0"
-                                font.pixelSize: App.Spacing.dp(36)
+                                font.pixelSize: dp(36)
                                 color: accentColor
                             }
                         }
@@ -256,23 +260,23 @@ Item {
                     id: scanCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: App.Spacing.dpMin(12, 4)
+                    radius: dpMin(12, 4)
                     color: Qt.darker(backgroundColor, 0.85)
                     opacity: 0.5
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing: App.Spacing.dp(12)
+                        spacing: dp(12)
 
                         Item {
                             Layout.alignment: Qt.AlignHCenter
-                            width: App.Spacing.dp(56)
+                            width: dp(56)
                             height: width
 
                             // Scan icon — concentric circles
                             Rectangle {
                                 anchors.centerIn: parent
-                                width: App.Spacing.dp(40)
+                                width: dp(40)
                                 height: width
                                 radius: width / 2
                                 color: "transparent"
@@ -291,7 +295,7 @@ Item {
 
                                 Rectangle {
                                     anchors.centerIn: parent
-                                    width: App.Spacing.dp(6)
+                                    width: dp(6)
                                     height: width
                                     radius: width / 2
                                     color: labelColor
@@ -324,32 +328,32 @@ Item {
                     id: connectionCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: App.Spacing.dpMin(12, 4)
+                    radius: dpMin(12, 4)
                     color: Qt.darker(backgroundColor, 0.85)
                     opacity: 0.5
 
                     ColumnLayout {
                         anchors.centerIn: parent
-                        spacing: App.Spacing.dp(12)
+                        spacing: dp(12)
 
                         Item {
                             Layout.alignment: Qt.AlignHCenter
-                            width: App.Spacing.dp(56)
+                            width: dp(56)
                             height: width
 
                             // Connection icon — plug shape
                             Rectangle {
                                 anchors.centerIn: parent
-                                width: App.Spacing.dp(30)
-                                height: App.Spacing.dp(6)
+                                width: dp(30)
+                                height: dp(6)
                                 radius: 3
                                 color: labelColor
 
                                 Rectangle {
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
-                                    width: App.Spacing.dp(12)
-                                    height: App.Spacing.dp(20)
+                                    width: dp(12)
+                                    height: dp(20)
                                     radius: 3
                                     color: "transparent"
                                     border.color: labelColor

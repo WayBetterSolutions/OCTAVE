@@ -13,6 +13,9 @@
  */
 
 #include "berryimumanager.h"
+
+#ifndef Q_OS_MOBILE
+
 #include "settingsmanager.h"
 
 #include <QVariant>
@@ -879,3 +882,5 @@ void BerryIMUManager::cleanup()
     m_shuttingDown = true;
     stopWorker();
 }
+
+#endif // Q_OS_MOBILE

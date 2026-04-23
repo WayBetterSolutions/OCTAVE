@@ -167,5 +167,44 @@ private:
     QString      m_cachedAdbPath;
 };
 
+#else // Q_OS_MOBILE — mobile stub. DhuFrameProvider/DhuCapture not provided.
+
+#include <QObject>
+#include <QString>
+#include <QQuickImageProvider>
+
+// Stub image provider so main.cpp can still pass it to addImageProvider
+class DhuFrameProvider : public QQuickImageProvider
+{
+public:
+    DhuFrameProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
+    QImage requestImage(const QString &, QSize *, const QSize &) override { return {}; }
+};
+
+class AndroidAutoManager : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(bool isDhuInstalled READ isDhuInstalled CONSTANT)
+    Q_PROPERTY(bool isDhuEmbedded READ isDhuEmbedded CONSTANT)
+public:
+    explicit AndroidAutoManager(QObject *parent = nullptr)
+        : QObject(parent), m_provider(new DhuFrameProvider()) {}
+    ~AndroidAutoManager() override { delete m_provider; }
+    void cleanup() {}
+    bool isDhuInstalled() const { return false; }
+    bool isDhuEmbedded() const { return false; }
+    DhuFrameProvider *frameProvider() const { return m_provider; }
+
+public slots:
+    bool launchDhuSeamless() { return false; }
+    void closeDhu() {}
+
+signals:
+    void dhuEmbeddedChanged(bool);
+
+private:
+    DhuFrameProvider *m_provider;
+};
+
 #endif // Q_OS_MOBILE
 #endif // ANDROIDAUTOMANAGER_H

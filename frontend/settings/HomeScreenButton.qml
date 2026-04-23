@@ -4,9 +4,13 @@ import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: control
-    width: App.Spacing.dp(64)
-    height: App.Spacing.dp(44)
+    width: dp(64)
+    height: dp(44)
     Layout.alignment: Qt.AlignCenter
 
     property bool isActive: false

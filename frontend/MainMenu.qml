@@ -6,6 +6,10 @@ import Qt5Compat.GraphicalEffects
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: mainMenu
     property StackView stackView
     property ApplicationWindow mainWindow
@@ -80,8 +84,8 @@ Item {
     // Main content area - Horizontal layout: Media on left (1/3), OBD on right (2/3)
     RowLayout {
         anchors.fill: parent
-        anchors.margins: App.Spacing.dp(10)
-        spacing: App.Spacing.dp(10)
+        anchors.margins: dp(10)
+        spacing: dp(10)
 
         // ========== LEFT SECTION: Media Controls (1/3 of width) ==========
         Rectangle {
@@ -89,7 +93,7 @@ Item {
             Layout.preferredWidth: parent.width * 0.33
             Layout.fillHeight: true
             color: "transparent"
-            radius: App.Spacing.dpMin(8, 2)
+            radius: dpMin(8, 2)
             clip: true
 
             // Album art blur background (like MediaRoom)
@@ -128,20 +132,20 @@ Item {
                 color: "transparent"
                 border.color: App.Style.accent
                 border.width: 2
-                radius: App.Spacing.dpMin(8, 2)
+                radius: dpMin(8, 2)
                 z: 10
             }
 
             // Media content - vertical layout for narrow panel
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: App.Spacing.dp(15)
-                spacing: App.Spacing.dp(10)
+                anchors.margins: dp(15)
+                spacing: dp(10)
 
                 // Album Art (top, centered)
                 Item {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: parent.width + App.Spacing.dp(40)
+                    Layout.preferredHeight: parent.width + dp(40)
                     Layout.alignment: Qt.AlignHCenter
 
                     Image {
@@ -240,7 +244,7 @@ Item {
                         Row {
                             id: metadataRow
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: App.Spacing.dp(8)
+                            spacing: dp(8)
 
                             Text {
                                 text: mainMenu.currentFile ? mainMenu.currentArtist : "Select a song"
@@ -298,7 +302,7 @@ Item {
                 // Progress Bar
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(8)
+                    spacing: dp(8)
 
                     Text {
                         id: positionText
@@ -368,11 +372,15 @@ Item {
                 }
             }
 
-            // Click to open MediaRoom/MediaPlayer based on setting
-            MouseArea {
-                anchors.fill: parent
-                z: -1
-                onClicked: {
+            // Click to open MediaRoom/MediaPlayer based on setting.
+            // TapHandler (not MouseArea) because the ColumnLayout above fills
+            // this Rectangle with a Flickable song title, a Flickable metadata
+            // row, and a Slider — all of which consume MouseArea clicks.
+            // TapHandler observes taps without interfering with those drag
+            // interactions, so the progress slider + scrolling title stay
+            // usable while still letting an empty-space tap open the player.
+            TapHandler {
+                onTapped: {
                     var defaultPage = settingsManager ? settingsManager.musicButtonDefaultPage : "mediaRoom"
                     var targetPage = defaultPage === "mediaPlayer" ? "MediaPlayer.qml" : "MediaRoom.qml"
                     var props = { stackView: mainMenu.stackView }
@@ -392,12 +400,12 @@ Item {
             color: "transparent"
             border.color: App.Style.accent
             border.width: 2
-            radius: App.Spacing.dpMin(8, 2)
+            radius: dpMin(8, 2)
 
             // Use the HomeOBDView component (stacked vertically)
             HomeOBDView {
                 anchors.fill: parent
-                anchors.margins: App.Spacing.dp(5)
+                anchors.margins: dp(5)
             }
 
             MouseArea {

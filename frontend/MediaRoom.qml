@@ -6,6 +6,10 @@ import Qt5Compat.GraphicalEffects
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: mediaRoom
     objectName: "mediaRoom"
     property StackView stackView
@@ -339,7 +343,7 @@ Item {
             
             RowLayout {
                 anchors.fill: parent
-                spacing: App.Spacing.dp(10)
+                spacing: dp(10)
 
                 // Volume icon control
                 Control {
@@ -437,8 +441,8 @@ Item {
                     // Enhanced touch area
                     MouseArea {
                         anchors.fill: parent
-                        anchors.topMargin: -App.Spacing.dp(10)
-                        anchors.bottomMargin: -App.Spacing.dp(10)
+                        anchors.topMargin: -dp(10)
+                        anchors.bottomMargin: -dp(10)
 
                         onPressed: function(mouse) {
                             var newPos = Math.max(0, Math.min(1, (mouseX - volumeSlider.leftPadding) / volumeSlider.availableWidth))
@@ -476,7 +480,7 @@ Item {
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     font.family: mediaRoom.globalFont
-                    Layout.minimumWidth: App.Spacing.dp(40)
+                    Layout.minimumWidth: dp(40)
                 }
             }
 
@@ -548,7 +552,7 @@ Item {
 
             background: Rectangle {
                 color: "transparent"
-                radius: App.Spacing.dpMin(8, 2)
+                radius: dpMin(8, 2)
                 border.color: App.Style.accent
                 border.width: 1
                 scale: dlMouseArea.pressed ? 0.8 : 1.0
@@ -632,7 +636,7 @@ Item {
                     Layout.fillHeight: true
                     Layout.preferredWidth: parent.width * 0.6  // 60% for left side
                     Layout.maximumWidth: parent.width * 0.6
-                    Layout.leftMargin: App.Spacing.dp(20)
+                    Layout.leftMargin: dp(20)
                     spacing: App.Spacing.mediaRoomSpacing * 2
 
                     // Spacer to push controls toward center
@@ -862,7 +866,7 @@ Item {
                     ColumnLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignHCenter
-                        spacing: App.Spacing.dp(4)
+                        spacing: dp(4)
 
                         // Song title with scrolling
                         Item {
@@ -939,7 +943,7 @@ Item {
                                 Row {
                                     id: metadataRow
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: App.Spacing.dp(10)
+                                    spacing: dp(10)
 
                                     Text {
                                         text: currentArtist
@@ -1016,7 +1020,7 @@ Item {
                     // Settings bindings
                     previewEnabled: settingsManager && settingsManager.show3DAlbumPreview
                     roundedArt: settingsManager && settingsManager.roundedAlbumArt
-                    artRadius: App.Spacing.dp(settingsManager ? settingsManager.albumArtCornerRadius : 16)
+                    artRadius: dp(settingsManager ? settingsManager.albumArtCornerRadius : 16)
                     vinylMode: settingsManager && settingsManager.vinylRecordMode
                     sideCardAngle: settingsManager ? settingsManager.sideCardAngle : 30
                     sideCardOpacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
@@ -1051,7 +1055,7 @@ Item {
             anchors.centerIn: parent
             text: "No songs in this playlist yet"
             color: App.Style.metadataColor
-            font.pixelSize: App.Spacing.dp(16)
+            font.pixelSize: dp(16)
             font.family: mediaRoom.globalFont
             opacity: 0.6
         }
@@ -1060,11 +1064,11 @@ Item {
         Item {
             id: waveformContainer
             width: parent.width * 0.75
-            height: App.Spacing.dp(40)
+            height: dp(40)
             anchors {
                 bottom: durationBar.top
                 horizontalCenter: parent.horizontalCenter
-                bottomMargin: App.Spacing.dp(10)
+                bottomMargin: dp(10)
             }
             visible: settingsManager && settingsManager.showWaveformVisualizer && !mediaRoom.useSpotify && !playlistEmpty
             // Faded out during track transitions; fades back in once analysis is ready
@@ -1123,7 +1127,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 height: parent.height
-                spacing: waveformContainer.quality === "Insane" ? App.Spacing.dp(1) : App.Spacing.dp(2)
+                spacing: waveformContainer.quality === "Insane" ? dp(1) : dp(2)
 
                 // Cache all bars as a single texture during card animation —
                 // collapses 96 individual gradient draw calls into one texture blit
@@ -1287,13 +1291,13 @@ Item {
             anchors {
                 bottom: parent.bottom
                 horizontalCenter: parent.horizontalCenter
-                margins: App.Spacing.dp(20)
+                margins: dp(20)
             }
             color: transparentColor
 
             RowLayout {
                 anchors.fill: parent
-                spacing: App.Spacing.dp(20)
+                spacing: dp(20)
 
                 Text {
                     id: positionText
@@ -1301,7 +1305,7 @@ Item {
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     font.family: mediaRoom.globalFont
-                    Layout.minimumWidth: App.Spacing.dp(40)  // Added minimum width for consistent layout
+                    Layout.minimumWidth: dp(40)  // Added minimum width for consistent layout
                 }
 
                 Slider {
@@ -1345,7 +1349,7 @@ Item {
                             width: parent.width + 6
                             height: parent.height + 6
                             radius: App.EnvironmentTheme.active.sliderHandleRadius === -1
-                                ? (width / 2) : App.Spacing.dpMin(App.EnvironmentTheme.active.sliderHandleRadius + 3, 2)
+                                ? (width / 2) : dpMin(App.EnvironmentTheme.active.sliderHandleRadius + 3, 2)
                             color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
                             visible: App.EnvironmentTheme.active.sliderHandleGlow
                         }
@@ -1355,7 +1359,7 @@ Item {
                             id: seekHandle
                             anchors.fill: parent
                             radius: App.EnvironmentTheme.active.sliderHandleRadius === -1
-                                ? (width / 2) : App.Spacing.dpMin(App.EnvironmentTheme.active.sliderHandleRadius, 2)
+                                ? (width / 2) : dpMin(App.EnvironmentTheme.active.sliderHandleRadius, 2)
                             color: progressSlider.pressed ? Qt.darker(App.Style.accent, 1.15) : App.Style.accent
 
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -1375,8 +1379,8 @@ Item {
                     MouseArea {
                         anchors.fill: parent
                         // Add extra padding to make it easier to touch
-                        anchors.topMargin: -App.Spacing.dp(10)
-                        anchors.bottomMargin: -App.Spacing.dp(10)
+                        anchors.topMargin: -dp(10)
+                        anchors.bottomMargin: -dp(10)
 
                         onPressed: function(mouse) {
                             // Calculate value based on mouse position
@@ -1426,7 +1430,7 @@ Item {
                     color: App.Style.mediaRoomSeekColor
                     font.pixelSize: App.Spacing.mediaRoomSliderDurationText
                     font.family: mediaRoom.globalFont
-                    Layout.minimumWidth: App.Spacing.dp(40)  // Added minimum width for consistent layout
+                    Layout.minimumWidth: dp(40)  // Added minimum width for consistent layout
                 }
 
                 // Source toggle button (Local/Spotify)
@@ -1524,7 +1528,7 @@ Item {
             width: durationBar.height * 1.96875
             height: durationBar.height * 1.96875
             anchors.verticalCenter: durationBar.verticalCenter
-            anchors.verticalCenterOffset: -App.Spacing.dp(15)
+            anchors.verticalCenterOffset: -dp(15)
             x: (durationBar.x - width) / 2
             background: Rectangle {
                 color: isShuffleEnabled ? App.Style.mediaRoomToggleShade : "transparent"
@@ -1787,7 +1791,7 @@ Item {
     Popup {
         id: albumArtPopup
         anchors.centerIn: Overlay.overlay
-        width: App.Spacing.dp(340)
+        width: dp(340)
         modal: true
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -1808,7 +1812,7 @@ Item {
 
         background: Rectangle {
             color: App.Style.backgroundColor
-            radius: App.Spacing.dpMin(8, 2)
+            radius: dpMin(8, 2)
             border.color: App.Style.accent
             border.width: 1
 
@@ -1823,14 +1827,14 @@ Item {
         }
 
         contentItem: ColumnLayout {
-            spacing: App.Spacing.dp(16)
+            spacing: dp(16)
 
             // Header — album name
             Text {
                 Layout.fillWidth: true
                 text: mediaRoom.currentAlbum
                 color: App.Style.primaryTextColor
-                font.pixelSize: App.Spacing.dp(16)
+                font.pixelSize: dp(16)
                 font.bold: true
                 font.family: mediaRoom.globalFont
                 horizontalAlignment: Text.AlignHCenter
@@ -1850,7 +1854,7 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 height: App.Spacing.formElementHeight
-                radius: App.Spacing.dpMin(6, 2)
+                radius: dpMin(6, 2)
                 color: saveThemeMA.containsMouse ? App.Style.accent : App.Style.hoverColor
                 opacity: App.Style.albumArtTheme ? 1.0 : 0.4
 

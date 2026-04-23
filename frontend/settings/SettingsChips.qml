@@ -5,6 +5,10 @@ import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Flow {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: control
     spacing: App.Spacing.overallSpacing
     Layout.fillWidth: true
@@ -38,13 +42,13 @@ Flow {
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         anchors.centerIn: Overlay.overlay
-        width: App.Spacing.dp(260)
+        width: dp(260)
 
         property string targetItem: ""
 
         background: Rectangle {
             color: App.Style.backgroundColor
-            radius: App.Spacing.dpMin(8, 2)
+            radius: dpMin(8, 2)
             border.color: App.Style.accent
             border.width: 1
 
@@ -59,7 +63,7 @@ Flow {
         }
 
         contentItem: ColumnLayout {
-            spacing: App.Spacing.dp(12)
+            spacing: dp(12)
 
             Text {
                 Layout.fillWidth: true
@@ -74,13 +78,13 @@ Flow {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(8)
+                spacing: dp(8)
 
                 // Cancel button
                 Rectangle {
                     Layout.fillWidth: true
                     height: App.Spacing.formElementHeight * 0.75
-                    radius: App.Spacing.dpMin(6, 2)
+                    radius: dpMin(6, 2)
                     color: cancelMA.containsMouse ? App.Style.hoverColor : "transparent"
                     border.width: 1
                     border.color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2)
@@ -104,7 +108,7 @@ Flow {
                 Rectangle {
                     Layout.fillWidth: true
                     height: App.Spacing.formElementHeight * 0.75
-                    radius: App.Spacing.dpMin(6, 2)
+                    radius: dpMin(6, 2)
                     color: deleteMA.containsMouse ? Qt.lighter(App.Style.accent, 1.2) : App.Style.accent
 
                     Text {
@@ -156,14 +160,14 @@ Flow {
                 // Image chips are square; text chips size to content
                 width: chipWrapper.hasImage
                     ? height
-                    : chipText.width + App.Spacing.overallSpacing * 3 + (chipWrapper.isDeletable ? textDeleteBtn.width + App.Spacing.dp(4) : 0)
+                    : chipText.width + App.Spacing.overallSpacing * 3 + (chipWrapper.isDeletable ? textDeleteBtn.width + dp(4) : 0)
                 height: chipWrapper.hasImage
                     ? App.Spacing.formElementHeight * 3.2
                     : App.Spacing.formElementHeight * 0.8
                 radius: chipWrapper.hasImage
-                    ? App.Spacing.dpMin(6, 2)
+                    ? dpMin(6, 2)
                     : (App.EnvironmentTheme.active.chipRadius === -1
-                        ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2))
+                        ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2))
 
                 clip: true
 
@@ -223,7 +227,7 @@ Flow {
                 Row {
                     visible: !chipWrapper.hasImage
                     anchors.centerIn: parent
-                    spacing: App.Spacing.dp(4)
+                    spacing: dp(4)
 
                     Text {
                         id: chipText
@@ -239,7 +243,7 @@ Flow {
                     Rectangle {
                         id: textDeleteBtn
                         visible: chipWrapper.isDeletable && !chipWrapper.hasImage
-                        width: textDeleteBtnText.width + App.Spacing.dp(8)
+                        width: textDeleteBtnText.width + dp(8)
                         height: parent.height
                         color: "transparent"
                         anchors.verticalCenter: parent.verticalCenter

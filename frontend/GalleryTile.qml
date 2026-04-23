@@ -20,6 +20,10 @@ import QtQuick.Layouts 1.15
 import "." as App
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: root
 
     property string title: ""
@@ -29,17 +33,17 @@ Rectangle {
     default property alias _content: previewArea.data
 
     Layout.fillWidth: true
-    Layout.preferredHeight: App.Spacing.dp(240)
+    Layout.preferredHeight: dp(240)
 
-    radius: App.Spacing.dpMin(12, 4)
+    radius: dpMin(12, 4)
     color: Qt.darker(App.Style.obdBoxBackground, 1.05)
     border.color: Qt.darker(App.Style.obdBarColor, 1.5)
     border.width: 1
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: App.Spacing.dp(12)
-        spacing: App.Spacing.dp(8)
+        anchors.margins: dp(12)
+        spacing: dp(8)
 
         // Header: primitive name
         Text {
@@ -57,7 +61,7 @@ Rectangle {
             id: previewArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            radius: App.Spacing.dpMin(8, 2)
+            radius: dpMin(8, 2)
             color: App.Style.backgroundColor
             clip: true
         }

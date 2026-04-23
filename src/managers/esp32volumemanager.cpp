@@ -15,6 +15,9 @@
  */
 
 #include "esp32volumemanager.h"
+
+#ifndef Q_OS_MOBILE
+
 #include "settingsmanager.h"
 
 #include <QVariant>
@@ -798,3 +801,5 @@ void ESP32VolumeManager::cleanup()
     m_keepaliveTimer.stop();
     disconnect_device();
 }
+
+#endif // Q_OS_MOBILE

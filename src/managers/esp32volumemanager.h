@@ -1,6 +1,9 @@
 #ifndef ESP32VOLUMEMANAGER_H
 #define ESP32VOLUMEMANAGER_H
 
+// ESP32 volume knob is USB-serial — excluded on mobile builds.
+#ifndef Q_OS_MOBILE
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -122,4 +125,35 @@ private:
     bool m_hasPendingVolume;
 };
 
+#else // Q_OS_MOBILE — mobile stub
+
+#include <QObject>
+#include <QString>
+#include <QStringList>
+#include <QVariantList>
+
+class ESP32VolumeManager : public QObject
+{
+    Q_OBJECT
+public:
+    explicit ESP32VolumeManager(QObject *parent = nullptr) : QObject(parent) {}
+    void connect_settings_manager(QObject *) {}
+    void cleanup() {}
+    void send_mute_state(bool) {}
+
+public slots:
+    bool is_connected() const { return false; }
+    QString get_connection_detail() const { return QStringLiteral("Not available on mobile"); }
+    QVariantList get_ports_with_descriptions() const { return {}; }
+    void connect_device() {}
+    void reset_reconnect_attempts() {}
+
+signals:
+    void volumeChangeRequested(float);
+    void muteToggleRequested();
+    void availablePortsChanged(const QVariantList &);
+    void connectionStateChanged();
+};
+
+#endif // Q_OS_MOBILE
 #endif // ESP32VOLUMEMANAGER_H

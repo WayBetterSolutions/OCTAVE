@@ -563,6 +563,116 @@ class StubScrcpyCapture(QObject):
 
 
 # ---------------------------------------------------------------------------
+# StubSpotifyManager — Spotify is desktop-only; Android stubs it out
+# ---------------------------------------------------------------------------
+
+class StubSpotifyManager(QObject):
+    connectionStateChanged = Signal(bool)
+    errorOccurred = Signal(str)
+    playStateChanged = Signal(bool)
+    currentTrackChanged = Signal(str, str, str, str)
+    durationChanged = Signal(int)
+    positionChanged = Signal(int)
+    shuffleStateChanged = Signal(bool)
+    volumeChanged = Signal(int)
+    devicesChanged = Signal(list)
+    activeDeviceChanged = Signal(str)
+    playlistsChanged = Signal(list)
+    spotifyTracksChanged = Signal(list)
+    currentSpotifyPlaylistChanged = Signal(str)
+    authUrlReady = Signal(str)
+    statusProgress = Signal(str)
+    albumColorsExtracted = Signal(str)
+    queueUpdated = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def connect_settings_manager(self, settings_manager):
+        pass
+
+    def cleanup(self):
+        pass
+
+    @Slot(result=bool)
+    def is_connected(self): return False
+    @Slot(result=bool)
+    def is_playing(self): return False
+    @Slot(result=bool)
+    def is_shuffled(self): return False
+    @Slot(result=bool)
+    def has_credentials(self): return False
+    @Slot(result=bool)
+    def has_spotify_playlist_loaded(self): return False
+
+    @Slot(result=str)
+    def get_current_track_name(self): return ""
+    @Slot(result=str)
+    def get_current_artist(self): return ""
+    @Slot(result=str)
+    def get_current_album(self): return ""
+    @Slot(result=str)
+    def get_current_album_art(self): return ""
+    @Slot(result=int)
+    def get_duration(self): return 0
+    @Slot(result=int)
+    def get_position(self): return 0
+
+    @Slot(result='QVariant')
+    def get_previous_track_info(self): return {}
+    @Slot(result='QVariant')
+    def get_next_track_info(self): return {}
+
+    @Slot(result=list)
+    def get_spotify_playlist_names(self): return []
+    @Slot(result=str)
+    def get_current_spotify_playlist_name(self): return ""
+    @Slot(result=str)
+    def get_current_spotify_playlist_id(self): return ""
+    @Slot(str, result=str)
+    def get_spotify_playlist_id(self, name): return ""
+    @Slot(str, result=str)
+    def get_spotify_track_image(self, track_name): return ""
+    @Slot(str, result=str)
+    def get_spotify_track_duration_formatted(self, track_name): return ""
+    @Slot(str, result=str)
+    def get_spotify_track_artist(self, track_name): return ""
+    @Slot(str, result=str)
+    def get_spotify_track_album(self, track_name): return ""
+    @Slot(str, result=str)
+    def get_spotify_track_uri(self, track_name): return ""
+    @Slot(result=list)
+    def get_devices(self): return []
+
+    @Slot()
+    def previous_track(self): pass
+    @Slot()
+    def next_track(self): pass
+    @Slot()
+    def toggle_play(self): pass
+    @Slot()
+    def pause(self): pass
+    @Slot()
+    def toggle_shuffle(self): pass
+    @Slot(int)
+    def set_position(self, pos): pass
+    @Slot(int)
+    def set_volume(self, vol): pass
+    @Slot()
+    def authenticate(self): pass
+    @Slot()
+    def disconnect(self): pass
+    @Slot()
+    def refresh_devices(self): pass
+    @Slot(str)
+    def set_active_device(self, device_id): pass
+    @Slot(str)
+    def select_spotify_playlist(self, playlist_id): pass
+    @Slot(str)
+    def play_uri(self, uri): pass
+
+
+# ---------------------------------------------------------------------------
 # Stub QQuickItem subclasses (registered via qmlRegisterType)
 # ---------------------------------------------------------------------------
 

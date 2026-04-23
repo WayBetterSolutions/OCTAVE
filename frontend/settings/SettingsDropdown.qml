@@ -4,11 +4,15 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Button {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: control
     Layout.preferredHeight: App.Spacing.formElementHeight
-    Layout.preferredWidth: App.Spacing.dp(300)
-    Layout.maximumWidth: App.Spacing.dp(400)
-    Layout.minimumWidth: App.Spacing.dp(250)
+    Layout.preferredWidth: dp(300)
+    Layout.maximumWidth: dp(400)
+    Layout.minimumWidth: dp(250)
     Layout.fillWidth: true
     property string displayText: ""
     property var options: []
@@ -28,9 +32,9 @@ Button {
 
             anchors {
                 left: parent.left
-                leftMargin: App.Spacing.dp(20)
+                leftMargin: dp(20)
                 right: arrowText.left
-                rightMargin: App.Spacing.dp(15)
+                rightMargin: dp(15)
                 verticalCenter: parent.verticalCenter
             }
         }
@@ -45,7 +49,7 @@ Button {
 
             anchors {
                 right: parent.right
-                rightMargin: App.Spacing.dp(20)
+                rightMargin: dp(20)
                 verticalCenter: parent.verticalCenter
             }
         }
@@ -54,7 +58,7 @@ Button {
     background: Rectangle {
         color: control.pressed ? Qt.darker(App.Style.hoverColor, 1.2) :
                control.hovered ? Qt.darker(App.Style.hoverColor, 1.1) : App.Style.hoverColor
-        radius: App.Spacing.dpMin(App.EnvironmentTheme.active.dropdownRadius, 2)
+        radius: dpMin(App.EnvironmentTheme.active.dropdownRadius, 2)
 
         // Accent border (spacecraft)
         border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
@@ -77,13 +81,13 @@ Button {
         id: popup
         width: control.width
         y: control.height
-        height: Math.min(contentItem.implicitHeight, App.Spacing.dp(300))
+        height: Math.min(contentItem.implicitHeight, dp(300))
 
         background: Rectangle {
             color: App.Style.backgroundColor
             border.color: App.Style.accent
             border.width: 1
-            radius: App.Spacing.dpMin(App.EnvironmentTheme.active.dropdownRadius, 2)
+            radius: dpMin(App.EnvironmentTheme.active.dropdownRadius, 2)
         }
 
         contentItem: ListView {
@@ -97,15 +101,15 @@ Button {
                 required property var modelData
 
                 width: parent.width
-                height: App.Spacing.dp(45)
+                height: dp(45)
 
                 contentItem: Text {
                     text: modelData
                     color: App.Style.primaryTextColor
                     font.pixelSize: App.Spacing.overallText
                     font.family: App.Style.fontFamily
-                    leftPadding: App.Spacing.dp(20)
-                    rightPadding: App.Spacing.dp(20)
+                    leftPadding: dp(20)
+                    rightPadding: dp(20)
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideRight
                 }

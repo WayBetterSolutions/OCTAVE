@@ -60,7 +60,6 @@ from PySide6.QtWidgets import QApplication
 from backend.clock import Clock
 from backend.settings_manager import SettingsManager
 from backend.media_manager import MediaManager
-from backend.spotify_manager import SpotifyManager
 from backend.audio_analyzer import AudioAnalyzer
 from backend.network_manager import NetworkManager
 from backend.download_manager import DownloadManager
@@ -78,6 +77,7 @@ if IS_ANDROID:
         StubPhoneMirrorManager as PhoneMirrorManager,
         StubAndroidAutoManager as AndroidAutoManager,
         StubScrcpyCapture as ScrcpyCapture,
+        StubSpotifyManager as SpotifyManager,
         StubEmbeddedDhuItem as EmbeddedDhuItem,
         StubEmbeddedScrcpyItem as EmbeddedScrcpyItem,
         StubScrcpyCaptureItem as ScrcpyCaptureItem,
@@ -98,6 +98,7 @@ if IS_ANDROID:
         logger.info("Android sensors unavailable, using stub")
 else:
     from backend.obd_manager import OBDManager
+    from backend.spotify_manager import SpotifyManager
     from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
     from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyCapture, ScrcpyCaptureItem
     from backend.esp32_volume_manager import ESP32VolumeManager

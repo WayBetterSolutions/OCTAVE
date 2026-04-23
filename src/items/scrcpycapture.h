@@ -167,5 +167,58 @@ private:
     int m_frameCounter = 0;
 };
 
+#else // Q_OS_MOBILE — mobile stubs
+
+#include <QObject>
+#include <QQuickImageProvider>
+#include <QQuickItem>
+#include <QtQml/qqmlregistration.h>
+
+class ScrcpyFrameProvider : public QQuickImageProvider
+{
+public:
+    ScrcpyFrameProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
+    QImage requestImage(const QString &, QSize *, const QSize &) override { return {}; }
+};
+
+class ScrcpyCapture : public QObject
+{
+    Q_OBJECT
+public:
+    explicit ScrcpyCapture(QObject *parent = nullptr)
+        : QObject(parent), m_provider(new ScrcpyFrameProvider()) {}
+    ~ScrcpyCapture() override { delete m_provider; }
+    ScrcpyFrameProvider *frameProvider() const { return m_provider; }
+    void setPhoneMirrorManager(QObject *) {}
+
+public slots:
+    void setWindowHandle(int) {}
+    void startCapture() {}
+    void stopCapture() {}
+    void sendTouchEvent(float, float, bool) {}
+    void sendTouchMove(float, float) {}
+
+signals:
+    void frameReady();
+    void captureStarted();
+    void captureStopped();
+
+private:
+    ScrcpyFrameProvider *m_provider;
+};
+
+class ScrcpyCaptureItem : public QQuickItem
+{
+    Q_OBJECT
+    QML_ELEMENT
+public:
+    explicit ScrcpyCaptureItem(QQuickItem *parent = nullptr) : QQuickItem(parent) {}
+signals:
+    void streamStarted();
+    void streamStopped();
+    void errorOccurred(const QString &);
+    void frameRefresh();
+};
+
 #endif // Q_OS_MOBILE
 #endif // SCRCPYCAPTURE_H

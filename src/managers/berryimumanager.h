@@ -1,6 +1,10 @@
 #ifndef BERRYIMUMANAGER_H
 #define BERRYIMUMANAGER_H
 
+// BerryIMU v3 uses Linux I2C — excluded on mobile builds.
+// Android replacement (device sensors via QSensor) is Phase 2 work.
+#ifndef Q_OS_MOBILE
+
 #include <QObject>
 #include <QString>
 #include <QTimer>
@@ -186,4 +190,30 @@ private:
     int m_retryDelayMs;
 };
 
+#else // Q_OS_MOBILE — mobile stub
+
+#include <QObject>
+
+class BerryIMUManager : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+public:
+    explicit BerryIMUManager(QObject *parent = nullptr) : QObject(parent) {}
+    void connect_settings_manager(QObject *) {}
+    void cleanup() {}
+    bool connected() const { return false; }
+
+public slots:
+    void setEnabled(bool) {}
+    void setEmitRate(double) {}
+    void calibrateTare() {}
+    void resetTare() {}
+    QString getConnectionStatus() const { return QStringLiteral("Disabled on mobile"); }
+
+signals:
+    void connectedChanged();
+};
+
+#endif // Q_OS_MOBILE
 #endif // BERRYIMUMANAGER_H

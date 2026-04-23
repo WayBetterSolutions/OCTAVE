@@ -1,4 +1,7 @@
 #include "spotifymanager.h"
+
+#ifndef Q_OS_MOBILE
+
 #include "settingsmanager.h"
 
 #include <QDesktopServices>
@@ -1855,3 +1858,5 @@ QString SpotifyManager::generateThemeFromColors(const QVector<QVector<int>> &col
 
     return QString::fromUtf8(QJsonDocument(theme).toJson(QJsonDocument::Compact));
 }
+
+#endif // Q_OS_MOBILE

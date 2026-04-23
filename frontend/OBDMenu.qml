@@ -8,6 +8,10 @@ import "gauges" as Gauges
 import "dashboards" as Dashboards
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: obdPage
     objectName: "obdMenu"
     required property StackView stackView
@@ -85,14 +89,14 @@ Item {
             anchors.fill: parent
             columns: 3
             rows: 3
-            rowSpacing: App.Spacing.dpMin(3, 1)
-            columnSpacing: App.Spacing.dpMin(3, 1)
+            rowSpacing: dpMin(3, 1)
+            columnSpacing: dpMin(3, 1)
             Repeater {
                 model: 9
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: App.Spacing.dpMin(3, 1)
+                    radius: dpMin(3, 1)
                     color: Qt.darker(App.Style.obdBoxBackground, 1.15)
                     border.color: Qt.darker(App.Style.obdBarColor, 1.4)
                     border.width: 1
@@ -196,7 +200,7 @@ Item {
 
             background: Rectangle {
                 color: "transparent"
-                radius: App.Spacing.dpMin(8, 2)
+                radius: dpMin(8, 2)
                 border.color: App.Style.accent
                 border.width: 1
                 scale: dashboardsButtonMouse.pressed ? 0.8 : 1.0
@@ -255,10 +259,10 @@ Item {
                 left: parent.left
                 right: parent.right
                 bottom: parent.bottom
-                leftMargin: App.Spacing.dp(10)
-                rightMargin: App.Spacing.dp(10)
-                topMargin: App.Spacing.dp(6)
-                bottomMargin: App.Spacing.dp(10)
+                leftMargin: dp(10)
+                rightMargin: dp(10)
+                topMargin: dp(6)
+                bottomMargin: dp(10)
             }
             visible: obdPage.activeDashboardId !== "grid"
             spec: (visible && typeof dashboardManager !== "undefined" && dashboardManager)
@@ -274,14 +278,14 @@ Item {
                 left: parent.left
                 right: parent.right
                 bottom: parent.bottom
-                leftMargin: App.Spacing.dp(10)
-                rightMargin: App.Spacing.dp(10)
-                topMargin: App.Spacing.dp(10)
-                bottomMargin: App.Spacing.dp(10)
+                leftMargin: dp(10)
+                rightMargin: dp(10)
+                topMargin: dp(10)
+                bottomMargin: dp(10)
             }
             columns: 3
-            rowSpacing: App.Spacing.dp(10)
-            columnSpacing: App.Spacing.dp(10)
+            rowSpacing: dp(10)
+            columnSpacing: dp(10)
             
             // Use Repeater to create parameter cards
             Repeater {
@@ -324,7 +328,7 @@ Item {
 
                         color: squareCardMouseArea.containsMouse && modelData.id === "RPM" ?
                                Qt.lighter(Qt.darker(backgroundColor, 0.9), 1.1) : Qt.darker(backgroundColor, 0.9)
-                        radius: App.Spacing.dpMin(6, 2)
+                        radius: dpMin(6, 2)
 
                         Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -342,8 +346,8 @@ Item {
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(8)
-                            spacing: App.Spacing.dp(4)
+                            anchors.margins: dp(8)
+                            spacing: dp(4)
 
                             Text {
                                 text: modelData.title
@@ -367,7 +371,7 @@ Item {
                                 height: App.Spacing.overallSliderHeight * .5
                                 color: Qt.darker(backgroundColor, 1.1)
                                 radius: 3
-                                Layout.topMargin: App.Spacing.dp(4)
+                                Layout.topMargin: dp(4)
 
                                 Rectangle {
                                     id: progressBar
@@ -484,7 +488,7 @@ Item {
                         // Center content
                         Column {
                             anchors.centerIn: parent
-                            spacing: App.Spacing.dp(2)
+                            spacing: dp(2)
 
                             Text {
                                 text: modelData.title
@@ -563,10 +567,10 @@ Item {
         y: Math.round((parent.height - height) / 2)
         // Sized to match primitivesGalleryPopup so both popups feel the
         // same — consistent visual weight when switching between them.
-        width: Math.min(parent.width * 0.92, App.Spacing.dp(960))
+        width: Math.min(parent.width * 0.92, dp(960))
         height: Math.min(
             parent.height * 0.9,
-            chooserTitle.height + chooserGrid.implicitHeight + App.Spacing.dp(80)
+            chooserTitle.height + chooserGrid.implicitHeight + dp(80)
         )
         modal: true
         focus: true
@@ -594,7 +598,7 @@ Item {
             Text {
                 id: chooserTitle
                 anchors.top: parent.top
-                anchors.topMargin: App.Spacing.dp(18)
+                anchors.topMargin: dp(18)
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Dashboards"
                 color: App.Style.primaryTextColor
@@ -610,14 +614,14 @@ Item {
                 id: primitivesButton
                 anchors.top: parent.top
                 anchors.right: parent.right
-                anchors.topMargin: App.Spacing.dp(6)
-                anchors.rightMargin: App.Spacing.dp(6)
+                anchors.topMargin: dp(6)
+                anchors.rightMargin: dp(6)
                 width: App.Spacing.bottomBarNavButtonWidth
                 height: App.Spacing.bottomBarNavButtonHeight
 
                 background: Rectangle {
                     color: "transparent"
-                    radius: App.Spacing.dpMin(8, 2)
+                    radius: dpMin(8, 2)
                     border.color: App.Style.accent
                     border.width: 1
                     scale: primitivesButtonMouse.pressed ? 0.8 : 1.0
@@ -671,10 +675,10 @@ Item {
                     bottom: parent.bottom
                     left: parent.left
                     right: parent.right
-                    topMargin: App.Spacing.dp(14)
-                    leftMargin: App.Spacing.dp(18)
-                    rightMargin: App.Spacing.dp(18)
-                    bottomMargin: App.Spacing.dp(18)
+                    topMargin: dp(14)
+                    leftMargin: dp(18)
+                    rightMargin: dp(18)
+                    bottomMargin: dp(18)
                 }
                 contentWidth: width
                 contentHeight: chooserGrid.implicitHeight
@@ -689,8 +693,8 @@ Item {
                     id: chooserGrid
                     width: chooserScroll.width
                     columns: 2
-                    rowSpacing: App.Spacing.dp(14)
-                    columnSpacing: App.Spacing.dp(14)
+                    rowSpacing: dp(14)
+                    columnSpacing: dp(14)
 
                     Repeater {
                         model: obdPage.dashboardRegistry
@@ -698,7 +702,7 @@ Item {
                             id: card
                             Layout.fillWidth: true
                             Layout.preferredHeight: width * 0.72
-                            radius: App.Spacing.dpMin(12, 4)
+                            radius: dpMin(12, 4)
                             color: obdPage.activeDashboardId === modelData.id
                                    ? Qt.lighter(App.Style.obdBoxBackground, 1.18)
                                    : (choiceMouse.containsMouse
@@ -714,8 +718,8 @@ Item {
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: App.Spacing.dp(10)
-                                spacing: App.Spacing.dp(8)
+                                anchors.margins: dp(10)
+                                spacing: dp(8)
 
                                 // Preview "screen" — shows a scaled miniature of the
                                 // real dashboard QML. For the built-in "grid" entry
@@ -725,14 +729,14 @@ Item {
                                     id: previewScreen
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    radius: App.Spacing.dpMin(8, 2)
+                                    radius: dpMin(8, 2)
                                     color: App.Style.backgroundColor
                                     clip: true
 
                                     // Schematic fallback for Parameter Cards
                                     Loader {
                                         anchors.fill: parent
-                                        anchors.margins: App.Spacing.dp(8)
+                                        anchors.margins: dp(8)
                                         active: modelData.id === "grid"
                                         sourceComponent: active ? gridPreview : null
                                     }
@@ -750,7 +754,7 @@ Item {
                                         id: miniStage
                                         visible: modelData.id !== "grid"
                                         width: Math.max(1, obdPage.width)
-                                        height: Math.max(1, obdPage.height - App.Spacing.dp(80))
+                                        height: Math.max(1, obdPage.height - dp(80))
                                         anchors.centerIn: parent
                                         transformOrigin: Item.Center
                                         scale: Math.min(
@@ -803,11 +807,11 @@ Item {
                                 // Label row with active indicator dot
                                 Row {
                                     Layout.alignment: Qt.AlignHCenter
-                                    spacing: App.Spacing.dp(6)
+                                    spacing: dp(6)
 
                                     Rectangle {
                                         visible: obdPage.activeDashboardId === modelData.id
-                                        width: App.Spacing.dp(8)
+                                        width: dp(8)
                                         height: width
                                         radius: width / 2
                                         color: App.Style.obdBarColor
@@ -852,10 +856,10 @@ Item {
         parent: Overlay.overlay
         x: Math.round((parent.width - width) / 2)
         y: Math.round((parent.height - height) / 2)
-        width: Math.min(parent.width * 0.92, App.Spacing.dp(960))
+        width: Math.min(parent.width * 0.92, dp(960))
         height: Math.min(
             parent.height * 0.9,
-            galleryTitle.height + gallerySubtitle.height + galleryGrid.implicitHeight + App.Spacing.dp(80)
+            galleryTitle.height + gallerySubtitle.height + galleryGrid.implicitHeight + dp(80)
         )
         modal: true
         focus: true
@@ -873,7 +877,7 @@ Item {
             Text {
                 id: galleryTitle
                 anchors.top: parent.top
-                anchors.topMargin: App.Spacing.dp(18)
+                anchors.topMargin: dp(18)
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Primitives Gallery"
                 color: App.Style.primaryTextColor
@@ -885,7 +889,7 @@ Item {
             Text {
                 id: gallerySubtitle
                 anchors.top: galleryTitle.bottom
-                anchors.topMargin: App.Spacing.dp(4)
+                anchors.topMargin: dp(4)
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: "Live preview of every gauge primitive"
                 color: App.Style.obdLabelColor
@@ -900,10 +904,10 @@ Item {
                     bottom: parent.bottom
                     left: parent.left
                     right: parent.right
-                    topMargin: App.Spacing.dp(16)
-                    leftMargin: App.Spacing.dp(18)
-                    rightMargin: App.Spacing.dp(18)
-                    bottomMargin: App.Spacing.dp(18)
+                    topMargin: dp(16)
+                    leftMargin: dp(18)
+                    rightMargin: dp(18)
+                    bottomMargin: dp(18)
                 }
                 contentWidth: width
                 contentHeight: galleryGrid.implicitHeight
@@ -918,8 +922,8 @@ Item {
                     id: galleryGrid
                     width: galleryScroll.width
                     columns: 2
-                    rowSpacing: App.Spacing.dp(14)
-                    columnSpacing: App.Spacing.dp(14)
+                    rowSpacing: dp(14)
+                    columnSpacing: dp(14)
 
                     // ── CircularGauge ───────────────────────────────
                     // Demo value pushed into the redline zone so the
@@ -946,7 +950,7 @@ Item {
                         props: "paramId: SPEED · showNeedle · 180° top arc"
                         Gauges.ArcGauge {
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(6)
+                            anchors.margins: dp(6)
                             paramId: "SPEED"
                             value: 65
                             showNeedle: true
@@ -959,12 +963,12 @@ Item {
                         props: "paramId: COOLANT_TEMP · warnAbove: 105"
                         Item {
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(14)
+                            anchors.margins: dp(14)
                             Gauges.BarGauge {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
-                                height: App.Spacing.dp(56)
+                                height: dp(56)
                                 paramId: "COOLANT_TEMP"
                                 value: 92
                                 warnAbove: 105
@@ -979,12 +983,12 @@ Item {
                         props: "paramId: FUEL_LEVEL · orientation: vertical"
                         Item {
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(14)
+                            anchors.margins: dp(14)
                             Gauges.BarGauge {
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                width: App.Spacing.dp(90)
+                                width: dp(90)
                                 paramId: "FUEL_LEVEL"
                                 value: 65
                                 orientation: "vertical"
@@ -998,7 +1002,7 @@ Item {
                         props: "paramId: SHORT_FUEL_TRIM_1 · bidirectional (min<0<max)"
                         Gauges.LinearGauge {
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(14)
+                            anchors.margins: dp(14)
                             paramId: "SHORT_FUEL_TRIM_1"
                             value: 6
                         }
@@ -1023,7 +1027,7 @@ Item {
                         props: "paramId: ENGINE_LOAD · live 500ms sampling · fillBelow"
                         Gauges.SparklineGauge {
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(12)
+                            anchors.margins: dp(12)
                             paramId: "ENGINE_LOAD"
                             // Left live — in dev mode you see real motion;
                             // on hardware without OBD, flat line at 0.
@@ -1036,9 +1040,9 @@ Item {
                         props: "triggerAbove/Below · pulse (right is lit)"
                         Row {
                             anchors.centerIn: parent
-                            spacing: App.Spacing.dp(20)
+                            spacing: dp(20)
                             Item {
-                                width: App.Spacing.dp(72); height: width
+                                width: dp(72); height: width
                                 Gauges.WarningLight {
                                     anchors.fill: parent
                                     paramId: "COOLANT_TEMP"
@@ -1048,7 +1052,7 @@ Item {
                                 }
                             }
                             Item {
-                                width: App.Spacing.dp(72); height: width
+                                width: dp(72); height: width
                                 Gauges.WarningLight {
                                     anchors.fill: parent
                                     paramId: "COOLANT_TEMP"
@@ -1059,7 +1063,7 @@ Item {
                                 }
                             }
                             Item {
-                                width: App.Spacing.dp(72); height: width
+                                width: dp(72); height: width
                                 Gauges.WarningLight {
                                     anchors.fill: parent
                                     paramId: "FUEL_LEVEL"
@@ -1293,7 +1297,7 @@ Item {
                     // === SHIFT LIGHT ENABLE/DISABLE ===
                     Rectangle {
                         width: parent.width
-                        height: App.Spacing.dp(60)
+                        height: dp(60)
                         radius: App.Spacing.overallMargin * 0.5
                         color: shiftLightRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -1335,8 +1339,8 @@ Item {
 
                             // Toggle switch - matches SettingsMenu styling exactly
                             Item {
-                                Layout.preferredWidth: App.Spacing.dp(80)
-                                Layout.preferredHeight: App.Spacing.dp(40)
+                                Layout.preferredWidth: dp(80)
+                                Layout.preferredHeight: dp(40)
 
                                 // Main track
                                 Rectangle {
@@ -1377,7 +1381,7 @@ Item {
                                         anchors {
                                             left: rpmSettingsPopup.shiftLightEnabled ? undefined : parent.left
                                             right: rpmSettingsPopup.shiftLightEnabled ? parent.right : undefined
-                                            margins: App.Spacing.dp(10)
+                                            margins: dp(10)
                                             verticalCenter: parent.verticalCenter
                                         }
                                         text: rpmSettingsPopup.shiftLightEnabled ? "ON" : "OFF"
@@ -1386,7 +1390,7 @@ Item {
                                         font.family: obdPage.globalFont
                                         color: rpmSettingsPopup.shiftLightEnabled ? App.Style.accent :
                                             Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                        visible: width < (parent.width - shiftLightHandle.width - App.Spacing.dp(10))
+                                        visible: width < (parent.width - shiftLightHandle.width - dp(10))
 
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
@@ -1395,8 +1399,8 @@ Item {
                                 // Handle
                                 Rectangle {
                                     id: shiftLightHandle
-                                    width: App.Spacing.dp(40)
-                                    height: App.Spacing.dp(40)
+                                    width: dp(40)
+                                    height: dp(40)
                                     radius: width / 2
                                     x: rpmSettingsPopup.shiftLightEnabled ? parent.width - width : 0
                                     y: 0
@@ -1473,7 +1477,7 @@ Item {
                     // === SHOW ON HOME CARD TOGGLE ===
                     Rectangle {
                         width: parent.width
-                        height: App.Spacing.dp(60)
+                        height: dp(60)
                         radius: App.Spacing.overallMargin * 0.5
                         color: showOnHomeCardRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -1515,8 +1519,8 @@ Item {
 
                             // Toggle switch
                             Item {
-                                Layout.preferredWidth: App.Spacing.dp(80)
-                                Layout.preferredHeight: App.Spacing.dp(40)
+                                Layout.preferredWidth: dp(80)
+                                Layout.preferredHeight: dp(40)
 
                                 Rectangle {
                                     id: showOnHomeCardTrack
@@ -1552,7 +1556,7 @@ Item {
                                         anchors {
                                             left: rpmSettingsPopup.showOnHomeCard ? undefined : parent.left
                                             right: rpmSettingsPopup.showOnHomeCard ? parent.right : undefined
-                                            margins: App.Spacing.dp(10)
+                                            margins: dp(10)
                                             verticalCenter: parent.verticalCenter
                                         }
                                         text: rpmSettingsPopup.showOnHomeCard ? "ON" : "OFF"
@@ -1561,7 +1565,7 @@ Item {
                                         font.family: obdPage.globalFont
                                         color: rpmSettingsPopup.showOnHomeCard ? App.Style.accent :
                                             Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                        visible: width < (parent.width - showOnHomeCardHandle.width - App.Spacing.dp(10))
+                                        visible: width < (parent.width - showOnHomeCardHandle.width - dp(10))
 
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
@@ -1569,8 +1573,8 @@ Item {
 
                                 Rectangle {
                                     id: showOnHomeCardHandle
-                                    width: App.Spacing.dp(40)
-                                    height: App.Spacing.dp(40)
+                                    width: dp(40)
+                                    height: dp(40)
                                     radius: width / 2
                                     x: rpmSettingsPopup.showOnHomeCard ? parent.width - width : 0
                                     y: 0
@@ -2106,7 +2110,7 @@ Item {
                         // Flash toggle for selected flag
                         Rectangle {
                             width: parent.width
-                            height: App.Spacing.dp(60)
+                            height: dp(60)
                             radius: App.Spacing.overallMargin * 0.5
                             color: flagFlashRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -2145,8 +2149,8 @@ Item {
                                 // Toggle switch - matches SettingsMenu styling exactly
                                 Item {
                                     id: flagFlashToggleItem
-                                    Layout.preferredWidth: App.Spacing.dp(80)
-                                    Layout.preferredHeight: App.Spacing.dp(40)
+                                    Layout.preferredWidth: dp(80)
+                                    Layout.preferredHeight: dp(40)
 
                                     property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.flash
 
@@ -2187,7 +2191,7 @@ Item {
                                             anchors {
                                                 left: flagFlashToggleItem.isChecked ? undefined : parent.left
                                                 right: flagFlashToggleItem.isChecked ? parent.right : undefined
-                                                margins: App.Spacing.dp(10)
+                                                margins: dp(10)
                                                 verticalCenter: parent.verticalCenter
                                             }
                                             text: flagFlashToggleItem.isChecked ? "ON" : "OFF"
@@ -2196,7 +2200,7 @@ Item {
                                             font.family: obdPage.globalFont
                                             color: flagFlashToggleItem.isChecked ? App.Style.accent :
                                                 Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                            visible: width < (parent.width - flagFlashHandle.width - App.Spacing.dp(10))
+                                            visible: width < (parent.width - flagFlashHandle.width - dp(10))
 
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
@@ -2205,8 +2209,8 @@ Item {
                                     // Handle
                                     Rectangle {
                                         id: flagFlashHandle
-                                        width: App.Spacing.dp(40)
-                                        height: App.Spacing.dp(40)
+                                        width: dp(40)
+                                        height: dp(40)
                                         radius: width / 2
                                         x: flagFlashToggleItem.isChecked ? parent.width - width : 0
                                         y: 0
@@ -2369,7 +2373,7 @@ Item {
                         // Full screen overlay toggle for this flag
                         Rectangle {
                             width: parent.width
-                            height: App.Spacing.dp(60)
+                            height: dp(60)
                             radius: App.Spacing.overallMargin * 0.5
                             color: fullScreenRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
 
@@ -2408,8 +2412,8 @@ Item {
                                 // Toggle switch - matches SettingsMenu styling exactly
                                 Item {
                                     id: fullScreenToggleItem
-                                    Layout.preferredWidth: App.Spacing.dp(80)
-                                    Layout.preferredHeight: App.Spacing.dp(40)
+                                    Layout.preferredWidth: dp(80)
+                                    Layout.preferredHeight: dp(40)
 
                                     property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.fullScreenFlash
 
@@ -2450,7 +2454,7 @@ Item {
                                             anchors {
                                                 left: fullScreenToggleItem.isChecked ? undefined : parent.left
                                                 right: fullScreenToggleItem.isChecked ? parent.right : undefined
-                                                margins: App.Spacing.dp(10)
+                                                margins: dp(10)
                                                 verticalCenter: parent.verticalCenter
                                             }
                                             text: fullScreenToggleItem.isChecked ? "ON" : "OFF"
@@ -2459,7 +2463,7 @@ Item {
                                             font.family: obdPage.globalFont
                                             color: fullScreenToggleItem.isChecked ? App.Style.accent :
                                                 Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
-                                            visible: width < (parent.width - fullScreenHandle.width - App.Spacing.dp(10))
+                                            visible: width < (parent.width - fullScreenHandle.width - dp(10))
 
                                             Behavior on color { ColorAnimation { duration: 200 } }
                                         }
@@ -2468,8 +2472,8 @@ Item {
                                     // Handle
                                     Rectangle {
                                         id: fullScreenHandle
-                                        width: App.Spacing.dp(40)
-                                        height: App.Spacing.dp(40)
+                                        width: dp(40)
+                                        height: dp(40)
                                         radius: width / 2
                                         x: fullScreenToggleItem.isChecked ? parent.width - width : 0
                                         y: 0

@@ -9,6 +9,10 @@ import "." as App
 // Touch-friendly with flick scrolling
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: terminalFeedback
 
     // Configurable properties
@@ -33,12 +37,12 @@ Rectangle {
     border.color: App.EnvironmentTheme.active.terminalAccentBorder
         ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
         : terminalBorder
-    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
+    radius: dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
     clip: true
 
     // Default size (can be overridden)
-    implicitHeight: App.Spacing.dp(150)
-    implicitWidth: App.Spacing.dp(300)
+    implicitHeight: dp(150)
+    implicitWidth: dp(300)
 
     CornerBrackets {
         visible: App.EnvironmentTheme.active.terminalCornerBrackets
@@ -69,8 +73,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: App.Spacing.dp(App.EnvironmentTheme.active.terminalRadius)
-        anchors.rightMargin: App.Spacing.dp(App.EnvironmentTheme.active.terminalRadius)
+        anchors.leftMargin: dp(App.EnvironmentTheme.active.terminalRadius)
+        anchors.rightMargin: dp(App.EnvironmentTheme.active.terminalRadius)
         height: 1
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
         visible: App.EnvironmentTheme.active.terminalAccentBorder
@@ -85,7 +89,7 @@ Rectangle {
         Rectangle {
             id: headerBar
             Layout.fillWidth: true
-            Layout.preferredHeight: showHeader ? App.Spacing.dp(36) : 0  // Larger for touch
+            Layout.preferredHeight: showHeader ? dp(36) : 0  // Larger for touch
             visible: showHeader
             color: App.EnvironmentTheme.active.terminalHeaderAccent
                 ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.08)
@@ -104,8 +108,8 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: App.Spacing.dp(12)
-                anchors.rightMargin: App.Spacing.dp(12)
+                anchors.leftMargin: dp(12)
+                anchors.rightMargin: dp(12)
 
                 Text {
                     text: App.EnvironmentTheme.active.terminalHeaderAccent
@@ -124,8 +128,8 @@ Rectangle {
 
                 // Status indicator dot (spacecraft)
                 Rectangle {
-                    width: App.Spacing.dp(6); height: App.Spacing.dp(6)
-                    radius: App.EnvironmentTheme.active.terminalRadius === 2 ? 1 : App.Spacing.dpMin(3, 1)
+                    width: dp(6); height: dp(6)
+                    radius: App.EnvironmentTheme.active.terminalRadius === 2 ? 1 : dpMin(3, 1)
                     color: terminalFeedback.lines.length > 0 ? App.Style.accent : "#555555"
                     visible: App.EnvironmentTheme.active.terminalHeaderAccent
 
@@ -140,9 +144,9 @@ Rectangle {
 
                 // Clear button - larger touch target
                 Rectangle {
-                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? App.Spacing.dp(64) : App.Spacing.dp(48)
-                    height: App.Spacing.dp(30)
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
+                    width: App.EnvironmentTheme.active.terminalHeaderAccent ? dp(64) : dp(48)
+                    height: dp(30)
+                    radius: dpMin(App.EnvironmentTheme.active.terminalRadius, 2)
                     color: clearMouseArea.pressed
                         ? (App.EnvironmentTheme.active.terminalHeaderAccent
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
@@ -164,7 +168,7 @@ Rectangle {
                         color: App.EnvironmentTheme.active.terminalHeaderAccent
                             ? Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.8)
                             : "#aaaaaa"
-                        font.pixelSize: App.Spacing.dp(12)
+                        font.pixelSize: dp(12)
                         font.bold: true
                         font.letterSpacing: App.EnvironmentTheme.active.terminalHeaderAccent ? 1 : 0
                     }
@@ -187,7 +191,7 @@ Rectangle {
             Flickable {
                 id: flickable
                 anchors.fill: parent
-                anchors.margins: App.Spacing.dp(8)
+                anchors.margins: dp(8)
                 contentWidth: width
                 contentHeight: contentColumn.height
                 clip: true
@@ -205,7 +209,7 @@ Rectangle {
                 Column {
                     id: contentColumn
                     width: flickable.width
-                    spacing: App.Spacing.dp(4)
+                    spacing: dp(4)
 
                     Repeater {
                         model: terminalFeedback.lines
@@ -245,8 +249,8 @@ Rectangle {
             Rectangle {
                 id: scrollIndicator
                 anchors.right: parent.right
-                anchors.rightMargin: App.Spacing.dp(2)
-                width: App.EnvironmentTheme.active.terminalAccentScroll ? App.Spacing.dp(2) : App.Spacing.dp(4)
+                anchors.rightMargin: dp(2)
+                width: App.EnvironmentTheme.active.terminalAccentScroll ? dp(2) : dp(4)
                 radius: App.EnvironmentTheme.active.terminalAccentScroll ? 1 : 2
                 color: App.EnvironmentTheme.active.terminalAccentScroll
                     ? App.Style.accent : "#666666"
@@ -257,9 +261,9 @@ Rectangle {
                 y: {
                     var ratio = flickable.contentY / (flickable.contentHeight - flickable.height)
                     var trackHeight = flickable.height - height
-                    return Math.max(0, Math.min(trackHeight, ratio * trackHeight)) + App.Spacing.dp(8)
+                    return Math.max(0, Math.min(trackHeight, ratio * trackHeight)) + dp(8)
                 }
-                height: Math.max(App.Spacing.dp(30), (flickable.height / flickable.contentHeight) * (flickable.height - App.Spacing.dp(16)))
+                height: Math.max(dp(30), (flickable.height / flickable.contentHeight) * (flickable.height - dp(16)))
 
                 Behavior on opacity {
                     NumberAnimation { duration: 200 }

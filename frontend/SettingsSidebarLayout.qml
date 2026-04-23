@@ -6,6 +6,10 @@ import "settings"
 import "settings/ScrollMemory.js" as ScrollMemory
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: sidebarLayout
 
     // Required from orchestrator
@@ -249,8 +253,8 @@ Item {
 
                         // Update notification dot
                         Rectangle {
-                            width: App.Spacing.dp(7)
-                            height: App.Spacing.dp(7)
+                            width: dp(7)
+                            height: dp(7)
                             radius: width / 2
                             color: "#FF9800"
                             z: 10

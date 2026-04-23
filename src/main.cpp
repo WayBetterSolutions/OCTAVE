@@ -9,6 +9,13 @@
 #include <QTimer>
 #include <QtQml/qqml.h>
 
+#ifdef Q_OS_ANDROID
+#include <QtCore/private/qandroidextras_p.h>
+#include <QFuture>
+#include <QtConcurrent>
+#include "platform/androidmediabridge.h"
+#endif
+
 // Phase 1 managers
 #include "managers/settingsmanager.h"
 #include "managers/clock.h"
@@ -20,16 +27,16 @@
 #include "managers/audioanalyzer.h"
 
 // Phase 3 managers
-#include "managers/spotifymanager.h"
+#include "managers/spotifymanager.h"   // desktop-only; empty on Q_OS_MOBILE
 #include "managers/downloadmanager.h"
 
 // Phase 4 managers
 #include "managers/obdmanager.h"
-#include "managers/esp32volumemanager.h"
-#include "managers/berryimumanager.h"
-#include "managers/gesturemanager.h"
+#include "managers/esp32volumemanager.h"  // desktop-only; empty on Q_OS_MOBILE
+#include "managers/berryimumanager.h"     // desktop-only; empty on Q_OS_MOBILE
+#include "managers/gesturemanager.h"      // desktop-only; empty on Q_OS_MOBILE
 
-// Phase 5 managers (desktop only)
+// Phase 5 managers (desktop only — all guarded by Q_OS_MOBILE in their headers)
 #include "managers/phonemirrormanager.h"
 #include "managers/androidautomanager.h"
 #include "items/scrcpycapture.h"
@@ -65,7 +72,11 @@ int main(int argc, char *argv[])
 
     // ---- Scalar context properties ----
     ctx->setContextProperty("screenAutoScale", autoScale);
+#ifdef Q_OS_ANDROID
+    ctx->setContextProperty("isAndroid", true);
+#else
     ctx->setContextProperty("isAndroid", false);
+#endif
 
     // ==================================================================
     // Phase 1: Real manager objects
@@ -100,6 +111,40 @@ int main(int argc, char *argv[])
     mediaManager.setSettingsManager(&settingsManager);
     ctx->setContextProperty("mediaManager", &mediaManager);
 
+#ifdef Q_OS_ANDROID
+    // Initialize the youtubedl-android bridge off the GUI thread — on first
+    // launch it extracts Python 3.9 + yt-dlp + ffmpeg to the app's private data
+    // dir (~10–20s). Subsequent launches are instant.
+    QtConcurrent::run([] {
+        if (OctaveAndroid::initMediaBridge()) {
+            qInfo() << "[OctaveMediaBridge] yt-dlp + ffmpeg ready";
+        } else {
+            qWarning() << "[OctaveMediaBridge] init failed — downloads + waveform disabled";
+        }
+    });
+
+    // Request runtime permissions needed for the media library and (eventual)
+    // OBD Bluetooth transport. Declared in the manifest isn't enough on
+    // Android 12+/13+; user must grant at runtime. Re-scan once granted.
+    const QStringList androidPermissions = {
+        QStringLiteral("android.permission.READ_MEDIA_AUDIO"),     // Android 13+
+        QStringLiteral("android.permission.READ_EXTERNAL_STORAGE"),// pre-13 fallback
+        QStringLiteral("android.permission.BLUETOOTH_CONNECT"),    // OBD Phase 3
+        QStringLiteral("android.permission.BLUETOOTH_SCAN"),       // OBD Phase 3
+    };
+    for (const QString &perm : androidPermissions) {
+        auto future = QtAndroidPrivate::requestPermission(perm);
+        future.then([&mediaManager, perm](QtAndroidPrivate::PermissionResult result) {
+            if (result == QtAndroidPrivate::Authorized
+                && perm == QStringLiteral("android.permission.READ_MEDIA_AUDIO")) {
+                // Got audio permission — kick off a library scan
+                QMetaObject::invokeMethod(&mediaManager, "scan_library",
+                                          Qt::QueuedConnection, Q_ARG(bool, true));
+            }
+        });
+    }
+#endif
+
     // Audio Analyzer — waveform visualization via FFT
     AudioAnalyzer audioAnalyzer;
     audioAnalyzer.set_quality(settingsManager.visualizerQuality());
@@ -115,7 +160,8 @@ int main(int argc, char *argv[])
     // Phase 3: Online Features
     // ==================================================================
 
-    // Spotify Manager — Spotify Web API integration
+    // Spotify Manager — Spotify Web API integration.
+    // On mobile: header swaps in a no-op stub so QML bindings stay valid.
     SpotifyManager spotifyManager;
     spotifyManager.setSettingsManager(&settingsManager);
     ctx->setContextProperty("spotifyManager", &spotifyManager);
@@ -128,51 +174,47 @@ int main(int argc, char *argv[])
     OBDManager obdManager(&settingsManager);
     ctx->setContextProperty("obdManager", &obdManager);
 
-    // ESP32 Volume Manager — wireless rotary encoder volume control
+    // Hardware managers (USB-serial / I2C on desktop, stubbed on mobile via header).
     ESP32VolumeManager esp32VolumeManager;
     esp32VolumeManager.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("esp32VolumeManager", &esp32VolumeManager);
 
-    // BerryIMU v3 — accelerometer/gyro/mag/barometer sensor
     BerryIMUManager berryIMU;
     berryIMU.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("berryIMU", &berryIMU);
 
-    // Gesture Sensor — PAJ7620U2 gesture recognition
     GestureManager gestureSensor;
     gestureSensor.connect_settings_manager(&settingsManager);
     ctx->setContextProperty("gestureSensor", &gestureSensor);
 
     // ==================================================================
     // Phase 5: Desktop Integration (phone mirror, Android Auto)
+    //          Stubbed out on mobile via Q_OS_MOBILE guards in the headers.
     // ==================================================================
 
-    // Android Auto Manager
     AndroidAutoManager androidAutoManager;
     ctx->setContextProperty("androidAutoManager", &androidAutoManager);
-
-    // Register DHU frame provider for seamless Android Auto display
     engine.addImageProvider(QStringLiteral("dhuframe"),
                             androidAutoManager.frameProvider());
 
-    // Phone Mirror Manager
     PhoneMirrorManager phoneMirrorManager;
     ctx->setContextProperty("phoneMirrorManager", &phoneMirrorManager);
 
-    // Scrcpy Capture for frame-based phone mirroring
     ScrcpyCapture scrcpyCapture;
     scrcpyCapture.setPhoneMirrorManager(&phoneMirrorManager);
     ctx->setContextProperty("scrcpyCapture", &scrcpyCapture);
     engine.addImageProvider(QStringLiteral("scrcpyframe"),
                             scrcpyCapture.frameProvider());
 
-    // Phone mirror settings from saved config
+#ifndef Q_OS_MOBILE
+    // Phone mirror settings from saved config (desktop-only accessors)
     QString savedScrcpyPath = settingsManager.get_scrcpy_path();
     if (!savedScrcpyPath.isEmpty())
         phoneMirrorManager.setScrcpyPath(savedScrcpyPath);
     phoneMirrorManager.setAudioEnabled(settingsManager.get_scrcpy_audio_enabled());
+#endif
 
-    // Register custom QML types for video embedding
+    // Register custom QML types for video embedding (stub types on mobile)
     qmlRegisterType<EmbeddedDhuItem>("OCTAVE.AndroidAuto", 1, 0, "EmbeddedDhuItem");
     qmlRegisterType<EmbeddedScrcpyItem>("OCTAVE.PhoneMirror", 1, 0, "EmbeddedScrcpyItem");
     qmlRegisterType<ScrcpyCaptureItem>("OCTAVE.PhoneMirror", 1, 0, "ScrcpyCaptureItem");
@@ -188,8 +230,10 @@ int main(int argc, char *argv[])
         mediaManager.scan_library(false);
     });
 
-    // Wire volume controller -> all audio outputs
-    // Spotify volume is debounced (300ms) to avoid 429 rate limiting
+    // Wire volume controller -> all audio outputs.
+    // Spotify volume is debounced (300ms) to avoid 429 rate limiting on desktop.
+    // On mobile, SpotifyManager is a stub, so `is_connected()` always returns false
+    // and the debounce harmlessly fires into the stub's no-op set_volume.
     static QTimer spotifyVolumeDebounce;
     spotifyVolumeDebounce.setSingleShot(true);
     spotifyVolumeDebounce.setInterval(300);
@@ -210,6 +254,12 @@ int main(int argc, char *argv[])
     volumeController.applyVolume(settingsManager.currentVolume());
 
     // ---- QML import path: share frontend/ with Python version ----
+#ifdef Q_OS_ANDROID
+    // On Android, frontend/ is bundled as assets (see android/assets/frontend
+    // symlink). Qt supports the "assets:" URL scheme for anything under assets/.
+    QDir frontendDir(QStringLiteral("assets:/frontend"));
+    engine.addImportPath(QStringLiteral("assets:/frontend"));
+#else
     QString appDir = QGuiApplication::applicationDirPath();
     // In development, the binary is in build/ — frontend/ is one level up.
     QDir frontendDir(appDir);
@@ -222,6 +272,7 @@ int main(int argc, char *argv[])
     }
 
     engine.addImportPath(frontendDir.absolutePath());
+#endif
 
     // ==================================================================
     // Phase 6: Dashboards (data-driven dashboards + user-authored presets)
@@ -235,11 +286,19 @@ int main(int argc, char *argv[])
     ctx->setContextProperty("dashboardManager", &dashboardManager);
 
     // ---- Load Main.qml ----
+#ifdef Q_OS_ANDROID
+    // On Android, use the "assets:" URL scheme directly — QUrl::fromLocalFile
+    // would resolve relative to /, which is wrong for asset-bundled files.
+    QUrl qmlUrl(QStringLiteral("assets:/frontend/Main.qml"));
+    engine.load(qmlUrl);
+#else
     QString qmlFile = frontendDir.absoluteFilePath("Main.qml");
-    engine.load(QUrl::fromLocalFile(qmlFile));
+    QUrl qmlUrl = QUrl::fromLocalFile(qmlFile);
+    engine.load(qmlUrl);
+#endif
 
     if (engine.rootObjects().isEmpty()) {
-        qCritical("Failed to load Main.qml from %s", qPrintable(qmlFile));
+        qCritical("Failed to load Main.qml from %s", qPrintable(qmlUrl.toString()));
         return -1;
     }
 
@@ -248,7 +307,7 @@ int main(int argc, char *argv[])
     QObject::connect(&app, &QGuiApplication::lastWindowClosed,
                      &app, &QGuiApplication::quit);
 
-    // Wire gesture sensor actions -> media control (matching Python main.py)
+    // Wire gesture sensor actions -> media control (stub never emits on mobile).
     QObject::connect(&gestureSensor, &GestureManager::actionTriggered,
                      [&mediaManager, &volumeController, &settingsManager](const QString &action) {
         if (action == "next_track") mediaManager.next_track();
@@ -264,7 +323,7 @@ int main(int argc, char *argv[])
         }
     });
 
-    // Wire ESP32 volume knob -> volume controller
+    // Wire ESP32 volume knob -> volume controller (stub never emits on mobile).
     QObject::connect(&esp32VolumeManager, &ESP32VolumeManager::volumeChangeRequested,
                      [&volumeController, &settingsManager](float delta) {
         static float accumulator = 0.0f;
@@ -281,15 +340,15 @@ int main(int argc, char *argv[])
         esp32VolumeManager.send_mute_state(mediaManager.is_muted());
     });
 
-    // Cleanup on quit
+    // Cleanup on quit (stubs make all calls no-op on mobile)
     QObject::connect(&app, &QGuiApplication::aboutToQuit, [&]() {
         androidAutoManager.cleanup();
         phoneMirrorManager.cleanup();
-        obdManager.close();
         esp32VolumeManager.cleanup();
         berryIMU.cleanup();
         gestureSensor.cleanup();
         spotifyManager.cleanup();
+        obdManager.close();
         downloadManager.cleanup();
         networkManager.cleanup();
     });

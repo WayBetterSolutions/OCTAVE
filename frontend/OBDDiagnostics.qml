@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: obdDiagnosticsPage
     objectName: "obdDiagnostics"
     required property StackView stackView
@@ -127,7 +131,7 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: App.Spacing.overallMargin
-            spacing: App.Spacing.dp(15)
+            spacing: dp(15)
 
 
             // 4x2 Grid - 4 buttons on top, terminal + clear on bottom
@@ -136,8 +140,8 @@ Item {
                 Layout.fillHeight: true
                 columns: 4
                 rows: 2
-                rowSpacing: App.Spacing.dp(15)
-                columnSpacing: App.Spacing.dp(15)
+                rowSpacing: dp(15)
+                columnSpacing: dp(15)
 
                 // Row 1: Read DTCs, Current DTCs, Read Status, Freeze Frame
 
@@ -147,19 +151,19 @@ Item {
                     Layout.fillHeight: true
                     Layout.row: 0
                     Layout.column: 0
-                    radius: App.Spacing.dpMin(12, 2)
+                    radius: dpMin(12, 2)
                     color: mouseAreaReadDTC.pressed ? Qt.darker(accentColor, 1.2) : accentColor
 
                     Column {
                         anchors.centerIn: parent
-                        width: parent.width - App.Spacing.dp(16)
-                        spacing: App.Spacing.dp(8)
+                        width: parent.width - dp(16)
+                        spacing: dp(8)
 
                         Text {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Read DTCs"
-                            font.pixelSize: Math.min(App.Spacing.dp(32), parent.width * 0.16)
+                            font.pixelSize: Math.min(dp(32), parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
@@ -170,7 +174,7 @@ Item {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Stored trouble codes"
-                            font.pixelSize: Math.min(App.Spacing.dp(18), parent.width * 0.09)
+                            font.pixelSize: Math.min(dp(18), parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
@@ -196,19 +200,19 @@ Item {
                     Layout.fillHeight: true
                     Layout.row: 0
                     Layout.column: 1
-                    radius: App.Spacing.dpMin(12, 2)
+                    radius: dpMin(12, 2)
                     color: mouseAreaReadCurrentDTC.pressed ? Qt.darker(accentColor, 1.2) : accentColor
 
                     Column {
                         anchors.centerIn: parent
-                        width: parent.width - App.Spacing.dp(16)
-                        spacing: App.Spacing.dp(8)
+                        width: parent.width - dp(16)
+                        spacing: dp(8)
 
                         Text {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Current DTCs"
-                            font.pixelSize: Math.min(App.Spacing.dp(32), parent.width * 0.16)
+                            font.pixelSize: Math.min(dp(32), parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
@@ -219,7 +223,7 @@ Item {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Active this drive cycle"
-                            font.pixelSize: Math.min(App.Spacing.dp(18), parent.width * 0.09)
+                            font.pixelSize: Math.min(dp(18), parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
@@ -245,19 +249,19 @@ Item {
                     Layout.fillHeight: true
                     Layout.row: 0
                     Layout.column: 2
-                    radius: App.Spacing.dpMin(12, 2)
+                    radius: dpMin(12, 2)
                     color: mouseAreaReadStatus.pressed ? Qt.darker(accentColor, 1.2) : accentColor
 
                     Column {
                         anchors.centerIn: parent
-                        width: parent.width - App.Spacing.dp(16)
-                        spacing: App.Spacing.dp(8)
+                        width: parent.width - dp(16)
+                        spacing: dp(8)
 
                         Text {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Read Status"
-                            font.pixelSize: Math.min(App.Spacing.dp(32), parent.width * 0.16)
+                            font.pixelSize: Math.min(dp(32), parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
@@ -268,7 +272,7 @@ Item {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "CEL & DTC count"
-                            font.pixelSize: Math.min(App.Spacing.dp(18), parent.width * 0.09)
+                            font.pixelSize: Math.min(dp(18), parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
@@ -294,19 +298,19 @@ Item {
                     Layout.fillHeight: true
                     Layout.row: 0
                     Layout.column: 3
-                    radius: App.Spacing.dpMin(12, 2)
+                    radius: dpMin(12, 2)
                     color: mouseAreaFreezeFrame.pressed ? Qt.darker(accentColor, 1.2) : accentColor
 
                     Column {
                         anchors.centerIn: parent
-                        width: parent.width - App.Spacing.dp(16)
-                        spacing: App.Spacing.dp(8)
+                        width: parent.width - dp(16)
+                        spacing: dp(8)
 
                         Text {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Freeze Frame"
-                            font.pixelSize: Math.min(App.Spacing.dp(32), parent.width * 0.16)
+                            font.pixelSize: Math.min(dp(32), parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
@@ -317,7 +321,7 @@ Item {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Snapshot at fault"
-                            font.pixelSize: Math.min(App.Spacing.dp(18), parent.width * 0.09)
+                            font.pixelSize: Math.min(dp(18), parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
@@ -346,7 +350,7 @@ Item {
                     Layout.row: 1
                     Layout.column: 0
                     Layout.columnSpan: 3
-                    radius: App.Spacing.dpMin(12, 2)
+                    radius: dpMin(12, 2)
                     color: "#1a1a1a"
                     border.color: "#333333"
                     border.width: 2
@@ -355,7 +359,7 @@ Item {
                     // Scanline overlay effect
                     Rectangle {
                         anchors.fill: parent
-                        radius: App.Spacing.dpMin(12, 2)
+                        radius: dpMin(12, 2)
                         color: "transparent"
                         z: 10
 
@@ -388,28 +392,28 @@ Item {
                         // Terminal header bar
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: App.Spacing.dp(32)
+                            Layout.preferredHeight: dp(32)
                             color: "#2d2d2d"
-                            radius: App.Spacing.dpMin(12, 2)
+                            radius: dpMin(12, 2)
 
                             // Bottom corners not rounded
                             Rectangle {
                                 anchors.bottom: parent.bottom
                                 anchors.left: parent.left
                                 anchors.right: parent.right
-                                height: App.Spacing.dp(12)
+                                height: dp(12)
                                 color: parent.color
                             }
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: App.Spacing.dp(12)
-                                anchors.rightMargin: App.Spacing.dp(12)
+                                anchors.leftMargin: dp(12)
+                                anchors.rightMargin: dp(12)
 
                                 Text {
                                     text: "DIAGNOSTIC OUTPUT"
                                     color: "#888888"
-                                    font.pixelSize: App.Spacing.dp(18)
+                                    font.pixelSize: dp(18)
                                     font.family: "Consolas, Monaco, monospace"
                                     font.bold: true
                                 }
@@ -417,8 +421,8 @@ Item {
                                 Item { Layout.fillWidth: true }
 
                                 BusyIndicator {
-                                    Layout.preferredWidth: App.Spacing.dp(16)
-                                    Layout.preferredHeight: App.Spacing.dp(16)
+                                    Layout.preferredWidth: dp(16)
+                                    Layout.preferredHeight: dp(16)
                                     running: isLoading
                                     visible: isLoading
                                 }
@@ -433,7 +437,7 @@ Item {
                             Flickable {
                                 id: terminalFlickable
                                 anchors.fill: parent
-                                anchors.margins: App.Spacing.dp(8)
+                                anchors.margins: dp(8)
                                 contentWidth: width
                                 contentHeight: terminalContent.height
                                 clip: true
@@ -443,7 +447,7 @@ Item {
                                 Column {
                                     id: terminalContent
                                     width: terminalFlickable.width
-                                    spacing: App.Spacing.dp(3)
+                                    spacing: dp(3)
 
                                     Repeater {
                                         model: terminalOutput.lines
@@ -452,7 +456,7 @@ Item {
                                             width: terminalContent.width
                                             text: modelData.text
                                             color: modelData.color || "#00ff00"
-                                            font.pixelSize: App.Spacing.dp(18)
+                                            font.pixelSize: dp(18)
                                             font.family: "Consolas, Monaco, monospace"
                                             wrapMode: Text.WrapAtWordBoundaryOrAnywhere
                                         }
@@ -471,7 +475,7 @@ Item {
                                 anchors.centerIn: parent
                                 visible: terminalOutput.lines.length === 0 && !isLoading
                                 text: "> Awaiting command..."
-                                font.pixelSize: App.Spacing.dp(20)
+                                font.pixelSize: dp(20)
                                 font.family: "Consolas, Monaco, monospace"
                                 color: "#00ff00"
                                 opacity: 0.5
@@ -481,10 +485,10 @@ Item {
                             Rectangle {
                                 visible: terminalOutput.lines.length === 0 && !isLoading
                                 anchors.left: parent.horizontalCenter
-                                anchors.leftMargin: App.Spacing.dp(70)
+                                anchors.leftMargin: dp(70)
                                 anchors.verticalCenter: parent.verticalCenter
-                                width: App.Spacing.dp(8)
-                                height: App.Spacing.dp(14)
+                                width: dp(8)
+                                height: dp(14)
                                 color: "#00ff00"
                                 opacity: cursorTimer.blink ? 0.8 : 0
 
@@ -553,19 +557,19 @@ Item {
                     Layout.fillHeight: true
                     Layout.row: 1
                     Layout.column: 3
-                    radius: App.Spacing.dpMin(12, 2)
+                    radius: dpMin(12, 2)
                     color: mouseAreaClearDTC.pressed ? Qt.darker("#CC0000", 1.2) : "#CC0000"
 
                     Column {
                         anchors.centerIn: parent
-                        width: parent.width - App.Spacing.dp(16)
-                        spacing: App.Spacing.dp(8)
+                        width: parent.width - dp(16)
+                        spacing: dp(8)
 
                         Text {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Clear DTCs"
-                            font.pixelSize: Math.min(App.Spacing.dp(32), parent.width * 0.16)
+                            font.pixelSize: Math.min(dp(32), parent.width * 0.16)
                             font.bold: true
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
@@ -576,7 +580,7 @@ Item {
                             width: parent.width
                             horizontalAlignment: Text.AlignHCenter
                             text: "Reset CEL & codes"
-                            font.pixelSize: Math.min(App.Spacing.dp(18), parent.width * 0.09)
+                            font.pixelSize: Math.min(dp(18), parent.width * 0.09)
                             font.family: obdDiagnosticsPage.globalFont
                             color: "white"
                             opacity: 0.8
@@ -601,25 +605,25 @@ Item {
         id: clearConfirmDialog
         title: "Clear Diagnostic Trouble Codes"
         anchors.centerIn: parent
-        width: App.Spacing.dp(400)
+        width: dp(400)
         modal: true
         standardButtons: Dialog.Yes | Dialog.No
 
         background: Rectangle {
             color: App.Style.backgroundColor
-            radius: App.Spacing.dpMin(8, 2)
+            radius: dpMin(8, 2)
             border.color: accentColor
             border.width: 2
         }
 
         contentItem: ColumnLayout {
-            spacing: App.Spacing.dp(15)
+            spacing: dp(15)
 
             Text {
                 Layout.fillWidth: true
-                Layout.preferredWidth: App.Spacing.dp(360)
+                Layout.preferredWidth: dp(360)
                 text: "Are you sure you want to clear all DTCs?"
-                font.pixelSize: App.Spacing.dp(16)
+                font.pixelSize: dp(16)
                 font.family: obdDiagnosticsPage.globalFont
                 color: obdDiagnosticsPage.textColor
                 wrapMode: Text.WordWrap
@@ -628,7 +632,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: "This will also reset the Check Engine Light and clear freeze frame data."
-                font.pixelSize: App.Spacing.dp(14)
+                font.pixelSize: dp(14)
                 font.family: obdDiagnosticsPage.globalFont
                 color: obdDiagnosticsPage.textColor
                 opacity: 0.7
@@ -638,7 +642,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: "Warning: This may affect emissions testing readiness."
-                font.pixelSize: App.Spacing.dp(13)
+                font.pixelSize: dp(13)
                 font.family: obdDiagnosticsPage.globalFont
                 color: "#FF6600"
                 wrapMode: Text.WordWrap

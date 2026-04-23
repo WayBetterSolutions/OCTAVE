@@ -13,6 +13,9 @@
  */
 
 #include "gesturemanager.h"
+
+#ifndef Q_OS_MOBILE
+
 #include "settingsmanager.h"
 
 #include <QLoggingCategory>
@@ -714,3 +717,5 @@ void GestureManager::cleanup()
     m_shuttingDown = true;
     stopWorker();
 }
+
+#endif // Q_OS_MOBILE

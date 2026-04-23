@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import "." as App
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: card
 
     property string label: ""
@@ -16,34 +20,34 @@ Rectangle {
 
     Layout.fillWidth: true
     Layout.fillHeight: true
-    Layout.minimumHeight: App.Spacing.dp(100)
-    radius: App.Spacing.dp(10)
+    Layout.minimumHeight: dp(100)
+    radius: dp(10)
     color: App.Style.headerBackgroundColor
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: App.Spacing.dp(14)
-        spacing: App.Spacing.dp(6)
+        anchors.margins: dp(14)
+        spacing: dp(6)
 
         // Label row
         RowLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
-            spacing: App.Spacing.dp(6)
+            spacing: dp(6)
 
             Text {
                 text: card.icon
                 color: App.Style.accent
-                font.pixelSize: App.Spacing.dp(16)
+                font.pixelSize: dp(16)
             }
 
             Text {
                 text: card.label
                 color: App.Style.secondaryTextColor
-                font.pixelSize: App.Spacing.dp(11)
+                font.pixelSize: dp(11)
                 font.bold: true
                 font.family: card.globalFont
-                font.letterSpacing: App.Spacing.dp(1.5)
+                font.letterSpacing: dp(1.5)
             }
         }
 
@@ -55,7 +59,7 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             text: connected ? card.value : "--"
             color: App.Style.primaryTextColor
-            font.pixelSize: App.Spacing.dp(36)
+            font.pixelSize: dp(36)
             font.bold: true
             font.family: card.globalFont
 
@@ -70,15 +74,15 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             text: card.unit
             color: App.Style.secondaryTextColor
-            font.pixelSize: App.Spacing.dp(14)
+            font.pixelSize: dp(14)
             font.family: card.globalFont
         }
 
         // Optional bar indicator
         Rectangle {
             Layout.fillWidth: true
-            height: App.Spacing.dp(4)
-            radius: App.Spacing.dp(2)
+            height: dp(4)
+            radius: dp(2)
             color: Qt.rgba(App.Style.secondaryTextColor.r, App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.2)
             visible: card.barValue >= 0
 

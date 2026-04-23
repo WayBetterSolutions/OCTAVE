@@ -15,6 +15,7 @@
 #include <QtConcurrent>
 #include <QColor>
 
+#ifndef Q_OS_MOBILE
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 #include <taglib/tpropertymap.h>
@@ -29,6 +30,12 @@
 #include <taglib/oggfile.h>
 #include <taglib/vorbisfile.h>
 #include <taglib/xiphcomment.h>
+#endif // Q_OS_MOBILE
+
+#ifdef Q_OS_ANDROID
+#include "../platform/androidmediabridge.h"
+#include <QUrl>
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -43,6 +50,10 @@ Q_LOGGING_CATEGORY(lcMedia, "octave.media")
 const QStringList MediaManager::s_audioExtensions = {
     QStringLiteral(".mp3"),
     QStringLiteral(".m4a"),
+    // YouTube serves audio-only streams in an MP4 container that yt-dlp names
+    // with a literal .mp4 extension. Treat those as audio — they're the same
+    // format as .m4a, just a different extension.
+    QStringLiteral(".mp4"),
     QStringLiteral(".flac"),
     QStringLiteral(".ogg"),
     QStringLiteral(".opus"),
@@ -80,9 +91,11 @@ QRegularExpression MediaManager::s_trackNumRe(
 );
 
 // ─── Helper: does a filename end with a known audio extension? ─────
+// Keep in sync with MediaManager::s_audioExtensions above.
 static const QStringList s_audioExts = {
-    QStringLiteral(".mp3"), QStringLiteral(".m4a"), QStringLiteral(".flac"),
-    QStringLiteral(".ogg"), QStringLiteral(".opus"), QStringLiteral(".wav")
+    QStringLiteral(".mp3"), QStringLiteral(".m4a"), QStringLiteral(".mp4"),
+    QStringLiteral(".flac"), QStringLiteral(".ogg"), QStringLiteral(".opus"),
+    QStringLiteral(".wav")
 };
 
 static bool hasAudioExtension(const QString &filename)
@@ -112,11 +125,22 @@ MediaManager::MediaManager(QObject *parent)
     m_player->setAudioOutput(m_audioOutput);
     m_audioOutput->setVolume(0.5f);
 
-    // Directories — use application dir as base, like the Python backend/ dir
+    // Directories — use application dir as base, like the Python backend/ dir.
+    // On Android, applicationDirPath is /data/app/.../lib (not writable by us),
+    // so use the standard Music location for default library + app's
+    // writable data dir for temp.
     m_backendDir = QCoreApplication::applicationDirPath();
+#ifdef Q_OS_ANDROID
+    m_defaultMediaDir = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+    if (m_defaultMediaDir.isEmpty())
+        m_defaultMediaDir = QStringLiteral("/sdcard/Music");
+    m_tempDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                + QStringLiteral("/temp");
+#else
     m_defaultMediaDir = m_backendDir + QStringLiteral("/media");
-    m_mediaDir = m_defaultMediaDir;
     m_tempDir = m_backendDir + QStringLiteral("/temp");
+#endif
+    m_mediaDir = m_defaultMediaDir;
 
     // Connect player signals
     connect(m_player, &QMediaPlayer::durationChanged, this, &MediaManager::durationChanged);
@@ -352,6 +376,51 @@ void MediaManager::_cache_metadata(const QString &filename)
 
     const QString ext = QFileInfo(filePath).suffix().toLower();
 
+#ifdef Q_OS_ANDROID
+    // Android: use MediaMetadataRetriever via JNI (no TagLib cross-compile).
+    // Returns "title\n<t>\nartist\n<a>\nalbum\n<al>\nduration\n<secs>".
+    QString meta = OctaveAndroid::readMetadata(filePath);
+    QString title, artist, album;
+    int duration = 0;
+    if (!meta.isEmpty()) {
+        const QStringList lines = meta.split(QLatin1Char('\n'));
+        for (int i = 0; i + 1 < lines.size(); i += 2) {
+            const QString &k = lines.at(i);
+            const QString &v = lines.at(i + 1);
+            if      (k == QLatin1String("title"))    title    = v;
+            else if (k == QLatin1String("artist"))   artist   = v;
+            else if (k == QLatin1String("album"))    album    = v;
+            else if (k == QLatin1String("duration")) duration = v.toInt();
+        }
+    }
+    if (title.isEmpty())  title  = baseName;
+    if (artist.isEmpty()) artist = QStringLiteral("Unknown Artist");
+    if (album.isEmpty())  album  = QStringLiteral("Unknown Album");
+    m_metadataCache.insert(filename, {title, artist, album, duration});
+
+    // Album art: extract embedded picture to the temp dir.
+    const QString albumId = _get_album_id(filename);
+    if (!m_albumArtCache.contains(albumId)) {
+        _manage_cache(albumId);
+        m_accessCount[albumId] = m_accessCount.value(albumId, 0) + 1;
+
+        const QByteArray cacheKey = (albumId + QStringLiteral("_0")).toUtf8();
+        const QByteArray hash = QCryptographicHash::hash(cacheKey, QCryptographicHash::Sha256).toHex().left(16);
+        const QString tempPath = m_tempDir + QStringLiteral("/cover_")
+                                + QString::fromLatin1(hash) + QStringLiteral(".jpg");
+        if (!QFile::exists(tempPath) && OctaveAndroid::extractAlbumArt(filePath, tempPath)) {
+            m_albumArtCache.insert(albumId, QUrl::fromLocalFile(tempPath).toString());
+        } else if (QFile::exists(tempPath)) {
+            m_albumArtCache.insert(albumId, QUrl::fromLocalFile(tempPath).toString());
+        }
+    }
+    return;
+#elif defined(Q_OS_MOBILE)
+    // Non-Android mobile (iOS, future): no TagLib yet. Filename-only fallback.
+    m_metadataCache.insert(filename, {baseName, QStringLiteral("Unknown Artist"),
+                                      QStringLiteral("Unknown Album"), 0});
+    return;
+#else
     // Use TagLib's FileRef for generic metadata reading
     TagLib::FileRef fileRef(filePath.toUtf8().constData());
     if (fileRef.isNull() || !fileRef.tag()) {
@@ -399,6 +468,7 @@ void MediaManager::_cache_metadata(const QString &filename)
             m_albumArtCache.insert(albumId, artUrl);
         }
     }
+#endif // Q_OS_MOBILE
 }
 
 void MediaManager::_emit_metadata(const QString &filename)
@@ -462,6 +532,14 @@ void MediaManager::_manage_cache(const QString &newAlbumId)
 }
 
 // ─── Album art extraction via TagLib ───────────────────────────────
+// On mobile (Q_OS_MOBILE), all four extractors return empty — TagLib isn't linked.
+
+#ifdef Q_OS_MOBILE
+QString MediaManager::_extract_album_art_mp3(const QString &, const QString &) { return {}; }
+QString MediaManager::_extract_album_art_mp4(const QString &, const QString &) { return {}; }
+QString MediaManager::_extract_album_art_flac(const QString &, const QString &) { return {}; }
+QString MediaManager::_extract_album_art_ogg(const QString &, const QString &) { return {}; }
+#else
 
 QString MediaManager::_extract_album_art_mp3(const QString &filePath, const QString &albumId)
 {
@@ -613,6 +691,8 @@ QString MediaManager::_extract_album_art_ogg(const QString &filePath, const QStr
 
     return QUrl::fromLocalFile(tempPath).toString();
 }
+
+#endif // Q_OS_MOBILE
 
 // ─── Album art public API ──────────────────────────────────────────
 
@@ -1639,6 +1719,73 @@ void MediaManager::_scan_library_inner(bool resetDisplayNames)
         }
     }
 
+#ifdef Q_OS_ANDROID
+    // Android: also scan the app's external-files "Music" directory (and its
+    // immediate subfolders) where the downloader writes files. Qt's library
+    // root is at /sdcard/Music, but yt-dlp can only write to the scoped-storage
+    // app-private dir. So we walk the app's own Music dir here and merge its
+    // subfolder contents as extra playlists.
+    {
+        const QString appMusicRoot = OctaveAndroid::getDownloadsDir();
+        qCInfo(lcMedia) << "Android secondary scan root:" << appMusicRoot;
+        QDir rootDir(appMusicRoot);
+        if (rootDir.exists()) {
+            // Walk each subfolder as a playlist (Downloads, Unsorted, etc.)
+            const QStringList subs = rootDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            qCInfo(lcMedia) << "Android secondary subfolders found:" << subs
+                            << "(total entries:" << rootDir.entryList().size() << ")";
+            for (const QString &sub : subs) {
+                const QString subPath = rootDir.filePath(sub);
+                QDir subDir(subPath);
+                QStringList songs;
+                for (const QFileInfo &fi : subDir.entryInfoList(QDir::Files)) {
+                    if (hasAudioExtension(fi.fileName())) {
+                        QString uniqueName = fi.fileName();
+                        if (m_allMusicFilePaths.contains(fi.fileName())) {
+                            uniqueName = sub + QStringLiteral(" - ") + fi.fileName();
+                        }
+                        songs.append(uniqueName);
+                        m_allMusicFilePaths.insert(uniqueName, subPath);
+                        allMusicFiles.append(uniqueName);
+                    }
+                }
+                if (!songs.isEmpty()) {
+                    // If the library root scan already found a playlist with
+                    // this name (e.g. "Downloads"), MERGE the app-dir songs
+                    // into it so the user sees one unified playlist. Each
+                    // song tracks its own source path via m_allMusicFilePaths.
+                    if (m_playlists.contains(sub)) {
+                        PlaylistInfo &existing = m_playlists[sub];
+                        existing.files.append(songs);
+                        existing.songCount = existing.files.size();
+                        qCInfo(lcMedia) << "Merged" << songs.size()
+                                         << "app-dir songs into existing playlist:" << sub;
+                        emit scanProgress(
+                            QStringLiteral("[MERGED] '%1' +%2 from app dir")
+                                .arg(sub).arg(songs.size()));
+                    } else {
+                        PlaylistInfo info;
+                        info.name = sub;
+                        info.path = subPath;
+                        info.files = songs;
+                        info.songCount = songs.size();
+                        m_playlists.insert(sub, info);
+                        m_playlistNames.append(sub);
+                        qCInfo(lcMedia) << "Android playlist:" << sub
+                                         << "at" << subPath
+                                         << "songs:" << songs.size();
+                        emit scanProgress(
+                            QStringLiteral("[FOUND] '%1' (app dir) - %2 songs")
+                                .arg(sub).arg(songs.size()));
+                    }
+                }
+            }
+        } else {
+            qCInfo(lcMedia) << "Android secondary scan root does not exist:" << appMusicRoot;
+        }
+    }
+#endif
+
     // Create "All Music" combined playlist
     if (!allMusicFiles.isEmpty()) {
         PlaylistInfo info;
@@ -1786,8 +1933,16 @@ QString MediaManager::_get_file_path(const QString &filename)
         filePath = m_mediaDir + QDir::separator() + filename;
     }
 
-    // Validate path is within library root
+    // Validate path is within library root. On Android we also accept the
+    // app's external-files Music dir as a secondary valid root — that's where
+    // the downloader writes (scoped-storage-safe path).
     if (!m_libraryRoot.isEmpty() && !_is_safe_path(m_libraryRoot, filePath)) {
+#ifdef Q_OS_ANDROID
+        const QString androidRoot = OctaveAndroid::getDownloadsDir();
+        if (!androidRoot.isEmpty() && _is_safe_path(androidRoot, filePath)) {
+            return filePath;
+        }
+#endif
         qCInfo(lcMedia) << "Path validation failed - file outside library:" << filePath;
         return {};
     }
@@ -2071,6 +2226,7 @@ bool MediaManager::play_file_at_path(const QString &filePath)
     const QString fileDir = fi.canonicalPath();
     const QString filename = fi.fileName();
 
+    // Prefer the playlist whose on-disk directory matches the file's directory.
     for (auto it = m_playlists.constBegin(); it != m_playlists.constEnd(); ++it) {
         if (it->isCombined)
             continue;
@@ -2079,6 +2235,24 @@ bool MediaManager::play_file_at_path(const QString &filePath)
             select_playlist(it.key());
             play_file(filename);
             qCInfo(lcMedia) << "play_file_at_path: playing" << filename << "from" << it.key();
+            return true;
+        }
+    }
+
+    // Fallback: any playlist that lists the filename, regardless of its
+    // configured path. Handles the Android dual-root case where "Downloads"
+    // is merged from /sdcard/Music/Downloads (the playlist's stored path)
+    // AND the app-external files/Music/Downloads (where the files actually
+    // live). Without this, play_file_at_path fails for every downloaded
+    // song on Android.
+    for (auto it = m_playlists.constBegin(); it != m_playlists.constEnd(); ++it) {
+        if (it->isCombined)
+            continue;
+        if (it->files.contains(filename)) {
+            select_playlist(it.key());
+            play_file(filename);
+            qCInfo(lcMedia) << "play_file_at_path: playing" << filename
+                            << "from" << it.key() << "(filename-only match)";
             return true;
         }
     }
@@ -2290,10 +2464,15 @@ QString MediaManager::get_display_name(const QString &filename)
 {
     if (m_displayNames.contains(filename))
         return m_displayNames.value(filename);
-    // Fallback: strip .mp3 extension
+    // Fallback: strip any recognised audio extension
     QString name = filename;
-    if (name.toLower().endsWith(QStringLiteral(".mp3")))
-        name.chop(4);
+    const QString lower = name.toLower();
+    for (const QString &ext : s_audioExtensions) {
+        if (lower.endsWith(ext)) {
+            name.chop(ext.size());
+            break;
+        }
+    }
     return name;
 }
 

@@ -1,6 +1,10 @@
 #ifndef SPOTIFYMANAGER_H
 #define SPOTIFYMANAGER_H
 
+// Spotify is desktop-only — excluded from Android builds (no OAuth URI-scheme
+// redirect handler wired yet, and per scope decision Spotify lives on desktop).
+#ifndef Q_OS_MOBILE
+
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -290,4 +294,80 @@ private:
     QString m_lastExtractedImageUrl;
 };
 
+#else // Q_OS_MOBILE — mobile stub keeps QML bindings valid
+
+#include <QObject>
+#include <QString>
+#include <QVariantList>
+#include <QVariantMap>
+
+class SpotifyManager : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(bool connected READ is_connected NOTIFY connectionStateChanged)
+public:
+    explicit SpotifyManager(QObject *parent = nullptr) : QObject(parent) {}
+    void setSettingsManager(QObject *) {}
+    void cleanup() {}
+
+    Q_INVOKABLE bool is_connected() const { return false; }
+    Q_INVOKABLE bool is_playing() const { return false; }
+    Q_INVOKABLE bool is_shuffled() const { return false; }
+    Q_INVOKABLE bool has_credentials() const { return false; }
+    Q_INVOKABLE bool has_spotify_playlist_loaded() const { return false; }
+    Q_INVOKABLE QString get_current_track_name() const { return {}; }
+    Q_INVOKABLE QString get_current_artist() const { return {}; }
+    Q_INVOKABLE QString get_current_album() const { return {}; }
+    Q_INVOKABLE QString get_current_album_art() const { return {}; }
+    Q_INVOKABLE QString get_current_spotify_playlist_name() const { return {}; }
+    Q_INVOKABLE QString get_current_spotify_playlist_id() const { return {}; }
+    Q_INVOKABLE int get_duration() const { return 0; }
+    Q_INVOKABLE int get_position() const { return 0; }
+    Q_INVOKABLE QVariantList get_spotify_playlist_names() const { return {}; }
+    Q_INVOKABLE QVariantList get_devices() const { return {}; }
+    Q_INVOKABLE QVariantMap get_previous_track_info() const { return {}; }
+    Q_INVOKABLE QVariantMap get_next_track_info() const { return {}; }
+    Q_INVOKABLE QString get_spotify_playlist_id(const QString &) const { return {}; }
+    Q_INVOKABLE QString get_spotify_track_image(const QString &) const { return {}; }
+    Q_INVOKABLE QString get_spotify_track_duration_formatted(const QString &) const { return {}; }
+    Q_INVOKABLE QString get_spotify_track_artist(const QString &) const { return {}; }
+    Q_INVOKABLE QString get_spotify_track_album(const QString &) const { return {}; }
+    Q_INVOKABLE QString get_spotify_track_uri(const QString &) const { return {}; }
+
+public slots:
+    void previous_track() {}
+    void next_track() {}
+    void toggle_play() {}
+    void pause() {}
+    void toggle_shuffle() {}
+    void set_position(int) {}
+    void set_volume(int) {}
+    void authenticate() {}
+    void disconnect() {}   // intentionally shadows QObject::disconnect; QML calls this
+    void refresh_devices() {}
+    void set_active_device(const QString &) {}
+    void select_spotify_playlist(const QString &) {}
+    void play_uri(const QString &) {}
+
+signals:
+    void connectionStateChanged(bool);
+    void errorOccurred(const QString &);
+    void playStateChanged(bool);
+    void currentTrackChanged(const QString &, const QString &, const QString &, const QString &);
+    void durationChanged(int);
+    void positionChanged(int);
+    void shuffleStateChanged(bool);
+    void volumeChanged(int);
+    void devicesChanged(const QVariantList &);
+    void activeDeviceChanged(const QString &);
+    void playlistsChanged(const QVariantList &);
+    void spotifyTracksChanged(const QVariantList &);
+    void currentSpotifyPlaylistChanged(const QString &);
+    void authUrlReady(const QString &);
+    void statusProgress(const QString &);
+    void albumColorsExtracted(const QString &);
+    void queueUpdated();
+};
+
+#endif // Q_OS_MOBILE
 #endif // SPOTIFYMANAGER_H

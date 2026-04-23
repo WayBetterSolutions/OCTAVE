@@ -61,5 +61,18 @@ private:
     QTimer m_updateTimer;
 };
 
+#else // Q_OS_MOBILE — mobile stub
+
+#include <QQuickItem>
+#include <QtQml/qqmlregistration.h>
+
+class EmbeddedScrcpyItem : public QQuickItem
+{
+    Q_OBJECT
+    QML_ELEMENT
+public:
+    explicit EmbeddedScrcpyItem(QQuickItem *parent = nullptr) : QQuickItem(parent) {}
+};
+
 #endif // Q_OS_MOBILE
 #endif // EMBEDDEDSCRCPYITEM_H

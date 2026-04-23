@@ -5,6 +5,10 @@ import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Flickable {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     contentWidth: width
     contentHeight: accessoriesColumn.implicitHeight
     flickableDirection: Flickable.VerticalFlick
@@ -65,9 +69,9 @@ Flickable {
 
                 Rectangle {
                     id: esp32StatusDot
-                    width: App.Spacing.dp(14)
-                    height: App.Spacing.dp(14)
-                    radius: App.Spacing.dpMin(7, 2)
+                    width: dp(14)
+                    height: dp(14)
+                    radius: dpMin(7, 2)
                     color: (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected()) ? App.Style.statusConnected : App.Style.statusDisconnected
 
                     Connections {
@@ -116,7 +120,7 @@ Flickable {
                         width: refreshChipText.width + App.Spacing.overallSpacing * 2
                         height: App.Spacing.formElementHeight * 0.7
                         radius: App.EnvironmentTheme.active.chipRadius === -1
-                            ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                            ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
                         color: refreshChipArea.containsMouse ? App.Style.hoverColor : "transparent"
                         border.width: 1
                         border.color: App.EnvironmentTheme.active.chipAccentBorder
@@ -174,7 +178,7 @@ Flickable {
                                 width: portChipContent.width + App.Spacing.overallSpacing * 3
                                 height: App.Spacing.formElementHeight * 0.9
                                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                                    ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                 color: portChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -192,7 +196,7 @@ Flickable {
                                 Row {
                                     id: portChipContent
                                     anchors.centerIn: parent
-                                    spacing: App.Spacing.dp(6)
+                                    spacing: dp(6)
 
                                     Text {
                                         visible: modelData.isEsp32S3
@@ -257,7 +261,7 @@ Flickable {
                         width: noPortsText.width + App.Spacing.overallSpacing * 3
                         height: App.Spacing.formElementHeight * 0.9
                         radius: App.EnvironmentTheme.active.chipRadius === -1
-                            ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                            ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
                         color: "transparent"
                         border.width: 1
                         border.color: App.EnvironmentTheme.active.chipAccentBorder
@@ -377,7 +381,7 @@ Flickable {
                                 width: presetText.width + App.Spacing.overallSpacing * 2
                                 height: App.Spacing.formElementHeight * 0.7
                                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                                    ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                 color: presetChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -512,7 +516,7 @@ Flickable {
                             width: themeModeContent.width + App.Spacing.overallSpacing * 3
                             height: App.Spacing.formElementHeight * 0.9
                             radius: App.EnvironmentTheme.active.chipRadius === -1
-                                ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                                ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
                             color: themeModeChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
                             border.width: App.EnvironmentTheme.active.chipAccentBorder
@@ -529,7 +533,7 @@ Flickable {
                             Row {
                                 id: themeModeContent
                                 anchors.centerIn: parent
-                                spacing: App.Spacing.dp(6)
+                                spacing: dp(6)
 
                                 Text {
                                     text: "\u2728"
@@ -594,7 +598,7 @@ Flickable {
                             width: staticModeContent.width + App.Spacing.overallSpacing * 3
                             height: App.Spacing.formElementHeight * 0.9
                             radius: App.EnvironmentTheme.active.chipRadius === -1
-                                ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                                ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
                             color: staticModeChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
                             border.width: App.EnvironmentTheme.active.chipAccentBorder
@@ -611,7 +615,7 @@ Flickable {
                             Row {
                                 id: staticModeContent
                                 anchors.centerIn: parent
-                                spacing: App.Spacing.dp(6)
+                                spacing: dp(6)
 
                                 Rectangle {
                                     width: App.Spacing.overallText
@@ -711,7 +715,7 @@ Flickable {
                                 width: colorChipRow.width + App.Spacing.overallSpacing * 2
                                 height: App.Spacing.formElementHeight * 0.8
                                 radius: App.EnvironmentTheme.active.chipRadius === -1
-                                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                                    ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                 color: colorChipWrapper.isSelected ? modelData.color : App.Style.hoverColor
                                 border.width: App.EnvironmentTheme.active.chipAccentBorder ? 1 : 2
@@ -724,12 +728,12 @@ Flickable {
                                 Row {
                                     id: colorChipRow
                                     anchors.centerIn: parent
-                                    spacing: App.Spacing.dp(6)
+                                    spacing: dp(6)
 
                                     Rectangle {
-                                        width: App.Spacing.dp(12)
-                                        height: App.Spacing.dp(12)
-                                        radius: App.Spacing.dpMin(6, 2)
+                                        width: dp(12)
+                                        height: dp(12)
+                                        radius: dpMin(6, 2)
                                         color: modelData.color
                                         border.width: 1
                                         border.color: Qt.rgba(0, 0, 0, 0.2)
@@ -791,9 +795,9 @@ Flickable {
                     }
 
                     Rectangle {
-                        width: App.Spacing.dp(32)
-                        height: App.Spacing.dp(32)
-                        radius: App.Spacing.dpMin(App.EnvironmentTheme.active.textFieldRadius, 2)
+                        width: dp(32)
+                        height: dp(32)
+                        radius: dpMin(App.EnvironmentTheme.active.textFieldRadius, 2)
                         color: settingsManager ? settingsManager.esp32LedStaticColor : "#00FFFF"
                         border.width: 2
                         border.color: App.Style.hoverColor
@@ -801,7 +805,7 @@ Flickable {
 
                     SettingsTextField {
                         id: customColorField
-                        Layout.preferredWidth: App.Spacing.dp(120)
+                        Layout.preferredWidth: dp(120)
                         text: settingsManager ? settingsManager.esp32LedStaticColor : "#00FFFF"
                         placeholderText: "#RRGGBB"
 
@@ -837,9 +841,9 @@ Flickable {
 
                 Rectangle {
                     id: imuStatusDot
-                    width: App.Spacing.dp(14)
-                    height: App.Spacing.dp(14)
-                    radius: App.Spacing.dpMin(7, 2)
+                    width: dp(14)
+                    height: dp(14)
+                    radius: dpMin(7, 2)
 
                     property string currentStatus: (typeof berryIMU !== "undefined" && berryIMU) ? berryIMU.getConnectionStatus() : "Disconnected"
                     color: currentStatus === "Connected" ? App.Style.statusConnected : App.Style.statusDisconnected
@@ -912,9 +916,9 @@ Flickable {
 
                 Rectangle {
                     id: gestureStatusDot
-                    width: App.Spacing.dp(14)
-                    height: App.Spacing.dp(14)
-                    radius: App.Spacing.dpMin(7, 2)
+                    width: dp(14)
+                    height: dp(14)
+                    radius: dpMin(7, 2)
 
                     property string currentStatus: (typeof gestureSensor !== "undefined" && gestureSensor) ? gestureSensor.getConnectionStatus() : "Disconnected"
                     color: currentStatus === "Connected" ? App.Style.statusConnected : App.Style.statusDisconnected
@@ -1026,8 +1030,8 @@ Flickable {
                     background: Rectangle {
                         x: gsVolumeStepSlider.leftPadding
                         y: gsVolumeStepSlider.topPadding + gsVolumeStepSlider.availableHeight / 2 - height / 2
-                        implicitWidth: App.Spacing.dp(200)
-                        implicitHeight: App.Spacing.dp(6)
+                        implicitWidth: dp(200)
+                        implicitHeight: dp(6)
                         width: gsVolumeStepSlider.availableWidth
                         height: implicitHeight
                         radius: 3
@@ -1044,9 +1048,9 @@ Flickable {
                     handle: Rectangle {
                         x: gsVolumeStepSlider.leftPadding + gsVolumeStepSlider.visualPosition * (gsVolumeStepSlider.availableWidth - width)
                         y: gsVolumeStepSlider.topPadding + gsVolumeStepSlider.availableHeight / 2 - height / 2
-                        implicitWidth: App.Spacing.dp(20)
-                        implicitHeight: App.Spacing.dp(20)
-                        radius: App.Spacing.dpMin(10, 2)
+                        implicitWidth: dp(20)
+                        implicitHeight: dp(20)
+                        radius: dpMin(10, 2)
                         color: gsVolumeStepSlider.pressed ? Qt.darker(App.Style.accent, 1.1) : App.Style.accent
                         border.color: "white"
                         border.width: 2
@@ -1135,8 +1139,8 @@ Flickable {
                     background: Rectangle {
                         x: cooldownSlider.leftPadding
                         y: cooldownSlider.topPadding + cooldownSlider.availableHeight / 2 - height / 2
-                        implicitWidth: App.Spacing.dp(200)
-                        implicitHeight: App.Spacing.dp(6)
+                        implicitWidth: dp(200)
+                        implicitHeight: dp(6)
                         width: cooldownSlider.availableWidth
                         height: implicitHeight
                         radius: 3
@@ -1153,9 +1157,9 @@ Flickable {
                     handle: Rectangle {
                         x: cooldownSlider.leftPadding + cooldownSlider.visualPosition * (cooldownSlider.availableWidth - width)
                         y: cooldownSlider.topPadding + cooldownSlider.availableHeight / 2 - height / 2
-                        implicitWidth: App.Spacing.dp(20)
-                        implicitHeight: App.Spacing.dp(20)
-                        radius: App.Spacing.dpMin(10, 2)
+                        implicitWidth: dp(20)
+                        implicitHeight: dp(20)
+                        radius: dpMin(10, 2)
                         color: cooldownSlider.pressed ? Qt.darker(App.Style.accent, 1.1) : App.Style.accent
                         border.color: "white"
                         border.width: 2
@@ -1253,8 +1257,8 @@ Flickable {
 
                                     Rectangle {
                                         anchors.centerIn: actionChipRect
-                                        width: actionChipRect.width + App.Spacing.dp(4)
-                                        height: actionChipRect.height + App.Spacing.dp(4)
+                                        width: actionChipRect.width + dp(4)
+                                        height: actionChipRect.height + dp(4)
                                         radius: actionChipRect.radius + 2
                                         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.25)
                                         visible: App.EnvironmentTheme.active.chipAccentBorder && actionChipWrapper.isSelected
@@ -1265,7 +1269,7 @@ Flickable {
                                         width: actionChipText.width + App.Spacing.overallSpacing * 3
                                         height: App.Spacing.formElementHeight * 0.8
                                         radius: App.EnvironmentTheme.active.chipRadius === -1
-                                            ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                                            ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                                         color: actionChipWrapper.isSelected ? App.Style.accent : App.Style.hoverColor
 
@@ -1330,7 +1334,7 @@ Flickable {
                     width: resetContent.width + App.Spacing.overallSpacing * 3
                     height: App.Spacing.formElementHeight * 0.9
                     radius: App.EnvironmentTheme.active.chipRadius === -1
-                        ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius, 2)
+                        ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2)
 
                     color: resetArea.containsMouse ? App.Style.hoverColor : "transparent"
 
@@ -1345,7 +1349,7 @@ Flickable {
                     Row {
                         id: resetContent
                         anchors.centerIn: parent
-                        spacing: App.Spacing.dp(6)
+                        spacing: dp(6)
 
                         Text {
                             text: "Reset to Defaults"

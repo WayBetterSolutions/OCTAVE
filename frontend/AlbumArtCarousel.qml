@@ -11,6 +11,10 @@ import "." as App
 // When 3D preview is active, prev/next side cards are visible at idle and
 // all three cards participate in the transition animation.
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: carousel
     clip: false
 
@@ -287,7 +291,7 @@ Item {
 
     function _startSlide() {
         _showExit()
-        var travel = App.Spacing.dp(kSlideDistance)
+        var travel = dp(kSlideDistance)
         exitSnapshot._slideX = 0
         centerCard.opacity = 0
         centerCard.cfOffset = direction === 1 ? travel : -travel

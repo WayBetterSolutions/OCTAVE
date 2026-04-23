@@ -1,10 +1,17 @@
 #include "audioanalyzer.h"
 
 #include <QUrl>
+#include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <QProcess>
+#include <QStandardPaths>
 #include <QtConcurrent>
 #include <QLoggingCategory>
+
+#ifdef Q_OS_ANDROID
+#include "../platform/androidmediabridge.h"
+#endif
 
 #include <algorithm>
 #include <numeric>
@@ -118,7 +125,21 @@ AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
 {
     AnalysisResult result;
 
-    // ── Decode via ffmpeg CLI → raw 32-bit float, 8 kHz, mono ────
+    QByteArray pcmBuffer;
+
+#ifdef Q_OS_ANDROID
+    // Android: waveform disabled for now — youtubedl-android's ffmpeg AAR ships
+    // only the av* shared libraries (libavcodec.so, libavformat.so, etc.), not
+    // a standalone ffmpeg CLI binary we can QProcess-spawn. Proper fix is a
+    // Phase-2 MediaCodec JNI decoder (Android's native audio pipeline). Until
+    // then, return an empty AnalysisResult so the QML waveform simply doesn't
+    // render instead of logging "ffmpeg not available" every track change.
+    Q_UNUSED(filePath);
+    Q_UNUSED(numBars);
+    Q_UNUSED(chunkDuration);
+    return result;
+#else
+    // ── Desktop: decode via ffmpeg CLI → raw 32-bit float, 8 kHz, mono ────
     QProcess proc;
     proc.setProgram(QStringLiteral("ffmpeg"));
     proc.setArguments({
@@ -145,7 +166,8 @@ AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
         return result;
     }
 
-    QByteArray pcmBuffer = proc.readAllStandardOutput();
+    pcmBuffer = proc.readAllStandardOutput();
+#endif
 
     if (pcmBuffer.isEmpty()) {
         qCWarning(lcAudioAnalyzer) << "ffmpeg produced no audio data for" << filePath;

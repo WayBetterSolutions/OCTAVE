@@ -168,6 +168,9 @@ public:
 
     // --- Property getters (Q_INVOKABLE so QML can call them) ---
     Q_INVOKABLE bool isConnected() const;
+    // snake_case alias — the shared QML (OBDHome.qml etc.) calls is_connected()
+    // to match the Python backend's @Slot name. Keep both in lockstep.
+    Q_INVOKABLE bool is_connected() const { return isConnected(); }
 
 public slots:
     // ======================================================================

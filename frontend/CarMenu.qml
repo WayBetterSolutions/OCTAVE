@@ -6,6 +6,10 @@ import QtQuick3D.AssetUtils
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: carMenu
     width: parent.width
     height: parent.height
@@ -183,20 +187,20 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.margins: App.Spacing.overallMargin
             width: parent.width - (App.Spacing.overallMargin * 2)
-            height: App.Spacing.dp(60)
+            height: dp(60)
             color: "#333333"
-            radius: App.Spacing.dpMin(10, 2)
+            radius: dpMin(10, 2)
 
             // LIVE mode: show status and IMU readings
             RowLayout {
                 anchors.centerIn: parent
-                spacing: App.Spacing.dp(20)
+                spacing: dp(20)
                 visible: imuConnected
 
                 // LIVE badge
                 Rectangle {
-                    width: App.Spacing.dp(70)
-                    height: App.Spacing.dp(30)
+                    width: dp(70)
+                    height: dp(30)
                     radius: 5
                     color: "#00AA00"
 
@@ -204,7 +208,7 @@ Item {
                         anchors.centerIn: parent
                         text: "LIVE"
                         color: "white"
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.bold: true
                         font.family: carMenu.globalFont
                     }
@@ -212,8 +216,8 @@ Item {
 
                 // Tare button — zero out current orientation
                 Rectangle {
-                    width: App.Spacing.dp(70)
-                    height: App.Spacing.dp(30)
+                    width: dp(70)
+                    height: dp(30)
                     radius: 5
                     color: tareMouseArea.pressed ? "#0066AA" : "#0088CC"
 
@@ -221,7 +225,7 @@ Item {
                         anchors.centerIn: parent
                         text: "ZERO"
                         color: "white"
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.bold: true
                         font.family: carMenu.globalFont
                     }
@@ -235,8 +239,8 @@ Item {
 
                 // Reset tare
                 Rectangle {
-                    width: App.Spacing.dp(70)
-                    height: App.Spacing.dp(30)
+                    width: dp(70)
+                    height: dp(30)
                     radius: 5
                     color: resetTareMouseArea.pressed ? "#664400" : "#886600"
 
@@ -244,7 +248,7 @@ Item {
                         anchors.centerIn: parent
                         text: "RESET"
                         color: "white"
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.bold: true
                         font.family: carMenu.globalFont
                     }
@@ -259,35 +263,35 @@ Item {
                 Text {
                     text: "Pitch: " + currentPitch.toFixed(1) + "\u00B0"
                     color: "white"
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: dp(13)
                     font.family: carMenu.globalFont
                 }
 
                 Text {
                     text: "Roll: " + currentRoll.toFixed(1) + "\u00B0"
                     color: "white"
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: dp(13)
                     font.family: carMenu.globalFont
                 }
 
                 Text {
                     text: "Heading: " + currentHeading.toFixed(1) + "\u00B0 " + headingToCardinal(currentHeading)
                     color: "white"
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: dp(13)
                     font.family: carMenu.globalFont
                 }
 
                 Text {
                     text: "Alt: " + currentAltitude.toFixed(1) + " m"
                     color: "white"
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: dp(13)
                     font.family: carMenu.globalFont
                 }
 
                 Text {
                     text: currentBaroTemp.toFixed(1) + " \u00B0C"
                     color: "#AAAAAA"
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: dp(13)
                     font.family: carMenu.globalFont
                 }
             }
@@ -295,13 +299,13 @@ Item {
             // Simulation fallback mode: show controls when IMU not connected
             RowLayout {
                 anchors.centerIn: parent
-                spacing: App.Spacing.dp(20)
+                spacing: dp(20)
                 visible: !imuConnected
 
                 // Disconnected badge
                 Rectangle {
-                    width: App.Spacing.dp(90)
-                    height: App.Spacing.dp(30)
+                    width: dp(90)
+                    height: dp(30)
                     radius: 5
                     color: "#666666"
 
@@ -309,7 +313,7 @@ Item {
                         anchors.centerIn: parent
                         text: "NO IMU"
                         color: "#CCCCCC"
-                        font.pixelSize: App.Spacing.dp(12)
+                        font.pixelSize: dp(12)
                         font.bold: true
                         font.family: carMenu.globalFont
                     }
@@ -332,7 +336,7 @@ Item {
                 }
 
                 Slider {
-                    Layout.preferredWidth: App.Spacing.dp(150)
+                    Layout.preferredWidth: dp(150)
                     from: -90
                     to: 90
                     value: currentPitch
@@ -347,13 +351,13 @@ Item {
                         anchors.bottom: parent.top
                         text: "Pitch"
                         color: "white"
-                        font.pixelSize: App.Spacing.dp(12)
+                        font.pixelSize: dp(12)
                         font.family: carMenu.globalFont
                     }
                 }
 
                 Slider {
-                    Layout.preferredWidth: App.Spacing.dp(150)
+                    Layout.preferredWidth: dp(150)
                     from: -90
                     to: 90
                     value: currentRoll
@@ -368,7 +372,7 @@ Item {
                         anchors.bottom: parent.top
                         text: "Roll"
                         color: "white"
-                        font.pixelSize: App.Spacing.dp(12)
+                        font.pixelSize: dp(12)
                         font.family: carMenu.globalFont
                     }
                 }

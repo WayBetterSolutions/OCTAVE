@@ -16,12 +16,20 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QUrl>
 #include <QLoggingCategory>
 
 #ifndef Q_OS_WIN
 #include <csignal>
 #endif
 
+#ifdef Q_OS_ANDROID
+#include "../platform/androidmediabridge.h"
+#include <QFutureWatcher>
+#include <QtConcurrent/QtConcurrent>
+#endif
+
+#ifndef Q_OS_MOBILE
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 #include <taglib/tpropertymap.h>
@@ -38,6 +46,7 @@
 #include <taglib/vorbisfile.h>
 #include <taglib/opusfile.h>
 #include <taglib/xiphcomment.h>
+#endif // Q_OS_MOBILE
 
 Q_LOGGING_CATEGORY(lcDownload, "octave.download")
 
@@ -47,6 +56,9 @@ const QStringList DownloadManager::s_audioExtensions = {
     QStringLiteral(".ogg"),
     QStringLiteral(".opus"),
     QStringLiteral(".m4a"),
+    // yt-dlp names YouTube's m4a audio streams with .mp4 extension (same
+    // container). Treat as audio for post-download detection + library scan.
+    QStringLiteral(".mp4"),
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -102,7 +114,15 @@ void DownloadManager::connect_settings_manager(QObject *sm)
 QString DownloadManager::_getDownloadPath() const
 {
     QString mediaFolder;
-    if (m_settingsManager) {
+#ifdef Q_OS_ANDROID
+    // On Android, route downloads to the app's external files dir to sidestep
+    // scoped-storage restrictions on /storage/emulated/0/Music/. yt-dlp writes
+    // via POSIX fopen; that can only target app-private or app-external dirs
+    // on Android 10+. This dir is still file-explorer-visible and MediaStore-
+    // indexed. Media library is auto-added below via settings.
+    mediaFolder = OctaveAndroid::getDownloadsDir();
+#endif
+    if (mediaFolder.isEmpty() && m_settingsManager) {
         mediaFolder = m_settingsManager->mediaFolder();
     }
     if (mediaFolder.isEmpty()) {
@@ -176,6 +196,14 @@ QString DownloadManager::_findYtDlp() const
         return m_ytDlpPath;
     }
 
+#ifdef Q_OS_ANDROID
+    // On Android, yt-dlp runs through the JNI bridge (youtubedl-android AAR).
+    // There's no binary to find — return a sentinel path so the caller treats
+    // it as "available". The AndroidProcessAdapter ignores the program arg.
+    m_ytDlpPath = QStringLiteral("jni://yt-dlp");
+    return m_ytDlpPath;
+#endif
+
     // Check PATH first
     QString path = QStandardPaths::findExecutable(QStringLiteral("yt-dlp"));
     if (!path.isEmpty()) {
@@ -245,13 +273,58 @@ void DownloadManager::search(const QString &query)
     emit searchInProgress(true);
     emit statusMessage(QStringLiteral("Searching: ") + trimmed);
 
-    m_searchProcess = new QProcess(this);
+    m_searchProcess = new YtDlpProcess(this);
     m_searchProcess->setProcessChannelMode(QProcess::MergedChannels);
 
-    connect(m_searchProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+    connect(m_searchProcess, QOverload<int, QProcess::ExitStatus>::of(&YtDlpProcess::finished),
             this, &DownloadManager::_onSearchProcessFinished);
-    connect(m_searchProcess, &QProcess::errorOccurred,
+    connect(m_searchProcess, &YtDlpProcess::errorOccurred,
             this, &DownloadManager::_onSearchProcessError);
+
+#ifdef Q_OS_ANDROID
+    // On Android, run the bundled ytmusic_search.py against the youtubedl-android
+    // Python runtime directly. Bypasses the yt-dlp process machinery entirely
+    // — the ytmusicapi script returns pre-formatted JSON-per-line in ~1-2s,
+    // and the results are curated songs (not reaction videos / podcasts / tab
+    // pages the way ytsearch: and music.youtube.com/search do).
+    // Discard the process we prepared above; the JNI path doesn't need it.
+    m_searchProcess->disconnect();
+    m_searchProcess->deleteLater();
+    m_searchProcess = nullptr;
+
+    auto *watcher = new QFutureWatcher<QString>(this);
+    connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher]() {
+        const QString output = watcher->result();
+        watcher->deleteLater();
+
+        m_isSearching = false;
+        emit isSearchingChanged(false);
+        emit searchInProgress(false);
+
+        if (output.isEmpty()) {
+            emit searchError(QStringLiteral("YouTube Music search failed"));
+            emit statusMessage(QStringLiteral("Search failed"));
+            return;
+        }
+
+        m_searchBuffer = output.toUtf8();
+        QJsonArray results = _parseSearchOutput(m_searchBuffer);
+        m_searchBuffer.clear();
+        _markDownloaded(results);
+        m_allResults = results;
+        m_searchOffset = results.size();
+
+        QJsonDocument doc(m_allResults);
+        emit searchResults(QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+        emit statusMessage(QStringLiteral("Showing %1 result(s)").arg(m_allResults.size()));
+    });
+    const QString q = trimmed;
+    watcher->setFuture(QtConcurrent::run([q]() {
+        return OctaveAndroid::runYtMusicSearch(q, 25);
+    }));
+    qCInfo(lcDownload) << "Starting search (Android ytmusicapi):" << q;
+    return;
+#endif
 
     // Use ytmusicapi via helper script for curated YouTube Music results.
     // yt-dlp's ytsearch returns generic YouTube videos (wrong thumbnails,
@@ -314,7 +387,7 @@ void DownloadManager::_onSearchProcessFinished(int exitCode, QProcess::ExitStatu
 {
     Q_UNUSED(exitStatus)
 
-    auto *process = qobject_cast<QProcess *>(sender());
+    auto *process = qobject_cast<YtDlpProcess *>(sender());
     if (!process) {
         return;
     }
@@ -357,7 +430,7 @@ void DownloadManager::_onSearchProcessError(QProcess::ProcessError error)
 {
     Q_UNUSED(error)
 
-    auto *process = qobject_cast<QProcess *>(sender());
+    auto *process = qobject_cast<YtDlpProcess *>(sender());
     if (!process) {
         return;
     }
@@ -399,9 +472,17 @@ QJsonArray DownloadManager::_parseSearchOutput(const QByteArray &rawOutput)
         }
 
         QString title = obj.value(QStringLiteral("title")).toString();
+
         QString channel = obj.value(QStringLiteral("channel")).toString();
         if (channel.isEmpty()) {
             channel = obj.value(QStringLiteral("uploader")).toString();
+        }
+        // Try additional artist fields returned by YouTube Music extractor.
+        if (channel.isEmpty()) {
+            channel = obj.value(QStringLiteral("artist")).toString();
+        }
+        if (channel.isEmpty()) {
+            channel = obj.value(QStringLiteral("creator")).toString();
         }
 
         // Duration in seconds (yt-dlp gives numeric or null)
@@ -425,6 +506,18 @@ QJsonArray DownloadManager::_parseSearchOutput(const QByteArray &rawOutput)
             static const QRegularExpression resCropRe(QStringLiteral("=w\\d+-h\\d+.*$"));
             coverUrl.replace(resCropRe, QStringLiteral("=w800-h800-l90-rj"));
         }
+#ifdef Q_OS_ANDROID
+        // Qt's OpenSSL backend isn't shipped in our APK (see ANDROID_BUILD_SETUP.md
+        // OpenSSL deferral), so QML QQuickImage can't load https URLs. Fetch the
+        // thumbnail via Java's HttpURLConnection (uses Android's SSL stack) and
+        // swap cover_url to the local file path.
+        if (!coverUrl.isEmpty() && coverUrl.startsWith(QStringLiteral("http"))) {
+            const QString localPath = OctaveAndroid::cacheHttpImage(coverUrl);
+            if (!localPath.isEmpty()) {
+                coverUrl = QUrl::fromLocalFile(localPath).toString();
+            }
+        }
+#endif
 
         // Album name — yt-dlp flat-playlist may include album in metadata
         QString albumName = obj.value(QStringLiteral("album")).toString();
@@ -476,46 +569,58 @@ QMap<QString, QString> DownloadManager::_getDownloadedFiles() const
 {
     QMap<QString, QString> names;
 
+    // Collect roots to scan. On Android the user-configured mediaFolder is
+    // typically /sdcard/Music while downloads land in the app-external Music
+    // tree (scoped-storage requirement) — MediaManager already knows to scan
+    // both; we mirror that here so is_downloaded tagging sees files wherever
+    // they actually live.
+    QStringList roots;
     if (m_settingsManager) {
-        QString mediaFolder = m_settingsManager->mediaFolder();
+        const QString mediaFolder = m_settingsManager->mediaFolder();
         if (!mediaFolder.isEmpty()) {
-            QDir mediaDir(mediaFolder);
-            if (mediaDir.exists()) {
-                QDirIterator it(mediaFolder, QDirIterator::Subdirectories);
-                while (it.hasNext()) {
-                    it.next();
-                    const QFileInfo fi = it.fileInfo();
-                    if (!fi.isFile()) {
-                        continue;
-                    }
+            roots.append(mediaFolder);
+        }
+    }
+#ifdef Q_OS_ANDROID
+    const QString androidMusicRoot = OctaveAndroid::getDownloadsDir();
+    if (!androidMusicRoot.isEmpty() && !roots.contains(androidMusicRoot)) {
+        roots.append(androidMusicRoot);
+    }
+#endif
 
-                    QString suffix = QStringLiteral(".") + fi.suffix().toLower();
-                    if (!s_audioExtensions.contains(suffix)) {
-                        continue;
-                    }
+    for (const QString &root : roots) {
+        QDir rootDir(root);
+        if (!rootDir.exists()) continue;
 
-                    QString folder = fi.dir().dirName();
-                    // Root-level files belong to "Unsorted"
-                    if (QDir::cleanPath(fi.dir().absolutePath()) ==
-                        QDir::cleanPath(mediaFolder)) {
-                        folder = QStringLiteral("Unsorted");
-                    }
+        QDirIterator it(root, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            it.next();
+            const QFileInfo fi = it.fileInfo();
+            if (!fi.isFile()) continue;
 
-                    names.insert(fi.completeBaseName().toLower(), folder);
-                }
+            const QString suffix = QStringLiteral(".") + fi.suffix().toLower();
+            if (!s_audioExtensions.contains(suffix)) continue;
+
+            QString folder = fi.dir().dirName();
+            // Root-level files belong to "Unsorted"
+            if (QDir::cleanPath(fi.dir().absolutePath()) == QDir::cleanPath(root)) {
+                folder = QStringLiteral("Unsorted");
             }
+            names.insert(fi.completeBaseName().toLower(), folder);
         }
     }
 
-    // Fallback: also check the download subfolder specifically
+    // Last-resort fallback if neither root yielded anything (e.g. very first
+    // download on a fresh install before the media library has been scanned):
+    // probe the configured download subfolder directly.
     if (names.isEmpty()) {
-        QString dlPath = _getDownloadPath();
-        QString folder = QFileInfo(dlPath).fileName();
+        const QString dlPath = _getDownloadPath();
+        const QString folder = QFileInfo(dlPath).fileName();
         QDir dlDir(dlPath);
         if (dlDir.exists()) {
             const QFileInfoList entries = dlDir.entryInfoList(QDir::Files);
             for (const QFileInfo &fi : entries) {
-                QString suffix = QStringLiteral(".") + fi.suffix().toLower();
+                const QString suffix = QStringLiteral(".") + fi.suffix().toLower();
                 if (s_audioExtensions.contains(suffix)) {
                     names.insert(fi.completeBaseName().toLower(), folder);
                 }
@@ -661,7 +766,7 @@ void DownloadManager::cancel_download(const QString &songId)
 {
     // Kill the running process if any
     if (m_downloadProcesses.contains(songId)) {
-        QProcess *proc = m_downloadProcesses.take(songId);
+        YtDlpProcess *proc = m_downloadProcesses.take(songId);
         proc->disconnect();
         proc->kill();
         proc->waitForFinished(3000);
@@ -693,7 +798,7 @@ void DownloadManager::cancel_download(const QString &songId)
 void DownloadManager::pause_download(const QString &songId)
 {
     if (m_downloadProcesses.contains(songId)) {
-        QProcess *proc = m_downloadProcesses.value(songId);
+        YtDlpProcess *proc = m_downloadProcesses.value(songId);
 #ifdef Q_OS_WIN
         // Windows doesn't have SIGSTOP; kill and re-queue
         proc->disconnect();
@@ -702,6 +807,9 @@ void DownloadManager::pause_download(const QString &songId)
         proc->deleteLater();
         m_downloadProcesses.remove(songId);
         m_downloadStdout.remove(songId);
+#elif defined(Q_OS_ANDROID)
+        // No pause support via JNI bridge — leaving the download running.
+        Q_UNUSED(proc);
 #else
         // Unix: send SIGSTOP
         ::kill(static_cast<pid_t>(proc->processId()), SIGSTOP);
@@ -734,9 +842,14 @@ void DownloadManager::resume_download(const QString &songId)
             m_downloadQueue.prepend(songId);
         }
         _startNextDownload();
+#elif defined(Q_OS_ANDROID)
+        // No resume support via JNI bridge — the download is still running.
+        task.status = QStringLiteral("downloading");
+        _emitStatusPatch(songId, QStringLiteral("status"), QStringLiteral("downloading"));
+        emit statusMessage(QStringLiteral("Download resumed"));
 #else
         // Unix: send SIGCONT
-        QProcess *proc = m_downloadProcesses.value(songId);
+        YtDlpProcess *proc = m_downloadProcesses.value(songId);
         ::kill(static_cast<pid_t>(proc->processId()), SIGCONT);
         task.status = QStringLiteral("downloading");
         _emitStatusPatch(songId, QStringLiteral("status"), QStringLiteral("downloading"));
@@ -780,11 +893,15 @@ void DownloadManager::_startNextDownload()
             continue;
         }
 
-        // Build output path
+        // Build output path. Matches Python music_dl's "{artists} - {title}.ext"
+        // template so the shared QML's play_downloaded_song fuzzy match against
+        // "artist - name" stems succeeds regardless of which backend wrote the
+        // file. yt-dlp's %(artist,uploader)s falls back to uploader when
+        // YouTube Music's artist field is missing — avoids " - Title.m4a".
         QString dlPath = _getDownloadPath();
         QString dlFormat = _getDownloadFormat();
         QString outputTemplate = QDir(dlPath).filePath(
-            QStringLiteral("%(title)s.%(ext)s"));
+            QStringLiteral("%(artist,uploader)s - %(title)s.%(ext)s"));
 
         // Build yt-dlp arguments
         QStringList args;
@@ -815,19 +932,48 @@ void DownloadManager::_startNextDownload()
         }
         // m4a: download natively, no conversion needed
 
+#ifdef Q_OS_ANDROID
+        // TagLib is not available on Android, so ask yt-dlp to embed metadata
+        // and thumbnail into the file itself. On desktop this is done by
+        // _embedMetadata() post-download.
+        args << QStringLiteral("--embed-metadata");
+        args << QStringLiteral("--add-metadata");
+        // Thumbnail embedding is done post-download via mutagen in
+        // _onDownloadProcessFinished — the AAR-bundled ffmpeg is a stripped
+        // build without -vf filters, so it can't center-crop YouTube's 16:9
+        // thumbnails. Instead we re-use the square ytmusicapi cover JPEG that
+        // cacheHttpImage already staged during search parsing.
+        // Force .m4a extension + enable the metadata embed postprocessors.
+        // --extract-audio runs the AudioExtractor postprocessor which also
+        // makes --embed-metadata / --embed-thumbnail actually apply. Without
+        // it, remux-video bypasses the metadata pass on some yt-dlp versions.
+        // AAC → m4a is a no-op rewrap (no re-encode, no quality loss).
+        if (dlFormat == QStringLiteral("m4a") ||
+            dlFormat == QStringLiteral("auto") ||
+            dlFormat.isEmpty()) {
+            args << QStringLiteral("--extract-audio");
+            args << QStringLiteral("--audio-format") << QStringLiteral("m4a");
+        }
+        // YouTube aggressively rate-limits the default web client with HTTP 403.
+        // Forcing the iOS player client bypasses this on yt-dlp 2024+. Fallback
+        // to tv_embedded if iOS also blocks.
+        args << QStringLiteral("--extractor-args")
+             << QStringLiteral("youtube:player_client=ios,tv_embedded,android");
+#endif
+
         args << QStringLiteral("-o") << outputTemplate;
         args << task.url;
 
-        QProcess *proc = new QProcess(this);
+        YtDlpProcess *proc = new YtDlpProcess(this);
         proc->setProperty("songId", songId);
 
-        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&YtDlpProcess::finished),
                 this, &DownloadManager::_onDownloadProcessFinished);
-        connect(proc, &QProcess::errorOccurred,
+        connect(proc, &YtDlpProcess::errorOccurred,
                 this, &DownloadManager::_onDownloadProcessError);
-        connect(proc, &QProcess::readyReadStandardOutput,
+        connect(proc, &YtDlpProcess::readyReadStandardOutput,
                 this, &DownloadManager::_onDownloadReadyReadStdout);
-        connect(proc, &QProcess::readyReadStandardError,
+        connect(proc, &YtDlpProcess::readyReadStandardError,
                 this, &DownloadManager::_onDownloadReadyReadStderr);
 
         m_downloadProcesses.insert(songId, proc);
@@ -844,7 +990,7 @@ void DownloadManager::_startNextDownload()
 
 void DownloadManager::_onDownloadReadyReadStdout()
 {
-    auto *proc = qobject_cast<QProcess *>(sender());
+    auto *proc = qobject_cast<YtDlpProcess *>(sender());
     if (!proc) {
         return;
     }
@@ -869,7 +1015,7 @@ void DownloadManager::_onDownloadReadyReadStdout()
 
 void DownloadManager::_onDownloadReadyReadStderr()
 {
-    auto *proc = qobject_cast<QProcess *>(sender());
+    auto *proc = qobject_cast<YtDlpProcess *>(sender());
     if (!proc) {
         return;
     }
@@ -904,7 +1050,7 @@ void DownloadManager::_onDownloadProcessFinished(int exitCode, QProcess::ExitSta
 {
     Q_UNUSED(exitStatus)
 
-    auto *proc = qobject_cast<QProcess *>(sender());
+    auto *proc = qobject_cast<YtDlpProcess *>(sender());
     if (!proc) {
         return;
     }
@@ -980,13 +1126,34 @@ void DownloadManager::_onDownloadProcessFinished(int exitCode, QProcess::ExitSta
             task.status = QStringLiteral("complete");
             task.filePath = filePath;
 
-            // Embed metadata using TagLib
+#ifndef Q_OS_ANDROID
+            // Embed metadata using TagLib (desktop only — Android uses
+            // yt-dlp's --embed-metadata / --add-metadata flags at download time
+            // and a mutagen post-pass for the cover).
             _embedMetadata(filePath, task);
 
             // Download cover art and embed if available
             if (!task.coverUrl.isEmpty()) {
                 _downloadCoverArt(songId, task.coverUrl, filePath);
             }
+#else
+            // Swap yt-dlp's 16:9 YouTube thumbnail for the square ytmusicapi
+            // cover we already cached locally during search parsing. task.coverUrl
+            // is typically a file:// URL pointing into the thumb cache.
+            if (!task.coverUrl.isEmpty()) {
+                const QString coverLocal = task.coverUrl.startsWith(QStringLiteral("file:"))
+                    ? QUrl(task.coverUrl).toLocalFile()
+                    : OctaveAndroid::cacheHttpImage(task.coverUrl);
+                if (!coverLocal.isEmpty() && QFile::exists(coverLocal)) {
+                    const bool ok = OctaveAndroid::runEmbedCover(filePath, coverLocal);
+                    if (!ok) {
+                        qCWarning(lcDownload)
+                            << "runEmbedCover failed for" << filePath
+                            << "(cover:" << coverLocal << ")";
+                    }
+                }
+            }
+#endif
 
             QString displayName = task.artist.isEmpty()
                 ? task.songName
@@ -1024,7 +1191,7 @@ void DownloadManager::_onDownloadProcessError(QProcess::ProcessError error)
 {
     Q_UNUSED(error)
 
-    auto *proc = qobject_cast<QProcess *>(sender());
+    auto *proc = qobject_cast<YtDlpProcess *>(sender());
     if (!proc) {
         return;
     }
@@ -1061,8 +1228,15 @@ void DownloadManager::_processDownloadQueue()
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Metadata embedding (TagLib)
+// Metadata embedding (TagLib — desktop only; Android uses yt-dlp's
+// --embed-metadata / --embed-thumbnail at download time)
 // ═══════════════════════════════════════════════════════════════════
+
+#ifdef Q_OS_MOBILE
+void DownloadManager::_embedMetadata(const QString &, const DownloadTask &) {}
+void DownloadManager::_downloadCoverArt(const QString &, const QString &, const QString &) {}
+void DownloadManager::_onCoverDownloadFinished(QNetworkReply *reply) { reply->deleteLater(); }
+#else
 
 void DownloadManager::_embedMetadata(const QString &filePath, const DownloadTask &task)
 {
@@ -1236,6 +1410,8 @@ void DownloadManager::_onCoverDownloadFinished(QNetworkReply *reply)
     qCDebug(lcDownload) << "Cover art embedded for:" << songId;
 }
 
+#endif // Q_OS_MOBILE — TagLib metadata embedding block
+
 // ═══════════════════════════════════════════════════════════════════
 // Queue management
 // ═══════════════════════════════════════════════════════════════════
@@ -1328,27 +1504,18 @@ void DownloadManager::_emitStatusPatch(const QString &songId, const QString &fie
         }
     }
 
-    // Emit the targeted patch signal
-    QJsonDocument doc;
-    if (value.typeId() == QMetaType::Bool) {
-        doc = QJsonDocument::fromVariant(value.toBool());
-    } else if (value.typeId() == QMetaType::Int || value.typeId() == QMetaType::Double) {
-        doc = QJsonDocument::fromVariant(value);
-    } else {
-        // Wrap strings as JSON values
-        QJsonArray arr;
-        arr.append(QJsonValue::fromVariant(value));
-        QString jsonStr = QJsonDocument(arr).toJson(QJsonDocument::Compact);
-        // Extract the inner value: "[\"foo\"]" -> "\"foo\""
-        if (jsonStr.startsWith(QLatin1Char('[')) && jsonStr.endsWith(QLatin1Char(']'))) {
-            jsonStr = jsonStr.mid(1, jsonStr.length() - 2);
-        }
-        emit downloadStatusChanged(songId, field, jsonStr);
-        return;
+    // Emit the targeted patch as a single JSON value. QJsonDocument's top
+    // level only supports object/array, so wrap the scalar in a one-element
+    // array and strip the brackets — that way bools, ints, doubles, strings,
+    // and null all serialize uniformly to valid JSON the QML JSON.parse()
+    // receiver can consume.
+    QJsonArray arr;
+    arr.append(QJsonValue::fromVariant(value));
+    QString jsonStr = QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+    if (jsonStr.startsWith(QLatin1Char('[')) && jsonStr.endsWith(QLatin1Char(']'))) {
+        jsonStr = jsonStr.mid(1, jsonStr.length() - 2);
     }
-
-    emit downloadStatusChanged(songId, field,
-                                QString::fromUtf8(doc.toJson(QJsonDocument::Compact)));
+    emit downloadStatusChanged(songId, field, jsonStr);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1368,7 +1535,7 @@ void DownloadManager::cleanup()
 
     // Kill all download processes
     for (auto it = m_downloadProcesses.begin(); it != m_downloadProcesses.end(); ++it) {
-        QProcess *proc = it.value();
+        YtDlpProcess *proc = it.value();
         proc->disconnect();
         proc->kill();
         proc->waitForFinished(3000);

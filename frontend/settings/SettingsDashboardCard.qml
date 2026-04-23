@@ -3,6 +3,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: hubCard
 
     property string categoryName: ""
@@ -16,7 +20,7 @@ Rectangle {
     signal subSectionSelected(string section, string subSection)
 
     color: "transparent"
-    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius, 2)
+    radius: dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     clip: true
 
     // Accent border (spacecraft)
@@ -172,7 +176,7 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     implicitHeight: dataRow.height + App.Spacing.overallSpacing * 0.5
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.cardRadius * 0.5, 2)
+                    radius: dpMin(App.EnvironmentTheme.active.cardRadius * 0.5, 2)
                     color: Qt.rgba(App.Style.backgroundColor.r, App.Style.backgroundColor.g, App.Style.backgroundColor.b, 0.7)
 
                     Row {

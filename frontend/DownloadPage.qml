@@ -5,6 +5,10 @@ import Qt5Compat.GraphicalEffects
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: downloadPage
     objectName: "downloadPage"
     width: parent ? parent.width : 0
@@ -213,21 +217,21 @@ Item {
             anchors.fill: parent
             anchors.topMargin: App.Spacing.mediaRoomMargin
             anchors.rightMargin: App.Spacing.mediaRoomMargin
-            anchors.bottomMargin: App.Spacing.dp(16)
-            anchors.leftMargin: App.Spacing.dp(16)
-            spacing: App.Spacing.dp(12)
+            anchors.bottomMargin: dp(16)
+            anchors.leftMargin: dp(16)
+            spacing: dp(12)
 
             // ─── Header ──────────────────────────────────────────
 
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
-                spacing: App.Spacing.dp(12)
+                spacing: dp(12)
 
                 Text {
                     text: "Download Music"
                     font.family: downloadPage.globalFont
-                    font.pixelSize: App.Spacing.dp(24)
+                    font.pixelSize: dp(24)
                     font.weight: Font.Bold
                     color: textColor
                 }
@@ -238,10 +242,10 @@ Item {
                 Text {
                     text: downloadPage.statusText
                     font.family: downloadPage.globalFont
-                    font.pixelSize: App.Spacing.dp(11)
+                    font.pixelSize: dp(11)
                     color: dimTextColor
                     elide: Text.ElideRight
-                    Layout.maximumWidth: App.Spacing.dp(300)
+                    Layout.maximumWidth: dp(300)
                     opacity: downloadPage.statusVisible ? 1.0 : 0.0
                     Behavior on opacity {
                         NumberAnimation { duration: 600; easing.type: Easing.InOutQuad }
@@ -255,7 +259,7 @@ Item {
                     color: dlNewPlaylistMouse.pressed
                         ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
                         : "transparent"
-                    radius: App.Spacing.dpMin(8, 2)
+                    radius: dpMin(8, 2)
                     border.width: 1
                     border.color: accentColor
 
@@ -263,7 +267,7 @@ Item {
                         anchors.centerIn: parent
                         text: "+"
                         color: accentColor
-                        font.pixelSize: App.Spacing.dp(22)
+                        font.pixelSize: dp(22)
                         font.weight: Font.Bold
                         font.family: downloadPage.globalFont
                     }
@@ -282,7 +286,7 @@ Item {
                 // Playlist dropdown (matches MediaPlayer style)
                 Item {
                     id: dlPlaylistDropdownContainer
-                    Layout.preferredWidth: Math.min(App.Spacing.dp(220), downloadPage.width * 0.25)
+                    Layout.preferredWidth: Math.min(dp(220), downloadPage.width * 0.25)
                     Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
 
                     property bool dlDropdownCooldown: false
@@ -298,7 +302,7 @@ Item {
                         color: dlDropdownMouse.containsMouse
                             ? Qt.lighter(App.Style.hoverColor, 1.2)
                             : "transparent"
-                        radius: App.Spacing.dpMin(8, 2)
+                        radius: dpMin(8, 2)
                         border.width: 1
                         border.color: accentColor
 
@@ -310,14 +314,14 @@ Item {
                         Text {
                             id: dlDropdownLabel
                             anchors.top: parent.top
-                            anchors.topMargin: App.Spacing.dp(4)
+                            anchors.topMargin: dp(4)
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "SAVE TO"
                             color: accentColor
                             font.pixelSize: App.Spacing.mediaPlayerStatsTextSize * 0.85
                             font.bold: true
                             font.family: downloadPage.globalFont
-                            font.letterSpacing: App.Spacing.dp(1)
+                            font.letterSpacing: dp(1)
                         }
 
                         // Selected playlist name
@@ -368,10 +372,10 @@ Item {
                     Popup {
                         id: dlPlaylistPopup
                         parent: dlPlaylistDropdownContainer
-                        y: dlPlaylistDropdown.height + App.Spacing.dp(4)
+                        y: dlPlaylistDropdown.height + dp(4)
                         width: dlPlaylistDropdown.width
-                        height: Math.min(dlPlaylistColumn.implicitHeight + App.Spacing.dp(20), App.Spacing.dp(400))
-                        padding: App.Spacing.dp(10)
+                        height: Math.min(dlPlaylistColumn.implicitHeight + dp(20), dp(400))
+                        padding: dp(10)
                         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
                         onClosed: {
                             dlPlaylistDropdownContainer.dlDropdownCooldown = true
@@ -382,7 +386,7 @@ Item {
                             color: bgColor
                             border.color: accentColor
                             border.width: 1
-                            radius: App.Spacing.dpMin(8, 2)
+                            radius: dpMin(8, 2)
                         }
 
                         contentItem: Flickable {
@@ -393,7 +397,7 @@ Item {
                             Column {
                                 id: dlPlaylistColumn
                                 width: parent.width
-                                spacing: App.Spacing.dp(4)
+                                spacing: dp(4)
 
                                 Repeater {
                                     model: downloadPage.downloadPlaylists
@@ -407,7 +411,7 @@ Item {
                                             if (dlItemMouse.containsMouse) return Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                                             return "transparent"
                                         }
-                                        radius: App.Spacing.dpMin(6, 2)
+                                        radius: dpMin(6, 2)
                                         border.width: modelData === downloadPage.selectedPlaylist ? 1 : 0
                                         border.color: accentColor
 
@@ -457,31 +461,31 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: App.Spacing.dp(44)
+                Layout.preferredHeight: dp(44)
                 color: cardColor
                 border.color: searchInput.activeFocus ? accentColor : cardBorderColor
                 border.width: 1
-                radius: App.Spacing.dp(8)
+                radius: dp(8)
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: App.Spacing.dp(12)
-                    anchors.rightMargin: App.Spacing.dp(8)
-                    spacing: App.Spacing.dp(8)
+                    anchors.leftMargin: dp(12)
+                    anchors.rightMargin: dp(8)
+                    spacing: dp(8)
 
                     // Search icon
                     Image {
                         id: searchIconImg
-                        Layout.preferredWidth: App.Spacing.dp(18)
-                        Layout.preferredHeight: App.Spacing.dp(18)
+                        Layout.preferredWidth: dp(18)
+                        Layout.preferredHeight: dp(18)
                         source: "./assets/search_icon.svg"
-                        sourceSize: Qt.size(App.Spacing.dp(36), App.Spacing.dp(36))
+                        sourceSize: Qt.size(dp(36), dp(36))
                         fillMode: Image.PreserveAspectFit
                         visible: false
                     }
                     ColorOverlay {
-                        Layout.preferredWidth: App.Spacing.dp(18)
-                        Layout.preferredHeight: App.Spacing.dp(18)
+                        Layout.preferredWidth: dp(18)
+                        Layout.preferredHeight: dp(18)
                         source: searchIconImg
                         color: dimTextColor
                     }
@@ -493,7 +497,7 @@ Item {
                         placeholderText: "Song name, artist, or Spotify URL..."
                         placeholderTextColor: dimTextColor
                         font.family: downloadPage.globalFont
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         color: textColor
                         background: Item {}
                         selectByMouse: true
@@ -508,21 +512,21 @@ Item {
 
                     // Keyboard toggle button
                     Rectangle {
-                        Layout.preferredWidth: App.Spacing.dp(32)
-                        Layout.preferredHeight: App.Spacing.dp(32)
+                        Layout.preferredWidth: dp(32)
+                        Layout.preferredHeight: dp(32)
                         color: downloadPage.showKeyboard
                             ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
                             : kbToggleMouse.containsMouse
                                 ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
                                 : "transparent"
-                        radius: App.Spacing.dp(6)
+                        radius: dp(6)
                         border.width: 1
                         border.color: downloadPage.showKeyboard ? accentColor : cardBorderColor
 
                         Text {
                             anchors.centerIn: parent
                             text: "\u2328"
-                            font.pixelSize: App.Spacing.dp(18)
+                            font.pixelSize: dp(18)
                             color: downloadPage.showKeyboard ? accentColor : dimTextColor
                         }
 
@@ -540,17 +544,17 @@ Item {
 
                     // Search button
                     Rectangle {
-                        Layout.preferredWidth: App.Spacing.dp(70)
-                        Layout.preferredHeight: App.Spacing.dp(32)
+                        Layout.preferredWidth: dp(70)
+                        Layout.preferredHeight: dp(32)
                         color: searchMouseArea.pressed ? Qt.darker(accentColor, 1.3) : accentColor
-                        radius: App.Spacing.dp(6)
+                        radius: dp(6)
                         opacity: downloadPage.isSearching ? 0.5 : 1.0
 
                         Text {
                             anchors.centerIn: parent
                             text: downloadPage.isSearching ? "..." : "Search"
                             font.family: downloadPage.globalFont
-                            font.pixelSize: App.Spacing.dp(12)
+                            font.pixelSize: dp(12)
                             font.weight: Font.DemiBold
                             color: "#000000"
                         }
@@ -579,7 +583,7 @@ Item {
                 color: cardColor
                 border.color: cardBorderColor
                 border.width: 1
-                radius: App.Spacing.dp(8)
+                radius: dp(8)
 
                 property var rows: [
                     ["1","2","3","4","5","6","7","8","9","0"],
@@ -589,13 +593,13 @@ Item {
                 ]
 
                 // Dynamic key sizing: 5 rows (4 letter + 1 bottom), 10 keys wide
-                property real kbMargin: App.Spacing.dp(8)
-                property real kbSpacing: App.Spacing.dp(4)
+                property real kbMargin: dp(8)
+                property real kbSpacing: dp(4)
                 property real kbRowCount: 5
                 property real kbColCount: 10
                 property real keyWidth: Math.floor((width - kbMargin * 2 - kbSpacing * (kbColCount - 1)) / kbColCount)
                 property real keyHeight: Math.floor((height - kbMargin * 2 - kbSpacing * (kbRowCount - 1)) / kbRowCount)
-                property real keyFontSize: Math.max(App.Spacing.dp(12), Math.min(keyHeight * 0.45, App.Spacing.dp(32)))
+                property real keyFontSize: Math.max(dp(12), Math.min(keyHeight * 0.45, dp(32)))
 
                 Column {
                     id: kbGrid
@@ -616,7 +620,7 @@ Item {
                                 Rectangle {
                                     width: onScreenKeyboard.keyWidth
                                     height: onScreenKeyboard.keyHeight
-                                    radius: App.Spacing.dp(6)
+                                    radius: dp(6)
                                     color: kbKeyMouse.pressed
                                         ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
                                         : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
@@ -654,7 +658,7 @@ Item {
                         Rectangle {
                             width: onScreenKeyboard.keyWidth * 1.5 + onScreenKeyboard.kbSpacing * 0.5
                             height: onScreenKeyboard.keyHeight
-                            radius: App.Spacing.dp(6)
+                            radius: dp(6)
                             color: bkspMouse.pressed
                                 ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
                                 : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
@@ -684,7 +688,7 @@ Item {
                         Rectangle {
                             width: onScreenKeyboard.keyWidth * 4.5 + onScreenKeyboard.kbSpacing * 3.5
                             height: onScreenKeyboard.keyHeight
-                            radius: App.Spacing.dp(6)
+                            radius: dp(6)
                             color: spaceMouse.pressed
                                 ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
                                 : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
@@ -714,7 +718,7 @@ Item {
                         Rectangle {
                             width: onScreenKeyboard.keyWidth * 1.5 + onScreenKeyboard.kbSpacing * 0.5
                             height: onScreenKeyboard.keyHeight
-                            radius: App.Spacing.dp(6)
+                            radius: dp(6)
                             color: clearMouse.pressed
                                 ? Qt.rgba(1, 0.227, 0.208, 0.2)
                                 : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
@@ -744,7 +748,7 @@ Item {
                         Rectangle {
                             width: onScreenKeyboard.keyWidth * 2 + onScreenKeyboard.kbSpacing
                             height: onScreenKeyboard.keyHeight
-                            radius: App.Spacing.dp(6)
+                            radius: dp(6)
                             color: kbSearchMouse.pressed ? Qt.darker(accentColor, 1.3) : accentColor
                             opacity: searchInput.text.trim().length > 0 ? 1.0 : 0.4
 
@@ -777,7 +781,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: !downloadPage.showKeyboard
                 visible: !downloadPage.showKeyboard
-                spacing: App.Spacing.dp(10)
+                spacing: dp(10)
 
                 // ─── Results List (3/4 width when queue visible) ──────
                 ListView {
@@ -785,7 +789,7 @@ Item {
                     Layout.fillHeight: true
                     Layout.fillWidth: true
                     clip: true
-                    spacing: App.Spacing.dp(6)
+                    spacing: dp(6)
                     model: downloadPage.searchResults
 
                     ScrollBar.vertical: ScrollBar {
@@ -801,8 +805,8 @@ Item {
                     property real dlProgress: isDownloading ? (downloadPage.activeDownloads[songId] || 0) : 0
                     onDlProgressChanged: if (progressRing.visible) progressRing.requestPaint()
 
-                    width: resultsListView.width - App.Spacing.dp(14)
-                    height: App.Spacing.dp(72)
+                    width: resultsListView.width - dp(14)
+                    height: dp(72)
                     color: cardHover.hovered ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12) : cardColor
 
                     function handleCardAction() {
@@ -861,18 +865,18 @@ Item {
                         return cardBorderColor
                     }
                     border.width: 1
-                    radius: App.Spacing.dp(8)
+                    radius: dp(8)
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: App.Spacing.dp(10)
-                        spacing: App.Spacing.dp(12)
+                        anchors.margins: dp(10)
+                        spacing: dp(12)
 
                         // Album art thumbnail
                         Rectangle {
-                            Layout.preferredWidth: App.Spacing.dp(52)
-                            Layout.preferredHeight: App.Spacing.dp(52)
-                            radius: App.Spacing.dp(6)
+                            Layout.preferredWidth: dp(52)
+                            Layout.preferredHeight: dp(52)
+                            radius: dp(6)
                             color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                             clip: true
 
@@ -889,7 +893,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u266A"
-                                font.pixelSize: App.Spacing.dp(20)
+                                font.pixelSize: dp(20)
                                 color: dimTextColor
                                 visible: albumArtImg.status !== Image.Ready
                             }
@@ -898,13 +902,13 @@ Item {
                         // Song info
                         ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: App.Spacing.dp(2)
+                            spacing: dp(2)
 
                             Text {
                                 Layout.fillWidth: true
                                 text: modelData.name || "Unknown"
                                 font.family: downloadPage.globalFont
-                                font.pixelSize: App.Spacing.dp(14)
+                                font.pixelSize: dp(14)
                                 font.weight: Font.DemiBold
                                 color: textColor
                                 elide: Text.ElideRight
@@ -914,21 +918,21 @@ Item {
                                 Layout.fillWidth: true
                                 text: modelData.artist || "Unknown Artist"
                                 font.family: downloadPage.globalFont
-                                font.pixelSize: App.Spacing.dp(12)
+                                font.pixelSize: dp(12)
                                 color: dimTextColor
                                 elide: Text.ElideRight
                             }
 
                             RowLayout {
-                                spacing: App.Spacing.dp(8)
+                                spacing: dp(8)
 
                                 Text {
                                     text: modelData.album_name || ""
                                     font.family: downloadPage.globalFont
-                                    font.pixelSize: App.Spacing.dp(10)
+                                    font.pixelSize: dp(10)
                                     color: dimTextColor
                                     elide: Text.ElideRight
-                                    Layout.maximumWidth: App.Spacing.dp(200)
+                                    Layout.maximumWidth: dp(200)
                                 }
 
                                 Text {
@@ -939,14 +943,14 @@ Item {
                                         return m + ":" + (s < 10 ? "0" : "") + s
                                     }
                                     font.family: downloadPage.globalFont
-                                    font.pixelSize: App.Spacing.dp(10)
+                                    font.pixelSize: dp(10)
                                     color: dimTextColor
                                 }
 
                                 Rectangle {
                                     visible: modelData.explicit === true
-                                    width: explicitLabel.implicitWidth + App.Spacing.dp(6)
-                                    height: explicitLabel.implicitHeight + App.Spacing.dp(4)
+                                    width: explicitLabel.implicitWidth + dp(6)
+                                    height: explicitLabel.implicitHeight + dp(4)
                                     color: Qt.rgba(textColor.r, textColor.g, textColor.b, 0.6)
                                     radius: 2
 
@@ -955,7 +959,7 @@ Item {
                                         anchors.centerIn: parent
                                         text: "E"
                                         font.family: downloadPage.globalFont
-                                        font.pixelSize: App.Spacing.dp(9)
+                                        font.pixelSize: dp(9)
                                         font.weight: Font.Bold
                                         color: "#000"
                                     }
@@ -964,19 +968,19 @@ Item {
                                 // Playlist badge for downloaded songs
                                 Rectangle {
                                     visible: modelData.is_downloaded === true && (modelData.downloaded_playlist || "") !== ""
-                                    width: playlistBadgeText.implicitWidth + App.Spacing.dp(10)
-                                    height: playlistBadgeText.implicitHeight + App.Spacing.dp(4)
+                                    width: playlistBadgeText.implicitWidth + dp(10)
+                                    height: playlistBadgeText.implicitHeight + dp(4)
                                     color: Qt.rgba(successColor.r, successColor.g, successColor.b, 0.15)
                                     border.width: 1
                                     border.color: Qt.rgba(successColor.r, successColor.g, successColor.b, 0.3)
-                                    radius: App.Spacing.dp(3)
+                                    radius: dp(3)
 
                                     Text {
                                         id: playlistBadgeText
                                         anchors.centerIn: parent
                                         text: modelData.downloaded_playlist || ""
                                         font.family: downloadPage.globalFont
-                                        font.pixelSize: App.Spacing.dp(9)
+                                        font.pixelSize: dp(9)
                                         font.weight: Font.DemiBold
                                         color: successColor
                                     }
@@ -986,9 +990,9 @@ Item {
 
                         // Download button / Downloaded / Failed / Downloading indicator
                         Rectangle {
-                            Layout.preferredWidth: App.Spacing.dp(40)
-                            Layout.preferredHeight: App.Spacing.dp(40)
-                            radius: App.Spacing.dp(20)
+                            Layout.preferredWidth: dp(40)
+                            Layout.preferredHeight: dp(40)
+                            radius: dp(20)
                             color: {
                                 if (modelData.is_downloaded)
                                     return Qt.rgba(successColor.r, successColor.g, successColor.b, 0.15)
@@ -1003,10 +1007,10 @@ Item {
                             Image {
                                 id: dlBtnIcon
                                 anchors.centerIn: parent
-                                width: App.Spacing.dp(20)
-                                height: App.Spacing.dp(20)
+                                width: dp(20)
+                                height: dp(20)
                                 source: "./assets/download_button.svg"
-                                sourceSize: Qt.size(App.Spacing.dp(40), App.Spacing.dp(40))
+                                sourceSize: Qt.size(dp(40), dp(40))
                                 fillMode: Image.PreserveAspectFit
                                 visible: false
                             }
@@ -1021,8 +1025,8 @@ Item {
                             Canvas {
                                 id: progressRing
                                 anchors.centerIn: parent
-                                width: App.Spacing.dp(32)
-                                height: App.Spacing.dp(32)
+                                width: dp(32)
+                                height: dp(32)
                                 visible: isDownloading
                                 onPaint: {
                                     var ctx = getContext("2d")
@@ -1058,7 +1062,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: Math.round(dlProgress * 100)
                                 font.family: downloadPage.globalFont
-                                font.pixelSize: App.Spacing.dp(9)
+                                font.pixelSize: dp(9)
                                 font.weight: Font.Bold
                                 color: accentColor
                                 visible: isDownloading
@@ -1068,7 +1072,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u2713"
-                                font.pixelSize: App.Spacing.dp(20)
+                                font.pixelSize: dp(20)
                                 font.weight: Font.Bold
                                 color: successColor
                                 visible: modelData.is_downloaded === true
@@ -1078,7 +1082,7 @@ Item {
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u2717"
-                                font.pixelSize: App.Spacing.dp(18)
+                                font.pixelSize: dp(18)
                                 font.weight: Font.Bold
                                 color: failedColor
                                 visible: modelData.is_failed === true && !modelData.is_downloaded
@@ -1091,25 +1095,25 @@ Item {
                 // ─── Load More footer ───────────────────────────
 
                 footer: Item {
-                    width: resultsListView.width - App.Spacing.dp(14)
-                    height: downloadPage.hasMoreResults ? App.Spacing.dp(52) : 0
+                    width: resultsListView.width - dp(14)
+                    height: downloadPage.hasMoreResults ? dp(52) : 0
                     visible: downloadPage.hasMoreResults
 
                     Rectangle {
                         anchors.fill: parent
-                        anchors.topMargin: App.Spacing.dp(6)
+                        anchors.topMargin: dp(6)
                         color: loadMoreMouse.containsMouse
                             ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                             : cardColor
                         border.color: cardBorderColor
                         border.width: 1
-                        radius: App.Spacing.dp(8)
+                        radius: dp(8)
 
                         Text {
                             anchors.centerIn: parent
                             text: downloadPage.isSearching ? "Loading..." : "Load More Results"
                             font.family: downloadPage.globalFont
-                            font.pixelSize: App.Spacing.dp(13)
+                            font.pixelSize: dp(13)
                             font.weight: Font.DemiBold
                             color: accentColor
                         }
@@ -1133,7 +1137,7 @@ Item {
                         visible: !downloadPage.isSearching && downloadPage.searchResults.length === 0
                         text: "Search for a song, paste a Spotify URL, or enter an artist name"
                         font.family: downloadPage.globalFont
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         color: dimTextColor
                         horizontalAlignment: Text.AlignHCenter
                     }
@@ -1152,37 +1156,37 @@ Item {
                     id: queuePanel
                     Layout.fillHeight: true
                     Layout.preferredWidth: downloadPage.width * 0.25
-                    Layout.minimumWidth: App.Spacing.dp(200)
-                    Layout.maximumWidth: App.Spacing.dp(350)
+                    Layout.minimumWidth: dp(200)
+                    Layout.maximumWidth: dp(350)
                     visible: queueModel.count > 0
                     color: cardColor
                     border.color: cardBorderColor
                     border.width: 1
-                    radius: App.Spacing.dp(8)
+                    radius: dp(8)
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: App.Spacing.dp(10)
-                        spacing: App.Spacing.dp(8)
+                        anchors.margins: dp(10)
+                        spacing: dp(8)
 
                         // Queue header
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: App.Spacing.dp(8)
+                            spacing: dp(8)
 
                             Text {
                                 text: "Downloads"
                                 font.family: downloadPage.globalFont
-                                font.pixelSize: App.Spacing.dp(14)
+                                font.pixelSize: dp(14)
                                 font.weight: Font.Bold
                                 color: textColor
                             }
 
                             // Count badge
                             Rectangle {
-                                width: queueCountText.implicitWidth + App.Spacing.dp(12)
-                                height: App.Spacing.dp(20)
-                                radius: App.Spacing.dp(10)
+                                width: queueCountText.implicitWidth + dp(12)
+                                height: dp(20)
+                                radius: dp(10)
                                 color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
 
                                 Text {
@@ -1190,7 +1194,7 @@ Item {
                                     anchors.centerIn: parent
                                     text: queueModel.count
                                     font.family: downloadPage.globalFont
-                                    font.pixelSize: App.Spacing.dp(11)
+                                    font.pixelSize: dp(11)
                                     font.weight: Font.Bold
                                     color: accentColor
                                 }
@@ -1200,9 +1204,9 @@ Item {
 
                             // Clear button
                             Rectangle {
-                                width: clearQueueText.implicitWidth + App.Spacing.dp(16)
-                                height: App.Spacing.dp(24)
-                                radius: App.Spacing.dp(12)
+                                width: clearQueueText.implicitWidth + dp(16)
+                                height: dp(24)
+                                radius: dp(12)
                                 color: clearQueueMouse.containsMouse
                                     ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                                     : "transparent"
@@ -1221,7 +1225,7 @@ Item {
                                     anchors.centerIn: parent
                                     text: "Clear"
                                     font.family: downloadPage.globalFont
-                                    font.pixelSize: App.Spacing.dp(11)
+                                    font.pixelSize: dp(11)
                                     color: dimTextColor
                                 }
 
@@ -1256,7 +1260,7 @@ Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            spacing: App.Spacing.dp(4)
+                            spacing: dp(4)
                             model: queueModel
 
                             ScrollBar.vertical: ScrollBar {
@@ -1266,9 +1270,9 @@ Item {
 
                             delegate: Rectangle {
                                 id: queueItemDelegate
-                                width: queueListView.width - App.Spacing.dp(14)
-                                height: App.Spacing.dp(52)
-                                radius: App.Spacing.dp(6)
+                                width: queueListView.width - dp(14)
+                                height: dp(52)
+                                radius: dp(6)
                                 color: {
                                     if (model.status === "complete")
                                         return queueItemHover.hovered
@@ -1340,13 +1344,13 @@ Item {
 
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: App.Spacing.dp(8)
-                                    spacing: App.Spacing.dp(4)
+                                    anchors.margins: dp(8)
+                                    spacing: dp(4)
 
                                     // Song name + status icon row
                                     RowLayout {
                                         Layout.fillWidth: true
-                                        spacing: App.Spacing.dp(6)
+                                        spacing: dp(6)
 
                                         // Status icon
                                         Text {
@@ -1355,7 +1359,7 @@ Item {
                                                 if (model.status === "failed") return "\u2717"
                                                 return "\u25CF"
                                             }
-                                            font.pixelSize: App.Spacing.dp(12)
+                                            font.pixelSize: dp(12)
                                             font.weight: Font.Bold
                                             color: {
                                                 if (model.status === "complete") return successColor
@@ -1368,7 +1372,7 @@ Item {
                                             Layout.fillWidth: true
                                             text: model.songName
                                             font.family: downloadPage.globalFont
-                                            font.pixelSize: App.Spacing.dp(11)
+                                            font.pixelSize: dp(11)
                                             font.weight: Font.DemiBold
                                             color: textColor
                                             elide: Text.ElideRight
@@ -1379,19 +1383,19 @@ Item {
                                     // Progress bar (for downloading items)
                                     Item {
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: App.Spacing.dp(6)
+                                        Layout.preferredHeight: dp(6)
                                         visible: model.status === "downloading"
 
                                         Rectangle {
                                             anchors.fill: parent
-                                            radius: App.Spacing.dp(3)
+                                            radius: dp(3)
                                             color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                                         }
 
                                         Rectangle {
                                             width: parent.width * model.progress
                                             height: parent.height
-                                            radius: App.Spacing.dp(3)
+                                            radius: dp(3)
                                             color: accentColor
 
                                             Behavior on width {
@@ -1409,7 +1413,7 @@ Item {
                                             return ""
                                         }
                                         font.family: downloadPage.globalFont
-                                        font.pixelSize: App.Spacing.dp(10)
+                                        font.pixelSize: dp(10)
                                         color: {
                                             if (model.status === "complete") return successColor
                                             if (model.status === "failed") return "#e53935"
@@ -1424,7 +1428,7 @@ Item {
                                         visible: model.status === "downloading"
                                         text: Math.round(model.progress * 100) + "%"
                                         font.family: downloadPage.globalFont
-                                        font.pixelSize: App.Spacing.dp(10)
+                                        font.pixelSize: dp(10)
                                         font.weight: Font.DemiBold
                                         color: accentColor
                                     }
@@ -1443,8 +1447,8 @@ Item {
     Popup {
         id: errorPopup
         anchors.centerIn: parent
-        width: App.Spacing.dp(320)
-        height: errorPopupContent.implicitHeight + App.Spacing.dp(32)
+        width: dp(320)
+        height: errorPopupContent.implicitHeight + dp(32)
         modal: true
         dim: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -1461,19 +1465,19 @@ Item {
             color: bgColor
             border.color: Qt.rgba(errorPopup.parent ? downloadPage.accentColor.r : 0, errorPopup.parent ? downloadPage.accentColor.g : 0, errorPopup.parent ? downloadPage.accentColor.b : 0, 0.3)
             border.width: 1
-            radius: App.Spacing.dp(12)
+            radius: dp(12)
         }
 
         ColumnLayout {
             id: errorPopupContent
             anchors.fill: parent
-            anchors.margins: App.Spacing.dp(16)
-            spacing: App.Spacing.dp(12)
+            anchors.margins: dp(16)
+            spacing: dp(12)
 
             Text {
                 text: "Download Failed"
                 font.family: downloadPage.globalFont
-                font.pixelSize: App.Spacing.dp(18)
+                font.pixelSize: dp(18)
                 font.weight: Font.Bold
                 color: "#e53935"
                 Layout.fillWidth: true
@@ -1481,17 +1485,17 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: errorSongLabel.implicitHeight + App.Spacing.dp(12)
+                Layout.preferredHeight: errorSongLabel.implicitHeight + dp(12)
                 color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
-                radius: App.Spacing.dp(6)
+                radius: dp(6)
 
                 Text {
                     id: errorSongLabel
                     anchors.centerIn: parent
-                    width: parent.width - App.Spacing.dp(16)
+                    width: parent.width - dp(16)
                     text: errorPopup.songName
                     font.family: downloadPage.globalFont
-                    font.pixelSize: App.Spacing.dp(13)
+                    font.pixelSize: dp(13)
                     font.weight: Font.DemiBold
                     color: textColor
                     elide: Text.ElideRight
@@ -1502,7 +1506,7 @@ Item {
             Text {
                 text: errorPopup.errorMsg
                 font.family: downloadPage.globalFont
-                font.pixelSize: App.Spacing.dp(12)
+                font.pixelSize: dp(12)
                 color: dimTextColor
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
@@ -1510,23 +1514,23 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(8)
+                spacing: dp(8)
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(36)
+                    Layout.preferredHeight: dp(36)
                     color: errorRetryMouse.pressed
                         ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.35)
                         : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.22)
                     border.color: accentColor
                     border.width: 1
-                    radius: App.Spacing.dp(6)
+                    radius: dp(6)
 
                     Text {
                         anchors.centerIn: parent
                         text: "Retry"
                         font.family: downloadPage.globalFont
-                        font.pixelSize: App.Spacing.dp(13)
+                        font.pixelSize: dp(13)
                         font.weight: Font.DemiBold
                         color: textColor
                     }
@@ -1545,19 +1549,19 @@ Item {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(36)
+                    Layout.preferredHeight: dp(36)
                     color: errorDismissMouse.pressed
                         ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                         : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
                     border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
                     border.width: 1
-                    radius: App.Spacing.dp(6)
+                    radius: dp(6)
 
                     Text {
                         anchors.centerIn: parent
                         text: "OK"
                         font.family: downloadPage.globalFont
-                        font.pixelSize: App.Spacing.dp(13)
+                        font.pixelSize: dp(13)
                         font.weight: Font.DemiBold
                         color: textColor
                     }
@@ -1578,9 +1582,9 @@ Item {
         id: dlNewPlaylistDialog
         property bool npShowKeyboard: false
 
-        property real npCompactW: App.Spacing.dp(420)
-        property real npCompactH: dlNewPlaylistContent.implicitHeight + App.Spacing.dp(48)
-        property real npExpandedW: Math.min(downloadPage.width * 0.92, App.Spacing.dp(700))
+        property real npCompactW: dp(420)
+        property real npCompactH: dlNewPlaylistContent.implicitHeight + dp(48)
+        property real npExpandedW: Math.min(downloadPage.width * 0.92, dp(700))
         property real npExpandedH: downloadPage.height * 0.82
 
         width:  npShowKeyboard ? npExpandedW  : npCompactW
@@ -1606,24 +1610,24 @@ Item {
             color: bgColor
             border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
             border.width: 1
-            radius: App.Spacing.dp(12)
+            radius: dp(12)
         }
 
         ColumnLayout {
             id: dlNewPlaylistContent
             anchors.fill: parent
-            anchors.margins: App.Spacing.dp(24)
-            spacing: App.Spacing.dp(14)
+            anchors.margins: dp(24)
+            spacing: dp(14)
 
             // Top portion (title + input + buttons)
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(14)
+                spacing: dp(14)
 
                 Text {
                     text: "New Playlist"
                     font.family: downloadPage.globalFont
-                    font.pixelSize: App.Spacing.dp(22)
+                    font.pixelSize: dp(22)
                     font.weight: Font.Bold
                     color: textColor
                     Layout.fillWidth: true
@@ -1632,7 +1636,7 @@ Item {
                 Text {
                     text: "Enter a name for the new playlist folder."
                     font.family: downloadPage.globalFont
-                    font.pixelSize: App.Spacing.dp(14)
+                    font.pixelSize: dp(14)
                     color: dimTextColor
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
@@ -1642,25 +1646,25 @@ Item {
                 // Input row with keyboard toggle
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(8)
+                    spacing: dp(8)
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(48)
+                        Layout.preferredHeight: dp(48)
                         color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
                         border.color: dlNewPlaylistInput.activeFocus ? accentColor : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
                         border.width: 1
-                        radius: App.Spacing.dp(8)
+                        radius: dp(8)
 
                         TextField {
                             id: dlNewPlaylistInput
                             anchors.fill: parent
-                            anchors.leftMargin: App.Spacing.dp(12)
-                            anchors.rightMargin: App.Spacing.dp(12)
+                            anchors.leftMargin: dp(12)
+                            anchors.rightMargin: dp(12)
                             placeholderText: "Playlist name..."
                             placeholderTextColor: dimTextColor
                             font.family: downloadPage.globalFont
-                            font.pixelSize: App.Spacing.dp(16)
+                            font.pixelSize: dp(16)
                             color: textColor
                             background: Item {}
                             selectByMouse: true
@@ -1680,21 +1684,21 @@ Item {
 
                     // Keyboard toggle
                     Rectangle {
-                        Layout.preferredWidth: App.Spacing.dp(48)
-                        Layout.preferredHeight: App.Spacing.dp(48)
+                        Layout.preferredWidth: dp(48)
+                        Layout.preferredHeight: dp(48)
                         color: dlNewPlaylistDialog.npShowKeyboard
                             ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
                             : dlNpKbToggleMouse.containsMouse
                                 ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.12)
                                 : "transparent"
-                        radius: App.Spacing.dp(6)
+                        radius: dp(6)
                         border.width: 1
                         border.color: dlNewPlaylistDialog.npShowKeyboard ? accentColor : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
 
                         Text {
                             anchors.centerIn: parent
                             text: "\u2328"
-                            font.pixelSize: App.Spacing.dp(20)
+                            font.pixelSize: dp(20)
                             color: dlNewPlaylistDialog.npShowKeyboard ? accentColor : dimTextColor
                         }
 
@@ -1714,24 +1718,24 @@ Item {
                 // Cancel / Create buttons
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: App.Spacing.dp(4)
-                    spacing: App.Spacing.dp(12)
+                    Layout.topMargin: dp(4)
+                    spacing: dp(12)
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(52)
+                        Layout.preferredHeight: dp(52)
                         color: dlNpCancelMouse.pressed
                             ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                             : Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
                         border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
                         border.width: 1
-                        radius: App.Spacing.dp(8)
+                        radius: dp(8)
 
                         Text {
                             anchors.centerIn: parent
                             text: "Cancel"
                             font.family: downloadPage.globalFont
-                            font.pixelSize: App.Spacing.dp(15)
+                            font.pixelSize: dp(15)
                             font.weight: Font.DemiBold
                             color: textColor
                         }
@@ -1745,16 +1749,16 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(52)
+                        Layout.preferredHeight: dp(52)
                         color: dlNpCreateMouse.pressed ? Qt.darker(accentColor, 1.3) : accentColor
-                        radius: App.Spacing.dp(8)
+                        radius: dp(8)
                         opacity: dlNewPlaylistInput.text.trim().length > 0 ? 1.0 : 0.4
 
                         Text {
                             anchors.centerIn: parent
                             text: "Create"
                             font.family: downloadPage.globalFont
-                            font.pixelSize: App.Spacing.dp(15)
+                            font.pixelSize: dp(15)
                             font.weight: Font.DemiBold
                             color: "#000000"
                         }
@@ -1786,7 +1790,7 @@ Item {
                 color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.04)
                 border.color: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.15)
                 border.width: 1
-                radius: App.Spacing.dp(8)
+                radius: dp(8)
 
                 property var rows: [
                     ["Q","W","E","R","T","Y","U","I","O","P"],
@@ -1794,13 +1798,13 @@ Item {
                     ["Z","X","C","V","B","N","M"]
                 ]
 
-                property real kbMargin: App.Spacing.dp(6)
-                property real kbSpacing: App.Spacing.dp(3)
+                property real kbMargin: dp(6)
+                property real kbSpacing: dp(3)
                 property real kbRowCount: 4
                 property real kbColCount: 10
                 property real keyW: Math.floor((width - kbMargin * 2 - kbSpacing * (kbColCount - 1)) / kbColCount)
                 property real keyH: Math.floor((height - kbMargin * 2 - kbSpacing * (kbRowCount - 1)) / kbRowCount)
-                property real keyFont: Math.max(App.Spacing.dp(11), Math.min(keyH * 0.45, App.Spacing.dp(28)))
+                property real keyFont: Math.max(dp(11), Math.min(keyH * 0.45, dp(28)))
 
                 Column {
                     anchors.centerIn: parent
@@ -1816,7 +1820,7 @@ Item {
                                 Rectangle {
                                     width: dlNpKeyboard.keyW
                                     height: dlNpKeyboard.keyH
-                                    radius: App.Spacing.dp(4)
+                                    radius: dp(4)
                                     color: dlNpKeyMA.pressed
                                         ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
                                         : dlNpKeyMA.containsMouse
@@ -1856,7 +1860,7 @@ Item {
                         Rectangle {
                             width: dlNpKeyboard.keyW * 6 + dlNpKeyboard.kbSpacing * 5
                             height: dlNpKeyboard.keyH
-                            radius: App.Spacing.dp(4)
+                            radius: dp(4)
                             color: dlNpSpaceMouse.pressed
                                 ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
                                 : dlNpSpaceMouse.containsMouse
@@ -1888,7 +1892,7 @@ Item {
                         Rectangle {
                             width: dlNpKeyboard.keyW * 2 + dlNpKeyboard.kbSpacing
                             height: dlNpKeyboard.keyH
-                            radius: App.Spacing.dp(4)
+                            radius: dp(4)
                             color: dlNpBackMouse.pressed
                                 ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.3)
                                 : dlNpBackMouse.containsMouse
@@ -1921,7 +1925,7 @@ Item {
                         Rectangle {
                             width: dlNpKeyboard.keyW * 2 + dlNpKeyboard.kbSpacing
                             height: dlNpKeyboard.keyH
-                            radius: App.Spacing.dp(6)
+                            radius: dp(6)
                             color: dlNpEnterMouse.pressed ? Qt.darker(accentColor, 1.3) : accentColor
                             opacity: dlNewPlaylistInput.text.trim().length > 0 ? 1.0 : 0.4
                             Text {

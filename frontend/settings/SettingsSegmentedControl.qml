@@ -3,6 +3,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 RowLayout {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: control
     spacing: 1
     Layout.fillWidth: true
@@ -20,7 +24,7 @@ RowLayout {
 
             id: segmentRect
             Layout.fillWidth: true
-            Layout.minimumWidth: App.Spacing.dp(80)
+            Layout.minimumWidth: dp(80)
             height: App.Spacing.formElementHeight
 
             color: modelData === control.currentValue ? App.Style.accent : App.Style.hoverColor

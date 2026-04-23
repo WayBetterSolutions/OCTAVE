@@ -3,6 +3,10 @@ import QtQuick.Layouts 1.15
 import "." as App
 
 Rectangle {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: card
 
     property real lateralG: 0
@@ -15,8 +19,8 @@ Rectangle {
 
     Layout.fillWidth: true
     Layout.fillHeight: true
-    Layout.minimumHeight: App.Spacing.dp(100)
-    radius: App.Spacing.dp(10)
+    Layout.minimumHeight: dp(100)
+    radius: dp(10)
     color: App.Style.headerBackgroundColor
 
     // Trail history
@@ -35,27 +39,27 @@ Rectangle {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: App.Spacing.dp(10)
-        spacing: App.Spacing.dp(4)
+        anchors.margins: dp(10)
+        spacing: dp(4)
 
         // Label
         RowLayout {
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
-            spacing: App.Spacing.dp(6)
+            spacing: dp(6)
 
             Text {
                 text: "\u2B07"
                 color: App.Style.accent
-                font.pixelSize: App.Spacing.dp(16)
+                font.pixelSize: dp(16)
             }
             Text {
                 text: "G-FORCE"
                 color: App.Style.secondaryTextColor
-                font.pixelSize: App.Spacing.dp(11)
+                font.pixelSize: dp(11)
                 font.bold: true
                 font.family: card.globalFont
-                font.letterSpacing: App.Spacing.dp(1.5)
+                font.letterSpacing: dp(1.5)
             }
         }
 
@@ -133,8 +137,8 @@ Rectangle {
                 Rectangle {
                     x: circleArea.cx + model.gx * circleArea.gScale - width / 2
                     y: circleArea.cy - model.gy * circleArea.gScale - height / 2
-                    width: App.Spacing.dp(3)
-                    height: App.Spacing.dp(3)
+                    width: dp(3)
+                    height: dp(3)
                     radius: width / 2
                     color: App.Style.accent
                     opacity: (index + 1) / trailModel.count * 0.3
@@ -148,8 +152,8 @@ Rectangle {
                 property real dotY: circleArea.cy - (connected ? longitudinalG : 0) * circleArea.gScale
                 x: dotX - width / 2
                 y: dotY - height / 2
-                width: App.Spacing.dp(22)
-                height: App.Spacing.dp(22)
+                width: dp(22)
+                height: dp(22)
                 radius: width / 2
                 color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
 
@@ -162,30 +166,30 @@ Rectangle {
                 id: gDot
                 x: glow.dotX - width / 2
                 y: glow.dotY - height / 2
-                width: App.Spacing.dp(10)
-                height: App.Spacing.dp(10)
+                width: dp(10)
+                height: dp(10)
                 radius: width / 2
                 color: App.Style.accent
             }
 
             // Scale labels
             Text {
-                x: circleArea.cx + circleArea.circleSize * (0.5 / maxG) / 2 + App.Spacing.dp(2)
-                y: circleArea.cy + App.Spacing.dp(2)
+                x: circleArea.cx + circleArea.circleSize * (0.5 / maxG) / 2 + dp(2)
+                y: circleArea.cy + dp(2)
                 text: "0.5"
                 color: Qt.rgba(App.Style.secondaryTextColor.r,
                     App.Style.secondaryTextColor.g, App.Style.secondaryTextColor.b, 0.4)
-                font.pixelSize: App.Spacing.dp(8)
+                font.pixelSize: dp(8)
                 font.family: card.globalFont
             }
 
             Text {
                 visible: maxG > 1.0
-                x: circleArea.cx + circleArea.circleSize * (1.0 / maxG) / 2 + App.Spacing.dp(2)
-                y: circleArea.cy + App.Spacing.dp(2)
+                x: circleArea.cx + circleArea.circleSize * (1.0 / maxG) / 2 + dp(2)
+                y: circleArea.cy + dp(2)
                 text: "1.0"
                 color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.5)
-                font.pixelSize: App.Spacing.dp(8)
+                font.pixelSize: dp(8)
                 font.family: card.globalFont
             }
         }
@@ -196,7 +200,7 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             text: connected ? magnitude.toFixed(decimalPlaces) + " g" : "--"
             color: App.Style.primaryTextColor
-            font.pixelSize: App.Spacing.dp(20)
+            font.pixelSize: dp(20)
             font.bold: true
             font.family: card.globalFont
         }

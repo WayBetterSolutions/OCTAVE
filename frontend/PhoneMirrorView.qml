@@ -6,6 +6,10 @@ import OCTAVE.PhoneMirror 1.0
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: phoneMirrorView
     property StackView stackView
     property var mainWindow: null
@@ -150,17 +154,17 @@ Item {
         Rectangle {
             anchors.top: parent.top
             anchors.right: parent.right
-            anchors.margins: App.Spacing.dp(10)
-            width: App.Spacing.dp(40)
-            height: App.Spacing.dp(40)
-            radius: App.Spacing.dpMin(20, 2)
+            anchors.margins: dp(10)
+            width: dp(40)
+            height: dp(40)
+            radius: dpMin(20, 2)
             color: "#AA000000"
             z: 10
 
             Text {
                 anchors.centerIn: parent
                 text: "X"
-                font.pixelSize: App.Spacing.dp(20)
+                font.pixelSize: dp(20)
                 font.bold: true
                 color: "white"
             }
@@ -184,7 +188,7 @@ Item {
         Text {
             anchors.centerIn: parent
             text: "Connecting..."
-            font.pixelSize: App.Spacing.dp(24)
+            font.pixelSize: dp(24)
             font.family: phoneMirrorView.globalFont
             color: "white"
             visible: mirrorRunning && frameCounter < 10
@@ -201,16 +205,16 @@ Item {
             id: backButton
             anchors.top: parent.top
             anchors.left: parent.left
-            anchors.margins: App.Spacing.dp(15)
+            anchors.margins: dp(15)
             text: "< Back"
-            font.pixelSize: App.Spacing.dp(16)
+            font.pixelSize: dp(16)
             font.family: phoneMirrorView.globalFont
 
             background: Rectangle {
                 color: parent.pressed ? App.Style.accent : "transparent"
                 border.color: App.Style.accent
                 border.width: 2
-                radius: App.Spacing.dpMin(8, 2)
+                radius: dpMin(8, 2)
             }
 
             contentItem: Text {
@@ -235,19 +239,19 @@ Item {
         // Main content - centered
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: App.Spacing.dp(25)
+            spacing: dp(25)
             width: parent.width * 0.8
 
             // Loading state (before we know if it failed)
             ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: App.Spacing.dp(20)
+                spacing: dp(20)
                 visible: !launchFailed
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Starting Phone Mirror..."
-                    font.pixelSize: App.Spacing.dp(24)
+                    font.pixelSize: dp(24)
                     font.family: phoneMirrorView.globalFont
                     color: App.Style.primaryTextColor
                 }
@@ -255,15 +259,15 @@ Item {
                 // Progress indicator
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    width: App.Spacing.dp(200)
-                    height: App.Spacing.dp(4)
+                    width: dp(200)
+                    height: dp(4)
                     radius: 2
                     color: App.Style.secondaryTextColor
                     opacity: 0.3
 
                     Rectangle {
                         id: progressBar
-                        width: App.Spacing.dp(60)
+                        width: dp(60)
                         height: parent.height
                         radius: 2
                         color: App.Style.accent
@@ -281,13 +285,13 @@ Item {
             // Error state
             ColumnLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: App.Spacing.dp(15)
+                spacing: dp(15)
                 visible: launchFailed
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Phone Mirror Failed"
-                    font.pixelSize: App.Spacing.dp(28)
+                    font.pixelSize: dp(28)
                     font.family: phoneMirrorView.globalFont
                     font.bold: true
                     color: "#FF6666"
@@ -296,7 +300,7 @@ Item {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: errorMessage
-                    font.pixelSize: App.Spacing.dp(16)
+                    font.pixelSize: dp(16)
                     font.family: phoneMirrorView.globalFont
                     color: App.Style.secondaryTextColor
                     wrapMode: Text.WordWrap
@@ -306,9 +310,9 @@ Item {
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: App.Spacing.dp(20)
+                    Layout.topMargin: dp(20)
                     text: "Setup Instructions"
-                    font.pixelSize: App.Spacing.dp(20)
+                    font.pixelSize: dp(20)
                     font.family: phoneMirrorView.globalFont
                     font.bold: true
                     color: App.Style.primaryTextColor
@@ -317,7 +321,7 @@ Item {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: phoneMirrorManager ? phoneMirrorManager.getInstallInstructions() : "Phone Mirror manager not available"
-                    font.pixelSize: App.Spacing.dp(14)
+                    font.pixelSize: dp(14)
                     font.family: phoneMirrorView.globalFont
                     color: App.Style.secondaryTextColor
                     wrapMode: Text.WordWrap
@@ -328,18 +332,18 @@ Item {
                 // Retry button
                 Button {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: App.Spacing.dp(20)
+                    Layout.topMargin: dp(20)
                     text: "Retry"
-                    font.pixelSize: App.Spacing.dp(18)
+                    font.pixelSize: dp(18)
                     font.family: phoneMirrorView.globalFont
 
                     background: Rectangle {
                         color: parent.pressed ? App.Style.accent : "transparent"
                         border.color: App.Style.accent
                         border.width: 2
-                        radius: App.Spacing.dpMin(8, 2)
-                        implicitWidth: App.Spacing.dp(150)
-                        implicitHeight: App.Spacing.dp(50)
+                        radius: dpMin(8, 2)
+                        implicitWidth: dp(150)
+                        implicitHeight: dp(50)
                     }
 
                     contentItem: Text {

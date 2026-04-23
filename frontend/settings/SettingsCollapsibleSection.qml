@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 ColumnLayout {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: root
     Layout.fillWidth: true
     spacing: 0
@@ -30,7 +34,7 @@ ColumnLayout {
                 leftMargin: 2
                 rightMargin: 2
             }
-            spacing: App.Spacing.dp(8)
+            spacing: dp(8)
 
             Text {
                 text: root.title

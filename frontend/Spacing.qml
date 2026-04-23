@@ -162,17 +162,16 @@ QtObject {
      * @param {real} size - Reference size in pixels (designed at 720p)
      * @return {int} - Scaled size as an integer
      */
-    function dp(size) {
+    // dp() and dpMin() declared as function-valued properties (not `function`
+    // statements) so Qt on Android exposes them correctly through the
+    // `pragma Singleton` qmldir entry when the QML is loaded from assets:/.
+    // The singleton-with-function-statement combo was silently dropping the
+    // function bodies there. Math is unchanged.
+    property var dp: function(size) {
         return Math.round(size * effectiveScale)
     }
 
-    /**
-     * Like dp() but with a minimum floor (for radii that shouldn't go sub-pixel).
-     * @param {real} size - Reference size in pixels
-     * @param {real} floor - Minimum return value
-     * @return {int} - Scaled size, at least floor
-     */
-    function dpMin(size, floor) {
+    property var dpMin: function(size, floor) {
         return Math.max(floor, Math.round(size * effectiveScale))
     }
 

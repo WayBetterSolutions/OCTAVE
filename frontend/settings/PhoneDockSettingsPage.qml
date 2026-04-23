@@ -5,6 +5,10 @@ import QtQuick.Dialogs
 import ".." as App
 
 Flickable {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     contentWidth: width
     contentHeight: settingsContent.implicitHeight
     flickableDirection: Flickable.VerticalFlick
@@ -132,7 +136,7 @@ Flickable {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(10)
+                    spacing: dp(10)
 
                     SettingsTextField {
                         id: scrcpyPathField

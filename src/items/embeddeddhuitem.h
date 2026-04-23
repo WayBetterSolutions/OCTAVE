@@ -69,5 +69,18 @@ private:
     int                 m_frameCounter = 0;
 };
 
+#else // Q_OS_MOBILE — mobile stub
+
+#include <QQuickItem>
+#include <QtQml/qqmlregistration.h>
+
+class EmbeddedDhuItem : public QQuickItem
+{
+    Q_OBJECT
+    QML_ELEMENT
+public:
+    explicit EmbeddedDhuItem(QQuickItem *parent = nullptr) : QQuickItem(parent) {}
+};
+
 #endif // Q_OS_MOBILE
 #endif // EMBEDDEDDHUITEM_H

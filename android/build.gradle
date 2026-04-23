@@ -1,0 +1,92 @@
+// OCTAVE Android build.gradle — derived from Qt 6.7.3's template
+// (~/Qt/6.7.3/android_arm64_v8a/src/android/templates/build.gradle)
+//
+// Pinned to AGP 7.4.1 because that matches what Qt 6.7.3's androiddeployqt
+// assumes. Newer AGP versions reject deprecated gradle flags Qt still emits.
+// Upgrade this alongside Qt version bumps.
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        classpath 'com.android.tools.build:gradle:7.4.1'
+    }
+}
+
+repositories {
+    google()
+    mavenCentral()
+}
+
+apply plugin: 'com.android.application'
+
+dependencies {
+    // Qt's androiddeployqt copies its JARs into libs/ during packaging — this
+    // is how QtActivityBase/QtApplicationBase make it onto the classpath.
+    implementation fileTree(dir: 'libs', include: ['*.jar', '*.aar'])
+
+    // youtubedl-android: bundles Python 3.9 + yt-dlp + ffmpeg as an AAR.
+    // Library init extracts the Python runtime to the app's private data dir
+    // on first launch (~10-20s). FFmpeg is a separate artifact. Used by
+    // downloadmanager (search + download) and audioanalyzer (PCM decode).
+    implementation 'io.github.junkfood02.youtubedl-android:library:0.18.1'
+    implementation 'io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1'
+
+    // androidx.core intentionally omitted — any version recent enough to be
+    // useful requires compileSdk 34, which AGP 7.4.1 can't do. Qt itself
+    // doesn't require androidx; re-add when upgrading to AGP 8.5+.
+}
+
+android {
+    namespace androidPackageName
+    // AGP 7.4.1 only supports compileSdk up to 33. Qt's androiddeployqt
+    // generates androidCompileSdkVersion=android-34 by default (matches highest
+    // installed SDK), so pin to our CMake-controlled target instead.
+    compileSdk qtTargetSdkVersion.toInteger()
+    buildToolsVersion androidBuildToolsVersion
+    ndkVersion androidNdkVersion
+
+    // Keep native libs uncompressed in the APK — required for Qt runtime loading
+    packagingOptions.jniLibs.useLegacyPackaging true
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = [qtAndroidDir + '/src', 'src', 'java']
+            aidl.srcDirs = [qtAndroidDir + '/src', 'src', 'aidl']
+            res.srcDirs = [qtAndroidDir + '/res', 'res']
+            resources.srcDirs = ['resources']
+            renderscript.srcDirs = ['src']
+            assets.srcDirs = ['assets']
+            jniLibs.srcDirs = ['libs']
+        }
+    }
+
+    tasks.withType(JavaCompile) {
+        options.incremental = true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    lintOptions {
+        abortOnError false
+    }
+
+    // Do not compress Qt's runtime resource files
+    aaptOptions {
+        noCompress 'rcc'
+    }
+
+    defaultConfig {
+        resConfig "en"
+        minSdkVersion qtMinSdkVersion
+        targetSdkVersion qtTargetSdkVersion
+        ndk.abiFilters = qtTargetAbiList.split(",")
+    }
+}

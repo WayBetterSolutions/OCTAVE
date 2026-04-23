@@ -5,10 +5,14 @@ import "." as App
 // Drop inside any Rectangle parent — anchors.fill is set automatically.
 // Caller controls visibility; pulse animation runs internally.
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: brackets
     anchors.fill: parent
 
-    property real bracketLength: App.Spacing.dp(12)
+    property real bracketLength: dp(12)
 
     // Internal pulse
     property real _pulse: 0.5

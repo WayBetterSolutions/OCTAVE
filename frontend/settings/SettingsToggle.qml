@@ -4,11 +4,15 @@ import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: control
-    height: compact ? implicitHeight : App.Spacing.dp(46)
-    Layout.preferredHeight: compact ? implicitHeight : App.Spacing.dp(46)
+    height: compact ? implicitHeight : dp(46)
+    Layout.preferredHeight: compact ? implicitHeight : dp(46)
     Layout.fillWidth: true
-    implicitHeight: compact ? compactSwitch.implicitHeight : App.Spacing.dp(46)
+    implicitHeight: compact ? compactSwitch.implicitHeight : dp(46)
     implicitWidth: compact ? compactSwitch.implicitWidth : 200
 
     property bool checked: false
@@ -25,12 +29,12 @@ Item {
         anchors.fill: parent
         visible: control.compact
         implicitWidth: compactIndicator.width + compactLabel.implicitWidth + App.Spacing.overallSpacing * 0.5
-        implicitHeight: App.Spacing.dp(26)
+        implicitHeight: dp(26)
 
         Item {
             id: compactIndicator
-            width: App.Spacing.dp(48)
-            height: App.Spacing.dp(26)
+            width: dp(48)
+            height: dp(26)
             anchors.verticalCenter: parent.verticalCenter
 
             // Glow behind track (spacecraft, when checked)
@@ -38,14 +42,14 @@ Item {
                 anchors.centerIn: parent
                 width: parent.width + 6
                 height: parent.height + 6
-                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchRadius + 3, 2)
+                radius: dpMin(App.EnvironmentTheme.active.switchRadius + 3, 2)
                 color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
                 visible: App.EnvironmentTheme.active.accentBorder && control.checked
             }
 
             Rectangle {
                 anchors.fill: parent
-                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchRadius, 2)
+                radius: dpMin(App.EnvironmentTheme.active.switchRadius, 2)
                 color: control.checked ? App.Style.accent : App.Style.secondaryTextColor
                 border.width: App.EnvironmentTheme.active.accentBorder ? 1 : 0
                 border.color: control.checked
@@ -55,10 +59,10 @@ Item {
                 Behavior on color { ColorAnimation { duration: 150 } }
 
                 Rectangle {
-                    x: control.checked ? parent.width - width - App.Spacing.dp(3) : App.Spacing.dp(3)
-                    width: App.Spacing.dp(20)
-                    height: App.Spacing.dp(20)
-                    radius: App.Spacing.dpMin(App.EnvironmentTheme.active.switchKnobRadius, 2)
+                    x: control.checked ? parent.width - width - dp(3) : dp(3)
+                    width: dp(20)
+                    height: dp(20)
+                    radius: dpMin(App.EnvironmentTheme.active.switchKnobRadius, 2)
                     anchors.verticalCenter: parent.verticalCenter
                     color: "white"
 
@@ -109,15 +113,15 @@ Item {
         }
 
         Item {
-            width: App.Spacing.dp(72)
-            height: App.Spacing.dp(36)
+            width: dp(72)
+            height: dp(36)
 
             // Glow behind toggle (spacecraft, when checked)
             Rectangle {
                 anchors.centerIn: track
                 width: track.width + 6
                 height: track.height + 6
-                radius: App.Spacing.dpMin((App.EnvironmentTheme.active.toggleTrackRadius === -1
+                radius: dpMin((App.EnvironmentTheme.active.toggleTrackRadius === -1
                     ? track.height / 2 : App.EnvironmentTheme.active.toggleTrackRadius) + 3, 2)
                 color: Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.2)
                 visible: App.EnvironmentTheme.active.toggleRectShadow && control.checked
@@ -127,7 +131,7 @@ Item {
                 id: track
                 anchors.fill: parent
                 radius: App.EnvironmentTheme.active.toggleTrackRadius === -1
-                    ? height / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.toggleTrackRadius, 2)
+                    ? height / 2 : dpMin(App.EnvironmentTheme.active.toggleTrackRadius, 2)
                 color: control.checked ? Qt.rgba(control.activeColor.r, control.activeColor.g, control.activeColor.b, 0.3) :
                                     Qt.rgba(control.inactiveColor.r, control.inactiveColor.g, control.inactiveColor.b, 0.3)
 
@@ -174,10 +178,10 @@ Item {
 
             Rectangle {
                 id: handle
-                width: App.Spacing.dp(36)
-                height: App.Spacing.dp(36)
+                width: dp(36)
+                height: dp(36)
                 radius: App.EnvironmentTheme.active.toggleHandleRadius === -1
-                    ? width / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.toggleHandleRadius, 2)
+                    ? width / 2 : dpMin(App.EnvironmentTheme.active.toggleHandleRadius, 2)
                 x: control.checked ? parent.width - width : 0
                 y: 0
                 color: "white"
@@ -187,7 +191,7 @@ Item {
                     width: parent.width * 0.4
                     height: width
                     radius: App.EnvironmentTheme.active.toggleHandleRadius === -1
-                        ? width / 2 : App.Spacing.dpMin(App.EnvironmentTheme.active.toggleHandleRadius, 2)
+                        ? width / 2 : dpMin(App.EnvironmentTheme.active.toggleHandleRadius, 2)
                     color: control.activeColor
                     opacity: control.checked ? 1 : 0
                     scale: control.checked ? 1 : 0.5

@@ -5,6 +5,10 @@ import QtQuick.Layouts 1.15
 import "." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: homeOBDView
 
     // Global font binding for all text in this component
@@ -28,9 +32,9 @@ Item {
     GridLayout {
         id: gridLayout
         anchors.fill: parent
-        anchors.margins: App.Spacing.dp(10)
-        columnSpacing: App.Spacing.dp(10)
-        rowSpacing: App.Spacing.dp(10)
+        anchors.margins: dp(10)
+        columnSpacing: dp(10)
+        rowSpacing: dp(10)
         columns: homeOBDView.columnCount
 
         // Dynamically create displays (max 8)
@@ -80,7 +84,7 @@ Item {
                     visible: param === "RPM" && shiftLightEnabled && showOnHomeCard
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: App.Spacing.dp(15)
+                    anchors.rightMargin: dp(15)
                     width: parent.height * shiftLightSize
                     height: width
                     radius: width / 2
@@ -253,12 +257,12 @@ Item {
                     anchors.bottom: parent.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    height: App.Spacing.dp(4)
+                    height: dp(4)
                     color: App.Style.backgroundColor
                     radius: parent.radius
 
                     Rectangle {
-                        width: Math.max(App.Spacing.dp(4), parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
+                        width: Math.max(dp(4), parent.width * Math.min(1, (value - info.minValue) / (info.maxValue - info.minValue)))
                         height: parent.height
                         color: App.Style.accent
                         radius: parent.radius
@@ -268,11 +272,11 @@ Item {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: App.Spacing.dp(5)
-                    anchors.rightMargin: App.Spacing.dp(5)
-                    anchors.topMargin: App.Spacing.dp(5)
-                    anchors.bottomMargin: App.Spacing.dp(4) + App.Spacing.dp(4)
-                    spacing: App.Spacing.dp(5)
+                    anchors.leftMargin: dp(5)
+                    anchors.rightMargin: dp(5)
+                    anchors.topMargin: dp(5)
+                    anchors.bottomMargin: dp(4) + dp(4)
+                    spacing: dp(5)
 
                     Text {
                         text: info.title.toUpperCase()

@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Flickable {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     contentWidth: width
     contentHeight: settingsContent.implicitHeight
     flickableDirection: Flickable.VerticalFlick
@@ -27,7 +31,7 @@ Flickable {
             Item {
                 Layout.fillWidth: true
                 width: parent.width
-                height: App.Spacing.dp(100)
+                height: dp(100)
 
                 Text {
                     id: glowText
@@ -158,7 +162,7 @@ Flickable {
                         SettingsButton {
                             id: checkUpdateButton
                             text: networkManager && networkManager.updateStatus === "checking" ? "Checking..." : "Check for Updates"
-                            height: App.Spacing.dp(30)
+                            height: dp(30)
                             enabled: !networkManager || networkManager.updateStatus !== "checking"
                             opacity: enabled ? 1.0 : 0.6
                             onClicked: {
@@ -168,15 +172,15 @@ Flickable {
 
                             // Update notification dot
                             Rectangle {
-                                width: App.Spacing.dp(7)
-                                height: App.Spacing.dp(7)
+                                width: dp(7)
+                                height: dp(7)
                                 radius: width / 2
                                 color: "#FF9800"
                                 z: 10
                                 anchors.top: parent.top
                                 anchors.right: parent.right
-                                anchors.topMargin: App.Spacing.dp(-2)
-                                anchors.rightMargin: App.Spacing.dp(-2)
+                                anchors.topMargin: dp(-2)
+                                anchors.rightMargin: dp(-2)
                                 visible: networkManager && networkManager.updateStatus === "update-available"
 
                                 SequentialAnimation on opacity {
@@ -196,8 +200,8 @@ Flickable {
                         visible: networkManager && networkManager.updateStatus !== ""
 
                         Rectangle {
-                            width: App.Spacing.dp(8)
-                            height: App.Spacing.dp(8)
+                            width: dp(8)
+                            height: dp(8)
                             radius: width / 2
                             color: {
                                 if (!networkManager) return App.Style.secondaryTextColor
@@ -289,7 +293,7 @@ Flickable {
                                 SettingsButton {
                                     text: parent.confirming ? "Confirm Update" : "Update Now"
                                     buttonColor: parent.confirming ? "#FF9800" : App.Style.accent
-                                    height: App.Spacing.dp(30)
+                                    height: dp(30)
                                     onClicked: {
                                         if (parent.confirming) {
                                             parent.confirming = false
@@ -325,8 +329,8 @@ Flickable {
                                 visible: networkManager && networkManager.selfUpdateStatus === "fetching"
 
                                 Rectangle {
-                                    width: App.Spacing.dp(8)
-                                    height: App.Spacing.dp(8)
+                                    width: dp(8)
+                                    height: dp(8)
                                     radius: width / 2
                                     color: App.Style.accent
 
@@ -357,8 +361,8 @@ Flickable {
                                     spacing: App.Spacing.overallSpacing * 0.5
 
                                     Rectangle {
-                                        width: App.Spacing.dp(8)
-                                        height: App.Spacing.dp(8)
+                                        width: dp(8)
+                                        height: dp(8)
                                         radius: width / 2
                                         color: "#F44336"
                                     }
@@ -376,7 +380,7 @@ Flickable {
                                 SettingsButton {
                                     text: "Retry Update"
                                     buttonColor: "#FF9800"
-                                    height: App.Spacing.dp(30)
+                                    height: dp(30)
                                     onClicked: {
                                         if (networkManager)
                                             networkManager.applySelfUpdate()
@@ -394,8 +398,8 @@ Flickable {
                                     spacing: App.Spacing.overallSpacing * 0.5
 
                                     Rectangle {
-                                        width: App.Spacing.dp(8)
-                                        height: App.Spacing.dp(8)
+                                        width: dp(8)
+                                        height: dp(8)
                                         radius: width / 2
                                         color: "#4CAF50"
                                     }
@@ -411,7 +415,7 @@ Flickable {
                                 SettingsButton {
                                     text: "Restart Now"
                                     buttonColor: "#4CAF50"
-                                    height: App.Spacing.dp(30)
+                                    height: dp(30)
                                     onClicked: {
                                         if (networkManager)
                                             networkManager.restartApp()

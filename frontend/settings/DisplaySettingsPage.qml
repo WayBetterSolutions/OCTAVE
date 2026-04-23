@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Flickable {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     property var stackView: null
     property var mainWindow: null
     property string currentSection: ""
@@ -176,7 +180,7 @@ Flickable {
 
                     SettingsTextField {
                         id: screenWidth
-                        Layout.preferredWidth: App.Spacing.dp(120)
+                        Layout.preferredWidth: dp(120)
                         text: mainWindow ? mainWindow.width : ""
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
@@ -219,7 +223,7 @@ Flickable {
 
                     SettingsTextField {
                         id: screenHeight
-                        Layout.preferredWidth: App.Spacing.dp(120)
+                        Layout.preferredWidth: dp(120)
                         text: mainWindow ? mainWindow.height : ""
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
@@ -256,7 +260,7 @@ Flickable {
                     SettingsButton {
                         text: mainWindow && mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
                         Layout.preferredHeight: screenHeight.height
-                        Layout.minimumWidth: App.Spacing.dp(80)
+                        Layout.minimumWidth: dp(80)
                         tooltipText: mainWindow && mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
                         onClicked: {
                             if (!mainWindow) return
@@ -273,7 +277,7 @@ Flickable {
                     SettingsButton {
                         text: "Maximize"
                         Layout.preferredHeight: screenHeight.height
-                        Layout.minimumWidth: App.Spacing.dp(80)
+                        Layout.minimumWidth: dp(80)
                         tooltipText: "Maximize window to fill screen"
                         onClicked: {
                             if (!mainWindow) return

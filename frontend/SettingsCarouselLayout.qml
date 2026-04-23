@@ -5,6 +5,10 @@ import "." as App
 import "settings"
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: carouselLayout
 
     // Required from orchestrator
@@ -20,15 +24,15 @@ Item {
     Row {
         id: tabStrip
         anchors.top: parent.top
-        anchors.topMargin: App.Spacing.dp(2)
+        anchors.topMargin: dp(2)
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: App.Spacing.dp(4)
+        spacing: dp(4)
         z: 20
 
         // Uniform tab width: divide available space equally
         property real tabWidth: hubModel.length > 0
-            ? (parent.width - App.Spacing.dp(4) * (hubModel.length - 1)) / hubModel.length
-            : App.Spacing.dp(80)
+            ? (parent.width - dp(4) * (hubModel.length - 1)) / hubModel.length
+            : dp(80)
 
         Repeater {
             model: hubModel.length
@@ -37,8 +41,8 @@ Item {
                 property bool isCurrent: index === swipeView.currentIndex
 
                 width: tabStrip.tabWidth
-                height: App.Spacing.dp(28)
-                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.chipRadius === -1
+                height: dp(28)
+                radius: dpMin(App.EnvironmentTheme.active.chipRadius === -1
                     ? 6 : App.EnvironmentTheme.active.chipRadius, 2)
 
                 color: isCurrent
@@ -70,15 +74,15 @@ Item {
 
                 // Update notification dot
                 Rectangle {
-                    width: App.Spacing.dp(7)
-                    height: App.Spacing.dp(7)
+                    width: dp(7)
+                    height: dp(7)
                     radius: width / 2
                     color: "#FF9800"
                     z: 10
                     anchors.top: parent.top
                     anchors.right: parent.right
-                    anchors.topMargin: App.Spacing.dp(-2)
-                    anchors.rightMargin: App.Spacing.dp(-2)
+                    anchors.topMargin: dp(-2)
+                    anchors.rightMargin: dp(-2)
                     visible: hubModel[index] && hubModel[index].section === "about"
                              && settingsMenu && settingsMenu.updateAvailable
 
@@ -106,7 +110,7 @@ Item {
     SwipeView {
         id: swipeView
         anchors.top: tabStrip.bottom
-        anchors.topMargin: App.Spacing.dp(2)
+        anchors.topMargin: dp(2)
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -133,7 +137,7 @@ Item {
                 categoryIcon: itemData.icon || ""
                 groupName: itemData.group || ""
                 isCenter: SwipeView.isCurrentItem
-                radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
+                radius: dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
                 settingsMenu: carouselLayout.settingsMenu
             }
         }

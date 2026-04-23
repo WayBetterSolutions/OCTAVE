@@ -1,6 +1,9 @@
 #ifndef GESTUREMANAGER_H
 #define GESTUREMANAGER_H
 
+// PAJ7620U2 gesture sensor uses Linux I2C — excluded on mobile builds.
+#ifndef Q_OS_MOBILE
+
 #include <QObject>
 #include <QString>
 #include <QMap>
@@ -114,4 +117,33 @@ private:
     QMap<QString, QString> m_gestureMapping;
 };
 
+#else // Q_OS_MOBILE — mobile stub
+
+#include <QObject>
+#include <QString>
+
+class GestureManager : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString connectionStatus READ connectionStatus NOTIFY connectionStatusChanged)
+public:
+    explicit GestureManager(QObject *parent = nullptr) : QObject(parent) {}
+    void connect_settings_manager(QObject *) {}
+    void cleanup() {}
+    QString connectionStatus() const { return QStringLiteral("Disabled on mobile"); }
+
+public slots:
+    void setEnabled(bool) {}
+    void setCooldown(double) {}
+    void setGestureAction(const QString &, const QString &) {}
+    QString getGestureAction(const QString &) const { return {}; }
+    void resetMappingToDefaults() {}
+    QString getConnectionStatus() const { return QStringLiteral("Disabled on mobile"); }
+
+signals:
+    void actionTriggered(const QString &);
+    void connectionStatusChanged();
+};
+
+#endif // Q_OS_MOBILE
 #endif // GESTUREMANAGER_H

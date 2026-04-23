@@ -215,17 +215,13 @@ class AndroidOBDManager(QObject):
         self._reconnect_timer.setSingleShot(True)
         self._reconnect_timer.timeout.connect(self._attempt_reconnect)
 
-        # Load saved address (default to NEXAS dev adapter)
-        self._target_address = "88:1B:99:66:DD:5F"
+        # Load saved address from settings — user enters their adapter's MAC in OBDSettingsPage
+        self._target_address = ""
         if settings_manager:
             saved = settings_manager.obdBluetoothPort
-            # Only use saved value if it looks like a MAC address
             mac_re = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
             if saved and mac_re.match(saved):
                 self._target_address = saved
-            else:
-                # Save default MAC so QML field shows it
-                settings_manager.save_obd_bluetooth_port(self._target_address)
 
         self._log("AndroidOBDManager initialized (Classic RFCOMM primary)")
         logger.info("AndroidOBDManager initialized (Classic RFCOMM primary)")

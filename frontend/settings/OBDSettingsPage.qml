@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: pageRoot
 
     // Expose Flickable properties for SettingsMenu.qml scroll rail
@@ -52,7 +56,7 @@ Item {
                 Rectangle {
                     id: connectionStatusRect
                     Layout.fillWidth: true
-                    Layout.preferredHeight: App.Spacing.dp(40)
+                    Layout.preferredHeight: dp(40)
 
                     // Use more diverse status colors
                     property var statusColors: {
@@ -142,19 +146,19 @@ Item {
                     // Text and spinner layout
                     Column {
                         anchors.centerIn: parent
-                        spacing: App.Spacing.dp(2)
+                        spacing: dp(2)
 
                         // Main status row
                         Row {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: App.Spacing.dp(10)
+                            spacing: dp(10)
 
                             // Simple spinner using Rectangle animation
                             Rectangle {
                                 id: spinner
-                                width: App.Spacing.dp(20)
-                                height: App.Spacing.dp(20)
-                                radius: App.Spacing.dpMin(10, 2)
+                                width: dp(20)
+                                height: dp(20)
+                                radius: dpMin(10, 2)
                                 color: "transparent"
                                 border.width: 2
                                 border.color: "white"
@@ -163,8 +167,8 @@ Item {
                                 // Spinner dot that rotates around
                                 Rectangle {
                                     id: spinnerDot
-                                    width: App.Spacing.dp(6)
-                                    height: App.Spacing.dp(6)
+                                    width: dp(6)
+                                    height: dp(6)
                                     radius: 3
                                     color: "white"
                                     anchors.horizontalCenter: parent.horizontalCenter
@@ -267,9 +271,9 @@ Item {
                 Popup {
                     id: deviceNotFoundNotification
                     x: (parent.width - width) / 2
-                    y: parent.height - height - App.Spacing.dp(20)
-                    width: App.Spacing.dp(300)
-                    height: App.Spacing.dp(60)
+                    y: parent.height - height - dp(20)
+                    width: dp(300)
+                    height: dp(60)
                     modal: false
                     focus: true
                     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -323,18 +327,18 @@ Item {
                 // Android: Scan + Pair + Connect buttons and device list
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(8)
+                    spacing: dp(8)
                     visible: typeof isAndroid !== "undefined" && isAndroid
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: App.Spacing.dp(6)
+                        spacing: dp(6)
 
                         // Scan button
                         Rectangle {
-                            Layout.preferredWidth: App.Spacing.dp(90)
-                            Layout.preferredHeight: App.Spacing.dp(40)
-                            radius: App.Spacing.dpMin(6, 2)
+                            Layout.preferredWidth: dp(90)
+                            Layout.preferredHeight: dp(40)
+                            radius: dpMin(6, 2)
                             color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
 
                             Text {
@@ -360,9 +364,9 @@ Item {
 
                         // Pair in Settings button
                         Rectangle {
-                            Layout.preferredWidth: App.Spacing.dp(130)
-                            Layout.preferredHeight: App.Spacing.dp(40)
-                            radius: App.Spacing.dpMin(6, 2)
+                            Layout.preferredWidth: dp(130)
+                            Layout.preferredHeight: dp(40)
+                            radius: dpMin(6, 2)
                             color: pairMouseArea.pressed ? Qt.darker("#8e44ad", 1.3) : "#8e44ad"
 
                             Text {
@@ -385,9 +389,9 @@ Item {
 
                         // Connect button
                         Rectangle {
-                            Layout.preferredWidth: App.Spacing.dp(100)
-                            Layout.preferredHeight: App.Spacing.dp(40)
-                            radius: App.Spacing.dpMin(6, 2)
+                            Layout.preferredWidth: dp(100)
+                            Layout.preferredHeight: dp(40)
+                            radius: dpMin(6, 2)
                             color: connectMouseArea.pressed ? Qt.darker("#27ae60", 1.3) : "#27ae60"
 
                             Text {
@@ -429,8 +433,8 @@ Item {
                         model: deviceListModel
                         delegate: Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: App.Spacing.dp(40)
-                            radius: App.Spacing.dpMin(4, 2)
+                            Layout.preferredHeight: dp(40)
+                            radius: dpMin(4, 2)
                             color: deviceItemMouse.pressed ? Qt.darker(App.Style.cardBackground, 1.2) : App.Style.cardBackground
                             border.width: 1
                             border.color: App.Style.accent
@@ -463,7 +467,7 @@ Item {
                 // Android: Manual MAC address entry
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(8)
+                    spacing: dp(8)
                     visible: typeof isAndroid !== "undefined" && isAndroid
 
                     SettingsTextField {
@@ -474,9 +478,9 @@ Item {
                     }
 
                     Rectangle {
-                        Layout.preferredWidth: App.Spacing.dp(80)
-                        Layout.preferredHeight: App.Spacing.dp(40)
-                        radius: App.Spacing.dpMin(6, 2)
+                        Layout.preferredWidth: dp(80)
+                        Layout.preferredHeight: dp(40)
+                        radius: dpMin(6, 2)
                         color: manualConnectMouse.pressed ? Qt.darker("#27ae60", 1.3) : "#27ae60"
 
                         Text {
@@ -537,7 +541,7 @@ Item {
                 // ── Connection Log (Android only) ──────────────────
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(4)
+                    spacing: dp(4)
                     visible: typeof isAndroid !== "undefined" && isAndroid
 
                     SettingLabel {
@@ -546,15 +550,15 @@ Item {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: App.Spacing.dp(160)
-                        radius: App.Spacing.dpMin(4, 2)
+                        Layout.preferredHeight: dp(160)
+                        radius: dpMin(4, 2)
                         color: Qt.darker(App.Style.cardBackground, 1.4)
                         clip: true
 
                         Flickable {
                             id: logFlickable
                             anchors.fill: parent
-                            anchors.margins: App.Spacing.dp(6)
+                            anchors.margins: dp(6)
                             contentWidth: width
                             contentHeight: logText.implicitHeight
                             flickableDirection: Flickable.VerticalFlick
@@ -652,7 +656,7 @@ Item {
                         font.pixelSize: App.Spacing.overallText
                         font.family: App.Style.fontFamily
                         font.bold: true
-                        Layout.preferredWidth: App.Spacing.dp(30)
+                        Layout.preferredWidth: dp(30)
                         horizontalAlignment: Text.AlignRight
                     }
                 }
@@ -731,7 +735,7 @@ Item {
             // ── Controls row ─────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                Layout.bottomMargin: App.Spacing.dp(6)
+                Layout.bottomMargin: dp(6)
 
                 // Select All button
                 Button {
@@ -847,7 +851,7 @@ Item {
                 id: scanProgressRow
                 Layout.fillWidth: true
                 visible: scanProgressRow.isScanning || scanProgressRow.scanStatus !== ""
-                spacing: App.Spacing.dp(10)
+                spacing: dp(10)
 
                 property bool isScanning: false
                 property string scanStatus: ""
@@ -897,8 +901,8 @@ Item {
             // ── Two-panel layout ─────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: App.Spacing.dp(500)
-                spacing: App.Spacing.dp(12)
+                Layout.preferredHeight: dp(500)
+                spacing: dp(12)
 
                 // ── LEFT PANEL: Available parameters ─────────────
                 Rectangle {
@@ -947,7 +951,7 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: App.Spacing.dp(8)
+                        anchors.margins: dp(8)
                         spacing: 0
 
                         Text {
@@ -956,7 +960,7 @@ Item {
                             font.pixelSize: App.Spacing.overallText * 0.85
                             font.family: App.Style.fontFamily
                             font.bold: true
-                            Layout.bottomMargin: App.Spacing.dp(6)
+                            Layout.bottomMargin: dp(6)
                         }
 
                         MouseArea {
@@ -970,7 +974,7 @@ Item {
                             property real maxScroll: Math.max(0, leftColumn.implicitHeight - leftScrollContainer.height)
 
                             onWheel: function(wheel) {
-                                var delta = wheel.angleDelta.y / 120 * App.Spacing.dp(40);
+                                var delta = wheel.angleDelta.y / 120 * dp(40);
                                 scrollY = Math.max(0, Math.min(maxScroll, scrollY - delta));
                                 wheel.accepted = true;
                             }
@@ -978,7 +982,7 @@ Item {
                             Column {
                                 id: leftColumn
                                 width: parent.width
-                                spacing: App.Spacing.dp(6)
+                                spacing: dp(6)
                                 y: -leftScrollContainer.scrollY
                                 Behavior on y { NumberAnimation { duration: 80; easing.type: Easing.OutQuad } }
 
@@ -989,7 +993,7 @@ Item {
                                     Rectangle {
                                         id: leftCard
                                         width: leftColumn.width
-                                        height: App.Spacing.dp(56)
+                                        height: dp(56)
                                         radius: 4
 
                                         property string paramId: modelData.id
@@ -1031,9 +1035,9 @@ Item {
 
                                         RowLayout {
                                             anchors.fill: parent
-                                            anchors.leftMargin: App.Spacing.dp(10)
-                                            anchors.rightMargin: App.Spacing.dp(10)
-                                            spacing: App.Spacing.dp(8)
+                                            anchors.leftMargin: dp(10)
+                                            anchors.rightMargin: dp(10)
+                                            spacing: dp(8)
 
                                             // Param name
                                             ColumnLayout {
@@ -1082,13 +1086,13 @@ Item {
                                                 font.family: App.Style.fontFamily
                                                 font.bold: leftCard.isEnabled
                                                 horizontalAlignment: Text.AlignRight
-                                                Layout.preferredWidth: App.Spacing.dp(80)
+                                                Layout.preferredWidth: dp(80)
                                             }
 
                                             // Home badge
                                             Rectangle {
-                                                width: App.Spacing.dp(8)
-                                                height: App.Spacing.dp(8)
+                                                width: dp(8)
+                                                height: dp(8)
                                                 radius: 4
                                                 color: App.Style.accent
                                                 visible: leftCard.onHome
@@ -1107,7 +1111,7 @@ Item {
                                             property real startX: 0
                                             property real startY: 0
                                             property real lastY: 0
-                                            property real dragThreshold: App.Spacing.dp(8)
+                                            property real dragThreshold: dp(8)
 
                                             onPressed: function(mouse) {
                                                 dragging = false;
@@ -1222,12 +1226,12 @@ Item {
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: App.Spacing.dp(8)
+                        anchors.margins: dp(8)
                         spacing: 0
 
                         RowLayout {
                             Layout.fillWidth: true
-                            Layout.bottomMargin: App.Spacing.dp(6)
+                            Layout.bottomMargin: dp(6)
 
                             Text {
                                 text: "Home Grid"
@@ -1353,8 +1357,8 @@ Item {
                                 id: homeGrid
                                 anchors.fill: parent
                                 columns: rightPanel.gridColumns
-                                columnSpacing: App.Spacing.dp(6)
-                                rowSpacing: App.Spacing.dp(6)
+                                columnSpacing: dp(6)
+                                rowSpacing: dp(6)
 
                                 Repeater {
                                     id: homeRepeater
@@ -1415,8 +1419,8 @@ Item {
 
                                         ColumnLayout {
                                             anchors.fill: parent
-                                            anchors.margins: App.Spacing.dp(5)
-                                            spacing: App.Spacing.dp(3)
+                                            anchors.margins: dp(5)
+                                            spacing: dp(3)
 
                                             Text {
                                                 text: homeCard.info.title.toUpperCase()
@@ -1441,7 +1445,7 @@ Item {
 
                                             Rectangle {
                                                 Layout.fillWidth: true
-                                                height: App.Spacing.dp(4)
+                                                height: dp(4)
                                                 color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.1)
                                                 radius: 2
 
@@ -1468,7 +1472,7 @@ Item {
                                             property bool dragging: false
                                             property real startX: 0
                                             property real startY: 0
-                                            property real dragThreshold: App.Spacing.dp(8)
+                                            property real dragThreshold: dp(8)
 
                                             onPressed: function(mouse) {
                                                 dragging = false;
@@ -1573,8 +1577,8 @@ Item {
 
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: App.Spacing.dp(5)
-                                    spacing: App.Spacing.dp(3)
+                                    anchors.margins: dp(5)
+                                    spacing: dp(3)
 
                                     Text {
                                         text: dragProxy.paramTitle ? dragProxy.paramTitle.toUpperCase() : ""
@@ -1608,7 +1612,7 @@ Item {
             // ── Hint text ────────────────────────────────────────
             Text {
                 Layout.fillWidth: true
-                Layout.topMargin: App.Spacing.dp(4)
+                Layout.topMargin: dp(4)
                 text: {
                     var _v = parametersCard.supportedParamsVersion;
                     var supported = settingsManager ? settingsManager.get_supported_obd_parameters() : [];
@@ -1686,7 +1690,7 @@ Item {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: App.Spacing.dp(6)
+            anchors.margins: dp(6)
             spacing: 2
 
             Text {

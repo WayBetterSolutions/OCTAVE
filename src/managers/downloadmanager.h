@@ -9,6 +9,12 @@
 #ifdef OCTAVE_ENABLE_DOWNLOADS
 
 #include <QProcess>
+#ifdef Q_OS_MOBILE
+#include "../platform/androidprocessadapter.h"
+using YtDlpProcess = AndroidProcessAdapter;
+#else
+using YtDlpProcess = QProcess;
+#endif
 #include <QTimer>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -143,7 +149,7 @@ private:
     QString m_lastQuery;
     int m_searchOffset = 0;
     QJsonArray m_allResults;
-    QProcess *m_searchProcess = nullptr;
+    YtDlpProcess *m_searchProcess = nullptr;
     QByteArray m_searchBuffer;
 
     // Download state
@@ -151,7 +157,7 @@ private:
     int m_maxConcurrentDownloads = 2;
     QMap<QString, DownloadTask> m_downloadTasks;   // songId -> task
     QQueue<QString> m_downloadQueue;               // songIds in queue order
-    QMap<QString, QProcess *> m_downloadProcesses; // songId -> active QProcess
+    QMap<QString, YtDlpProcess *> m_downloadProcesses; // songId -> active task
     QMap<QString, QByteArray> m_downloadStdout;    // songId -> accumulated stdout
 
     // Target playlist override (empty = use downloadSubfolder setting)

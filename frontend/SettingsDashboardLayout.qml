@@ -6,6 +6,10 @@ import "settings"
 import "settings/ScrollMemory.js" as ScrollMemory
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: dashboardLayout
 
     // Required from orchestrator
@@ -164,7 +168,7 @@ Item {
                             widgetSource: modelData.widgetSource
                             categoryIcon: modelData.icon
                             cardSpan: 1
-                            radius: App.Spacing.dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
+                            radius: dpMin(App.EnvironmentTheme.active.hubCardRadius, 2)
 
                             onCategorySelected: function(sec) {
                                 dashboardLayout.navigateToCategory(sec)
@@ -175,15 +179,15 @@ Item {
 
                             // Update notification dot
                             Rectangle {
-                                width: App.Spacing.dp(8)
-                                height: App.Spacing.dp(8)
+                                width: dp(8)
+                                height: dp(8)
                                 radius: width / 2
                                 color: "#FF9800"
                                 z: 10
                                 anchors.top: parent.top
                                 anchors.right: parent.right
-                                anchors.topMargin: App.Spacing.dp(6)
-                                anchors.rightMargin: App.Spacing.dp(6)
+                                anchors.topMargin: dp(6)
+                                anchors.rightMargin: dp(6)
                                 visible: modelData.section === "about"
                                          && settingsMenu && settingsMenu.updateAvailable
 
@@ -307,7 +311,7 @@ Item {
                 anchors.top: headingBar.bottom
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
-                width: App.Spacing.dp(40)
+                width: dp(40)
                 color: Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.03)
 
                 property var flick: contentLoader.item
@@ -324,7 +328,7 @@ Item {
                 Rectangle {
                     id: scrollHandle
                     visible: scrollRail.canScroll
-                    width: App.Spacing.dp(6)
+                    width: dp(6)
                     anchors.horizontalCenter: parent.horizontalCenter
                     radius: width / 2
                     color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b,
@@ -334,7 +338,7 @@ Item {
 
                     property real trackHeight: scrollRail.height
                     property real handleRatio: scrollRail.flick ? Math.min(1, scrollRail.flick.height / scrollRail.flick.contentHeight) : 1
-                    height: Math.max(App.Spacing.dp(50), trackHeight * handleRatio)
+                    height: Math.max(dp(50), trackHeight * handleRatio)
 
                     y: {
                         if (!scrollRail.canScroll) return 0

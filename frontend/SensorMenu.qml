@@ -5,6 +5,10 @@ import "." as App
 import "settings" as Settings
 
 Item {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     id: sensorMenu
     required property StackView stackView
     required property ApplicationWindow mainWindow
@@ -89,29 +93,29 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: App.Spacing.overallMargin
-            spacing: App.Spacing.dp(16)
+            spacing: dp(16)
 
             // Header — heading, temperature, and gear
             RowLayout {
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(16)
+                spacing: dp(16)
 
                 // Heading readout
                 RowLayout {
-                    spacing: App.Spacing.dp(4)
+                    spacing: dp(4)
                     visible: showHeading
 
                     Text {
                         text: "\u2316"
                         color: App.Style.accent
-                        font.pixelSize: App.Spacing.dp(16)
+                        font.pixelSize: dp(16)
                     }
                     Text {
                         text: imuConnected
                               ? currentHeading.toFixed(decimalPlaces) + "\u00B0 " + headingToCardinal(currentHeading)
                               : "--"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(16)
+                        font.pixelSize: dp(16)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -119,20 +123,20 @@ Item {
 
                 // Temperature readout
                 RowLayout {
-                    spacing: App.Spacing.dp(4)
+                    spacing: dp(4)
                     visible: showTemperature
 
                     Text {
                         text: "\u2600"
                         color: App.Style.accent
-                        font.pixelSize: App.Spacing.dp(16)
+                        font.pixelSize: dp(16)
                     }
                     Text {
                         text: imuConnected
                               ? tempDisplay(currentBaroTemp) + (useFahrenheit ? "\u00B0F" : "\u00B0C")
                               : "--"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(16)
+                        font.pixelSize: dp(16)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -142,15 +146,15 @@ Item {
 
                 // Settings gear button
                 Rectangle {
-                    width: App.Spacing.dp(34)
-                    height: App.Spacing.dp(34)
-                    radius: App.Spacing.dp(6)
+                    width: dp(34)
+                    height: dp(34)
+                    radius: dp(6)
                     color: gearArea.containsMouse ? App.Style.hoverColor : "transparent"
 
                     Text {
                         anchors.centerIn: parent
                         text: "\u2699"
-                        font.pixelSize: App.Spacing.dp(20)
+                        font.pixelSize: dp(20)
                         color: App.Style.secondaryTextColor
                     }
 
@@ -168,8 +172,8 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 columns: 2
-                rowSpacing: App.Spacing.dp(12)
-                columnSpacing: App.Spacing.dp(12)
+                rowSpacing: dp(12)
+                columnSpacing: dp(12)
 
                 SensorCard {
                     label: "PITCH"
@@ -218,13 +222,13 @@ Item {
             // Bottom controls
             RowLayout {
                 Layout.fillWidth: true
-                spacing: App.Spacing.dp(12)
+                spacing: dp(12)
 
                 // Tare button
                 Rectangle {
-                    width: App.Spacing.dp(100)
-                    height: App.Spacing.dp(36)
-                    radius: App.Spacing.dp(6)
+                    width: dp(100)
+                    height: dp(36)
+                    radius: dp(6)
                     color: tareArea.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
                     visible: imuConnected
 
@@ -232,7 +236,7 @@ Item {
                         anchors.centerIn: parent
                         text: "ZERO"
                         color: "white"
-                        font.pixelSize: App.Spacing.dp(13)
+                        font.pixelSize: dp(13)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -246,9 +250,9 @@ Item {
 
                 // Reset tare button
                 Rectangle {
-                    width: App.Spacing.dp(100)
-                    height: App.Spacing.dp(36)
-                    radius: App.Spacing.dp(6)
+                    width: dp(100)
+                    height: dp(36)
+                    radius: dp(6)
                     color: resetArea.pressed ? Qt.darker(App.Style.secondaryTextColor, 1.3) : App.Style.headerBackgroundColor
                     border.color: App.Style.secondaryTextColor
                     border.width: 1
@@ -258,7 +262,7 @@ Item {
                         anchors.centerIn: parent
                         text: "RESET"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(13)
+                        font.pixelSize: dp(13)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -274,9 +278,9 @@ Item {
 
                 // 3D View button
                 Rectangle {
-                    width: App.Spacing.dp(100)
-                    height: App.Spacing.dp(36)
-                    radius: App.Spacing.dp(6)
+                    width: dp(100)
+                    height: dp(36)
+                    radius: dp(6)
                     color: carMenuArea.pressed ? Qt.darker(App.Style.headerBackgroundColor, 1.3) : App.Style.headerBackgroundColor
                     border.color: App.Style.secondaryTextColor
                     border.width: 1
@@ -285,7 +289,7 @@ Item {
                         anchors.centerIn: parent
                         text: "3D View"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(13)
+                        font.pixelSize: dp(13)
                         font.family: sensorMenu.globalFont
                     }
 
@@ -311,16 +315,16 @@ Item {
         id: sensorSettingsPopup
         anchors.centerIn: Overlay.overlay
         modal: true
-        width: App.Spacing.dp(380)
-        height: Math.min(popupFlickable.contentHeight + App.Spacing.dp(32), sensorMenu.height * 0.85)
-        padding: App.Spacing.dp(16)
+        width: dp(380)
+        height: Math.min(popupFlickable.contentHeight + dp(32), sensorMenu.height * 0.85)
+        padding: dp(16)
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         background: Rectangle {
             color: App.Style.backgroundColor
             border.color: App.Style.accent
             border.width: 1
-            radius: App.Spacing.dp(12)
+            radius: dp(12)
         }
 
         contentItem: Flickable {
@@ -334,18 +338,18 @@ Item {
 
             ColumnLayout {
                 id: popupContent
-                width: popupFlickable.width - App.Spacing.dp(12)
-                spacing: App.Spacing.dp(10)
+                width: popupFlickable.width - dp(12)
+                spacing: dp(10)
 
                 // ── Header ──
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.dp(8)
+                    spacing: dp(8)
 
                     Text {
                         text: "Sensor Settings"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(20)
+                        font.pixelSize: dp(20)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -353,15 +357,15 @@ Item {
                     Item { Layout.fillWidth: true }
 
                     Rectangle {
-                        width: App.Spacing.dp(28)
-                        height: App.Spacing.dp(28)
-                        radius: App.Spacing.dp(6)
+                        width: dp(28)
+                        height: dp(28)
+                        radius: dp(6)
                         color: closeArea.containsMouse ? App.Style.hoverColor : "transparent"
 
                         Text {
                             anchors.centerIn: parent
                             text: "\u2715"
-                            font.pixelSize: App.Spacing.dp(14)
+                            font.pixelSize: dp(14)
                             color: App.Style.secondaryTextColor
                         }
 
@@ -386,10 +390,10 @@ Item {
                 Text {
                     text: "DISPLAY"
                     color: App.Style.secondaryTextColor
-                    font.pixelSize: App.Spacing.dp(11)
+                    font.pixelSize: dp(11)
                     font.bold: true
                     font.family: sensorMenu.globalFont
-                    font.letterSpacing: App.Spacing.dp(1.5)
+                    font.letterSpacing: dp(1.5)
                 }
 
                 // Decimal Places
@@ -398,14 +402,14 @@ Item {
                     Text {
                         text: "Decimal Places"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.family: sensorMenu.globalFont
                     }
                     Item { Layout.fillWidth: true }
                     Text {
                         text: decimalPlaces
                         color: App.Style.accent
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -454,10 +458,10 @@ Item {
                 Text {
                     text: "PERFORMANCE"
                     color: App.Style.secondaryTextColor
-                    font.pixelSize: App.Spacing.dp(11)
+                    font.pixelSize: dp(11)
                     font.bold: true
                     font.family: sensorMenu.globalFont
-                    font.letterSpacing: App.Spacing.dp(1.5)
+                    font.letterSpacing: dp(1.5)
                 }
 
                 RowLayout {
@@ -465,14 +469,14 @@ Item {
                     Text {
                         text: "Update Rate"
                         color: App.Style.primaryTextColor
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.family: sensorMenu.globalFont
                     }
                     Item { Layout.fillWidth: true }
                     Text {
                         text: emitRate + " Hz"
                         color: App.Style.accent
-                        font.pixelSize: App.Spacing.dp(14)
+                        font.pixelSize: dp(14)
                         font.bold: true
                         font.family: sensorMenu.globalFont
                     }
@@ -508,10 +512,10 @@ Item {
                 Text {
                     text: "VISIBLE CARDS"
                     color: App.Style.secondaryTextColor
-                    font.pixelSize: App.Spacing.dp(11)
+                    font.pixelSize: dp(11)
                     font.bold: true
                     font.family: sensorMenu.globalFont
-                    font.letterSpacing: App.Spacing.dp(1.5)
+                    font.letterSpacing: dp(1.5)
                 }
 
                 Settings.SettingsToggle {
@@ -575,7 +579,7 @@ Item {
                 }
 
                 // Bottom spacer
-                Item { height: App.Spacing.dp(4) }
+                Item { height: dp(4) }
             }
         }
     }

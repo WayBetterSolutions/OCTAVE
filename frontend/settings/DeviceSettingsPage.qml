@@ -4,6 +4,10 @@ import QtQuick.Layouts 1.15
 import ".." as App
 
 Flickable {
+    // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
+    function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
+    function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
+
     contentWidth: width
     contentHeight: settingsContent.implicitHeight
     flickableDirection: Flickable.VerticalFlick
@@ -77,8 +81,8 @@ Flickable {
 
                     // Connection status dot
                     Rectangle {
-                        width: App.Spacing.dp(10)
-                        height: App.Spacing.dp(10)
+                        width: dp(10)
+                        height: dp(10)
                         radius: width / 2
                         color: networkManager && networkManager.isConnected ? "#4CAF50" : "#F44336"
                         Layout.alignment: Qt.AlignVCenter
@@ -116,7 +120,7 @@ Flickable {
 
                     SettingsButton {
                         text: "Refresh"
-                        height: App.Spacing.dp(28)
+                        height: dp(28)
                         onClicked: {
                             if (networkManager)
                                 networkManager.refreshNetwork()
@@ -154,7 +158,7 @@ Flickable {
                     SettingsButton {
                         text: parent.confirmingShutdown ? "Confirm Shutdown" : "Shut Down"
                         buttonColor: parent.confirmingShutdown ? "#F44336" : App.Style.accent
-                        height: App.Spacing.dp(34)
+                        height: dp(34)
                         onClicked: {
                             if (parent.confirmingShutdown) {
                                 if (networkManager)

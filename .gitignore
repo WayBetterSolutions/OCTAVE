@@ -20,6 +20,11 @@ appimagetool-*.AppImage
 deployment/wheels/*
 !deployment/wheels/.gitkeep
 deployment/.buildozer/
+build-android/
+aqtinstall.log
+build-android-configure.log
+# Regenerate via scripts/build-android-pylib-bundle.sh
+android/assets/python-packages/ytmusic-bundle.zip
 
 # Spotify credentials and cache
 backend/settingsConfigure.json
@@ -64,6 +69,9 @@ backend/command_server.py
 
 # MCP config
 .mcp.json
+
+# Personal notes / scratch (hardware MACs, dev-only creds, etc.)
+.private-notes.md
 
 # C++ build artifacts
 .qt/
