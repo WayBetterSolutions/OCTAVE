@@ -69,6 +69,12 @@ private:
     bool         m_isActive       = false;
     bool         m_analyzing      = false;
 
+    // Latest file requested while a previous analysis was still running.
+    // Processed once onAnalysisDone completes the current job so fast
+    // "skip" sequences don't leave the visualizer stuck on the old track's
+    // data (or blank if the old track was never analyzed).
+    QString      m_pendingFile;
+
     // Async worker
     QFutureWatcher<AnalysisResult> m_watcher;
 };

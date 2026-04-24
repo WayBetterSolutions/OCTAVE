@@ -2701,7 +2701,11 @@ void MediaManager::_precache_neighbors_start()
     const int idx = m_currentIndex;
     const QStringList playlist = m_currentPlaylist; // snapshot
     const int n = playlist.size();
-    if (n == 0)
+    // Bail on the "no current track" sentinel (-1) or a stale index that
+    // outlived a playlist shrink. C++'s truncation-toward-zero modulo would
+    // otherwise let a negative (idx+offset+n) produce a negative index and
+    // trip QList::at's assert.
+    if (n == 0 || idx < 0 || idx >= n)
         return;
 
     QStringList neighbors;

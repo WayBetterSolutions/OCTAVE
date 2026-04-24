@@ -1244,7 +1244,7 @@ Item {
                         policy: ScrollBar.AsNeeded
                         
                         Component.onCompleted: {
-                            background.implicitWidth = dp(12)
+                            if (background) background.implicitWidth = dp(12)
                         }
                     
                         palette.mid: App.Style.accent

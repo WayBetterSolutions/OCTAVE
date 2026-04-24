@@ -208,13 +208,13 @@ Item {
     }
 
     function animateTrackChange() {
-        // Immediately kill the visualizer — snap bars to zero before the
-        // card animation begins so the waveform doesn't hang at stale levels.
-        // _cardAnimBusy disables bar Behaviors AND the opacity Behavior,
-        // so both the bar drop and the opacity drop are instant.
+        // Snap bars to zero before the card animation begins so the waveform
+        // doesn't hang at stale levels. _cardAnimBusy disables bar Behaviors
+        // so the drop is instant. Visualizer stays visible — bars just sit
+        // at zero until the new analysis lands (avoids a multi-second hide
+        // on Android where MediaCodec decode is slower than desktop ffmpeg).
         vizFadeInTimer.stop()
         _cardAnimBusy = true
-        waveformContainer._vizFadedOut = true
         waveformContainer.dropBars()
 
         // Always trigger the carousel — it picks single-card or 3D mode
@@ -1071,9 +1071,14 @@ Item {
                 bottomMargin: dp(10)
             }
             visible: settingsManager && settingsManager.showWaveformVisualizer && !mediaRoom.useSpotify && !playlistEmpty
-            // Faded out during track transitions; fades back in once analysis is ready
+            // Kept for back-compat with animateTrackChange() / onAnalysisComplete
+            // handler below. No longer hides the visualizer — bars just drop
+            // to zero on track change (via dropBars()) and animate back up
+            // when the new analysis lands. Previously we faded the whole
+            // visualizer out for up to a few seconds on Android (MediaCodec
+            // decode is slower than desktop ffmpeg), which looked broken.
             property bool _vizFadedOut: false
-            opacity: (visible && !_vizFadedOut) ? 1.0 : 0.0
+            opacity: visible ? 1.0 : 0.0
 
             // Track playback state reactively (method calls aren't reactive in bindings)
             property bool isPlaying: false

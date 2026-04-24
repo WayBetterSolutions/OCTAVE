@@ -154,6 +154,34 @@ inline QString getDownloadsDir()
     return path.toString();
 }
 
+// True when the app holds Android 11+ All-Files-Access (MANAGE_EXTERNAL_STORAGE).
+// Gate for writing into user-picked folders like /storage/emulated/0/Music.
+inline bool hasAllFilesAccess()
+{
+    return QJniObject::callStaticMethod<jboolean>(
+        "org/octave/app/OctaveMediaBridge",
+        "hasAllFilesAccess",
+        "()Z");
+}
+
+// Opens the system Settings page for toggling All-Files-Access on this app.
+// Returns true if the Intent was dispatched. User grants the permission by
+// flipping the toggle in the opened screen — the app must re-check
+// hasAllFilesAccess() on resume.
+inline bool requestAllFilesAccess()
+{
+    QJniObject activity = QJniObject::callStaticObjectMethod(
+        "org/qtproject/qt/android/QtNative",
+        "activity",
+        "()Landroid/app/Activity;");
+    if (!activity.isValid()) return false;
+    return QJniObject::callStaticMethod<jboolean>(
+        "org/octave/app/OctaveMediaBridge",
+        "requestAllFilesAccess",
+        "(Landroid/app/Activity;)Z",
+        activity.object<jobject>());
+}
+
 // Download a URL (HTTPS OK) to a local cache file via Android's SSL stack.
 // Bypasses Qt's broken OpenSSL on Android. Returns local path on success, ""
 // on failure. Result is a plain filesystem path — wrap with QUrl::fromLocalFile

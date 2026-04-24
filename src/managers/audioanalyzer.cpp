@@ -8,10 +8,11 @@
 #include <QStandardPaths>
 #include <QtConcurrent>
 #include <QLoggingCategory>
-
-#ifdef Q_OS_ANDROID
-#include "../platform/androidmediabridge.h"
-#endif
+#include <QAudioDecoder>
+#include <QAudioFormat>
+#include <QAudioBuffer>
+#include <QEventLoop>
+#include <QTimer>
 
 #include <algorithm>
 #include <numeric>
@@ -127,47 +128,64 @@ AudioAnalyzer::AnalysisResult AudioAnalyzer::analyzeAudio(
 
     QByteArray pcmBuffer;
 
-#ifdef Q_OS_ANDROID
-    // Android: waveform disabled for now — youtubedl-android's ffmpeg AAR ships
-    // only the av* shared libraries (libavcodec.so, libavformat.so, etc.), not
-    // a standalone ffmpeg CLI binary we can QProcess-spawn. Proper fix is a
-    // Phase-2 MediaCodec JNI decoder (Android's native audio pipeline). Until
-    // then, return an empty AnalysisResult so the QML waveform simply doesn't
-    // render instead of logging "ffmpeg not available" every track change.
-    Q_UNUSED(filePath);
-    Q_UNUSED(numBars);
-    Q_UNUSED(chunkDuration);
-    return result;
-#else
-    // ── Desktop: decode via ffmpeg CLI → raw 32-bit float, 8 kHz, mono ────
-    QProcess proc;
-    proc.setProgram(QStringLiteral("ffmpeg"));
-    proc.setArguments({
-        QStringLiteral("-i"), filePath,
-        QStringLiteral("-f"), QStringLiteral("f32le"),   // raw 32-bit float LE
-        QStringLiteral("-acodec"), QStringLiteral("pcm_f32le"),
-        QStringLiteral("-ar"), QStringLiteral("8000"),   // 8 kHz
-        QStringLiteral("-ac"), QStringLiteral("1"),      // mono
-        QStringLiteral("-v"), QStringLiteral("quiet"),
-        QStringLiteral("-")                              // output to stdout
-    });
+    // ── Decode via QAudioDecoder (cross-platform) ────────────────────────
+    // Uses the native backend on each platform: MediaCodec on Android,
+    // GStreamer/FFmpeg on Linux, Windows Media Foundation on Windows,
+    // AVFoundation on macOS. QtMultimedia is already linked for QMediaPlayer.
+    // We request Int16 mono at 8 kHz; we convert to normalised float32 below
+    // (simpler cross-backend than asking for Float because some Android
+    // MediaCodec configurations reject Float sample formats).
+    QAudioDecoder decoder;
+    QAudioFormat fmt;
+    fmt.setSampleRate(8000);
+    fmt.setChannelCount(1);
+    fmt.setSampleFormat(QAudioFormat::Int16);
+    decoder.setAudioFormat(fmt);
+    decoder.setSource(QUrl::fromLocalFile(filePath));
 
-    proc.start(QIODevice::ReadOnly);
+    QByteArray rawInt16;
+    bool errorFlag = false;
 
-    if (!proc.waitForFinished(30000)) {
-        qCWarning(lcAudioAnalyzer) << "ffmpeg timed out or failed to start for" << filePath;
-        proc.kill();
+    QEventLoop loop;
+    QObject::connect(&decoder, &QAudioDecoder::bufferReady, &decoder,
+        [&decoder, &rawInt16]() {
+            while (decoder.bufferAvailable()) {
+                QAudioBuffer buf = decoder.read();
+                if (!buf.isValid()) break;
+                rawInt16.append(reinterpret_cast<const char *>(buf.constData<char>()),
+                                buf.byteCount());
+            }
+        });
+    QObject::connect(&decoder, &QAudioDecoder::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&decoder, QOverload<QAudioDecoder::Error>::of(&QAudioDecoder::error),
+        &decoder,
+        [&loop, &errorFlag, &filePath](QAudioDecoder::Error err) {
+            Q_UNUSED(err);
+            errorFlag = true;
+            qCWarning(lcAudioAnalyzer) << "QAudioDecoder error for" << filePath;
+            loop.quit();
+        });
+
+    // Watchdog — bail out if decode takes too long (e.g. codec stall).
+    QTimer::singleShot(30000, &loop, &QEventLoop::quit);
+
+    decoder.start();
+    loop.exec();
+    decoder.stop();
+
+    if (errorFlag || rawInt16.isEmpty()) {
         return result;
     }
 
-    if (proc.exitCode() != 0) {
-        qCWarning(lcAudioAnalyzer) << "ffmpeg exited with code" << proc.exitCode()
-                                   << "for" << filePath;
-        return result;
+    // Convert Int16 → normalised float32 matching the old ffmpeg output path.
+    const auto *srcI16 = reinterpret_cast<const int16_t *>(rawInt16.constData());
+    const int i16Count = rawInt16.size() / static_cast<int>(sizeof(int16_t));
+    pcmBuffer.resize(i16Count * static_cast<int>(sizeof(float)));
+    auto *dstF32 = reinterpret_cast<float *>(pcmBuffer.data());
+    constexpr float kInv32k = 1.0f / 32768.0f;
+    for (int i = 0; i < i16Count; ++i) {
+        dstF32[i] = static_cast<float>(srcI16[i]) * kInv32k;
     }
-
-    pcmBuffer = proc.readAllStandardOutput();
-#endif
 
     if (pcmBuffer.isEmpty()) {
         qCWarning(lcAudioAnalyzer) << "ffmpeg produced no audio data for" << filePath;
@@ -311,9 +329,13 @@ void AudioAnalyzer::analyze_file(const QString &filePath)
         return;
     }
 
-    // Already busy
+    // Already busy — remember the latest requested file so onAnalysisDone
+    // can chain into it once the current analysis completes. Without this,
+    // rapid skip presses drop every request after the first, leaving the
+    // visualizer showing the previous track's FFT (or nothing).
     if (m_analyzing) {
-        qCInfo(lcAudioAnalyzer) << "Analysis already in progress, skipping";
+        m_pendingFile = filePath;
+        qCInfo(lcAudioAnalyzer) << "Analysis already in progress, queued:" << filePath;
         return;
     }
 
@@ -348,6 +370,18 @@ void AudioAnalyzer::onAnalysisDone()
     } else {
         m_fftData.clear();
         qCWarning(lcAudioAnalyzer) << "Analysis failed for" << m_currentFile;
+    }
+
+    // If the user skipped to another track while this analysis was running,
+    // service that latest request now. Clear before calling because
+    // analyze_file may itself set m_pendingFile again if yet another skip
+    // lands during this chained analysis.
+    if (!m_pendingFile.isEmpty() && m_pendingFile != m_currentFile) {
+        const QString next = m_pendingFile;
+        m_pendingFile.clear();
+        analyze_file(next);
+    } else {
+        m_pendingFile.clear();
     }
 }
 

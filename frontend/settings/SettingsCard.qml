@@ -147,13 +147,22 @@ Rectangle {
                         Layout.fillWidth: false
                     }
 
-                    // HUD accent line extending from title to right edge (spacecraft only)
-                    Rectangle {
+                    // Filler between title and the collapse arrow. Always takes
+                    // layout space so the arrow stays right-anchored even when
+                    // the HUD accent line is theme-hidden — otherwise Qt
+                    // Layouts drop an invisible item and the arrow packs next
+                    // to the title at a title-width-dependent x position.
+                    Item {
                         Layout.fillWidth: true
                         height: 1
-                        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
-                        visible: App.EnvironmentTheme.active.sectionHeaderLines
                         Layout.alignment: Qt.AlignVCenter
+
+                        // HUD accent line (spacecraft themes only)
+                        Rectangle {
+                            anchors.fill: parent
+                            color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
+                            visible: App.EnvironmentTheme.active.sectionHeaderLines
+                        }
                     }
 
                     // Collapse indicator arrow

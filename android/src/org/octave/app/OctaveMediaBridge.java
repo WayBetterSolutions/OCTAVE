@@ -9,10 +9,15 @@
  */
 package org.octave.app;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.media.MediaMetadataRetriever;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.Settings;
 import android.util.Log;
 import com.yausername.youtubedl_android.YoutubeDL;
 import com.yausername.youtubedl_android.YoutubeDLException;
@@ -489,6 +494,51 @@ public class OctaveMediaBridge {
         } catch (Throwable t) {
             Log.w(TAG, "getDownloadsDir failed", t);
             return "";
+        }
+    }
+
+    /**
+     * Returns true when the app holds Android 11+ "All files access" (the
+     * MANAGE_EXTERNAL_STORAGE special permission). When true, POSIX writes
+     * into /storage/emulated/0/Music/... and similar shared paths work.
+     * Otherwise the caller must fall back to getDownloadsDir().
+     */
+    public static boolean hasAllFilesAccess() {
+        try {
+            return Environment.isExternalStorageManager();
+        } catch (Throwable t) {
+            Log.w(TAG, "hasAllFilesAccess check failed", t);
+            return false;
+        }
+    }
+
+    /**
+     * Opens the system Settings page that lets the user toggle "All files
+     * access" for this app. MANAGE_EXTERNAL_STORAGE can't be requested via a
+     * normal runtime permission dialog — the user has to flip it in Settings.
+     * Returns true if the intent was launched.
+     */
+    public static boolean requestAllFilesAccess(Activity activity) {
+        if (activity == null) return false;
+        try {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
+            intent.setData(Uri.parse("package:" + activity.getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            activity.startActivity(intent);
+            return true;
+        } catch (Throwable t) {
+            // Fallback to generic settings if the targeted intent fails on
+            // non-standard OEMs (OxygenOS, etc.).
+            Log.w(TAG, "ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION failed, trying generic", t);
+            try {
+                Intent generic = new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                generic.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                activity.startActivity(generic);
+                return true;
+            } catch (Throwable t2) {
+                Log.w(TAG, "requestAllFilesAccess fallback failed", t2);
+                return false;
+            }
         }
     }
 

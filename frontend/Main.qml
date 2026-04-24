@@ -73,9 +73,16 @@ ApplicationWindow {
         activeShiftFlag = active
     }
 
-    // Set initial window size
-    width: screenWidth
-    height: screenHeight
+    // Set initial window size. On desktop use the saved user preference so
+    // their previous window size persists across runs. On mobile we must NOT
+    // set width/height at all — the Qt Android window manager pillarboxes
+    // the window around display cutouts (per the manifest
+    // windowLayoutInDisplayCutoutMode=never setting), and any hardcoded
+    // width/height here overrides that pillarboxing, causing content to
+    // intrude into the cutout / rounded-corner area. Leaving the bindings
+    // unset on Android lets the OS own the sizing.
+    width: isAndroid ? undefined : screenWidth
+    height: isAndroid ? undefined : screenHeight
 
     // Handle window close (force close / X button)
     onClosing: function(close) {
@@ -116,9 +123,13 @@ ApplicationWindow {
                 App.Style.setTheme(settingsManager.themeSetting)
             }
 
-            // Load dimensions
-            width = settingsManager.screenWidth
-            height = settingsManager.screenHeight
+            // Load dimensions (desktop only — mobile window is fullscreen and
+            // already bound to Screen.width/height above; overwriting from
+            // settings would shrink the render surface).
+            if (!isAndroid) {
+                width = settingsManager.screenWidth
+                height = settingsManager.screenHeight
+            }
 
             // Initialize spacing
             App.Spacing.updateDimensions(width, height)
@@ -225,14 +236,14 @@ ApplicationWindow {
         target: settingsManager
         
         function onScreenWidthChanged() {
-            if (settingsManager) {
+            if (settingsManager && !isAndroid) {
                 width = settingsManager.screenWidth
                 App.Spacing.updateDimensions(width, height)
             }
         }
-        
+
         function onScreenHeightChanged() {
-            if (settingsManager) {
+            if (settingsManager && !isAndroid) {
                 height = settingsManager.screenHeight
                 App.Spacing.updateDimensions(width, height)
             }

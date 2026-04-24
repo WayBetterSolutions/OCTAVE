@@ -853,7 +853,11 @@ Item {
         property real gridSize: carousel.kDissolveGridSize
         property real smoothness: carousel.kDissolveSmoothness
 
-        fragmentShader: "shaders/dissolve_squares.frag.qsb"
+        // On Android, QML is bundled under assets:/ which Qt RHI's ShaderEffect
+        // rejects (only qrc:/ or local files). Embed the .qsb via qrc for Android.
+        fragmentShader: Qt.platform.os === "android"
+            ? "qrc:/shaders/dissolve_squares.frag.qsb"
+            : "shaders/dissolve_squares.frag.qsb"
 
         // Clip to rounded or vinyl shape
         layer.enabled: carousel.roundedArt || carousel.vinylMode

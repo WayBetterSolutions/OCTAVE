@@ -61,6 +61,12 @@ public:
     int activeDownloads() const;
     QString downloadPath() const;
 
+    // Android All-Files-Access (MANAGE_EXTERNAL_STORAGE). On other platforms
+    // hasStorageAccess() always returns true and requestStorageAccess() is a
+    // no-op, so QML can call these unconditionally.
+    Q_INVOKABLE bool hasStorageAccess() const;
+    Q_INVOKABLE bool requestStorageAccess();
+
 signals:
     // Search signals
     void searchResults(const QString &jsonArray);
@@ -138,6 +144,14 @@ private:
     void _downloadCoverArt(const QString &songId, const QString &coverUrl, const QString &filePath);
     void _emitStatusPatch(const QString &songId, const QString &field, const QVariant &value);
     float _parseProgressLine(const QString &line);
+#ifdef Q_OS_MOBILE
+    // Android/iOS: yt-dlp runs via JNI (OctaveMediaBridge) which is a blocking
+    // call returning the full combined output only when complete. stdout-line
+    // progress parsing never fires mid-download, so the UI jumps 0% → 100%.
+    // This QTimer polls OctaveAndroid::pollProgress() and broadcasts the
+    // shared progress value to all active download tasks.
+    void _pollMobileProgress();
+#endif
 
     // ──────────────────────────────────────────────────────────────
     // Member variables
@@ -169,6 +183,10 @@ private:
     // Cover art downloads
     QNetworkAccessManager *m_networkManager = nullptr;
     QMap<QString, QString> m_pendingCoverDownloads; // reply URL -> songId
+
+#ifdef Q_OS_MOBILE
+    QTimer *m_mobileProgressPoller = nullptr;
+#endif
 
     // Audio file extensions for library scanning
     static const QStringList s_audioExtensions;

@@ -71,6 +71,13 @@ DownloadManager::DownloadManager(QObject *parent)
 {
     connect(m_networkManager, &QNetworkAccessManager::finished,
             this, &DownloadManager::_onCoverDownloadFinished);
+
+#ifdef Q_OS_MOBILE
+    m_mobileProgressPoller = new QTimer(this);
+    m_mobileProgressPoller->setInterval(250);
+    connect(m_mobileProgressPoller, &QTimer::timeout,
+            this, &DownloadManager::_pollMobileProgress);
+#endif
 }
 
 DownloadManager::~DownloadManager()
@@ -97,6 +104,24 @@ QString DownloadManager::downloadPath() const
     return _getDownloadPath();
 }
 
+bool DownloadManager::hasStorageAccess() const
+{
+#ifdef Q_OS_ANDROID
+    return OctaveAndroid::hasAllFilesAccess();
+#else
+    return true;
+#endif
+}
+
+bool DownloadManager::requestStorageAccess()
+{
+#ifdef Q_OS_ANDROID
+    return OctaveAndroid::requestAllFilesAccess();
+#else
+    return true;
+#endif
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Settings integration
 // ═══════════════════════════════════════════════════════════════════
@@ -115,12 +140,18 @@ QString DownloadManager::_getDownloadPath() const
 {
     QString mediaFolder;
 #ifdef Q_OS_ANDROID
-    // On Android, route downloads to the app's external files dir to sidestep
-    // scoped-storage restrictions on /storage/emulated/0/Music/. yt-dlp writes
-    // via POSIX fopen; that can only target app-private or app-external dirs
-    // on Android 10+. This dir is still file-explorer-visible and MediaStore-
-    // indexed. Media library is auto-added below via settings.
-    mediaFolder = OctaveAndroid::getDownloadsDir();
+    // Android 11+: if the user has granted All-Files-Access
+    // (MANAGE_EXTERNAL_STORAGE), respect their configured media folder —
+    // POSIX writes into /storage/emulated/0/Music/... work, and downloads
+    // show up in any file explorer. Otherwise fall back to the app's
+    // external files dir, which is scoped-storage-safe but hidden from
+    // most file explorers (under Android/data/org.octave.app/files/Music).
+    if (OctaveAndroid::hasAllFilesAccess() && m_settingsManager) {
+        mediaFolder = m_settingsManager->mediaFolder();
+    }
+    if (mediaFolder.isEmpty()) {
+        mediaFolder = OctaveAndroid::getDownloadsDir();
+    }
 #endif
     if (mediaFolder.isEmpty() && m_settingsManager) {
         mediaFolder = m_settingsManager->mediaFolder();
@@ -981,6 +1012,14 @@ void DownloadManager::_startNextDownload()
 
         qCInfo(lcDownload) << "Starting download:" << ytDlp << args;
         proc->start(ytDlp, args);
+
+#ifdef Q_OS_MOBILE
+        // Start the polling timer so the UI sees live progress. The JNI
+        // yt-dlp call blocks its worker thread; only a main-thread poll can
+        // give the UI intermediate progress values.
+        if (m_mobileProgressPoller && !m_mobileProgressPoller->isActive())
+            m_mobileProgressPoller->start();
+#endif
     }
 }
 
@@ -1046,6 +1085,36 @@ float DownloadManager::_parseProgressLine(const QString &line)
     return -1.0f; // No progress found
 }
 
+#ifdef Q_OS_MOBILE
+void DownloadManager::_pollMobileProgress()
+{
+    // The JNI ProgressFn stores progress in a single static field per the
+    // youtubedl-android API; we can't distinguish per-song here, so broadcast
+    // the same value to every active download task. Acceptable until the
+    // rare case of concurrent downloads becomes worth a per-task callback.
+    //
+    // youtubedl-android's ProgressFn delivers a percentage (0–100). The
+    // downstream QML and the desktop stdout parser both speak fractions
+    // (0.0–1.0), so divide here to match — otherwise the UI renders "10000%".
+    const float progress = qBound(0.0f, OctaveAndroid::pollProgress() / 100.0f, 1.0f);
+    if (progress <= 0.0f)
+        return;
+
+    for (auto it = m_downloadProcesses.constBegin();
+         it != m_downloadProcesses.constEnd(); ++it) {
+        const QString &songId = it.key();
+        if (!m_downloadTasks.contains(songId))
+            continue;
+        DownloadTask &task = m_downloadTasks[songId];
+        // Monotonic: don't regress if the poll caught a stale value.
+        if (progress > task.progress) {
+            task.progress = progress;
+            emit downloadProgress(songId, progress);
+        }
+    }
+}
+#endif
+
 void DownloadManager::_onDownloadProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
 {
     Q_UNUSED(exitStatus)
@@ -1065,6 +1134,13 @@ void DownloadManager::_onDownloadProcessFinished(int exitCode, QProcess::ExitSta
 
     m_activeDownloads = qMax(0, m_activeDownloads - 1);
     emit activeDownloadsChanged(m_activeDownloads);
+
+#ifdef Q_OS_MOBILE
+    // Stop polling once the queue is drained so we're not spinning a timer
+    // when nothing's downloading.
+    if (m_activeDownloads == 0 && m_mobileProgressPoller && m_mobileProgressPoller->isActive())
+        m_mobileProgressPoller->stop();
+#endif
 
     if (!m_downloadTasks.contains(songId)) {
         m_downloadStdout.remove(songId);
@@ -1204,6 +1280,11 @@ void DownloadManager::_onDownloadProcessError(QProcess::ProcessError error)
 
     m_activeDownloads = qMax(0, m_activeDownloads - 1);
     emit activeDownloadsChanged(m_activeDownloads);
+
+#ifdef Q_OS_MOBILE
+    if (m_activeDownloads == 0 && m_mobileProgressPoller && m_mobileProgressPoller->isActive())
+        m_mobileProgressPoller->stop();
+#endif
 
     if (m_downloadTasks.contains(songId)) {
         DownloadTask &task = m_downloadTasks[songId];

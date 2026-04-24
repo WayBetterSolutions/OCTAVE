@@ -36,7 +36,7 @@
 // explicit `value`) can be used decoratively.
 
 import QtQuick 2.15
-import "." as App
+import ".." as App
 
 Item {
     id: root

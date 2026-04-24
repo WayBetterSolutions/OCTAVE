@@ -582,15 +582,10 @@ Item {
                         }
                     }
 
-                    Connections {
-                        target: obdManager
-                        function onConnectionLogChanged(msg) {
-                            if (logText.text.length > 0)
-                                logText.text += "\n" + msg
-                            else
-                                logText.text = msg
-                        }
-                    }
+                    // Dead signal handler removed — obdManager has no
+                    // connectionLogChanged signal (never implemented on either
+                    // backend). The QML parser was logging a warning on every
+                    // page load. Revisit if a connection-log UI is wanted.
                 }
             }
 
