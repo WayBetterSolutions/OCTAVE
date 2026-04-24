@@ -167,6 +167,7 @@ Rectangle {
 
                     // Collapse indicator arrow
                     Text {
+                        id: collapseArrow
                         text: card.expanded ? "\u25BC" : "\u25B6"
                         color: App.Style.secondaryTextColor
                         font.pixelSize: App.Spacing.overallText
@@ -174,8 +175,8 @@ Rectangle {
 
                         Behavior on text {
                             SequentialAnimation {
-                                NumberAnimation { target: parent; property: "opacity"; to: 0; duration: 80 }
-                                NumberAnimation { target: parent; property: "opacity"; to: 0.6; duration: 170 }
+                                NumberAnimation { target: collapseArrow; property: "opacity"; to: 0; duration: 80 }
+                                NumberAnimation { target: collapseArrow; property: "opacity"; to: 0.6; duration: 170 }
                             }
                         }
                     }

@@ -570,7 +570,7 @@ Item {
         width: Math.min(parent.width * 0.92, dp(960))
         height: Math.min(
             parent.height * 0.9,
-            chooserTitle.height + chooserGrid.implicitHeight + dp(80)
+            chooserHeader.height + chooserGrid.implicitHeight + dp(62)
         )
         modal: true
         focus: true
@@ -595,27 +595,47 @@ Item {
         contentItem: Item {
             id: chooserContent
 
-            Text {
-                id: chooserTitle
+            // Header strip — sized to the button + margins so the title row
+            // and the top-right primitives button share the same frame and
+            // can't overlap when the popup narrows. Mirrors obdHeader.
+            Rectangle {
+                id: chooserHeader
                 anchors.top: parent.top
-                anchors.topMargin: dp(18)
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: "Dashboards"
-                color: App.Style.primaryTextColor
-                font.pixelSize: App.Spacing.overallText * 1.3
-                font.bold: true
-                font.family: obdPage.globalFont
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: App.Spacing.bottomBarNavButtonHeight + App.Spacing.mediaRoomMargin * 2
+                color: "transparent"
+
+                Text {
+                    id: chooserTitle
+                    anchors.centerIn: parent
+                    text: "Dashboards"
+                    color: App.Style.primaryTextColor
+                    font.pixelSize: App.Spacing.overallText * 1.3
+                    font.bold: true
+                    font.family: obdPage.globalFont
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: Qt.darker(App.Style.obdBarColor, 1.8)
+                    opacity: 0.6
+                }
             }
 
             // Primitives gallery button — temporary dev/showcase screen.
-            // Square, pinned tight to the top-right corner of the popup.
+            // Anchored with the same top/right margins as the OBDMenu
+            // dashboards button so it sits centered within the header strip.
             // Remove this once the Phase 3 in-app dashboard editor lands.
             Control {
                 id: primitivesButton
                 anchors.top: parent.top
                 anchors.right: parent.right
-                anchors.topMargin: dp(6)
-                anchors.rightMargin: dp(6)
+                anchors.topMargin: App.Spacing.mediaRoomMargin
+                anchors.rightMargin: App.Spacing.mediaRoomMargin
                 width: App.Spacing.bottomBarNavButtonWidth
                 height: App.Spacing.bottomBarNavButtonHeight
 
@@ -671,11 +691,11 @@ Item {
             Flickable {
                 id: chooserScroll
                 anchors {
-                    top: chooserTitle.bottom
+                    top: chooserHeader.bottom
                     bottom: parent.bottom
                     left: parent.left
                     right: parent.right
-                    topMargin: dp(14)
+                    topMargin: dp(10)
                     leftMargin: dp(18)
                     rightMargin: dp(18)
                     bottomMargin: dp(18)

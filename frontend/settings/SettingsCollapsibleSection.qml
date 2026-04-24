@@ -46,6 +46,7 @@ ColumnLayout {
             }
 
             Text {
+                id: sectionArrow
                 text: root.expanded ? "\u25BC" : "\u25B6"
                 color: App.Style.secondaryTextColor
                 font.pixelSize: App.Spacing.overallText
@@ -54,8 +55,8 @@ ColumnLayout {
                 Behavior on text {
                     // Rotation-like feel without actual transform
                     SequentialAnimation {
-                        NumberAnimation { target: parent; property: "opacity"; to: 0; duration: 80 }
-                        NumberAnimation { target: parent; property: "opacity"; to: 0.6; duration: 170 }
+                        NumberAnimation { target: sectionArrow; property: "opacity"; to: 0; duration: 80 }
+                        NumberAnimation { target: sectionArrow; property: "opacity"; to: 0.6; duration: 170 }
                     }
                 }
             }
