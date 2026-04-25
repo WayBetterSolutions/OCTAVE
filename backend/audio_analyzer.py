@@ -45,13 +45,10 @@ class AudioAnalyzer(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # Quality tier → bar count mapping
-        self._quality_bars = {"Low": 16, "Medium": 32, "High": 48, "Extreme": 64, "Insane": 96}
-
         # FFT data storage - list of lists, each inner list is FFT levels for a time chunk
         self._fft_data = []
         self._current_file = ""
-        self._num_bars = 32
+        self._num_bars = 96
         self._chunk_duration = 0.1  # 100ms chunks (10 chunks per second)
 
         # Current levels emitted to QML (no animation, just the looked-up data)
@@ -295,15 +292,3 @@ class AudioAnalyzer(QObject):
         self._current_file = ""
         self._current_levels = [0] * self._num_bars
 
-    @Slot(str)
-    def set_quality(self, quality: str):
-        """Change quality tier — adjusts bar count and clears cached data."""
-        new_bars = self._quality_bars.get(quality, 32)
-        if new_bars == self._num_bars:
-            return
-        logger.info(f"Visualizer quality changed to {quality}: {new_bars} bars")
-        self._num_bars = new_bars
-        self._current_levels = [0] * self._num_bars
-        # Clear cached analysis so next track (or re-analysis) uses new bar count
-        self._fft_data = []
-        self._current_file = ""

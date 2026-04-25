@@ -153,9 +153,6 @@ int main(int argc, char *argv[])
 
     // Audio Analyzer — waveform visualization via FFT
     AudioAnalyzer audioAnalyzer;
-    audioAnalyzer.set_quality(settingsManager.visualizerQuality());
-    QObject::connect(&settingsManager, &SettingsManager::visualizerQualityChanged,
-                     &audioAnalyzer, &AudioAnalyzer::set_quality);
     ctx->setContextProperty("audioAnalyzer", &audioAnalyzer);
 
     // Volume wiring moved below after all managers are created

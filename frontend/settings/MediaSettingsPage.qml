@@ -897,48 +897,6 @@ Flickable {
                 }
             }
 
-            // Visualizer Quality (conditional on Waveform Visualizer)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.showWaveformVisualizer
-
-                SettingLabel {
-                    text: "Visualizer Quality"
-                }
-
-                SettingsSegmentedControl {
-                    id: visualizerQualityControl
-                    Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.visualizerQuality : "Medium"
-                    options: ["Low", "Medium", "High", "Extreme", "Insane"]
-
-                    onSelected: function(value) {
-                        if (settingsManager) {
-                            settingsManager.save_visualizer_quality(value)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onVisualizerQualityChanged() {
-                            visualizerQualityControl.currentValue = settingsManager.visualizerQuality
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: {
-                        var q = settingsManager ? settingsManager.visualizerQuality : "Medium"
-                        if (q === "Low") return "16 bars, lowest CPU usage."
-                        if (q === "High") return "48 bars with smooth animation. Higher CPU usage."
-                        if (q === "Extreme") return "64 bars at 30 FPS with smooth animation. Will eat your CPU alive."
-                        if (q === "Insane") return "96 bars at 60 FPS. God help your CPU."
-                        return "32 bars, balanced performance."
-                    }
-                }
-            }
-
             SettingsDivider {}
 
             // 3D Button Tilt

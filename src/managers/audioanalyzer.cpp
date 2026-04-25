@@ -27,12 +27,6 @@ Q_LOGGING_CATEGORY(lcAudioAnalyzer, "octave.audioanalyzer")
 AudioAnalyzer::AudioAnalyzer(QObject *parent)
     : QObject(parent)
 {
-    m_qualityBars[QStringLiteral("Low")]     = 16;
-    m_qualityBars[QStringLiteral("Medium")]  = 32;
-    m_qualityBars[QStringLiteral("High")]    = 48;
-    m_qualityBars[QStringLiteral("Extreme")] = 64;
-    m_qualityBars[QStringLiteral("Insane")]  = 96;
-
     // Initialise current levels to zeros
     m_currentLevels.reserve(m_numBars);
     for (int i = 0; i < m_numBars; ++i)
@@ -448,22 +442,3 @@ void AudioAnalyzer::clear()
         m_currentLevels.append(0);
 }
 
-void AudioAnalyzer::set_quality(const QString &quality)
-{
-    int newBars = m_qualityBars.value(quality, 32);
-    if (newBars == m_numBars)
-        return;
-
-    qCInfo(lcAudioAnalyzer) << "Visualizer quality changed to" << quality
-                            << ":" << newBars << "bars";
-    m_numBars = newBars;
-
-    m_currentLevels.clear();
-    m_currentLevels.reserve(m_numBars);
-    for (int i = 0; i < m_numBars; ++i)
-        m_currentLevels.append(0);
-
-    // Clear cached analysis so next track uses new bar count
-    m_fftData.clear();
-    m_currentFile.clear();
-}

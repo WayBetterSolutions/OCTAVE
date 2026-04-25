@@ -35,7 +35,6 @@ public slots:
     int get_num_bars() const;
     bool is_analyzed() const;
     void clear();
-    void set_quality(const QString &quality);
 
 private:
     // ── FFT helpers (no external deps) ─────────────────────────
@@ -52,16 +51,13 @@ private:
 
     void onAnalysisDone();
 
-    // ── Quality tier → bar count ───────────────────────────────
-    QMap<QString, int> m_qualityBars;
-
     // ── Pre-computed FFT data ──────────────────────────────────
     //    Outer vector: one entry per time chunk (~100 ms)
     //    Inner vector: bar levels 0-8
     std::vector<std::vector<int>> m_fftData;
 
     QString      m_currentFile;
-    int          m_numBars        = 32;
+    int          m_numBars        = 96;
     double       m_chunkDuration  = 0.1;   // seconds
 
     QVariantList m_currentLevels;          // mirrors m_numBars zeros

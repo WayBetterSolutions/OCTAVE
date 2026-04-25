@@ -153,8 +153,6 @@ engine.rootContext().setContextProperty("mediaManager", media_manager)
 
 # Audio Analyzer for waveform visualization
 audio_analyzer = AudioAnalyzer()
-audio_analyzer.set_quality(settings_manager.visualizerQuality)
-settings_manager.visualizerQualityChanged.connect(audio_analyzer.set_quality)
 engine.rootContext().setContextProperty("audioAnalyzer", audio_analyzer)
 
 # OBD Manager

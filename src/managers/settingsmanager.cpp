@@ -100,8 +100,6 @@ QJsonObject SettingsManager::buildSettingsRegistry()
     reg[QStringLiteral("side_card_angle")]            = entry("sideCardAngle", "Side Card Angle", "mediaSettings", "slider", "save_side_card_angle", sliderParams(5, 60, 1));
     reg[QStringLiteral("button_tilt_duration")]       = entry("buttonTiltDuration", "Tilt Duration", "mediaSettings", "slider", "save_button_tilt_duration", sliderParams(50, 500, 10));
     reg[QStringLiteral("text_scroll_speed")]          = entry("textScrollSpeed", "Text Scroll Speed", "mediaSettings", "slider", "save_text_scroll_speed", sliderParams(1000, 10000, 500));
-    reg[QStringLiteral("visualizer_quality")]         = entry("visualizerQuality", "Visualizer Quality", "mediaSettings", "chips", "save_visualizer_quality",
-        chipParams({QStringLiteral("Low"), QStringLiteral("Medium"), QStringLiteral("High"), QStringLiteral("Extreme"), QStringLiteral("Insane")}));
     reg[QStringLiteral("ui_scale")]                   = entry("uiScale", "UI Scaling", "displaySettings", "slider", "save_ui_scale", sliderParams(0.5, 2.0, 0.05));
     reg[QStringLiteral("theme_setting")]              = entry("themeSetting", "Theme", "displaySettings", "chips", "save_theme_setting", chipSource("themeList"));
     reg[QStringLiteral("environment_theme")]          = entry("environmentTheme", "Environment", "displaySettings", "chips", "save_environment_theme",
@@ -237,7 +235,6 @@ QJsonObject SettingsManager::buildDefaultSettings() const
 
     // Waveform
     d[QStringLiteral("showWaveformVisualizer")] = true;
-    d[QStringLiteral("visualizerQuality")]      = QStringLiteral("Medium");
 
     // 3D effects
     d[QStringLiteral("show3DButtonTilt")]        = false;
@@ -458,7 +455,6 @@ SettingsManager::SettingsManager(QObject *parent)
 
     // Waveform
     m_showWaveformVisualizer = s(QStringLiteral("showWaveformVisualizer")).toBool();
-    m_visualizerQuality      = s(QStringLiteral("visualizerQuality")).toString();
 
     // 3D effects
     m_show3DButtonTilt        = s(QStringLiteral("show3DButtonTilt")).toBool();
@@ -780,7 +776,6 @@ QString SettingsManager::lastPlayedPlaylist() const { return m_lastPlayedPlaylis
 QString SettingsManager::musicButtonDefaultPage() const { return m_musicButtonDefaultPage; }
 bool    SettingsManager::returnToLibraryAfterSelection() const { return m_returnToLibraryAfterSelection; }
 bool    SettingsManager::showWaveformVisualizer() const { return m_showWaveformVisualizer; }
-QString SettingsManager::visualizerQuality() const { return m_visualizerQuality; }
 
 // --- 3D effects ---
 bool    SettingsManager::show3DButtonTilt() const        { return m_show3DButtonTilt; }
@@ -1142,20 +1137,6 @@ void SettingsManager::save_show_waveform_visualizer(bool enabled)
     m_showWaveformVisualizer = enabled;
     updateSetting(QStringLiteral("showWaveformVisualizer"), enabled);
     emit showWaveformVisualizerChanged(enabled);
-}
-
-void SettingsManager::save_visualizer_quality(const QString &quality)
-{
-    static const QStringList valid = {
-        QStringLiteral("Low"), QStringLiteral("Medium"), QStringLiteral("High"),
-        QStringLiteral("Extreme"), QStringLiteral("Insane")
-    };
-    if (!valid.contains(quality))
-        return;
-    qCDebug(lcSettings) << "Saving visualizer quality:" << quality;
-    m_visualizerQuality = quality;
-    updateSetting(QStringLiteral("visualizerQuality"), quality);
-    emit visualizerQualityChanged(quality);
 }
 
 // --- 3D visual effects ---
@@ -1899,7 +1880,6 @@ QString SettingsManager::get_pinned_settings_metadata()
         if (attr == QStringLiteral("start_volume"))              val = QVariant(m_startVolume);
         else if (attr == QStringLiteral("auto_play_on_startup")) val = QVariant(m_autoPlayOnStartup);
         else if (attr == QStringLiteral("show_waveform_visualizer")) val = QVariant(m_showWaveformVisualizer);
-        else if (attr == QStringLiteral("visualizer_quality"))   val = QVariant(m_visualizerQuality);
         else if (attr == QStringLiteral("ui_scale"))             val = QVariant(m_uiScale);
         else if (attr == QStringLiteral("theme_setting"))        val = QVariant(m_themeSetting);
         else if (attr == QStringLiteral("environment_theme"))    val = QVariant(m_environmentTheme);
@@ -1942,7 +1922,6 @@ QString SettingsManager::keyToAttr(const QString &key) const
         {QStringLiteral("startUpVolume"),               QStringLiteral("start_volume")},
         {QStringLiteral("autoPlayOnStartup"),           QStringLiteral("auto_play_on_startup")},
         {QStringLiteral("showWaveformVisualizer"),      QStringLiteral("show_waveform_visualizer")},
-        {QStringLiteral("visualizerQuality"),           QStringLiteral("visualizer_quality")},
         {QStringLiteral("uiScale"),                     QStringLiteral("ui_scale")},
         {QStringLiteral("themeSetting"),                QStringLiteral("theme_setting")},
         {QStringLiteral("environmentTheme"),            QStringLiteral("environment_theme")},
@@ -2104,9 +2083,6 @@ void SettingsManager::reset_to_defaults()
 
     m_showWaveformVisualizer = m_defaultSettings.value(QStringLiteral("showWaveformVisualizer")).toBool();
     emit showWaveformVisualizerChanged(m_showWaveformVisualizer);
-
-    m_visualizerQuality = m_defaultSettings.value(QStringLiteral("visualizerQuality")).toString();
-    emit visualizerQualityChanged(m_visualizerQuality);
 
     m_imuEnabled = m_defaultSettings.value(QStringLiteral("imuEnabled")).toBool();
     emit imuEnabledChanged(m_imuEnabled);

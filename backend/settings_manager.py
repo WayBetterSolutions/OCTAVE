@@ -90,11 +90,6 @@ SETTINGS_REGISTRY = {
         "controlType": "slider", "saveSlot": "save_text_scroll_speed",
         "params": {"from": 1000, "to": 10000, "stepSize": 500}
     },
-    "visualizer_quality": {
-        "key": "visualizerQuality", "label": "Visualizer Quality", "category": "mediaSettings",
-        "controlType": "chips", "saveSlot": "save_visualizer_quality",
-        "params": {"options": ["Low", "Medium", "High", "Extreme", "Insane"]}
-    },
     "ui_scale": {
         "key": "uiScale", "label": "UI Scaling", "category": "displaySettings",
         "controlType": "slider", "saveSlot": "save_ui_scale",
@@ -238,7 +233,6 @@ class SettingsManager(QObject):
 
     # Waveform visualizer signals
     showWaveformVisualizerChanged = Signal(bool)
-    visualizerQualityChanged = Signal(str)
 
     # 3D visual effect signals
     show3DButtonTiltChanged = Signal(bool)
@@ -445,7 +439,6 @@ class SettingsManager(QObject):
             "esp32LedStaticColor": "#00FFFF",  # Static color when not using theme
             # Waveform visualizer settings
             "showWaveformVisualizer": True,  # Show audio waveform visualization in MediaRoom
-            "visualizerQuality": "Medium",  # "Low", "Medium", or "High"
             # 3D visual effect settings
             "show3DButtonTilt": False,   # 3D tilt on prev/play/next press
             "show3DAlbumPreview": False,  # Coverflow-style album art card stack
@@ -593,7 +586,6 @@ class SettingsManager(QObject):
 
         # Waveform visualizer settings
         self._show_waveform_visualizer = self._settings.get("showWaveformVisualizer", self._default_settings["showWaveformVisualizer"])
-        self._visualizer_quality = self._settings.get("visualizerQuality", self._default_settings["visualizerQuality"])
 
         # 3D visual effect settings
         self._show_3d_button_tilt = self._settings.get("show3DButtonTilt", self._default_settings["show3DButtonTilt"])
@@ -1892,20 +1884,6 @@ class SettingsManager(QObject):
         self._text_scroll_speed = max(1000, min(10000, speed))
         self.update_setting("textScrollSpeed", self._text_scroll_speed, self.textScrollSpeedChanged)
 
-    @Property(str, notify=visualizerQualityChanged)
-    def visualizerQuality(self):
-        """Get visualizer quality tier: 'Low', 'Medium', or 'High'"""
-        return self._visualizer_quality
-
-    @Slot(str)
-    def save_visualizer_quality(self, quality):
-        """Save visualizer quality tier"""
-        if quality not in ("Low", "Medium", "High", "Extreme", "Insane"):
-            return
-        logger.debug(f"Saving visualizer quality: {quality}")
-        self._visualizer_quality = quality
-        self.update_setting("visualizerQuality", quality, self.visualizerQualityChanged)
-
     # ==================== Environment Theme ====================
 
     @Property(str, notify=environmentThemeChanged)
@@ -2070,7 +2048,6 @@ class SettingsManager(QObject):
             "startUpVolume": "start_volume",
             "autoPlayOnStartup": "auto_play_on_startup",
             "showWaveformVisualizer": "show_waveform_visualizer",
-            "visualizerQuality": "visualizer_quality",
             "uiScale": "ui_scale",
             "themeSetting": "theme_setting",
             "environmentTheme": "environment_theme",
@@ -2285,9 +2262,6 @@ class SettingsManager(QObject):
 
         self._show_waveform_visualizer = self._default_settings["showWaveformVisualizer"]
         self.showWaveformVisualizerChanged.emit(self._show_waveform_visualizer)
-
-        self._visualizer_quality = self._default_settings["visualizerQuality"]
-        self.visualizerQualityChanged.emit(self._visualizer_quality)
 
         self._imu_enabled = self._default_settings["imuEnabled"]
         self.imuEnabledChanged.emit(self._imu_enabled)

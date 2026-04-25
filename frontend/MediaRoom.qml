@@ -1084,13 +1084,12 @@ Item {
             property bool isPlaying: false
             property string lastAnalyzedFile: ""
 
-            // Quality-driven parameters
-            property string quality: settingsManager ? settingsManager.visualizerQuality : "Medium"
-            property int timerInterval: quality === "Low" ? 200 : (quality === "High" ? 60 : (quality === "Extreme" ? 33 : (quality === "Insane" ? 16 : 100)))
+            // 96 bars at 60 FPS with pill-shaped fancy bars
+            property int timerInterval: 16
             property bool smoothBars: true
-            property int animDuration: quality === "Insane" ? 120 : (quality === "Extreme" ? 80 : (quality === "High" ? 50 : (quality === "Medium" ? 80 : 150)))
-            property int animEasing: quality === "Insane" ? Easing.InOutSine : (quality === "Extreme" ? Easing.InOutQuad : Easing.OutQuad)
-            property bool fancyBars: quality === "Extreme" || quality === "Insane"
+            property int animDuration: 120
+            property int animEasing: Easing.InOutSine
+            property bool fancyBars: true
 
             Behavior on opacity {
                 // Disabled during _cardAnimBusy so the drop is instant;
@@ -1108,38 +1107,20 @@ Item {
                 onTriggered: waveformContainer._vizFadedOut = false
             }
 
-            // Rebuild bars when quality (and thus bar count) changes
-            Connections {
-                target: settingsManager
-                function onVisualizerQualityChanged() {
-                    waveformBars.numBars = audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
-                    // Re-analyze current song with new bar count
-                    if (audioAnalyzer && mediaManager && !mediaRoom.useSpotify) {
-                        var currentFile = mediaManager.get_current_file()
-                        if (currentFile) {
-                            var fullPath = mediaManager.get_full_file_path(currentFile)
-                            if (fullPath) {
-                                audioAnalyzer.analyze_file(fullPath)
-                            }
-                        }
-                    }
-                }
-            }
-
             // Waveform bars
             Row {
                 id: waveformBars
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.bottom: parent.bottom
                 height: parent.height
-                spacing: waveformContainer.quality === "Insane" ? dp(1) : dp(2)
+                spacing: dp(1)
 
                 // Cache all bars as a single texture during card animation —
                 // collapses 96 individual gradient draw calls into one texture blit
                 layer.enabled: true
                 layer.live: !mediaRoom._cardAnimBusy
 
-                property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 32
+                property int numBars: audioAnalyzer ? audioAnalyzer.get_num_bars() : 96
 
                 Repeater {
                     id: waveformRepeater
@@ -1153,14 +1134,12 @@ Item {
                         height: Math.max(2, (barLevel / 8) * waveformContainer.height)
                         anchors.bottom: parent.bottom
 
-                        // Pill-shaped bars on Extreme/Insane
                         radius: fancy ? width * 0.4 : 0
 
                         // Always set color as fallback — Qt ignores color when gradient is active,
                         // but if the gradient fails to render (Windows GPU quirk) the bar stays visible
                         color: App.Style.accent
 
-                        // Gradient glow from base on Extreme/Insane
                         gradient: fancy ? barGradient : null
 
                         // Breathing opacity — quiet bars fade, loud bars pop
@@ -1217,7 +1196,7 @@ Item {
                 }
             }
 
-            // Update position periodically — interval driven by quality tier
+            // Update position periodically at the visualizer frame rate
             Timer {
                 id: waveformUpdateTimer
                 interval: waveformContainer.timerInterval

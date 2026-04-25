@@ -86,41 +86,10 @@
 </pre>
         </div>
 
-        <!-- Quality Tiers -->
-        <h2 id="quality-tiers">Quality Tiers</h2>
+        <!-- Bar Count -->
+        <h2 id="quality-tiers">Bar Count</h2>
 
-        <p>The visualizer supports 5 quality tiers that control the number of frequency bars. More bars provide finer frequency resolution but require more QML rendering effort.</p>
-
-        <table>
-          <thead><tr><th>Tier</th><th>Bar Count</th><th>Frequency Detail</th><th>Rendering Cost</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Low</strong></td><td>16</td><td>Coarse &mdash; bass/mid/treble groups visible</td><td>Minimal &mdash; suitable for Raspberry Pi</td></tr>
-            <tr><td><strong>Medium</strong></td><td>32</td><td>Standard &mdash; good frequency separation</td><td>Low &mdash; default setting</td></tr>
-            <tr><td><strong>High</strong></td><td>48</td><td>Fine &mdash; individual frequency bands visible</td><td>Moderate</td></tr>
-            <tr><td><strong>Extreme</strong></td><td>64</td><td>Detailed &mdash; rich spectral visualization</td><td>Higher &mdash; desktop recommended</td></tr>
-            <tr><td><strong>Insane</strong></td><td>96</td><td>Maximum &mdash; near-spectrogram resolution</td><td>Highest &mdash; powerful GPU required</td></tr>
-          </tbody>
-        </table>
-
-        <h3>Setting the Quality</h3>
-
-        <pre><code><span class="cmt"># Python</span>
-<span class="cls">@Slot</span>(str)
-<span class="kw">def</span> <span class="fn">set_quality</span>(self, quality: <span class="cls">str</span>):
-    new_bars = self._quality_bars.<span class="fn">get</span>(quality, <span class="num">32</span>)
-    <span class="kw">if</span> new_bars == self._num_bars:
-        <span class="kw">return</span>
-    self._num_bars = new_bars
-    self._current_levels = [<span class="num">0</span>] * self._num_bars
-    <span class="cmt"># Clear cache so next track uses new bar count</span>
-    self._fft_data = []
-    self._current_file = <span class="str">""</span></code></pre>
-
-        <div class="info-box warning">
-          <strong>Cache Invalidation:</strong> Changing quality clears the cached FFT data. The current track will need to be re-analyzed with the new bar count. The <code>_current_file</code> is also cleared to force re-analysis on the next <code>analyze_file()</code> call.
-        </div>
-
-        <p>The quality setting is connected from the settings UI. When a user changes the visualizer quality in settings, <code>set_quality()</code> is called, which updates the bar count and clears the cache.</p>
+        <p>The visualizer renders a fixed <strong>96 frequency bars</strong> at 60 FPS, the highest-fidelity layout. The waveform is enabled or disabled via the single <code>showWaveformVisualizer</code> setting in MediaRoom &mdash; there are no quality tiers.</p>
 
         <!-- Decoding -->
         <h2 id="decoding">Audio Decoding</h2>
@@ -258,7 +227,6 @@ global_max = np.<span class="fn">percentile</span>(all_values, <span class="num"
             <tr><td><code>analyze_file</code></td><td><code>str</code> (file path)</td><td>Start FFT analysis for a track</td></tr>
             <tr><td><code>update_position</code></td><td><code>float</code> (seconds)</td><td>Look up and emit FFT levels for current playback position</td></tr>
             <tr><td><code>set_active</code></td><td><code>bool</code></td><td>Enable/disable the visualizer (emits zeros when disabled)</td></tr>
-            <tr><td><code>set_quality</code></td><td><code>str</code></td><td>Change quality tier (clears cache)</td></tr>
             <tr><td><code>clear</code></td><td>None</td><td>Clear all analysis data</td></tr>
             <tr><td><code>get_current_levels</code></td><td>None &rarr; <code>list</code></td><td>Get current FFT levels synchronously</td></tr>
             <tr><td><code>get_num_bars</code></td><td>None &rarr; <code>int</code></td><td>Get current bar count</td></tr>
@@ -312,20 +280,11 @@ self._poll_timer.<span class="fn">start</span>()</code></pre>
         <h3>Analysis Time</h3>
         <p>The 8 kHz downsampling is the primary optimization. A 3-minute song at 44.1 kHz has ~8 million samples. At 8 kHz, this drops to ~1.4 million. FFT computation scales with <code>O(N log N)</code> per chunk, so this reduction is significant.</p>
 
-        <h3>Memory Usage per Tier</h3>
-        <table>
-          <thead><tr><th>Tier</th><th>Bars</th><th>3-min song (~1800 chunks)</th><th>Memory</th></tr></thead>
-          <tbody>
-            <tr><td>Low</td><td>16</td><td>1800 x 16 = 28,800 integers</td><td>~225 KB</td></tr>
-            <tr><td>Medium</td><td>32</td><td>1800 x 32 = 57,600 integers</td><td>~450 KB</td></tr>
-            <tr><td>High</td><td>48</td><td>1800 x 48 = 86,400 integers</td><td>~675 KB</td></tr>
-            <tr><td>Extreme</td><td>64</td><td>1800 x 64 = 115,200 integers</td><td>~900 KB</td></tr>
-            <tr><td>Insane</td><td>96</td><td>1800 x 96 = 172,800 integers</td><td>~1.35 MB</td></tr>
-          </tbody>
-        </table>
+        <h3>Memory Usage</h3>
+        <p>A 3-minute song at 96 bars (~1800 chunks) holds 1800 x 96 = 172,800 integers, roughly 1.35 MB of cached FFT data per track.</p>
 
         <h3>QML Rendering Impact</h3>
-        <p>The bar count directly affects QML rendering cost. Each bar is a separate visual element that must be positioned and sized every frame. At 96 bars (Insane), this can impact frame rate on low-powered devices. The "Low" tier at 16 bars is specifically designed for Raspberry Pi deployments.</p>
+        <p>Each of the 96 bars is a separate visual element that must be positioned and sized every frame. On low-powered devices this can impact frame rate; on those targets, disable the waveform via <code>showWaveformVisualizer</code> entirely.</p>
 
         <h3>Signal Emission Throttling</h3>
         <p>The change detection in <code>update_position()</code> prevents redundant signal emissions. Since chunks span 100ms, the visualizer emits at most 10 updates per second regardless of how frequently <code>update_position()</code> is called.</p>
@@ -358,15 +317,10 @@ audioAnalyzer.<span class="fn">update_position</span>(positionSeconds)
     }
 }</code></pre>
 
-        <h3>Quality Setting Connection</h3>
-        <p>The visualizer quality is configured in the Media settings page and stored in <code>settingsConfigure.json</code>. When the user changes the quality tier:</p>
+        <h3>Bar Count</h3>
+        <p>The visualizer renders a fixed 96 bars. The component reads the count from the analyzer at startup:</p>
 
-        <pre><code><span class="cmt">// Settings page calls:</span>
-audioAnalyzer.<span class="fn">set_quality</span>(<span class="str">"High"</span>)  <span class="cmt">// Updates bar count to 48</span>
-
-<span class="cmt">// The visualizer component reads bar count:</span>
-<span class="kw">var</span> numBars = audioAnalyzer.<span class="fn">get_num_bars</span>()
-<span class="cmt">// Rebuilds its bar Repeater model accordingly</span></code></pre>
+        <pre><code><span class="kw">var</span> numBars = audioAnalyzer.<span class="fn">get_num_bars</span>()  <span class="cmt">// always 96</span></code></pre>
 
         <h3>Active/Inactive State</h3>
         <p>The visualizer can be toggled on/off. When disabled, it emits zero levels to clear the display:</p>

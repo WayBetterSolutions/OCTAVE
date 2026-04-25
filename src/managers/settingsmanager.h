@@ -60,7 +60,6 @@ class SettingsManager : public QObject
     Q_PROPERTY(QString musicButtonDefaultPage READ musicButtonDefaultPage NOTIFY musicButtonDefaultPageChanged)
     Q_PROPERTY(bool returnToLibraryAfterSelection READ returnToLibraryAfterSelection NOTIFY returnToLibraryAfterSelectionChanged)
     Q_PROPERTY(bool showWaveformVisualizer READ showWaveformVisualizer NOTIFY showWaveformVisualizerChanged)
-    Q_PROPERTY(QString visualizerQuality READ visualizerQuality NOTIFY visualizerQualityChanged)
 
     // --- 3D visual effects ---
     Q_PROPERTY(bool show3DButtonTilt READ show3DButtonTilt NOTIFY show3DButtonTiltChanged)
@@ -164,7 +163,6 @@ public:
     QString musicButtonDefaultPage() const;
     bool returnToLibraryAfterSelection() const;
     bool showWaveformVisualizer() const;
-    QString visualizerQuality() const;
 
     // 3D visual effects
     bool show3DButtonTilt() const;
@@ -263,7 +261,6 @@ signals:
     void musicButtonDefaultPageChanged(const QString &value);
     void returnToLibraryAfterSelectionChanged(bool value);
     void showWaveformVisualizerChanged(bool value);
-    void visualizerQualityChanged(const QString &value);
 
     // 3D visual effects
     void show3DButtonTiltChanged(bool value);
@@ -376,7 +373,6 @@ public slots:
     void save_music_button_default_page(const QString &page);
     void save_return_to_library_after_selection(bool returnToLibrary);
     void save_show_waveform_visualizer(bool enabled);
-    void save_visualizer_quality(const QString &quality);
 
     // 3D visual effects
     void save_show_3d_button_tilt(bool enabled);
@@ -618,7 +614,6 @@ private:
 
     // Waveform
     bool m_showWaveformVisualizer = true;
-    QString m_visualizerQuality;
 
     // 3D effects
     bool m_show3DButtonTilt = false;
