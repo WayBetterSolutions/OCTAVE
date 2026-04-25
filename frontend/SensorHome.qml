@@ -8,57 +8,50 @@ Item {
     function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
     function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
 
-    id: obdHome
-    objectName: "obdHome"
+    id: sensorHome
+    objectName: "sensorHome"
     required property StackView stackView
     required property ApplicationWindow mainWindow
 
     property string globalFont: App.Style.fontFamily
+
+    // Match OBDHome's palette so the two hubs feel like the same surface.
     property color backgroundColor: App.Style.obdBoxBackground
     property color accentColor: App.Style.obdBarColor
     property color textColor: App.Style.obdValueColor
     property color labelColor: App.Style.obdLabelColor
 
-    // Track last-visited subpage for visual indicator
+    // Track last-visited subpage for the "you were just here" border.
     property string lastSubpage: settingsManager
-        ? settingsManager.get_setting_with_default("lastOBDPage", "")
+        ? settingsManager.get_setting_with_default("lastSensorPage", "")
         : ""
 
-    // Connection status
-    property string connectionStatus: "Disconnected"
-    property string connectionDetail: ""
-    property bool connected: obdManager ? obdManager.is_connected() : false
+    property bool imuConnected: berryIMU ? berryIMU.connected : false
 
     Connections {
-        target: obdManager
-        enabled: obdManager !== null
-
+        target: berryIMU
+        ignoreUnknownSignals: true
         function onConnectionStatusChanged(status) {
-            obdHome.connectionStatus = status
-            obdHome.connected = obdManager.is_connected()
-        }
-        function onConnectionStatusDetailChanged(detail) {
-            obdHome.connectionDetail = detail
+            sensorHome.imuConnected = (status === "Connected")
         }
     }
 
-    // Helper to push a subpage
     function pushSubpage(qmlFile) {
         if (settingsManager) {
-            settingsManager.save_setting("lastOBDPage", qmlFile)
+            settingsManager.save_setting("lastSensorPage", qmlFile)
             lastSubpage = qmlFile
         }
         var component = Qt.createComponent(qmlFile)
         if (component.status === Component.Ready) {
             var page = component.createObject(stackView, {
-                stackView: obdHome.stackView,
-                mainWindow: obdHome.mainWindow
+                stackView: sensorHome.stackView,
+                mainWindow: sensorHome.mainWindow
             })
             if (page) {
                 stackView.push(page)
             }
         } else {
-            console.warn("[OBDHome] Failed to load", qmlFile, component.errorString())
+            console.warn("[SensorHome] Failed to load", qmlFile, component.errorString())
         }
     }
 
@@ -84,39 +77,22 @@ Item {
                     anchors.rightMargin: dp(16)
                     spacing: dp(10)
 
-                    // Status dot
                     Rectangle {
                         width: dp(12)
                         height: width
                         radius: width / 2
-                        color: obdHome.connected ? "#00FF00"
-                             : obdHome.connectionStatus === "Connecting" ? "#FFAA00"
-                             : "#FF4444"
-
-                        SequentialAnimation on opacity {
-                            running: obdHome.connectionStatus === "Connecting"
-                            loops: Animation.Infinite
-                            NumberAnimation { to: 0.3; duration: 600 }
-                            NumberAnimation { to: 1.0; duration: 600 }
-                        }
+                        color: sensorHome.imuConnected ? "#00FF00" : "#FF4444"
                     }
 
                     Text {
-                        text: obdHome.connectionStatus
+                        text: sensorHome.imuConnected ? "IMU Connected" : "IMU Disconnected"
                         color: textColor
                         font.pixelSize: App.Spacing.overallText
                         font.bold: true
-                        font.family: obdHome.globalFont
+                        font.family: sensorHome.globalFont
                     }
 
-                    Text {
-                        text: obdHome.connectionDetail
-                        color: labelColor
-                        font.pixelSize: App.Spacing.overallText * 0.85
-                        font.family: obdHome.globalFont
-                        elide: Text.ElideRight
-                        Layout.fillWidth: true
-                    }
+                    Item { Layout.fillWidth: true }
                 }
             }
 
@@ -128,135 +104,133 @@ Item {
                 rowSpacing: dp(16)
                 columnSpacing: dp(16)
 
-                // --- Dashboards card ---
+                // --- Sensors card (live readouts) ---
                 Rectangle {
-                    id: dashboardsCard
+                    id: sensorsCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: dpMin(12, 4)
-                    color: dashboardsMouse.containsMouse
+                    color: sensorsMouse.containsMouse
                            ? Qt.lighter(Qt.darker(backgroundColor, 0.85), 1.08)
                            : Qt.darker(backgroundColor, 0.85)
-                    border.color: lastSubpage === "OBDMenu.qml" ? accentColor : "transparent"
-                    border.width: lastSubpage === "OBDMenu.qml" ? 2 : 0
+                    border.color: lastSubpage === "SensorMenu.qml" ? accentColor : "transparent"
+                    border.width: lastSubpage === "SensorMenu.qml" ? 2 : 0
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     MouseArea {
-                        id: dashboardsMouse
+                        id: sensorsMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: obdHome.pushSubpage("OBDMenu.qml")
+                        onClicked: sensorHome.pushSubpage("SensorMenu.qml")
                     }
 
                     ColumnLayout {
                         anchors.centerIn: parent
                         spacing: dp(12)
 
-                        // Icon placeholder — tachometer shape
-                        Rectangle {
+                        Text {
                             Layout.alignment: Qt.AlignHCenter
-                            width: dp(56)
-                            height: width
-                            radius: width / 2
-                            color: "transparent"
-                            border.color: accentColor
-                            border.width: 3
-
-                            // Needle
-                            Rectangle {
-                                width: 3
-                                height: parent.height * 0.35
-                                color: accentColor
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.bottom: parent.verticalCenter
-                                transformOrigin: Item.Bottom
-                                rotation: 45
-                            }
+                            text: "◉"
+                            color: accentColor
+                            font.pixelSize: dp(48)
                         }
 
                         Text {
-                            text: "Dashboards"
+                            text: "Sensors"
                             color: textColor
                             font.pixelSize: App.Spacing.overallText * 1.2
                             font.bold: true
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
 
                         Text {
-                            text: "Live gauges & parameters"
+                            text: "Pitch, roll, heading, G-force"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 0.85
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
                     }
                 }
 
-                // --- Trouble Codes (DTC) card ---
+                // --- 3D View card ---
                 Rectangle {
-                    id: dtcCard
+                    id: viewCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: dpMin(12, 4)
-                    color: dtcMouse.containsMouse
+                    color: viewMouse.containsMouse
                            ? Qt.lighter(Qt.darker(backgroundColor, 0.85), 1.08)
                            : Qt.darker(backgroundColor, 0.85)
-                    border.color: lastSubpage === "OBDDiagnostics.qml" ? accentColor : "transparent"
-                    border.width: lastSubpage === "OBDDiagnostics.qml" ? 2 : 0
+                    border.color: lastSubpage === "CarMenu.qml" ? accentColor : "transparent"
+                    border.width: lastSubpage === "CarMenu.qml" ? 2 : 0
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     MouseArea {
-                        id: dtcMouse
+                        id: viewMouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: obdHome.pushSubpage("OBDDiagnostics.qml")
+                        onClicked: sensorHome.pushSubpage("CarMenu.qml")
                     }
 
                     ColumnLayout {
                         anchors.centerIn: parent
                         spacing: dp(12)
 
-                        // Icon placeholder — warning triangle
                         Item {
                             Layout.alignment: Qt.AlignHCenter
                             width: dp(56)
                             height: width
 
-                            Text {
+                            Rectangle {
                                 anchors.centerIn: parent
-                                text: "\u26A0"
-                                font.pixelSize: dp(36)
-                                color: accentColor
+                                width: dp(40)
+                                height: dp(28)
+                                radius: dpMin(4, 1)
+                                color: "transparent"
+                                border.color: accentColor
+                                border.width: 3
+
+                                Rectangle {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.verticalCenter: parent.top
+                                    width: parent.width * 0.55
+                                    height: dp(8)
+                                    radius: dpMin(2, 1)
+                                    color: "transparent"
+                                    border.color: accentColor
+                                    border.width: 3
+                                }
                             }
                         }
 
                         Text {
-                            text: "Trouble Codes"
+                            text: "3D View"
                             color: textColor
                             font.pixelSize: App.Spacing.overallText * 1.2
                             font.bold: true
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
 
                         Text {
-                            text: "Read & clear DTCs"
+                            text: "Live vehicle attitude"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 0.85
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
                     }
                 }
 
-                // --- Vehicle Scan card (placeholder) ---
+                // --- Calibration card (placeholder) ---
                 Rectangle {
-                    id: scanCard
+                    id: calibrationCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: dpMin(12, 4)
@@ -267,47 +241,19 @@ Item {
                         anchors.centerIn: parent
                         spacing: dp(12)
 
-                        Item {
+                        Text {
                             Layout.alignment: Qt.AlignHCenter
-                            width: dp(56)
-                            height: width
-
-                            // Scan icon — concentric circles
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: dp(40)
-                                height: width
-                                radius: width / 2
-                                color: "transparent"
-                                border.color: labelColor
-                                border.width: 2
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: parent.width * 0.5
-                                    height: width
-                                    radius: width / 2
-                                    color: "transparent"
-                                    border.color: labelColor
-                                    border.width: 2
-                                }
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: dp(6)
-                                    height: width
-                                    radius: width / 2
-                                    color: labelColor
-                                }
-                            }
+                            text: "⌖"
+                            color: labelColor
+                            font.pixelSize: dp(48)
                         }
 
                         Text {
-                            text: "Vehicle Scan"
+                            text: "Calibration"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 1.2
                             font.bold: true
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
 
@@ -315,16 +261,16 @@ Item {
                             text: "Coming soon"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 0.85
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                             opacity: 0.7
                         }
                     }
                 }
 
-                // --- Connection card (placeholder) ---
+                // --- Logging card (placeholder) ---
                 Rectangle {
-                    id: connectionCard
+                    id: loggingCard
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     radius: dpMin(12, 4)
@@ -335,38 +281,19 @@ Item {
                         anchors.centerIn: parent
                         spacing: dp(12)
 
-                        Item {
+                        Text {
                             Layout.alignment: Qt.AlignHCenter
-                            width: dp(56)
-                            height: width
-
-                            // Connection icon — plug shape
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: dp(30)
-                                height: dp(6)
-                                radius: 3
-                                color: labelColor
-
-                                Rectangle {
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: dp(12)
-                                    height: dp(20)
-                                    radius: 3
-                                    color: "transparent"
-                                    border.color: labelColor
-                                    border.width: 2
-                                }
-                            }
+                            text: "◬"
+                            color: labelColor
+                            font.pixelSize: dp(48)
                         }
 
                         Text {
-                            text: "Connection"
+                            text: "Sensor Log"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 1.2
                             font.bold: true
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                         }
 
@@ -374,7 +301,7 @@ Item {
                             text: "Coming soon"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 0.85
-                            font.family: obdHome.globalFont
+                            font.family: sensorHome.globalFont
                             Layout.alignment: Qt.AlignHCenter
                             opacity: 0.7
                         }

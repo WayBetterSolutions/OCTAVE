@@ -363,6 +363,7 @@ ApplicationWindow {
             "SettingsMenu.qml":     { file: "SettingsMenu.qml",     props: { stackView: stackView, mainWindow: mainWindow } },
             "PhoneMirrorView.qml":  { file: "PhoneMirrorView.qml",  props: { stackView: stackView } },
             "AndroidAutoView.qml":  { file: "AndroidAutoView.qml",  props: { stackView: stackView } },
+            "SensorHome.qml":       { file: "SensorHome.qml",       props: { stackView: stackView, mainWindow: mainWindow } },
             "SensorMenu.qml":       { file: "SensorMenu.qml",       props: { stackView: stackView } },
             "CarMenu.qml":          { file: "CarMenu.qml",          props: { stackView: stackView } },
             "DownloadPage.qml":     { file: "DownloadPage.qml",     props: { stackView: stackView } },

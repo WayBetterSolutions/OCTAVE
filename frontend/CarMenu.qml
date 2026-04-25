@@ -11,6 +11,7 @@ Item {
     function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
 
     id: carMenu
+    objectName: "carMenu"
     width: parent.width
     height: parent.height
 

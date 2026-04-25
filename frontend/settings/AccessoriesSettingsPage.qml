@@ -900,6 +900,162 @@ Flickable {
             }
         }
 
+        // ── IMU Display ──
+        SettingsCard {
+            objectName: "IMU Display"
+            cardId: "accessories_imu_display"
+            title: "IMU Display"
+            description: "How sensor values are formatted and which cards appear in the sensor view"
+
+            // Display — units & precision
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    SettingLabel {
+                        text: "Decimal Places"
+                        Layout.fillWidth: true
+                    }
+
+                    ValueDisplay {
+                        id: imuDecimalsValue
+                        text: settingsManager ? settingsManager.get_setting_with_default("sensorDecimalPlaces", 1) : "1"
+                    }
+                }
+
+                SettingsSlider {
+                    id: imuDecimalsSlider
+                    from: 0; to: 4; stepSize: 1
+                    value: settingsManager ? settingsManager.get_setting_with_default("sensorDecimalPlaces", 1) : 1
+                    onMoved: {
+                        if (settingsManager) {
+                            settingsManager.save_setting("sensorDecimalPlaces", value)
+                            imuDecimalsValue.text = value
+                        }
+                    }
+                }
+
+                SettingsToggle {
+                    Layout.fillWidth: true
+                    text: "Temperature in \u00B0F"
+                    checked: settingsManager ? settingsManager.get_setting_with_default("sensorTempUnit", "F") === "F" : true
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_setting("sensorTempUnit", checked ? "F" : "C")
+                        }
+                    }
+                }
+
+                SettingsToggle {
+                    Layout.fillWidth: true
+                    text: "Altitude in Feet"
+                    checked: settingsManager ? settingsManager.get_setting_with_default("sensorAltitudeUnit", "m") === "ft" : false
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_setting("sensorAltitudeUnit", checked ? "ft" : "m")
+                        }
+                    }
+                }
+            }
+
+            SettingsDivider {}
+
+            // Performance — update rate
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                RowLayout {
+                    Layout.fillWidth: true
+
+                    SettingLabel {
+                        text: "Update Rate"
+                        Layout.fillWidth: true
+                    }
+
+                    ValueDisplay {
+                        id: imuEmitRateValue
+                        text: (settingsManager ? settingsManager.get_setting_with_default("sensorEmitRate", 60) : 60) + " Hz"
+                    }
+                }
+
+                SettingDescription {
+                    text: "How often the IMU emits new readings (higher = smoother, more CPU)"
+                }
+
+                SettingsSlider {
+                    id: imuEmitRateSlider
+                    from: 10; to: 120; stepSize: 5
+                    value: settingsManager ? settingsManager.get_setting_with_default("sensorEmitRate", 60) : 60
+                    onMoved: {
+                        imuEmitRateValue.text = value + " Hz"
+                        imuEmitRateApply.restart()
+                    }
+                }
+
+                Timer {
+                    id: imuEmitRateApply
+                    interval: 200
+                    onTriggered: {
+                        if (settingsManager) {
+                            settingsManager.save_setting("sensorEmitRate", imuEmitRateSlider.value)
+                        }
+                        if (typeof berryIMU !== "undefined" && berryIMU) {
+                            berryIMU.setEmitRate(imuEmitRateSlider.value)
+                        }
+                    }
+                }
+            }
+
+            SettingsDivider {}
+
+            // Visible cards — which widgets appear on the sensor view
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: App.Spacing.rowSpacing
+
+                SettingLabel {
+                    text: "Visible Cards"
+                }
+
+                SettingDescription {
+                    text: "Show or hide individual readouts on the Sensors page"
+                }
+
+                Repeater {
+                    model: [
+                        { key: "sensorShowPitch",       label: "Pitch",       defaultOn: true },
+                        { key: "sensorShowRoll",        label: "Roll",        defaultOn: true },
+                        { key: "sensorShowHeading",     label: "Heading",     defaultOn: true },
+                        { key: "sensorShowGForce",      label: "G-Force",     defaultOn: true },
+                        { key: "sensorShowAltitude",    label: "Altitude",    defaultOn: true },
+                        { key: "sensorShowTemperature", label: "Temperature", defaultOn: true }
+                    ]
+                    delegate: SettingsToggle {
+                        Layout.fillWidth: true
+                        text: modelData.label
+                        checked: settingsManager
+                                 ? settingsManager.get_setting_with_default(modelData.key, modelData.defaultOn)
+                                 : modelData.defaultOn
+                        activeColor: App.Style.accent
+                        inactiveColor: App.Style.hoverColor
+                        onToggled: function(checked) {
+                            if (settingsManager) {
+                                settingsManager.save_setting(modelData.key, checked)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         // GESTURE SENSOR
         // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1038,14 +1038,50 @@ Rectangle {
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
-                                    if (currentItem && currentItem.objectName === "sensorMenu") {
+                                    var name = currentItem ? currentItem.objectName : ""
+
+                                    if (name === "sensorHome") {
+                                        // Already on Sensor Home — do nothing
                                         return
                                     }
-                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
-                                        stackView: bottomBar.stackView,
-                                        mainWindow: stackView.parent.Window.window
-                                    })
-                                    stackView.push(page)
+
+                                    var isSensorSubpage = name.indexOf("sensor") === 0 || name === "carMenu"
+
+                                    if (isSensorSubpage) {
+                                        // On a sensor subpage — pop back to SensorHome
+                                        var found = false
+                                        while (stackView.depth > 1) {
+                                            var item = stackView.currentItem
+                                            if (item && item.objectName === "sensorHome") {
+                                                found = true
+                                                break
+                                            }
+                                            stackView.pop()
+                                        }
+                                        if (!found) {
+                                            var component = Qt.createComponent("SensorHome.qml")
+                                            if (component.status === Component.Ready) {
+                                                var page = component.createObject(stackView, {
+                                                    stackView: bottomBar.stackView,
+                                                    mainWindow: stackView.parent.Window.window
+                                                })
+                                                if (page) stackView.push(page)
+                                            }
+                                        }
+                                    } else {
+                                        // From a non-sensor page — jump to the last-visited sensor subpage if remembered
+                                        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastSensorPage", "") : ""
+                                        var target = (lastPage !== "") ? lastPage : "SensorHome.qml"
+
+                                        var component = Qt.createComponent(target)
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) stackView.push(page)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1377,7 +1413,7 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
+                                    var page = Qt.createComponent("SensorHome.qml").createObject(stackView, {
                                         stackView: bottomBar.stackView,
                                         mainWindow: bottomBar.mainWindow
                                     })
@@ -2397,14 +2433,50 @@ Rectangle {
                                 hoverEnabled: true
                                 onClicked: {
                                     var currentItem = stackView.currentItem
-                                    if (currentItem && currentItem.objectName === "sensorMenu") {
+                                    var name = currentItem ? currentItem.objectName : ""
+
+                                    if (name === "sensorHome") {
+                                        // Already on Sensor Home — do nothing
                                         return
                                     }
-                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
-                                        stackView: bottomBar.stackView,
-                                        mainWindow: stackView.parent.Window.window
-                                    })
-                                    stackView.push(page)
+
+                                    var isSensorSubpage = name.indexOf("sensor") === 0 || name === "carMenu"
+
+                                    if (isSensorSubpage) {
+                                        // On a sensor subpage — pop back to SensorHome
+                                        var found = false
+                                        while (stackView.depth > 1) {
+                                            var item = stackView.currentItem
+                                            if (item && item.objectName === "sensorHome") {
+                                                found = true
+                                                break
+                                            }
+                                            stackView.pop()
+                                        }
+                                        if (!found) {
+                                            var component = Qt.createComponent("SensorHome.qml")
+                                            if (component.status === Component.Ready) {
+                                                var page = component.createObject(stackView, {
+                                                    stackView: bottomBar.stackView,
+                                                    mainWindow: stackView.parent.Window.window
+                                                })
+                                                if (page) stackView.push(page)
+                                            }
+                                        }
+                                    } else {
+                                        // From a non-sensor page — jump to the last-visited sensor subpage if remembered
+                                        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastSensorPage", "") : ""
+                                        var target = (lastPage !== "") ? lastPage : "SensorHome.qml"
+
+                                        var component = Qt.createComponent(target)
+                                        if (component.status === Component.Ready) {
+                                            var page = component.createObject(stackView, {
+                                                stackView: bottomBar.stackView,
+                                                mainWindow: stackView.parent.Window.window
+                                            })
+                                            if (page) stackView.push(page)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2739,7 +2811,7 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onClicked: {
-                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
+                                    var page = Qt.createComponent("SensorHome.qml").createObject(stackView, {
                                         stackView: bottomBar.stackView,
                                         mainWindow: bottomBar.mainWindow
                                     })
