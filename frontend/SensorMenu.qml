@@ -10,6 +10,7 @@ Item {
     function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
 
     id: sensorMenu
+    objectName: "sensorMenu"
     required property StackView stackView
     required property ApplicationWindow mainWindow
     width: parent.width
@@ -106,7 +107,7 @@ Item {
                     visible: showHeading
 
                     Text {
-                        text: "\u2316"
+                        text: "\u25c9"
                         color: App.Style.accent
                         font.pixelSize: dp(16)
                     }
@@ -124,7 +125,7 @@ Item {
                 // Temperature readout
                 RowLayout {
                     spacing: dp(4)
-                    visible: showTemperature
+                    visible: showTemperature && (berryIMU.hasTemperature !== false)
 
                     Text {
                         text: "\u2600"
@@ -153,8 +154,8 @@ Item {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "\u2699"
-                        font.pixelSize: dp(20)
+                        text: "\u22ef"
+                        font.pixelSize: dp(24)
                         color: App.Style.secondaryTextColor
                     }
 

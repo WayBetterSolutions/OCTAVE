@@ -61,10 +61,16 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
 
     // ---- Auto-detect screen scale (mirrors main.py logic) ----
+    // Scale off the SHORTER axis so the factor is the same whether the
+    // display reports landscape or portrait dimensions. On Android the
+    // primary-screen availableSize() is the device's natural (portrait)
+    // orientation even when the app is locked landscape — using height()
+    // alone produced a ~3× autoScale there.
     qreal autoScale = 1.0;
     if (QScreen *screen = app.primaryScreen()) {
         QSize available = screen->availableSize();
-        autoScale = available.height() / 720.0;
+        const int shortEdge = qMin(available.width(), available.height());
+        autoScale = shortEdge / 720.0;
         autoScale = qBound(0.4, autoScale, 3.0);
     }
 

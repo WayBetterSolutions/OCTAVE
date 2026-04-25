@@ -129,7 +129,7 @@ Rectangle {
                 Item { // SECTION 1: Left section - Media Controls
                     id: mediaControlsSection
                     property bool showControls: settingsManager ? settingsManager.showBottomBarMediaControls : true
-                    Layout.preferredWidth: showControls ? parent.width * 0.4 : parent.width * 0.1 // Fixed 10% when hidden for symmetry
+                    Layout.preferredWidth: showControls ? parent.width * 0.4 : 0 // Collapse when hidden so nav row re-centers
                     Layout.fillHeight: true
                     // Keep item visible to preserve space, just hide the contents
 
@@ -677,7 +677,7 @@ Rectangle {
                     RowLayout {
                         id: navigationBar
                         anchors.centerIn: parent
-                        spacing: App.Spacing.bottomBarBetweenButtonMargin * 8
+                        spacing: App.Spacing.bottomBarBetweenButtonMargin * 6
                         
                         // Home Button (Main Menu)
                         Control {
@@ -971,6 +971,85 @@ Rectangle {
                             }
                         }
 
+                        // Sensor Button
+                        Control {
+                            id: sensorButton
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: dpMin(8, 2)
+                                border.color: App.Style.accent
+                                border.width: 1
+                                scale: mouseAreaSensor.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSensor.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+
+                            contentItem: Item {
+                                scale: mouseAreaSensor.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSensor.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                                Image {
+                                    id: sensorButtonImage
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/sensor_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: sensorButtonImage
+                                    source: sensorButtonImage
+                                    color: App.Style.bottomBarSensorButton
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaSensor
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    var currentItem = stackView.currentItem
+                                    if (currentItem && currentItem.objectName === "sensorMenu") {
+                                        return
+                                    }
+                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
+                                        stackView: bottomBar.stackView,
+                                        mainWindow: stackView.parent.Window.window
+                                    })
+                                    stackView.push(page)
+                                }
+                            }
+                        }
+
                         // Settings Button
                         Control {
                             id: settingsButton
@@ -1259,8 +1338,8 @@ Rectangle {
 
                 Item { // SECTION 3: Right section - Clock and other controls
                     id: clockSection
-                    property bool mediaControlsVisible: settingsManager ? settingsManager.showBottomBarMediaControls : true
-                    Layout.preferredWidth: mediaControlsVisible ? parent.width * 0.2 : parent.width * 0.1 // 20% when media controls visible, 10% when hidden (matches Section 1)
+                    property bool showClock: settingsManager ? settingsManager.showClock : true
+                    Layout.preferredWidth: showClock ? parent.width * 0.2 : 0 // Collapse when clock hidden so nav row re-centers
                     Layout.fillHeight: true
 
                     RowLayout {
@@ -2246,6 +2325,86 @@ Rectangle {
                                             stackView.push(page)
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        // Sensor Button
+                        Control {
+                            id: sensorButtonVertical
+                            implicitWidth: App.Spacing.bottomBarNavButtonWidth*1.5
+                            implicitHeight: App.Spacing.bottomBarNavButtonHeight
+                            Layout.alignment: Qt.AlignHCenter
+
+                            background: Rectangle {
+                                color: "transparent"
+                                radius: dpMin(8, 2)
+                                border.color: App.Style.accent
+                                border.width: 1
+                                scale: mouseAreaSensorVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSensorVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                            }
+
+                            contentItem: Item {
+                                scale: mouseAreaSensorVertical.pressed ? 0.8 : 1.0
+                                opacity: mouseAreaSensorVertical.pressed ? 0.7 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.1
+                                    }
+                                }
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 150 }
+                                }
+                                Image {
+                                    id: sensorButtonImageVertical
+                                    anchors.centerIn: parent
+                                    width: parent.width * 0.7
+                                    height: parent.height * 0.7
+                                    source: "./assets/sensor_button.svg"
+                                    sourceSize: Qt.size(width * 2, height * 2)
+                                    fillMode: Image.PreserveAspectFit
+                                    smooth: true
+                                    antialiasing: true
+                                    mipmap: true
+                                    visible: false
+                                }
+
+                                ColorOverlay {
+                                    anchors.fill: sensorButtonImageVertical
+                                    source: sensorButtonImageVertical
+                                    color: App.Style.bottomBarSensorButton
+                                }
+                            }
+
+                            MouseArea {
+                                id: mouseAreaSensorVertical
+                                width: parent.width * 1.5
+                                height: parent.height * 1.5
+                                anchors.centerIn: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    var currentItem = stackView.currentItem
+                                    if (currentItem && currentItem.objectName === "sensorMenu") {
+                                        return
+                                    }
+                                    var page = Qt.createComponent("SensorMenu.qml").createObject(stackView, {
+                                        stackView: bottomBar.stackView,
+                                        mainWindow: stackView.parent.Window.window
+                                    })
+                                    stackView.push(page)
                                 }
                             }
                         }

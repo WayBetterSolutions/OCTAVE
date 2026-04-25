@@ -431,7 +431,7 @@ Item {
                 height: App.Spacing.bottomBarNavButtonHeight
                 anchors {
                     right: parent.right
-                    rightMargin: App.Spacing.mediaRoomMargin + App.Spacing.bottomBarNavButtonWidth + App.Spacing.overallMargin * 3
+                    rightMargin: App.Spacing.mediaRoomMargin + App.Spacing.bottomBarNavButtonWidth + App.Spacing.overallMargin * 2
                     verticalCenter: parent.verticalCenter
                 }
 

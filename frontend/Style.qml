@@ -78,6 +78,7 @@ QtObject {
                 "homeButton": "#268BD2",
                 "obdButton": "#268BD2",
                 "mediaButton": "#268BD2",
+                "sensorButton": "#268BD2",
                 "settingsButton": "#268BD2",
                 "androidAutoButton": "#268BD2",
                 "phoneMirrorButton": "#268BD2"
@@ -130,6 +131,7 @@ QtObject {
                 "homeButton": "#00FF41",
                 "obdButton": "#00FF41",
                 "mediaButton": "#00FF41",
+                "sensorButton": "#00FF41",
                 "settingsButton": "#00FF41",
                 "androidAutoButton": "#00FF41",
                 "phoneMirrorButton": "#00FF41"
@@ -182,6 +184,7 @@ QtObject {
             "homeButton": "#00BFFF", // Match accent
             "obdButton": "#FF8C42",  // Orange for OBD
             "mediaButton": "#00E673", // Green for media
+            "sensorButton": "#FFD24D", // Amber for sensors
             "settingsButton": "#7CB9E8", // Match settings slider
             "androidAutoButton": "#7CB9E8",
             "phoneMirrorButton": "#7CB9E8"
@@ -234,6 +237,7 @@ QtObject {
             "homeButton": "#FF47B9", // Lighter pink
             "obdButton": "#FFDD00",  // Yellow for OBD
             "mediaButton": "#00FFCC", // Teal for media
+            "sensorButton": "#FF66E0", // Bright pink for sensors
             "settingsButton": "#D436FF", // Match settings slider
             "androidAutoButton": "#D436FF",
             "phoneMirrorButton": "#D436FF"
@@ -286,6 +290,7 @@ QtObject {
             "homeButton": "#F5B041", // Golden
             "obdButton": "#A04000",  // Deep rust for OBD
             "mediaButton": "#D35400", // Burnt orange for media
+            "sensorButton": "#E67E22", // Pumpkin for sensors
             "settingsButton": "#F39C12", // Match settings slider
             "androidAutoButton": "#F39C12",
             "phoneMirrorButton": "#F39C12"
@@ -338,6 +343,7 @@ QtObject {
             "homeButton": "#9B59B6", // Lavender for home
             "obdButton": "#F39C12",  // Gold for OBD contrast
             "mediaButton": "#00B2EE", // Blue for media
+            "sensorButton": "#1ABC9C", // Teal for sensors
             "settingsButton": "#7D3C98", // Match settings slider
             "androidAutoButton": "#7D3C98",
             "phoneMirrorButton": "#7D3C98"
@@ -390,6 +396,7 @@ QtObject {
             "homeButton": "#D2691E", // Chocolate for home
             "obdButton": "#CD853F",  // Peru for OBD
             "mediaButton": "#5B8A72", // Sage for media
+            "sensorButton": "#E0B97D", // Wheat for sensors
             "settingsButton": "#B1866A", // Match settings slider
             "androidAutoButton": "#B1866A",
             "phoneMirrorButton": "#B1866A"
@@ -442,6 +449,7 @@ QtObject {
             "homeButton": "#7B1FA2", // Medium purple for home
             "obdButton": "#00E5FF",  // Bright cyan for OBD
             "mediaButton": "#00BCD4", // Regular cyan for media
+            "sensorButton": "#E040FB", // Magenta for sensors
             "settingsButton": "#673AB7", // Match settings slider
             "androidAutoButton": "#673AB7",
             "phoneMirrorButton": "#673AB7"
@@ -495,6 +503,7 @@ QtObject {
             "homeButton": "#e94560",
             "obdButton": "#e94560",
             "mediaButton": "#e94560",
+            "sensorButton": "#e94560",
             "settingsButton": "#e94560",
             "androidAutoButton": "#e94560",
             "phoneMirrorButton": "#e94560"
@@ -660,6 +669,8 @@ QtObject {
     Behavior on bottomBarOBDButton { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarMediaButton: activeTheme.bottombar.mediaButton
     Behavior on bottomBarMediaButton { ColorAnimation { duration: colorTransitionMs } }
+    property color bottomBarSensorButton: activeTheme.bottombar.sensorButton
+    Behavior on bottomBarSensorButton { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarSettingsButton: activeTheme.bottombar.settingsButton
     Behavior on bottomBarSettingsButton { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarAndroidAutoButton: activeTheme.bottombar.androidAutoButton

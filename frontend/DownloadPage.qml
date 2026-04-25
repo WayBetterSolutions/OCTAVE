@@ -226,7 +226,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Layout.preferredHeight: App.Spacing.bottomBarNavButtonHeight
-                spacing: dp(12)
+                spacing: App.Spacing.overallMargin * 2
 
                 Text {
                     text: "Download Music"
@@ -459,61 +459,50 @@ Item {
 
             // ─── Search Bar ──────────────────────────────────────
 
-            Rectangle {
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: dp(44)
-                color: cardColor
-                border.color: searchInput.activeFocus ? accentColor : cardBorderColor
-                border.width: 1
-                radius: dp(8)
+                Layout.preferredHeight: dp(56)
+                Layout.maximumHeight: dp(56)
+                Layout.minimumHeight: dp(56)
+                spacing: dp(10)
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: dp(12)
-                    anchors.rightMargin: dp(8)
-                    spacing: dp(8)
+                // Search icon — lives outside the bar, to its left
+                Image {
+                    id: searchIconImg
+                    Layout.preferredWidth: dp(22)
+                    Layout.preferredHeight: dp(22)
+                    Layout.alignment: Qt.AlignVCenter
+                    source: "./assets/search_icon.svg"
+                    sourceSize: Qt.size(dp(44), dp(44))
+                    fillMode: Image.PreserveAspectFit
+                    visible: false
+                }
+                ColorOverlay {
+                    Layout.preferredWidth: dp(22)
+                    Layout.preferredHeight: dp(22)
+                    Layout.alignment: Qt.AlignVCenter
+                    source: searchIconImg
+                    color: dimTextColor
+                }
 
-                    // Search icon
-                    Image {
-                        id: searchIconImg
-                        Layout.preferredWidth: dp(18)
-                        Layout.preferredHeight: dp(18)
-                        source: "./assets/search_icon.svg"
-                        sourceSize: Qt.size(dp(36), dp(36))
-                        fillMode: Image.PreserveAspectFit
-                        visible: false
-                    }
-                    ColorOverlay {
-                        Layout.preferredWidth: dp(18)
-                        Layout.preferredHeight: dp(18)
-                        source: searchIconImg
-                        color: dimTextColor
-                    }
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    color: cardColor
+                    border.color: searchInput.activeFocus ? accentColor : cardBorderColor
+                    border.width: 1
+                    radius: dp(8)
 
-                    TextField {
-                        id: searchInput
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        placeholderText: "Song name, artist, or Spotify URL..."
-                        placeholderTextColor: dimTextColor
-                        font.family: downloadPage.globalFont
-                        font.pixelSize: dp(14)
-                        color: textColor
-                        background: Item {}
-                        selectByMouse: true
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: dp(8)
+                        anchors.rightMargin: dp(8)
+                        spacing: dp(8)
 
-                        onAccepted: {
-                            if (text.trim().length > 0) {
-                                downloadManager.search(text.trim())
-                                downloadPage.showKeyboard = false
-                            }
-                        }
-                    }
-
-                    // Keyboard toggle button
+                    // Keyboard toggle button (left side of search input)
                     Rectangle {
-                        Layout.preferredWidth: dp(32)
-                        Layout.preferredHeight: dp(32)
+                        Layout.preferredWidth: dp(36)
+                        Layout.preferredHeight: dp(36)
                         color: downloadPage.showKeyboard
                             ? Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.25)
                             : kbToggleMouse.containsMouse
@@ -526,7 +515,7 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             text: "\u2328"
-                            font.pixelSize: dp(18)
+                            font.pixelSize: dp(20)
                             color: downloadPage.showKeyboard ? accentColor : dimTextColor
                         }
 
@@ -538,6 +527,26 @@ Item {
                             onClicked: {
                                 downloadPage.showKeyboard = !downloadPage.showKeyboard
                                 if (downloadPage.showKeyboard) searchInput.forceActiveFocus()
+                            }
+                        }
+                    }
+
+                    TextField {
+                        id: searchInput
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        placeholderText: "Song name, artist"
+                        placeholderTextColor: dimTextColor
+                        font.family: downloadPage.globalFont
+                        font.pixelSize: dp(14)
+                        color: textColor
+                        background: Item {}
+                        selectByMouse: true
+
+                        onAccepted: {
+                            if (text.trim().length > 0) {
+                                downloadManager.search(text.trim())
+                                downloadPage.showKeyboard = false
                             }
                         }
                     }
@@ -571,6 +580,7 @@ Item {
                             }
                         }
                     }
+                }
                 }
             }
 
@@ -1130,17 +1140,6 @@ Item {
                         }
                     }
                 }
-
-                    // Empty state
-                    Text {
-                        anchors.centerIn: parent
-                        visible: !downloadPage.isSearching && downloadPage.searchResults.length === 0
-                        text: "Search for a song, paste a Spotify URL, or enter an artist name"
-                        font.family: downloadPage.globalFont
-                        font.pixelSize: dp(14)
-                        color: dimTextColor
-                        horizontalAlignment: Text.AlignHCenter
-                    }
 
                     // Loading indicator
                     BusyIndicator {

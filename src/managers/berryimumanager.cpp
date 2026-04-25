@@ -883,4 +883,189 @@ void BerryIMUManager::cleanup()
     stopWorker();
 }
 
+#else // Q_OS_MOBILE — Android QtSensors implementation
+
+#include <QAccelerometer>
+#include <QCompass>
+#include <QPressureSensor>
+#include <QAccelerometerReading>
+#include <QCompassReading>
+#include <QPressureReading>
+#include <QLoggingCategory>
+#include <QtMath>
+#include <cmath>
+
+static const QLoggingCategory lcImuMobile("octave.imu.mobile");
+
+BerryIMUManager::BerryIMUManager(QObject *parent)
+    : QObject(parent),
+      m_settingsManager(nullptr),
+      m_accel(new QAccelerometer(this)),
+      m_compass(new QCompass(this)),
+      m_pressure(new QPressureSensor(this)),
+      m_emitRate(60),
+      m_tarePitch(0.0),
+      m_tareRoll(0.0),
+      m_enabled(false),
+      m_connected(false),
+      m_hasPressure(false),
+      m_hasTemperature(false)
+{
+    m_accel->setDataRate(m_emitRate);
+    m_compass->setDataRate(m_emitRate);
+    m_pressure->setDataRate(10);
+
+    connect(m_accel,    &QAccelerometer::readingChanged,
+            this,       &BerryIMUManager::onAccelReading);
+    connect(m_compass,  &QCompass::readingChanged,
+            this,       &BerryIMUManager::onCompassReading);
+    connect(m_pressure, &QPressureSensor::readingChanged,
+            this,       &BerryIMUManager::onPressureReading);
+
+    const bool accelOk = m_accel->start();
+    m_compass->start();  // may return false; non-fatal, heading just stays 0
+    m_hasPressure = m_pressure->start();
+
+    m_connected = accelOk;
+    m_enabled   = accelOk;
+
+    if (m_connected) {
+        qCInfo(lcImuMobile) << "phone sensors started"
+                            << "(accel=" << accelOk
+                            << "compass=" << m_compass->isActive()
+                            << "pressure=" << m_hasPressure << ")";
+        emit connectionStatusChanged(QStringLiteral("Connected"));
+    } else {
+        qCWarning(lcImuMobile) << "accelerometer unavailable";
+        emit connectionStatusChanged(QStringLiteral("Unavailable"));
+    }
+}
+
+BerryIMUManager::~BerryIMUManager()
+{
+    cleanup();
+}
+
+void BerryIMUManager::connect_settings_manager(SettingsManager *sm)
+{
+    m_settingsManager = sm;
+}
+
+bool BerryIMUManager::getConnected() const
+{
+    return m_connected;
+}
+
+QString BerryIMUManager::getConnectionStatus()
+{
+    return m_connected ? QStringLiteral("Connected") : QStringLiteral("Unavailable");
+}
+
+void BerryIMUManager::onAccelReading()
+{
+    QAccelerometerReading *r = m_accel->reading();
+    if (!r) return;
+
+    const double ax = r->x();
+    const double ay = r->y();
+    const double az = r->z();
+
+    const double gMag = std::sqrt(ax*ax + ay*ay + az*az) / 9.81;
+    emit accelMagnitudeChanged(static_cast<float>(gMag));
+    emit lateralGChanged(static_cast<float>(ax / 9.81));
+    emit longitudinalGChanged(static_cast<float>(ay / 9.81));
+
+    double pitch = std::atan2(ay, std::sqrt(ax*ax + az*az)) * 180.0 / M_PI;
+    double roll  = std::atan2(-ax, az) * 180.0 / M_PI;
+    pitch -= m_tarePitch;
+    roll  -= m_tareRoll;
+    emit pitchChanged(static_cast<float>(pitch));
+    emit rollChanged(static_cast<float>(roll));
+}
+
+void BerryIMUManager::onCompassReading()
+{
+    QCompassReading *r = m_compass->reading();
+    if (!r) return;
+    double az = r->azimuth();
+    // Qt docs say 0–360 but some Android implementations emit -180..180.
+    // Normalize so QML cardinal lookup (dirs[Math.round(h/45) % 8]) never
+    // indexes with a negative number.
+    if (az < 0.0) az += 360.0;
+    emit headingChanged(static_cast<float>(az));
+}
+
+void BerryIMUManager::onPressureReading()
+{
+    QPressureReading *r = m_pressure->reading();
+    if (!r) return;
+    const double p = r->pressure();
+    if (p > 0) {
+        // Standard atmosphere: h = 44330 * (1 - (p/p0)^(1/5.255))
+        const double altitude = 44330.0 * (1.0 - std::pow(p / 101325.0, 1.0 / 5.255));
+        emit altitudeChanged(static_cast<float>(altitude));
+    }
+    // Most phones' barometer chips don't surface ambient temperature to
+    // Android (Qt returns 0.0). Only emit / advertise hasTemperature once
+    // we see a real non-zero reading.
+    const double tempC = r->temperature();
+    if (tempC != 0.0) {
+        if (!m_hasTemperature) {
+            m_hasTemperature = true;
+            emit hasTemperatureChanged(true);
+        }
+        emit baroTempChanged(static_cast<float>(tempC));
+    }
+}
+
+void BerryIMUManager::setEnabled(bool enabled)
+{
+    if (enabled == m_enabled) return;
+    m_enabled = enabled;
+    if (enabled) {
+        m_accel->start();
+        m_compass->start();
+        if (m_hasPressure) m_pressure->start();
+    } else {
+        m_accel->stop();
+        m_compass->stop();
+        m_pressure->stop();
+    }
+}
+
+bool BerryIMUManager::isEnabled() { return m_enabled; }
+
+void BerryIMUManager::setEmitRate(int hz)
+{
+    hz = qBound(1, hz, 120);
+    m_emitRate = hz;
+    m_accel->setDataRate(hz);
+    m_compass->setDataRate(hz);
+}
+
+void BerryIMUManager::calibrateTare()
+{
+    QAccelerometerReading *r = m_accel->reading();
+    if (!r) return;
+    const double ax = r->x();
+    const double ay = r->y();
+    const double az = r->z();
+    m_tarePitch = std::atan2(ay, std::sqrt(ax*ax + az*az)) * 180.0 / M_PI;
+    m_tareRoll  = std::atan2(-ax, az) * 180.0 / M_PI;
+}
+
+void BerryIMUManager::resetTare()
+{
+    m_tarePitch = 0.0;
+    m_tareRoll  = 0.0;
+}
+
+void BerryIMUManager::cleanup()
+{
+    if (m_accel)    m_accel->stop();
+    if (m_compass)  m_compass->stop();
+    if (m_pressure) m_pressure->stop();
+    m_connected = false;
+}
+
 #endif // Q_OS_MOBILE

@@ -140,12 +140,16 @@ class BerryIMUManager : public QObject
     Q_OBJECT
 
     Q_PROPERTY(bool connected READ getConnected NOTIFY connectionStatusChanged)
+    Q_PROPERTY(bool hasTemperature READ hasTemperature NOTIFY hasTemperatureChanged)
 
 public:
     explicit BerryIMUManager(QObject *parent = nullptr);
     ~BerryIMUManager() override;
 
     void connect_settings_manager(SettingsManager *settingsManager);
+
+    // Desktop BerryIMU always ships with a barometer that exposes temperature.
+    bool hasTemperature() const { return true; }
 
 signals:
     // Quaternion for 3D model (no gimbal lock)
@@ -161,6 +165,7 @@ signals:
     void longitudinalGChanged(float g);
     void baroTempChanged(float temp);
     void connectionStatusChanged(const QString &status);
+    void hasTemperatureChanged(bool has);
 
 public slots:
     QString getConnectionStatus();
@@ -190,29 +195,73 @@ private:
     int m_retryDelayMs;
 };
 
-#else // Q_OS_MOBILE — mobile stub
+#else // Q_OS_MOBILE — QtSensors-backed implementation (Android)
 
 #include <QObject>
+#include <QString>
+
+class QAccelerometer;
+class QCompass;
+class QPressureSensor;
+class SettingsManager;
 
 class BerryIMUManager : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
-public:
-    explicit BerryIMUManager(QObject *parent = nullptr) : QObject(parent) {}
-    void connect_settings_manager(QObject *) {}
-    void cleanup() {}
-    bool connected() const { return false; }
 
-public slots:
-    void setEnabled(bool) {}
-    void setEmitRate(double) {}
-    void calibrateTare() {}
-    void resetTare() {}
-    QString getConnectionStatus() const { return QStringLiteral("Disabled on mobile"); }
+    Q_PROPERTY(bool connected READ getConnected NOTIFY connectionStatusChanged)
+    Q_PROPERTY(bool hasTemperature READ hasTemperature NOTIFY hasTemperatureChanged)
+
+public:
+    explicit BerryIMUManager(QObject *parent = nullptr);
+    ~BerryIMUManager() override;
+
+    void connect_settings_manager(SettingsManager *sm);
+
+    bool hasTemperature() const { return m_hasTemperature; }
 
 signals:
-    void connectedChanged();
+    void orientationChanged(float w, float x, float y, float z);
+    void pitchChanged(float pitch);
+    void rollChanged(float roll);
+    void headingChanged(float heading);
+    void altitudeChanged(float altitude);
+    void accelMagnitudeChanged(float mag);
+    void lateralGChanged(float g);
+    void longitudinalGChanged(float g);
+    void baroTempChanged(float temp);
+    void connectionStatusChanged(const QString &status);
+    void hasTemperatureChanged(bool has);
+
+public slots:
+    QString getConnectionStatus();
+    void setEnabled(bool enabled);
+    bool isEnabled();
+    void setEmitRate(int hz);
+    void calibrateTare();
+    void resetTare();
+    void cleanup();
+
+private slots:
+    void onAccelReading();
+    void onCompassReading();
+    void onPressureReading();
+
+private:
+    bool getConnected() const;
+
+    SettingsManager *m_settingsManager;
+    QAccelerometer  *m_accel;
+    QCompass        *m_compass;
+    QPressureSensor *m_pressure;
+
+    int    m_emitRate;
+    double m_tarePitch;
+    double m_tareRoll;
+    bool   m_enabled;
+    bool   m_connected;
+    bool   m_hasPressure;
+    bool   m_hasTemperature;
 };
 
 #endif // Q_OS_MOBILE
