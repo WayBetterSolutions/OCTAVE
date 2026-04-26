@@ -310,6 +310,29 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             color: App.Style.contentColor
+            clip: true
+
+            // ── Tile-mode state (for pages exposing a `tileModel`) ────────
+            property bool useTileLayout: false
+            property string detailCardId: ""
+            property var detailTile: null
+
+            function openTile(cardId) {
+                if (!contentLoader.item || typeof contentLoader.item.tileModel === "undefined")
+                    return
+                var tm = contentLoader.item.tileModel
+                for (var i = 0; i < tm.length; i++) {
+                    if (tm[i].cardId === cardId) {
+                        detailTile = tm[i]
+                        detailCardId = cardId
+                        return
+                    }
+                }
+            }
+
+            function closeTile() {
+                detailCardId = ""
+            }
 
             // HUD lines (spacecraft)
             Rectangle {
@@ -356,6 +379,11 @@ Item {
                         ScrollMemory.positions[previousSection] = item.contentY
                     }
                     previousSection = settingsMenu ? settingsMenu.currentSection : ""
+
+                    // Reset tile-mode state for the new page
+                    contentArea.detailCardId = ""
+                    contentArea.detailTile = null
+                    contentArea.useTileLayout = false
                 }
 
                 onLoaded: {
@@ -367,8 +395,16 @@ Item {
                     if (item && typeof item.currentSection !== "undefined" && settingsMenu)
                         item.currentSection = Qt.binding(function() { return settingsMenu ? settingsMenu.currentSection : "" })
 
-                    // Restore scroll position (use timer to wait for content to layout)
-                    if (settingsMenu && settingsMenu.currentSection !== "") {
+                    // Detect tile-mode page (exposes a tileModel array)
+                    var hasTiles = item && typeof item.tileModel !== "undefined"
+                    contentArea.useTileLayout = hasTiles
+                    if (hasTiles) {
+                        // Hide the page's own Flickable rendering — the tile grid replaces it.
+                        item.visible = false
+                    }
+
+                    // Restore scroll position only for non-tile pages (use timer to wait for content to layout)
+                    if (!hasTiles && settingsMenu && settingsMenu.currentSection !== "") {
                         var savedY = ScrollMemory.positions[settingsMenu.currentSection]
                         if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
                             scrollRestoreTimer.savedY = savedY
@@ -400,6 +436,45 @@ Item {
                             stop()
                         }
                     }
+                }
+            }
+
+            // ── Tile grid (replaces page rendering when page exposes tileModel) ─
+            SettingsTilePage {
+                id: tileGrid
+                anchors {
+                    fill: parent
+                    margins: App.Spacing.settingsContentMargin
+                }
+                z: 2
+                visible: contentArea.useTileLayout
+                tileModel: contentArea.useTileLayout && contentLoader.item
+                    ? contentLoader.item.tileModel : []
+                onTileSelected: function(cardId) { contentArea.openTile(cardId) }
+            }
+
+            // ── Detail popup (slides in from the right, over the tile grid) ─────
+            SettingsCardPopup {
+                id: detailPopup
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                width: parent.width
+                z: 3
+                visible: contentArea.useTileLayout
+                title: contentArea.detailTile ? contentArea.detailTile.title : ""
+                contentComponent: contentArea.detailTile ? contentArea.detailTile.component : null
+                x: contentArea.detailCardId === "" ? width : 0
+
+                // Suppress slide animation on initial mount so the popup
+                // doesn't slide visibly off-screen at startup.
+                property bool _animEnabled: false
+                Component.onCompleted: Qt.callLater(function() { _animEnabled = true })
+
+                onBackRequested: contentArea.closeTile()
+
+                Behavior on x {
+                    enabled: detailPopup._animEnabled
+                    NumberAnimation { duration: 250; easing.type: Easing.OutQuad }
                 }
             }
         }

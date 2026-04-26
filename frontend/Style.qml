@@ -562,10 +562,21 @@ QtObject {
             if (currentTheme === "Album Art Capture") {
                 console.log("[AlbumArtCapture QML] Theme is active, forcing refresh...")
 
+                // First paint after entering Album Art mode is instant — only
+                // subsequent song changes fade with the configured speed.
+                var instantFirst = _firstAlbumArtUpdate
+                var savedDuration = colorTransitionMs
+                if (instantFirst) colorTransitionMs = 0
+
                 // Force activeTheme binding to re-evaluate by toggling currentTheme
                 let savedTheme = currentTheme
                 currentTheme = ""
                 currentTheme = savedTheme
+
+                if (instantFirst) {
+                    _firstAlbumArtUpdate = false
+                    Qt.callLater(function() { colorTransitionMs = savedDuration })
+                }
 
                 // Emit signal for any listeners
                 albumArtThemeUpdated()
@@ -587,9 +598,15 @@ QtObject {
         customThemesUpdated()
     }
     
-    // Function to get all theme names (built-in + custom)
+    // Last non–Album-Art theme the user had selected — used by the Album Art
+    // Capture toggle so that turning it off restores the prior choice.
+    property string lastStaticTheme: ""
+
+    // Function to get all theme names (built-in + custom).
+    // "Album Art Capture" is intentionally excluded — it's surfaced as a
+    // toggle under the chips, not as a selectable theme.
     function getAllThemeNames() {
-        let allNames = Object.keys(themes)
+        let allNames = Object.keys(themes).filter(function(n) { return n !== "Album Art Capture" })
         allNames = allNames.concat(Object.keys(customThemes))
         return allNames
     }
@@ -725,9 +742,30 @@ QtObject {
     // Function to update theme
     function setTheme(theme) {
         if (themes[theme] || customThemes[theme]) {
+            if (theme !== "Album Art Capture") lastStaticTheme = theme
+            else _firstAlbumArtUpdate = true
             currentTheme = theme
         }
     }
+
+    // Apply a theme without animating the transition. Used for startup loads
+    // and manual theme switches — the configured `colorTransitionMs` only
+    // applies to album-art-driven color shifts on song change.
+    function setThemeInstant(theme) {
+        if (!(themes[theme] || customThemes[theme])) return
+        if (theme !== "Album Art Capture") lastStaticTheme = theme
+        else _firstAlbumArtUpdate = true
+        var saved = colorTransitionMs
+        colorTransitionMs = 0
+        currentTheme = theme
+        Qt.callLater(function() { colorTransitionMs = saved })
+    }
+
+    // The first album-art paint after entering Album Art mode (startup with
+    // it already on, or a fresh toggle-on) snaps instantly to the current
+    // song's colors — only real song changes should honor the transition
+    // speed. Reset to true whenever the theme switches to "Album Art Capture".
+    property bool _firstAlbumArtUpdate: true
     
     // Changed signal name to avoid conflict
     signal customThemesUpdated()

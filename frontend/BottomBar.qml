@@ -129,7 +129,8 @@ Rectangle {
                 Item { // SECTION 1: Left section - Media Controls
                     id: mediaControlsSection
                     property bool showControls: settingsManager ? settingsManager.showBottomBarMediaControls : true
-                    Layout.preferredWidth: showControls ? parent.width * 0.4 : 0 // Collapse when hidden so nav row re-centers
+                    // When hidden, mirror the clock section's width so nav buttons sit at the true horizontal center
+                    Layout.preferredWidth: showControls ? parent.width * 0.4 : clockSection.width
                     Layout.fillHeight: true
                     // Keep item visible to preserve space, just hide the contents
 
@@ -1532,13 +1533,15 @@ Rectangle {
                 
                 // SECTION 1: Media Controls (Top section when vertical)
                 Item {
+                    id: mediaControlsSectionVertical
                     property bool showControls: settingsManager ? settingsManager.showBottomBarMediaControls : true
-                    Layout.preferredHeight: showControls ? parent.height * 0.4 : 0 // Collapse when hidden
+                    // When hidden, mirror the clock section's height so nav buttons sit at the true vertical center
+                    Layout.preferredHeight: showControls ? parent.height * 0.4 : parent.height * 0.1
                     Layout.fillWidth: true
-                    visible: showControls
-                    
+
                     ColumnLayout {
                         anchors.centerIn: parent
+                        visible: mediaControlsSectionVertical.showControls
                         spacing: App.Spacing.bottomBarBetweenButtonMargin * 4
                         
                         // Previous, Play/Pause, and Next buttons

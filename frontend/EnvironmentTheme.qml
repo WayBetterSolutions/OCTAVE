@@ -290,16 +290,17 @@ QtObject {
     // Active environment object - bindings re-evaluate when currentEnvironment changes
     property var active: environments[currentEnvironment] || environments["Standard"]
 
-    // Set the environment
+    // Environments other than Standard are temporarily disabled — see Display
+    // settings. The presets remain in `environments` for the future redo, but
+    // the public API only exposes Standard so nothing can switch the look.
     function setEnvironment(name) {
-        if (environments[name]) {
-            currentEnvironment = name
+        if (currentEnvironment !== "Standard") {
+            currentEnvironment = "Standard"
             environmentChanged()
         }
     }
 
-    // Get all available environment names
     function getAllEnvironmentNames() {
-        return Object.keys(environments)
+        return ["Standard"]
     }
 }

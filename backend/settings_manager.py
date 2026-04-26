@@ -268,7 +268,7 @@ class SettingsManager(QObject):
     pinnedSettingsChanged = Signal()
 
     def __init__(self):
-        self._album_art_colors = ""  # Store album art theme colors JSON
+        self._album_art_colors = ""  # Loaded from settings below; persisted across restarts
         super().__init__()
         # Use proper app data directory for settings (not bundled app directory)
         self.app_data_dir = get_app_data_dir()
@@ -454,6 +454,7 @@ class SettingsManager(QObject):
             "buttonTiltDuration": 200,   # Button tilt animation duration in ms (50-500)
             "textScrollSpeed": 5000,     # Text scroll animation duration in ms (1000-10000)
             "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
+            "albumArtColors": "",            # Last-extracted album art theme JSON (persisted for instant restore on startup)
             "settingsLayoutStyle": "Sidebar",  # Settings menu layout: "Carousel", "Sidebar", "Hub", "Dashboard"
             # IMU sensor settings
             "imuEnabled": True,
@@ -604,6 +605,10 @@ class SettingsManager(QObject):
 
         # Environment theme
         self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
+
+        # Album art colors — last-extracted palette, restored on startup so the
+        # placeholder Album Art theme doesn't flash before fresh extraction runs.
+        self._album_art_colors = self._settings.get("albumArtColors", self._default_settings["albumArtColors"])
 
         # Settings layout style
         self._settings_layout_style = self._settings.get("settingsLayoutStyle", self._default_settings["settingsLayoutStyle"])
@@ -2100,10 +2105,10 @@ class SettingsManager(QObject):
 
     @Slot(str)
     def set_album_art_colors(self, colors_json):
-        """Set album art theme colors and emit signal"""
+        """Set album art theme colors, persist them, and emit signal"""
         logger.debug(f"set_album_art_colors called, length: {len(colors_json) if colors_json else 0}")
         self._album_art_colors = colors_json
-        self.albumArtColorsChanged.emit(colors_json)
+        self.update_setting("albumArtColors", colors_json, self.albumArtColorsChanged)
 
     # ==================== Generic Setting Access ====================
     # These methods allow QML to get/set arbitrary settings without dedicated properties

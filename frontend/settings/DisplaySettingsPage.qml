@@ -1,9 +1,12 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Window 2.15
 import ".." as App
 
 Flickable {
+    id: pageRoot
+
     // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
     function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
     function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
@@ -11,6 +14,16 @@ Flickable {
     property var stackView: null
     property var mainWindow: null
     property string currentSection: ""
+
+    // Tile model — consumed by SettingsSidebarLayout (grid + slide-in popup).
+    // Each entry: { cardId, title, icon, component }. Other layouts ignore this
+    // and use the Repeater rendering below.
+    property var tileModel: [
+        { cardId: "display_layout",     title: "Layout",     icon: "▦", component: layoutContent },
+        { cardId: "display_window",     title: "Window",     icon: "▣", component: windowContent },
+        { cardId: "display_appearance", title: "Appearance", icon: "❖", component: appearanceContent },
+        { cardId: "display_clock",      title: "Clock",      icon: "⏱", component: clockContent }
+    ]
 
     function buildThemeChipColors() {
         var colors = {}
@@ -45,24 +58,18 @@ Flickable {
     maximumFlickVelocity: 4000
     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
-    ColumnLayout {
-        id: settingsContent
-        width: parent.width
-        spacing: App.Spacing.sectionSpacing
+    // ── Card body components — shared between the Flickable rendering (below)
+    //    and the SettingsCardPopup in the Sidebar layout.
 
-        // ── Card 1: Layout ──────────────────────────────────────────────
-        SettingsCard {
-            objectName: "Layout"
-            cardId: "display_layout"
-            title: "Layout"
+    Component {
+        id: layoutContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-            ColumnLayout { // UI Scaling slider
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "UI Scaling"
-                }
+            SettingCategory {
+                title: "UI Scaling"
+                description: "Adjusts the overall size of UI elements. 100% = default."
 
                 SettingsSlider {
                     id: uiScaleSlider
@@ -90,21 +97,11 @@ Flickable {
                 ValueDisplay {
                     text: (uiScaleSlider.value * 100).toFixed(0) + "%"
                 }
-
-                SettingDescription {
-                    text: "Adjusts the overall size of UI elements. 100% = default."
-                }
             }
 
-            SettingsDivider {}
-
-            ColumnLayout { //nav bar orientation
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Nav Bar Position"
-                }
+            SettingCategory {
+                title: "Nav Bar Position"
+                description: "Bottom or side placement"
 
                 SettingsSegmentedControl {
                     id: bottomBarOrientation
@@ -117,22 +114,16 @@ Flickable {
                             settingsManager.save_bottom_bar_orientation(value)
                     }
                 }
-
-                SettingDescription {
-                    text: "Bottom or side placement"
-                }
             }
 
-            SettingsDivider {}
-
-            ColumnLayout { // Nav Bar Media Controls
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Nav Bar Media Controls"
 
                 SettingsToggle {
                     id: bottomBarMediaControlsToggle
+                    compact: true
                     Layout.fillWidth: true
-                    text: "Nav bar media controls"
+                    text: ""
                     checked: settingsManager ? settingsManager.showBottomBarMediaControls : true
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
@@ -152,20 +143,16 @@ Flickable {
                 }
             }
         }
+    }
 
-        // ── Card 2: Window ──────────────────────────────────────────────
-        SettingsCard {
-            objectName: "Window"
-            cardId: "display_window"
-            title: "Window"
+    Component {
+        id: windowContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-            ColumnLayout { // Screen Dimensions
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Screen Dimensions"
-                }
+            SettingCategory {
+                title: "Screen Dimensions"
 
                 RowLayout {
                     spacing: App.Spacing.overallSpacing
@@ -180,8 +167,8 @@ Flickable {
 
                     SettingsTextField {
                         id: screenWidth
-                        Layout.preferredWidth: dp(120)
-                        text: mainWindow ? mainWindow.width : ""
+                        Layout.preferredWidth: pageRoot.dp(120)
+                        text: pageRoot.mainWindow ? pageRoot.mainWindow.width : ""
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
                             bottom: 400
@@ -192,8 +179,8 @@ Flickable {
                             if (text && settingsManager) {
                                 const width = parseInt(text)
                                 settingsManager.save_screen_width(width)
-                                mainWindow.width = width
-                                App.Spacing.updateDimensions(width, mainWindow.height)
+                                pageRoot.mainWindow.width = width
+                                App.Spacing.updateDimensions(width, pageRoot.mainWindow.height)
                             }
                         }
 
@@ -201,14 +188,14 @@ Flickable {
                         onActiveFocusChanged: if (!activeFocus) applyWidth()
 
                         Connections {
-                            target: mainWindow
+                            target: pageRoot.mainWindow
                             function onWidthChanged() {
                                 if (!screenWidth.activeFocus) {
-                                    screenWidth.text = mainWindow.width
+                                    screenWidth.text = pageRoot.mainWindow.width
                                     if (settingsManager) {
-                                        settingsManager.save_screen_width(mainWindow.width)
+                                        settingsManager.save_screen_width(pageRoot.mainWindow.width)
                                     }
-                                    App.Spacing.updateDimensions(mainWindow.width, mainWindow.height)
+                                    App.Spacing.updateDimensions(pageRoot.mainWindow.width, pageRoot.mainWindow.height)
                                 }
                             }
                         }
@@ -223,8 +210,8 @@ Flickable {
 
                     SettingsTextField {
                         id: screenHeight
-                        Layout.preferredWidth: dp(120)
-                        text: mainWindow ? mainWindow.height : ""
+                        Layout.preferredWidth: pageRoot.dp(120)
+                        text: pageRoot.mainWindow ? pageRoot.mainWindow.height : ""
                         horizontalAlignment: TextInput.AlignHCenter
                         validator: IntValidator {
                             bottom: 300
@@ -235,8 +222,8 @@ Flickable {
                             if (text && settingsManager) {
                                 const height = parseInt(text)
                                 settingsManager.save_screen_height(height)
-                                mainWindow.height = height
-                                App.Spacing.updateDimensions(mainWindow.width, height)
+                                pageRoot.mainWindow.height = height
+                                App.Spacing.updateDimensions(pageRoot.mainWindow.width, height)
                             }
                         }
 
@@ -244,31 +231,31 @@ Flickable {
                         onActiveFocusChanged: if (!activeFocus) applyHeight()
 
                         Connections {
-                            target: mainWindow
+                            target: pageRoot.mainWindow
                             function onHeightChanged() {
                                 if (!screenHeight.activeFocus) {
-                                    screenHeight.text = mainWindow.height
+                                    screenHeight.text = pageRoot.mainWindow.height
                                     if (settingsManager) {
-                                        settingsManager.save_screen_height(mainWindow.height)
+                                        settingsManager.save_screen_height(pageRoot.mainWindow.height)
                                     }
-                                    App.Spacing.updateDimensions(mainWindow.width, mainWindow.height)
+                                    App.Spacing.updateDimensions(pageRoot.mainWindow.width, pageRoot.mainWindow.height)
                                 }
                             }
                         }
                     }
 
                     SettingsButton {
-                        text: mainWindow && mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
+                        text: pageRoot.mainWindow && pageRoot.mainWindow.visibility === Window.FullScreen ? "Exit Fullscreen" : "Fullscreen"
                         Layout.preferredHeight: screenHeight.height
-                        Layout.minimumWidth: dp(80)
-                        tooltipText: mainWindow && mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
+                        Layout.minimumWidth: pageRoot.dp(80)
+                        tooltipText: pageRoot.mainWindow && pageRoot.mainWindow.visibility === Window.FullScreen ? "Exit fullscreen mode" : "Enter fullscreen mode"
                         onClicked: {
-                            if (!mainWindow) return
-                            if (mainWindow.visibility === Window.FullScreen) {
-                                mainWindow.visibility = Window.Windowed
+                            if (!pageRoot.mainWindow) return
+                            if (pageRoot.mainWindow.visibility === Window.FullScreen) {
+                                pageRoot.mainWindow.visibility = Window.Windowed
                                 if (settingsManager) settingsManager.save_window_state("windowed")
                             } else {
-                                mainWindow.visibility = Window.FullScreen
+                                pageRoot.mainWindow.visibility = Window.FullScreen
                                 if (settingsManager) settingsManager.save_window_state("fullscreen")
                             }
                         }
@@ -277,11 +264,11 @@ Flickable {
                     SettingsButton {
                         text: "Maximize"
                         Layout.preferredHeight: screenHeight.height
-                        Layout.minimumWidth: dp(80)
+                        Layout.minimumWidth: pageRoot.dp(80)
                         tooltipText: "Maximize window to fill screen"
                         onClicked: {
-                            if (!mainWindow) return
-                            mainWindow.visibility = Window.Maximized
+                            if (!pageRoot.mainWindow) return
+                            pageRoot.mainWindow.visibility = Window.Maximized
                             if (settingsManager) settingsManager.save_window_state("maximized")
                         }
                     }
@@ -290,45 +277,48 @@ Flickable {
                 }
             }
         }
+    }
 
-        // ── Card 3: Appearance ──────────────────────────────────────────
-        SettingsCard {
-            objectName: "Appearance"
-            cardId: "display_appearance"
-            title: "Appearance"
+    Component {
+        id: appearanceContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-            ColumnLayout { // Theme Selection
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Theme"
 
-                SettingLabel {
-                    text: "Theme"
-                }
-
-                // Update theme options when themes change
                 Connections {
                     target: App.Style
                     function onCustomThemesUpdated() {
-                        // Force refresh of theme options, chip colors, images, and deletable items
                         themeButton.options = App.Style.getAllThemeNames()
-                        themeButton.chipColors = buildThemeChipColors()
-                        themeButton.chipImages = buildThemeChipImages()
+                        themeButton.chipColors = pageRoot.buildThemeChipColors()
+                        themeButton.chipImages = pageRoot.buildThemeChipImages()
                         themeButton.deletableItems = settingsManager ? settingsManager.customThemes : []
                     }
                 }
 
-                // Theme selection chips
                 SettingsChips {
                     id: themeButton
                     Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.themeSetting : "Light"
+                    // While Album Art Capture is on, show the underlying static
+                    // theme as the selected chip so users see what's "behind"
+                    // the album-art override.
+                    currentValue: {
+                        if (!settingsManager) return "Light"
+                        if (settingsManager.themeSetting === "Album Art Capture")
+                            return App.Style.lastStaticTheme || "CosmicVoyager"
+                        return settingsManager.themeSetting
+                    }
                     options: App.Style.getAllThemeNames()
-                    chipColors: buildThemeChipColors()
-                    chipImages: buildThemeChipImages()
+                    chipColors: pageRoot.buildThemeChipColors()
+                    chipImages: pageRoot.buildThemeChipImages()
                     deletableItems: settingsManager ? settingsManager.customThemes : []
 
                     onSelected: function(value) {
                         if (settingsManager) {
+                            // Picking a chip turns Album Art Capture off — the
+                            // user is choosing a static theme.
                             settingsManager.save_theme_setting(value)
                             App.Style.setTheme(value)
                         }
@@ -336,7 +326,6 @@ Flickable {
 
                     onItemDeleted: function(value) {
                         if (settingsManager) {
-                            // If deleting the active theme, switch to default first
                             if (settingsManager.themeSetting === value) {
                                 settingsManager.save_theme_setting("CosmicVoyager")
                                 App.Style.setTheme("CosmicVoyager")
@@ -345,60 +334,115 @@ Flickable {
                         }
                     }
                 }
-            }
 
-            SettingsDivider {}
-
-            ColumnLayout { // Environment Selection
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Environment"
-                }
-
-                SettingsChips {
-                    id: environmentChips
+                SettingSubcategory {
+                    id: albumArtCard
                     Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.environmentTheme : "Standard"
-                    options: App.EnvironmentTheme.getAllEnvironmentNames()
+                    Layout.topMargin: App.Spacing.rowSpacing
+                    title: "Album Art Capture"
+                    description: "Pull a live color palette from the current song's album art."
+                    togglable: true
+                    checked: settingsManager && settingsManager.themeSetting === "Album Art Capture"
 
-                    onSelected: function(value) {
-                        App.EnvironmentTheme.setEnvironment(value)
-                        if (settingsManager) {
-                            settingsManager.save_environment_theme(value)
+                    onToggled: function(on) {
+                        if (!settingsManager) return
+                        if (on) {
+                            if (settingsManager.themeSetting !== "Album Art Capture")
+                                App.Style.lastStaticTheme = settingsManager.themeSetting
+                            settingsManager.save_theme_setting("Album Art Capture")
+                            App.Style.setTheme("Album Art Capture")
+                            if (typeof mediaManager !== "undefined" && mediaManager) {
+                                var f = mediaManager.get_current_file()
+                                if (f) mediaManager.extract_colors_from_album_art(f)
+                            }
+                        } else {
+                            var fallback = App.Style.lastStaticTheme || "CosmicVoyager"
+                            settingsManager.save_theme_setting(fallback)
+                            App.Style.setTheme(fallback)
                         }
                     }
 
-                    Connections {
-                        target: settingsManager
-                        function onEnvironmentThemeChanged() {
-                            environmentChips.currentValue = settingsManager.environmentTheme
-                            App.EnvironmentTheme.setEnvironment(settingsManager.environmentTheme)
+                    SettingLabel {
+                        text: "Transition Speed"
+                    }
+
+                    SettingDescription {
+                        text: "How long album art colors fade when the song changes. 0 = instant."
+                    }
+
+                    SettingsSlider {
+                        id: colorTransitionSlider
+                        from: 0
+                        to: 2000
+                        stepSize: 50
+                        value: settingsManager ? settingsManager.colorTransitionMs : 1000
+                        Layout.preferredHeight: App.Spacing.overallSliderHeight * 1.6
+
+                        Connections {
+                            target: settingsManager
+                            function onColorTransitionMsChanged() {
+                                colorTransitionSlider.value = settingsManager.colorTransitionMs
+                            }
+                        }
+
+                        Timer {
+                            id: colorTransitionUpdateTimer
+                            interval: 100
+                            running: false
+                            repeat: false
+                            onTriggered: {
+                                if (settingsManager) {
+                                    settingsManager.save_color_transition_ms(Math.round(colorTransitionSlider.value))
+                                    App.Style.colorTransitionMs = Math.round(colorTransitionSlider.value)
+                                }
+                            }
+                        }
+
+                        onMoved: colorTransitionUpdateTimer.restart()
+                    }
+
+                    ValueDisplay {
+                        text: Math.round(colorTransitionSlider.value) + "ms"
+                    }
+
+                    SettingLabel {
+                        text: "Match Song Length"
+                        Layout.topMargin: App.Spacing.rowSpacing * 1.5
+                    }
+
+                    SettingDescription {
+                        text: "Colors transition over the full length of the current song."
+                    }
+
+                    SettingsToggle {
+                        id: songLengthTransitionToggle
+                        compact: true
+                        Layout.fillWidth: true
+                        text: ""
+                        checked: settingsManager ? settingsManager.songLengthTransition : false
+                        activeColor: App.Style.accent
+                        inactiveColor: App.Style.hoverColor
+
+                        onToggled: function(checked) {
+                            if (settingsManager) {
+                                settingsManager.save_song_length_transition(checked)
+                            }
+                        }
+
+                        Connections {
+                            target: settingsManager
+                            function onSongLengthTransitionChanged() {
+                                songLengthTransitionToggle.checked = settingsManager.songLengthTransition
+                            }
                         }
                     }
-                }
-
-                SettingDescription {
-                    text: "Switch between visual styles for the settings page."
                 }
             }
 
-            SettingsDivider {}
+            SettingCategory {
+                title: "Font"
+                description: "Drop .ttf/.otf files in the fonts folder"
 
-            ColumnLayout { // Font Selection
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Font"
-                }
-
-                SettingDescription {
-                    text: "Drop .ttf/.otf files in the fonts folder"
-                }
-
-                // Update font options when fonts change
                 Connections {
                     target: App.Style
                     function onFontsUpdated() {
@@ -406,7 +450,6 @@ Flickable {
                     }
                 }
 
-                // Font selection chips
                 SettingsChips {
                     id: fontButton
                     Layout.fillWidth: true
@@ -422,94 +465,21 @@ Flickable {
                 }
             }
 
-            SettingsDivider {}
-
-            ColumnLayout { // Color Transition Speed
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Theme Transition Speed"
-                }
-
-                SettingsSlider {
-                    id: colorTransitionSlider
-                    from: 0
-                    to: 2000
-                    stepSize: 50
-                    value: settingsManager ? settingsManager.colorTransitionMs : 1000
-
-                    Connections {
-                        target: settingsManager
-                        function onColorTransitionMsChanged() {
-                            colorTransitionSlider.value = settingsManager.colorTransitionMs
-                        }
-                    }
-
-                    Timer {
-                        id: colorTransitionUpdateTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_color_transition_ms(Math.round(colorTransitionSlider.value))
-                                App.Style.colorTransitionMs = Math.round(colorTransitionSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: colorTransitionUpdateTimer.restart()
-                }
-
-                ValueDisplay {
-                    text: Math.round(colorTransitionSlider.value) + "ms"
-                }
-
-                SettingDescription {
-                    text: "How long colors fade when switching themes or album art changes. 0 = instant."
-                }
-
-                SettingsToggle {
-                    id: songLengthTransitionToggle
-                    Layout.fillWidth: true
-                    text: "Match song length"
-                    checked: settingsManager ? settingsManager.songLengthTransition : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_song_length_transition(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onSongLengthTransitionChanged() {
-                            songLengthTransitionToggle.checked = settingsManager.songLengthTransition
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Colors transition over the full length of the current song."
-                }
-            }
         }
+    }
 
-        // ── Card 4: Clock ─────────────────────────────────────────────────
-        SettingsCard {
-            objectName: "Clock"
-            cardId: "display_clock"
-            title: "Clock"
+    Component {
+        id: clockContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Show Clock"
 
                 SettingsToggle {
-                    text: "Show clock"
+                    compact: true
+                    text: ""
                     Layout.fillWidth: true
                     checked: settingsManager ? settingsManager.showClock : true
 
@@ -521,15 +491,8 @@ Flickable {
                 }
             }
 
-            SettingsDivider {}
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Time Format"
-                }
+            SettingCategory {
+                title: "Time Format"
 
                 SettingsSegmentedControl {
                     id: timeFormatControl
@@ -547,15 +510,8 @@ Flickable {
                 }
             }
 
-            SettingsDivider {}
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Clock Size"
-                }
+            SettingCategory {
+                title: "Clock Size"
 
                 SettingsSlider {
                     id: clockSizeSlider
@@ -573,6 +529,30 @@ Flickable {
 
                 ValueDisplay {
                     text: clockSizeSlider.value.toFixed(0) + " px"
+                }
+            }
+        }
+    }
+
+    // ── Default rendering: stacked SettingsCards (Carousel/Hub/Dashboard layouts).
+    //    Sidebar layout sets pageRoot.visible = false and renders the tile grid + popup instead.
+    ColumnLayout {
+        id: settingsContent
+        width: parent.width
+        spacing: App.Spacing.sectionSpacing
+
+        Repeater {
+            model: pageRoot.tileModel
+
+            SettingsCard {
+                Layout.fillWidth: true
+                objectName: modelData.title
+                cardId: modelData.cardId
+                title: modelData.title
+
+                Loader {
+                    Layout.fillWidth: true
+                    sourceComponent: modelData.component
                 }
             }
         }

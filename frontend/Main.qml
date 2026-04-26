@@ -117,10 +117,19 @@ ApplicationWindow {
                 App.Style.addCustomTheme(themeName, themeObj)
             })
 
-            // Load theme
+            // Load theme — startup is always instant, transition speed only
+            // applies to album-art-driven shifts on song change.
             console.log("[QML] Loading theme:", settingsManager.themeSetting)
             if (settingsManager.themeSetting) {
-                App.Style.setTheme(settingsManager.themeSetting)
+                // If Album Art was the active theme last session, prime
+                // `albumArtTheme` with the persisted palette BEFORE switching
+                // currentTheme so the placeholder Album Art colors never
+                // paint — `activeTheme` resolves straight to the saved one.
+                if (settingsManager.themeSetting === "Album Art Capture"
+                        && settingsManager.albumArtColors) {
+                    App.Style.updateAlbumArtTheme(settingsManager.albumArtColors)
+                }
+                App.Style.setThemeInstant(settingsManager.themeSetting)
             }
 
             // Load dimensions (desktop only — mobile window is fullscreen and
@@ -252,7 +261,8 @@ ApplicationWindow {
         function onThemeSettingChanged() {
             if (settingsManager) {
                 var newTheme = settingsManager.themeSetting
-                App.Style.setTheme(newTheme)
+                // Manual theme switch — instant, no fade.
+                App.Style.setThemeInstant(newTheme)
                 theme = newTheme
 
                 // If Album Art Capture is selected, extract colors from current song
@@ -673,7 +683,8 @@ ApplicationWindow {
         console.warn("[AlbumArtCapture] updateTheme called with:", newTheme)
         if (settingsManager) {
             settingsManager.save_theme_setting(newTheme)
-            App.Style.setTheme(newTheme)
+            // Manual theme switch — instant, no fade.
+            App.Style.setThemeInstant(newTheme)
             theme = newTheme
 
             // If Album Art Capture is selected, immediately extract colors from current song

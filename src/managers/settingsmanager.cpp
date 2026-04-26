@@ -252,6 +252,7 @@ QJsonObject SettingsManager::buildDefaultSettings() const
     d[QStringLiteral("textScrollSpeed")]         = 5000;
     d[QStringLiteral("environmentTheme")]        = QStringLiteral("Standard");
     d[QStringLiteral("settingsLayoutStyle")]     = QStringLiteral("Sidebar");
+    d[QStringLiteral("albumArtColors")]          = QString();
 
     // IMU
     d[QStringLiteral("imuEnabled")]              = true;
@@ -530,8 +531,9 @@ SettingsManager::SettingsManager(QObject *parent)
             m_directoryHistory.append(v.toString());
     }
 
-    // Album art colors
-    m_albumArtColors = QString();
+    // Album art colors — persisted so the last-extracted palette is reapplied
+    // on startup before a fresh extraction runs (avoids flashing the placeholder).
+    m_albumArtColors = s(QStringLiteral("albumArtColors")).toString();
 
     // --- OBD parameter debounce timer ---
     m_obdParamsSaveTimer.setSingleShot(true);
@@ -1001,6 +1003,7 @@ void SettingsManager::set_album_art_colors(const QString &colorsJson)
 {
     qCDebug(lcSettings) << "set_album_art_colors called, length:" << colorsJson.length();
     m_albumArtColors = colorsJson;
+    updateSetting(QStringLiteral("albumArtColors"), colorsJson);
     emit albumArtColorsChanged(colorsJson);
 }
 
