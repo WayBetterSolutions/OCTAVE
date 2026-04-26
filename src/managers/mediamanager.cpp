@@ -1064,6 +1064,7 @@ QString MediaManager::_generate_theme_from_colors(const QVector<QVector<int>> &c
     bottombar[QStringLiteral("obdButton")] = rgbToHex(accent4Vis);
     bottombar[QStringLiteral("mediaButton")] = rgbToHex(accent2Vis);
     bottombar[QStringLiteral("settingsButton")] = rgbToHex(accent3Vis);
+    bottombar[QStringLiteral("sensorButton")] = rgbToHex(accentVis);
     bottombar[QStringLiteral("androidAutoButton")] = rgbToHex(navVis2);
     bottombar[QStringLiteral("phoneMirrorButton")] = rgbToHex(accent4Vis);
 

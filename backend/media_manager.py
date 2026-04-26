@@ -894,6 +894,7 @@ class MediaManager(QObject):
                 "obdButton": rgb_to_hex(accent4_visible),        # Quaternary for OBD (distinct)
                 "mediaButton": rgb_to_hex(accent2_visible),      # Secondary for media
                 "settingsButton": rgb_to_hex(accent3_visible),   # Tertiary for settings
+                "sensorButton": rgb_to_hex(accent_visible),      # Primary accent (top-level destination, matches home)
                 "androidAutoButton": rgb_to_hex(nav_color2_visible),
                 "phoneMirrorButton": rgb_to_hex(accent4_visible)  # Quaternary for phone mirror
             },

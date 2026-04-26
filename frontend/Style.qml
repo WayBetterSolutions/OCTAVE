@@ -686,7 +686,11 @@ QtObject {
     Behavior on bottomBarOBDButton { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarMediaButton: activeTheme.bottombar.mediaButton
     Behavior on bottomBarMediaButton { ColorAnimation { duration: colorTransitionMs } }
+    // Fall back to homeButton when an extracted (or older persisted) album-art
+    // theme JSON doesn't carry a sensorButton key — keeps the icon reactive
+    // even with partial palettes.
     property color bottomBarSensorButton: activeTheme.bottombar.sensorButton
+        || activeTheme.bottombar.homeButton
     Behavior on bottomBarSensorButton { ColorAnimation { duration: colorTransitionMs } }
     property color bottomBarSettingsButton: activeTheme.bottombar.settingsButton
     Behavior on bottomBarSettingsButton { ColorAnimation { duration: colorTransitionMs } }

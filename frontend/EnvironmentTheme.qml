@@ -36,12 +36,12 @@ QtObject {
             sliderHandleRadius: -1,
 
             // Switch
-            switchRadius: 13,
-            switchKnobRadius: 10,
+            switchRadius: 8,
+            switchKnobRadius: 6,
 
             // Toggle
-            toggleTrackRadius: -1,
-            toggleHandleRadius: -1,
+            toggleTrackRadius: 10,
+            toggleHandleRadius: 8,
             toggleRectShadow: false,
 
             // Labels & Text
@@ -59,7 +59,7 @@ QtObject {
             navAccentBarFullHeight: false,
 
             // Chips
-            chipRadius: -1,
+            chipRadius: 8,
             chipAccentBorder: false,
 
             // Section Header

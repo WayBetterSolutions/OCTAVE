@@ -1826,6 +1826,7 @@ QString SpotifyManager::generateThemeFromColors(const QVector<QVector<int>> &col
         bb[QStringLiteral("obdButton")]          = rgbToHex(accent4Visible);
         bb[QStringLiteral("mediaButton")]        = rgbToHex(accent2Visible);
         bb[QStringLiteral("settingsButton")]     = rgbToHex(accent3Visible);
+        bb[QStringLiteral("sensorButton")]       = rgbToHex(accentVisible);
         bb[QStringLiteral("androidAutoButton")]  = rgbToHex(navColor2Visible);
         bb[QStringLiteral("phoneMirrorButton")]  = rgbToHex(accent4Visible);
         theme[QStringLiteral("bottombar")]       = bb;

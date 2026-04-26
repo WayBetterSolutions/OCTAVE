@@ -1470,6 +1470,7 @@ class SpotifyManager(QObject):
                 "obdButton": rgb_to_hex(accent4_visible),
                 "mediaButton": rgb_to_hex(accent2_visible),
                 "settingsButton": rgb_to_hex(accent3_visible),
+                "sensorButton": rgb_to_hex(accent_visible),
                 "androidAutoButton": rgb_to_hex(nav_color2_visible),
                 "phoneMirrorButton": rgb_to_hex(accent4_visible)
             },
