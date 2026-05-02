@@ -1,8 +1,10 @@
 # OCTAVE
 
-**Open-source Cross-platform Telematics for Augmented Vehicle Experience**
+**Open-source car infotainment / carputer / DIY head unit — for Raspberry Pi, desktop, and Android.**
 
-The infotainment system you actually own. Hack it, theme it, bolt it to your dash, run it on a Pi or your laptop. Built for the people who'd rather rip out the head unit than live with someone else's UX.
+OCTAVE is a fully programmable, open-source infotainment system — a carputer you actually own. Rip out your factory head unit, bolt a Raspberry Pi to your dash, run it on a laptop in a project car, or sideload it onto an Android tablet. Plays your music, talks to your car over OBD-II, themes itself to your album art, and stays out of your way when you want to make it do something new.
+
+Think of it as an open alternative to **Crankshaft, OpenAuto Pro, and AGL** — closer to a hackable foundation than a polished consumer product, with both a C++/Qt and a Python/PySide6 backend so you can fork whichever side you're already fluent in.
 
 <p align="center">
   <img src="frontend/assets/readme/display.gif" alt="OCTAVE in motion" width="720">
@@ -26,6 +28,29 @@ OCTAVE is the third option: a **fully programmable** infotainment stack that you
 If you've ever wanted to wire a rotary encoder to your dash, throw a custom OBD gauge on screen, or theme your UI to match your album art in real time — this is for you.
 
 This isn't a product. It's a starting point. I maintain "vanilla" OCTAVE — but the whole point is that you fork it, mod it, and build the head unit *you* want.
+
+## Who This Is For
+
+- **The Pi tinkerer** — you've got a Raspberry Pi 4/5, a touchscreen, and a free weekend. You want a real infotainment stack to hack on, not a kiosk wrapped around a browser tab.
+- **The factory-head-unit refugee** — your 2008 Civic / E46 / Tacoma / van came with something terrible (or nothing at all), and you'd rather wire a tablet into the dash than buy a $900 double-DIN.
+- **The Android Auto / CarPlay defector** — those are great until you want to do something the manufacturer didn't sign off on. OCTAVE is the "do whatever you want" option.
+- **The OBD-II data nerd** — you want live gauges, custom dashboards, and 50+ PIDs on screen without paying for a subscription app.
+- **The van-build / overlander / project-car person** — you need an interface that survives being rebuilt three times and fits hardware nobody else supports.
+
+If any of those sound like you, keep reading.
+
+## How It Compares
+
+| | OCTAVE | Crankshaft | OpenAuto Pro | Stock Android Auto |
+|---|---|---|---|---|
+| Open source | yes (MIT) | yes | partial | no |
+| Runs without a phone | yes | no (AA projection) | no (AA projection) | no |
+| Built-in OBD-II + custom gauges | yes | no | limited | no |
+| Themable / forkable UI | fully (QML) | limited | limited | no |
+| Local music + Spotify + downloads | yes | via phone | via phone | via phone |
+| Desktop dev loop | yes (Win/macOS/Linux) | Pi only | Pi only | n/a |
+
+OCTAVE is the option when you want a head unit that runs **on its own**, not a screen that mirrors your phone.
 
 ## See It
 

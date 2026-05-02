@@ -71,36 +71,37 @@ Flickable {
                 title: "UI Scaling"
                 description: "Adjusts the overall size of UI elements. 100% = default."
 
-                inlineContent: [
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.overallSpacing
+
                     SettingsSlider {
                         id: uiScaleSlider
                         from: 0.5
                         to: 2.0
                         stepSize: 0.05
                         value: App.Spacing.globalScale
-                        Layout.preferredWidth: 280
-                        Layout.fillWidth: false
+                        Layout.fillWidth: true
 
-                        Timer {
-                            id: scaleUpdateTimer
-                            interval: 100
-                            running: false
-                            repeat: false
-                            onTriggered: {
-                                if (settingsManager) {
-                                    settingsManager.save_ui_scale(uiScaleSlider.value)
-                                    App.Spacing.globalScale = uiScaleSlider.value
-                                }
+                        // Commit on release only. Updating globalScale mid-drag
+                        // re-lays out the slider itself (track + handle scale
+                        // with globalScale), so the handle jumps relative to
+                        // the finger. Deferring to release keeps the geometry
+                        // steady while dragging; the value display still
+                        // reflects the live value as feedback.
+                        onPressedChanged: {
+                            if (!pressed && settingsManager) {
+                                settingsManager.save_ui_scale(value)
+                                App.Spacing.globalScale = value
                             }
                         }
+                    }
 
-                        onMoved: scaleUpdateTimer.restart()
-                    },
                     ValueDisplay {
                         text: (uiScaleSlider.value * 100).toFixed(0) + "%"
                         Layout.fillWidth: false
                     }
-                ]
+                }
             }
 
             SettingCategory {

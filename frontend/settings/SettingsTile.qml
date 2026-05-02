@@ -33,7 +33,7 @@ Rectangle {
     Behavior on color { ColorAnimation { duration: 150 } }
     Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
 
-    // Top-edge accent highlight (spacecraft)
+    // Top-edge bevel highlight — static, fakes a lit upper rim.
     Rectangle {
         anchors.top: parent.top
         anchors.left: parent.left
@@ -41,8 +41,19 @@ Rectangle {
         anchors.leftMargin: dp(App.EnvironmentTheme.active.cardRadius)
         anchors.rightMargin: dp(App.EnvironmentTheme.active.cardRadius)
         height: 1
-        color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.2)
-        visible: App.EnvironmentTheme.active.accentBorder && !App.EnvironmentTheme.active.cardGlassEffect
+        color: Qt.rgba(1, 1, 1, 0.10)
+    }
+
+    // Bottom-edge inner shadow — static, pairs with the top highlight to
+    // give the card a beveled / raised look without any per-frame cost.
+    Rectangle {
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: dp(App.EnvironmentTheme.active.cardRadius)
+        anchors.rightMargin: dp(App.EnvironmentTheme.active.cardRadius)
+        height: 1
+        color: Qt.rgba(0, 0, 0, 0.20)
     }
 
     App.CornerBrackets {
@@ -56,9 +67,22 @@ Rectangle {
         spacing: tile.dp(6)
 
         Item {
+            id: iconHolder
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.minimumHeight: tile.dp(28)
+
+            // Static drop-shadow glyph behind the main icon — gives the
+            // symbol weight without any animation or graphical effect.
+            Text {
+                anchors.centerIn: parent
+                anchors.horizontalCenterOffset: tile.dp(1)
+                anchors.verticalCenterOffset: tile.dp(2)
+                text: tile.icon
+                color: Qt.rgba(0, 0, 0, 0.40)
+                font.pixelSize: Math.max(tile.dp(20), parent.height * 0.55)
+                font.family: App.Style.fontFamily
+            }
 
             Text {
                 anchors.centerIn: parent
@@ -73,7 +97,7 @@ Rectangle {
             Layout.fillWidth: true
             text: tile.title
             color: App.Style.primaryTextColor
-            font.pixelSize: App.Spacing.overallText * 0.95
+            font.pixelSize: App.Spacing.overallText * 1.6
             font.family: App.Style.fontFamily
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
