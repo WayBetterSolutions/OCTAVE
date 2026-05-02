@@ -18,6 +18,8 @@ Flow {
     property var onSelected: function(value) {}
     property var chipColors: ({})  // optional: { "itemName": "#color" } for per-chip text color
     property var chipImages: ({})  // optional: { "itemName": "file:///path/to/art.jpg" } for album art chips
+    property var chipPalettes: ({})  // optional: { "itemName": ["#base", "#baseAlt", "#accent"] } for color-swatch chips
+    property var chipFonts: ({})  // optional: { "itemName": "FontFamilyName" } for font-sample chips with name label below
     property var deletableItems: []  // list of item names that show a delete button
     property var onItemDeleted: function(value) {}  // callback when delete is clicked
 
@@ -142,6 +144,13 @@ Flow {
             id: chipWrapper
             property bool isDeletable: control.deletableItems.indexOf(modelData) !== -1
             property bool hasImage: control.chipImages && control.chipImages[modelData] ? true : false
+            property bool hasPalette: !hasImage
+                && control.chipPalettes
+                && control.chipPalettes[modelData]
+                && control.chipPalettes[modelData].length > 0
+            property bool hasFont: !hasImage && !hasPalette
+                && control.chipFonts
+                && control.chipFonts[modelData] !== undefined
             width: chipRect.width
             height: chipRect.height
 
@@ -157,30 +166,34 @@ Flow {
 
             Rectangle {
                 id: chipRect
-                // Image chips are square; text chips size to content
-                width: chipWrapper.hasImage
-                    ? height
-                    : chipText.width + App.Spacing.overallSpacing * 3 + (chipWrapper.isDeletable ? textDeleteBtn.width + dp(4) : 0)
-                height: chipWrapper.hasImage
-                    ? App.Spacing.formElementHeight * 3.2
+                // Image and palette chips are square; font chips are wider
+                // rectangles so the font name has room to render legibly;
+                // plain text chips size to their content.
+                width: chipWrapper.hasFont
+                    ? App.Spacing.formElementHeight * 4.0
+                    : (chipWrapper.hasImage || chipWrapper.hasPalette)
+                        ? height
+                        : chipText.width + App.Spacing.overallSpacing * 3 + (chipWrapper.isDeletable ? textDeleteBtn.width + dp(4) : 0)
+                height: (chipWrapper.hasImage || chipWrapper.hasPalette || chipWrapper.hasFont)
+                    ? App.Spacing.formElementHeight * 2.4
                     : App.Spacing.formElementHeight * 0.8
-                radius: chipWrapper.hasImage
-                    ? dpMin(6, 2)
+                radius: (chipWrapper.hasImage || chipWrapper.hasPalette || chipWrapper.hasFont)
+                    ? 0
                     : (App.EnvironmentTheme.active.chipRadius === -1
                         ? height / 2 : dpMin(App.EnvironmentTheme.active.chipRadius, 2))
 
                 clip: true
 
-                color: chipWrapper.hasImage
+                color: (chipWrapper.hasImage || chipWrapper.hasPalette || chipWrapper.hasFont)
                     ? "#222222"
                     : (modelData === control.currentValue ? App.Style.accent : App.Style.hoverColor)
 
-                border.width: chipWrapper.hasImage
-                    ? (modelData === control.currentValue ? 2 : 1)
+                border.width: (chipWrapper.hasImage || chipWrapper.hasPalette || chipWrapper.hasFont)
+                    ? (modelData === control.currentValue ? dpMin(4, 2) : 1)
                     : (App.EnvironmentTheme.active.chipAccentBorder
                         ? 1
                         : (modelData === control.currentValue ? 0 : 1))
-                border.color: chipWrapper.hasImage
+                border.color: (chipWrapper.hasImage || chipWrapper.hasPalette || chipWrapper.hasFont)
                     ? (modelData === control.currentValue
                         ? App.Style.accent
                         : Qt.rgba(App.Style.primaryTextColor.r, App.Style.primaryTextColor.g, App.Style.primaryTextColor.b, 0.2))
@@ -192,14 +205,14 @@ Flow {
                                   App.Style.primaryTextColor.g,
                                   App.Style.primaryTextColor.b, 0.1))
 
-                // Chip click area — click to select, press-and-hold to delete (image chips)
+                // Chip click area — click to select, press-and-hold to delete (image/palette chips)
                 MouseArea {
                     id: chipMouseArea
                     anchors.fill: parent
                     hoverEnabled: true
                     onClicked: control.onSelected(modelData)
                     onPressAndHold: {
-                        if (chipWrapper.hasImage && chipWrapper.isDeletable) {
+                        if ((chipWrapper.hasImage || chipWrapper.hasPalette) && chipWrapper.isDeletable) {
                             deletePopup.targetItem = modelData
                             deletePopup.open()
                         }
@@ -223,9 +236,58 @@ Flow {
                     cache: true
                 }
 
+                // ========== PALETTE CHIP CONTENT ==========
+                Column {
+                    visible: chipWrapper.hasPalette
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    spacing: 0
+
+                    Rectangle {
+                        width: parent.width
+                        height: parent.height / 3
+                        color: chipWrapper.hasPalette ? control.chipPalettes[modelData][0] : "transparent"
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: parent.height / 3
+                        color: chipWrapper.hasPalette ? control.chipPalettes[modelData][1] : "transparent"
+                    }
+                    Rectangle {
+                        width: parent.width
+                        height: parent.height - 2 * Math.floor(parent.height / 3)
+                        color: chipWrapper.hasPalette ? control.chipPalettes[modelData][2] : "transparent"
+                    }
+                }
+
+                // ========== FONT CHIP CONTENT ==========
+                // The font's own name, rendered in that font. Auto-scales
+                // between minimumPixelSize and font.pixelSize so the full
+                // name always fits without ellipsis.
+                Text {
+                    visible: chipWrapper.hasFont
+                    anchors.fill: parent
+                    anchors.leftMargin: dp(10)
+                    anchors.rightMargin: dp(10)
+                    anchors.topMargin: dp(4)
+                    anchors.bottomMargin: dp(4)
+                    text: modelData
+                    color: "white"
+                    font.family: chipWrapper.hasFont
+                        ? (control.chipFonts[modelData] || App.Style.systemDefaultFont || App.Style.fontFamily)
+                        : App.Style.fontFamily
+                    font.pixelSize: App.Spacing.overallText * 1.3
+                    fontSizeMode: Text.Fit
+                    minimumPixelSize: dp(8)
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideNone
+                    wrapMode: Text.NoWrap
+                }
+
                 // ========== TEXT CHIP CONTENT ==========
                 Row {
-                    visible: !chipWrapper.hasImage
+                    visible: !chipWrapper.hasImage && !chipWrapper.hasPalette && !chipWrapper.hasFont
                     anchors.centerIn: parent
                     spacing: dp(4)
 
@@ -233,7 +295,7 @@ Flow {
                         id: chipText
                         anchors.verticalCenter: parent.verticalCenter
                         text: modelData
-                        visible: !chipWrapper.hasImage
+                        visible: !chipWrapper.hasImage && !chipWrapper.hasPalette && !chipWrapper.hasFont
                         color: modelData === control.currentValue ? "white" : ((control.chipColors && control.chipColors[modelData]) || App.Style.primaryTextColor)
                         font.pixelSize: App.Spacing.overallText
                         font.family: App.Style.fontFamily
@@ -242,7 +304,7 @@ Flow {
                     // Delete button for text chips (inline × button)
                     Rectangle {
                         id: textDeleteBtn
-                        visible: chipWrapper.isDeletable && !chipWrapper.hasImage
+                        visible: chipWrapper.isDeletable && !chipWrapper.hasImage && !chipWrapper.hasPalette && !chipWrapper.hasFont
                         width: textDeleteBtnText.width + dp(8)
                         height: parent.height
                         color: "transparent"
@@ -296,11 +358,14 @@ Flow {
         delegate: chipDelegate
     }
 
-    // Line break to force image chips onto their own row
+    // Line break to force image chips onto their own row — only needed when
+    // text chips precede them. Without text chips, this 1px item plus the
+    // Flow's row spacing would add unwanted vertical padding above the
+    // image chips.
     Item {
         width: control.width
         height: 1
-        visible: control.imageOptions.length > 0
+        visible: control.imageOptions.length > 0 && control.textOptions.length > 0
     }
 
     // Image chips (album art) — flow together on their own row(s)

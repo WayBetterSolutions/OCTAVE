@@ -49,6 +49,36 @@ Flickable {
         return images
     }
 
+    function buildFontChipFonts() {
+        var fonts = {}
+        var available = App.Style.availableFonts || []
+        for (var i = 0; i < available.length; i++) {
+            var name = available[i]
+            if (name === "System Default") {
+                fonts[name] = App.Style.systemDefaultFont || ""
+            } else {
+                fonts[name] = (App.Style.fontFamilyMap && App.Style.fontFamilyMap[name]) || ""
+            }
+        }
+        return fonts
+    }
+
+    function buildThemeChipPalettes() {
+        var palettes = {}
+        var names = App.Style.getAllThemeNames()
+        for (var i = 0; i < names.length; i++) {
+            var name = names[i]
+            // Album-art themes already render as image chips — skip palette here.
+            if (App.Style.customThemes[name] && App.Style.customThemes[name].albumArt)
+                continue
+            var theme = App.Style.themes[name] || App.Style.customThemes[name]
+            if (theme && theme.base && theme.baseAlt && theme.accent) {
+                palettes[name] = [theme.accent, theme.baseAlt, theme.base]
+            }
+        }
+        return palettes
+    }
+
     contentWidth: width
     contentHeight: settingsContent.implicitHeight
     flickableDirection: Flickable.VerticalFlick
@@ -291,43 +321,92 @@ Flickable {
             spacing: App.Spacing.sectionSpacing
 
             SettingCategory {
+                id: themeCategory
                 title: "Theme"
+
+                // Currently selected theme name, accounting for the Album Art
+                // Capture override which "borrows" a static theme behind it.
+                property string activeThemeName: {
+                    if (!settingsManager) return "SolarizedLight"
+                    if (settingsManager.themeSetting === "Album Art Capture")
+                        return App.Style.lastStaticTheme || "CosmicVoyager"
+                    return settingsManager.themeSetting
+                }
+
+                function pickTheme(value) {
+                    if (settingsManager) {
+                        // Picking a chip turns Album Art Capture off — the
+                        // user is choosing a static theme.
+                        settingsManager.save_theme_setting(value)
+                        App.Style.setTheme(value)
+                    }
+                }
 
                 Connections {
                     target: App.Style
                     function onCustomThemesUpdated() {
-                        themeButton.options = App.Style.getAllThemeNames()
-                        themeButton.chipColors = pageRoot.buildThemeChipColors()
-                        themeButton.chipImages = pageRoot.buildThemeChipImages()
-                        themeButton.deletableItems = settingsManager ? settingsManager.customThemes : []
+                        var palettes = pageRoot.buildThemeChipPalettes()
+                        var images = pageRoot.buildThemeChipImages()
+                        var deletable = settingsManager ? settingsManager.customThemes : []
+                        customThemeChips.options = settingsManager ? settingsManager.customThemes : []
+                        customThemeChips.chipPalettes = palettes
+                        customThemeChips.chipImages = images
+                        customThemeChips.deletableItems = deletable
+                        lightThemeChips.chipPalettes = palettes
+                        darkThemeChips.chipPalettes = palettes
                     }
                 }
 
+                // ── Light themes ────────────────────────────────────────
+                SettingLabel {
+                    text: "Light"
+                    Layout.topMargin: App.Spacing.rowSpacing * 0.5
+                }
+
                 SettingsChips {
-                    id: themeButton
+                    id: lightThemeChips
                     Layout.fillWidth: true
-                    // While Album Art Capture is on, show the underlying static
-                    // theme as the selected chip so users see what's "behind"
-                    // the album-art override.
-                    currentValue: {
-                        if (!settingsManager) return "Light"
-                        if (settingsManager.themeSetting === "Album Art Capture")
-                            return App.Style.lastStaticTheme || "CosmicVoyager"
-                        return settingsManager.themeSetting
-                    }
-                    options: App.Style.getAllThemeNames()
-                    chipColors: pageRoot.buildThemeChipColors()
+                    currentValue: themeCategory.activeThemeName
+                    options: App.Style.getLightThemeNames()
+                    chipPalettes: pageRoot.buildThemeChipPalettes()
+
+                    onSelected: function(value) { themeCategory.pickTheme(value) }
+                }
+
+                // ── Dark themes ─────────────────────────────────────────
+                SettingLabel {
+                    text: "Dark"
+                    Layout.topMargin: App.Spacing.rowSpacing * 1.5
+                }
+
+                SettingsChips {
+                    id: darkThemeChips
+                    Layout.fillWidth: true
+                    currentValue: themeCategory.activeThemeName
+                    options: App.Style.getDarkThemeNames()
+                    chipPalettes: pageRoot.buildThemeChipPalettes()
+
+                    onSelected: function(value) { themeCategory.pickTheme(value) }
+                }
+
+                // ── Album Art themes (only visible when the user has any) ──
+                SettingLabel {
+                    text: "Album Art Theme"
+                    Layout.topMargin: App.Spacing.rowSpacing * 1.5
+                    visible: customThemeChips.options.length > 0
+                }
+
+                SettingsChips {
+                    id: customThemeChips
+                    Layout.fillWidth: true
+                    visible: options.length > 0
+                    currentValue: themeCategory.activeThemeName
+                    options: settingsManager ? settingsManager.customThemes : []
+                    chipPalettes: pageRoot.buildThemeChipPalettes()
                     chipImages: pageRoot.buildThemeChipImages()
                     deletableItems: settingsManager ? settingsManager.customThemes : []
 
-                    onSelected: function(value) {
-                        if (settingsManager) {
-                            // Picking a chip turns Album Art Capture off — the
-                            // user is choosing a static theme.
-                            settingsManager.save_theme_setting(value)
-                            App.Style.setTheme(value)
-                        }
-                    }
+                    onSelected: function(value) { themeCategory.pickTheme(value) }
 
                     onItemDeleted: function(value) {
                         if (settingsManager) {
@@ -452,6 +531,7 @@ Flickable {
                     target: App.Style
                     function onFontsUpdated() {
                         fontButton.options = App.Style.availableFonts
+                        fontButton.chipFonts = pageRoot.buildFontChipFonts()
                     }
                 }
 
@@ -460,6 +540,7 @@ Flickable {
                     Layout.fillWidth: true
                     currentValue: settingsManager ? settingsManager.fontSetting : "System Default"
                     options: App.Style.availableFonts
+                    chipFonts: pageRoot.buildFontChipFonts()
 
                     onSelected: function(value) {
                         if (settingsManager) {
