@@ -11,7 +11,9 @@ Item {
     id: control
     height: compact ? implicitHeight : dp(46)
     Layout.preferredHeight: compact ? implicitHeight : dp(46)
-    Layout.fillWidth: true
+    // Compact toggles hug their indicator so they right-align cleanly inside
+    // SettingCategory's inline slot. Full toggles still fill to host the wide label.
+    Layout.fillWidth: !compact
     implicitHeight: compact ? compactSwitch.implicitHeight : dp(46)
     implicitWidth: compact ? compactSwitch.implicitWidth : 200
 

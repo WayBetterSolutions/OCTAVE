@@ -48,10 +48,7 @@ def get_music_dl_path() -> Path:
     Uses OCTAVE's backend/temp/music_dl/ for temp data,
     and ~/.config/music_dl/ for persistent config.
     """
-    from backend.platform_config import IS_ANDROID
-    if IS_ANDROID:
-        config_path = Path(os.getcwd()) / ".octave_dl"
-    elif platform.system() == "Linux":
+    if platform.system() == "Linux":
         config_path = Path.home() / ".config" / "music_dl"
     elif platform.system() == "Darwin":
         config_path = Path.home() / "Library" / "Application Support" / "music_dl"

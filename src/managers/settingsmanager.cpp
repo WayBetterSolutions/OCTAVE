@@ -136,7 +136,8 @@ QJsonObject SettingsManager::buildDefaultSettings() const
     d[QStringLiteral("uiScale")]              = 1.0;
     d[QStringLiteral("colorTransitionMs")]    = 1000;
     d[QStringLiteral("songLengthTransition")] = false;
-    d[QStringLiteral("obdBluetoothPort")]     = QStringLiteral("/dev/rfcomm0");
+    d[QStringLiteral("obdBluetoothPort")]     = QString();
+    d[QStringLiteral("obdSavedAdapters")]     = QStringLiteral("[]");
     d[QStringLiteral("obdFastMode")]          = true;
     d[QStringLiteral("obdAutoReconnectAttempts")] = 0;
     d[QStringLiteral("showBackgroundOverlay")] = true;
@@ -376,6 +377,14 @@ SettingsManager::SettingsManager(QObject *parent)
     m_colorTransitionMs = s(QStringLiteral("colorTransitionMs")).toInt();
     m_songLengthTransition = s(QStringLiteral("songLengthTransition")).toBool();
     m_obdBluetoothPort  = s(QStringLiteral("obdBluetoothPort")).toString();
+    // Migrate legacy "/dev/rfcomm0" placeholder — it was the desktop default but
+    // is meaningless on Android (where the field now holds a MAC address) and
+    // was leaking into the UI as if the user had entered it themselves.
+    if (m_obdBluetoothPort == QStringLiteral("/dev/rfcomm0")) {
+        m_obdBluetoothPort.clear();
+    }
+    m_obdSavedAdapters  = s(QStringLiteral("obdSavedAdapters")).toString();
+    if (m_obdSavedAdapters.isEmpty()) m_obdSavedAdapters = QStringLiteral("[]");
     m_obdFastMode       = s(QStringLiteral("obdFastMode")).toBool();
     m_obdAutoReconnectAttempts = s(QStringLiteral("obdAutoReconnectAttempts")).toInt();
 
@@ -796,6 +805,7 @@ int     SettingsManager::textScrollSpeed() const         { return m_textScrollSp
 
 // --- OBD ---
 QString SettingsManager::obdBluetoothPort() const        { return m_obdBluetoothPort; }
+QString SettingsManager::obdSavedAdapters() const        { return m_obdSavedAdapters; }
 bool    SettingsManager::obdFastMode() const             { return m_obdFastMode; }
 int     SettingsManager::obdAutoReconnectAttempts() const { return m_obdAutoReconnectAttempts; }
 float   SettingsManager::fuelTankCapacity() const        { return m_fuelTankCapacity; }
@@ -1255,6 +1265,52 @@ void SettingsManager::save_obd_bluetooth_port(const QString &port)
     m_obdBluetoothPort = port;
     updateSetting(QStringLiteral("obdBluetoothPort"), port);
     emit obdBluetoothPortChanged(port);
+}
+
+void SettingsManager::save_obd_saved_adapters(const QString &json)
+{
+    m_obdSavedAdapters = json.isEmpty() ? QStringLiteral("[]") : json;
+    updateSetting(QStringLiteral("obdSavedAdapters"), m_obdSavedAdapters);
+    emit obdSavedAdaptersChanged(m_obdSavedAdapters);
+}
+
+void SettingsManager::add_obd_saved_adapter(const QString &name, const QString &mac)
+{
+    const QString trimmed = mac.trimmed().toUpper();
+    if (trimmed.isEmpty()) return;
+
+    QJsonArray arr = QJsonDocument::fromJson(m_obdSavedAdapters.toUtf8()).array();
+    // Remove any existing entry with the same MAC, then prepend the new one
+    // so the most recently used adapter is first.
+    for (int i = arr.size() - 1; i >= 0; --i) {
+        const QJsonObject o = arr.at(i).toObject();
+        if (o.value(QStringLiteral("mac")).toString().toUpper() == trimmed) {
+            arr.removeAt(i);
+        }
+    }
+    QJsonObject entry;
+    entry[QStringLiteral("name")] = name.isEmpty() ? trimmed : name;
+    entry[QStringLiteral("mac")] = trimmed;
+    arr.prepend(entry);
+    // Cap at 8 to keep the chip row sane.
+    while (arr.size() > 8) arr.removeLast();
+
+    save_obd_saved_adapters(QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
+}
+
+void SettingsManager::remove_obd_saved_adapter(const QString &mac)
+{
+    const QString trimmed = mac.trimmed().toUpper();
+    if (trimmed.isEmpty()) return;
+
+    QJsonArray arr = QJsonDocument::fromJson(m_obdSavedAdapters.toUtf8()).array();
+    for (int i = arr.size() - 1; i >= 0; --i) {
+        const QJsonObject o = arr.at(i).toObject();
+        if (o.value(QStringLiteral("mac")).toString().toUpper() == trimmed) {
+            arr.removeAt(i);
+        }
+    }
+    save_obd_saved_adapters(QString::fromUtf8(QJsonDocument(arr).toJson(QJsonDocument::Compact)));
 }
 
 void SettingsManager::save_obd_fast_mode(bool enabled)
@@ -1991,6 +2047,10 @@ void SettingsManager::reset_to_defaults()
 
     m_obdBluetoothPort = m_defaultSettings.value(QStringLiteral("obdBluetoothPort")).toString();
     emit obdBluetoothPortChanged(m_obdBluetoothPort);
+
+    m_obdSavedAdapters = m_defaultSettings.value(QStringLiteral("obdSavedAdapters")).toString();
+    if (m_obdSavedAdapters.isEmpty()) m_obdSavedAdapters = QStringLiteral("[]");
+    emit obdSavedAdaptersChanged(m_obdSavedAdapters);
 
     m_obdFastMode = m_defaultSettings.value(QStringLiteral("obdFastMode")).toBool();
     emit obdFastModeChanged(m_obdFastMode);

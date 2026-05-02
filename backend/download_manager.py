@@ -111,10 +111,7 @@ class DownloadManager(QObject):
         return download_path
 
     def _get_download_format(self) -> str:
-        """Get the configured download format. Android forces m4a (no ffmpeg needed)."""
-        from backend.platform_config import IS_ANDROID
-        if IS_ANDROID:
-            return "m4a"
+        """Get the configured download format."""
         if not self._settings_manager:
             return "mp3"
         return self._settings_manager.get_setting("downloadFormat", "mp3")

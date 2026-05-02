@@ -542,6 +542,63 @@ ApplicationWindow {
                 console.log("[GlobalFlash] Overlay Rectangle created inside mainContainer")
             }
         }
+
+        // Aura overlay - perimeter-only color fade (4 edge gradients)
+        Item {
+            id: globalAuraFlash
+            anchors.fill: parent
+            z: 999999
+            enabled: false
+            visible: mainWindow.shiftLightEnabled &&
+                     mainWindow.activeShiftFlag !== null &&
+                     mainWindow.activeShiftFlag.auraFlash === true &&
+                     mainWindow.shiftLightFlashVisible
+            opacity: mainWindow.activeShiftFlag && mainWindow.activeShiftFlag.auraFlashOpacity !== undefined ?
+                     mainWindow.activeShiftFlag.auraFlashOpacity : 0.6
+
+            property color auraColor: mainWindow.activeShiftFlag ? mainWindow.activeShiftFlag.color : "transparent"
+            property real edgeFraction: mainWindow.activeShiftFlag && mainWindow.activeShiftFlag.auraSpread !== undefined ?
+                                        mainWindow.activeShiftFlag.auraSpread : 0.18
+
+            // Top edge
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; top: parent.top }
+                height: parent.height * globalAuraFlash.edgeFraction
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: globalAuraFlash.auraColor }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+            }
+            // Bottom edge
+            Rectangle {
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+                height: parent.height * globalAuraFlash.edgeFraction
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "transparent" }
+                    GradientStop { position: 1.0; color: globalAuraFlash.auraColor }
+                }
+            }
+            // Left edge
+            Rectangle {
+                anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
+                width: parent.width * globalAuraFlash.edgeFraction
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: globalAuraFlash.auraColor }
+                    GradientStop { position: 1.0; color: "transparent" }
+                }
+            }
+            // Right edge
+            Rectangle {
+                anchors { top: parent.top; bottom: parent.bottom; right: parent.right }
+                width: parent.width * globalAuraFlash.edgeFraction
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0.0; color: "transparent" }
+                    GradientStop { position: 1.0; color: globalAuraFlash.auraColor }
+                }
+            }
+        }
     }
 
     // Font folder model to scan for available fonts

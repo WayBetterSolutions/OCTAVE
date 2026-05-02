@@ -22,7 +22,7 @@ Flickable {
         { cardId: "display_layout",     title: "Layout",     icon: "▦", component: layoutContent },
         { cardId: "display_window",     title: "Window",     icon: "▣", component: windowContent },
         { cardId: "display_appearance", title: "Appearance", icon: "❖", component: appearanceContent },
-        { cardId: "display_clock",      title: "Clock",      icon: "⏱", component: clockContent }
+        { cardId: "display_clock",      title: "Clock",      icon: "◔", component: clockContent }
     ]
 
     function buildThemeChipColors() {
@@ -71,32 +71,36 @@ Flickable {
                 title: "UI Scaling"
                 description: "Adjusts the overall size of UI elements. 100% = default."
 
-                SettingsSlider {
-                    id: uiScaleSlider
-                    from: 0.5
-                    to: 2.0
-                    stepSize: 0.05
-                    value: App.Spacing.globalScale
+                inlineContent: [
+                    SettingsSlider {
+                        id: uiScaleSlider
+                        from: 0.5
+                        to: 2.0
+                        stepSize: 0.05
+                        value: App.Spacing.globalScale
+                        Layout.preferredWidth: 280
+                        Layout.fillWidth: false
 
-                    Timer {
-                        id: scaleUpdateTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_ui_scale(uiScaleSlider.value)
-                                App.Spacing.globalScale = uiScaleSlider.value
+                        Timer {
+                            id: scaleUpdateTimer
+                            interval: 100
+                            running: false
+                            repeat: false
+                            onTriggered: {
+                                if (settingsManager) {
+                                    settingsManager.save_ui_scale(uiScaleSlider.value)
+                                    App.Spacing.globalScale = uiScaleSlider.value
+                                }
                             }
                         }
+
+                        onMoved: scaleUpdateTimer.restart()
+                    },
+                    ValueDisplay {
+                        text: (uiScaleSlider.value * 100).toFixed(0) + "%"
+                        Layout.fillWidth: false
                     }
-
-                    onMoved: scaleUpdateTimer.restart()
-                }
-
-                ValueDisplay {
-                    text: (uiScaleSlider.value * 100).toFixed(0) + "%"
-                }
+                ]
             }
 
             SettingCategory {
@@ -119,10 +123,10 @@ Flickable {
             SettingCategory {
                 title: "Nav Bar Media Controls"
 
-                SettingsToggle {
+                inlineContent: SettingsToggle {
                     id: bottomBarMediaControlsToggle
                     compact: true
-                    Layout.fillWidth: true
+                    Layout.fillWidth: false
                     text: ""
                     checked: settingsManager ? settingsManager.showBottomBarMediaControls : true
                     activeColor: App.Style.accent
@@ -477,10 +481,10 @@ Flickable {
             SettingCategory {
                 title: "Show Clock"
 
-                SettingsToggle {
+                inlineContent: SettingsToggle {
                     compact: true
                     text: ""
-                    Layout.fillWidth: true
+                    Layout.fillWidth: false
                     checked: settingsManager ? settingsManager.showClock : true
 
                     onToggled: function(checked) {
@@ -513,23 +517,27 @@ Flickable {
             SettingCategory {
                 title: "Clock Size"
 
-                SettingsSlider {
-                    id: clockSizeSlider
-                    from: 10
-                    to: 85
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.clockSize : 18
+                inlineContent: [
+                    SettingsSlider {
+                        id: clockSizeSlider
+                        from: 10
+                        to: 85
+                        stepSize: 1
+                        value: settingsManager ? settingsManager.clockSize : 18
+                        Layout.preferredWidth: 280
+                        Layout.fillWidth: false
 
-                    onMoved: {
-                        if (settingsManager) {
-                            settingsManager.save_clock_size(value)
+                        onMoved: {
+                            if (settingsManager) {
+                                settingsManager.save_clock_size(value)
+                            }
                         }
+                    },
+                    ValueDisplay {
+                        text: clockSizeSlider.value.toFixed(0) + " px"
+                        Layout.fillWidth: false
                     }
-                }
-
-                ValueDisplay {
-                    text: clockSizeSlider.value.toFixed(0) + " px"
-                }
+                ]
             }
         }
     }

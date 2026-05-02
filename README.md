@@ -2,24 +2,62 @@
 
 **Open-source Cross-platform Telematics for Augmented Vehicle Experience**
 
-A fully programmable infotainment system for vehicles. Built with Python and QML, OCTAVE runs on Windows, macOS, Linux, Raspberry Pi, and Android.
+The infotainment system you actually own. Hack it, theme it, bolt it to your dash, run it on a Pi or your laptop. Built for the people who'd rather rip out the head unit than live with someone else's UX.
 
-<img src="frontend/assets/readme/display.gif" alt="OCTAVE Demo" width="400">
+<p align="center">
+  <img src="frontend/assets/readme/display.gif" alt="OCTAVE in motion" width="720">
+</p>
 
-## Features
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/platforms-Win%20%7C%20macOS%20%7C%20Linux%20%7C%20Pi%20%7C%20Android-success" alt="Platforms">
+  <img src="https://img.shields.io/badge/backend-C%2B%2B%20%2B%20Python-orange" alt="Dual backend">
+  <img src="https://img.shields.io/badge/frontend-Qt%206%20%2F%20QML-41cd52" alt="Qt 6">
+</p>
 
-- Local media player (MP3, M4A, FLAC) with album art carousel and FFT waveform visualizer
-- Spotify integration with OAuth2 and device control
-- OBD-II vehicle diagnostics (50+ parameters via ELM327)
-- Phone screen mirroring (scrcpy) and Android Auto (Google DHU)
+---
+
+## Why OCTAVE
+
+Stock head units age out fast. Aftermarket units lock you in. Android Auto and CarPlay are great, until you want to do something the manufacturer didn't think of.
+
+OCTAVE is the third option: a **fully programmable** infotainment stack that you build, modify, and run on whatever hardware you want. It plays your music, talks to your car, syncs with hardware you solder yourself, and gets out of the way when you want to make it do something new.
+
+If you've ever wanted to wire a rotary encoder to your dash, throw a custom OBD gauge on screen, or theme your UI to match your album art in real time — this is for you.
+
+This isn't a product. It's a starting point. I maintain "vanilla" OCTAVE — but the whole point is that you fork it, mod it, and build the head unit *you* want.
+
+## See It
+
+<p align="center">
+  <img src="frontend/assets/readme/home_page.png" alt="Home" width="32%">
+  <img src="frontend/assets/readme/media_room.png" alt="Media Room" width="32%">
+  <img src="frontend/assets/readme/obd_page.png" alt="OBD Diagnostics" width="32%">
+</p>
+
+## What's In The Box
+
+### Media & Audio
+- Local player for MP3, M4A, FLAC with album art carousel and live FFT visualizer
+- Spotify integration with OAuth2 and full device control
 - Music search and download (Spotify metadata + YouTube audio)
+- Dynamic theming that pulls colors straight from album art
+
+### Vehicle & Hardware
+- OBD-II diagnostics over ELM327 — 50+ live parameters, custom gauges, full dashboards
 - ESP32 wireless volume knob with LED sync
 - BerryIMU 9DOF sensor fusion (accelerometer, gyro, magnetometer, barometer)
-- PAJ7620U2 gesture recognition for touchless control
-- Dynamic theming that adapts to album art colors
-- 100+ configurable settings
+- PAJ7620U2 gesture sensor for touchless control
+
+### Platform & Customization
+- Runs on Windows, macOS, Linux, Raspberry Pi, and Android
+- Two parallel backends so you can hack in whichever language you'd rather live in
+- 100+ user-configurable settings, all persisted to disk
+- Custom gauge primitives and dashboard system — build your own and drop them in
 
 ## Quick Start
+
+The fast path — clone, run one script, done:
 
 ```bash
 git clone https://github.com/waybettersolutions/octave.git
@@ -27,29 +65,66 @@ cd octave
 python setup.py
 ```
 
-The setup script detects your OS, installs dependencies, creates a virtual environment, and launches the app. Use `--no-run` to install without launching.
+`setup.py` detects your OS, installs dependencies, builds a virtualenv, and launches the app. Pass `--no-run` to install without launching.
+
+After setup:
 
 ```bash
-# Run manually after setup
-source venv/bin/activate    # Windows: venv\Scripts\activate
-python main.py
-
-# Debug mode
-python main.py --debug
-
-# Developer mode (simulated OBD, keyboard controls)
-python dev/dev_main.py
+source venv/bin/activate            # Windows: venv\Scripts\activate
+python main.py                       # normal run
+python main.py --debug               # verbose logging
+python dev/dev_main.py               # simulated OBD + keyboard controls
 ```
+
+### Running the C++ Build
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j
+./build/octave
+```
+
+Full build matrix (9 targets including iOS, Android, Flatpak, and app store variants) lives in [BUILD.md](BUILD.md).
+
+## Two Backends, One Frontend — Built For The Community
+
+This is the part I care about most.
+
+OCTAVE ships **two parallel backends** — C++ / Qt 6 and Python / PySide6 — both driving the same QML frontend. Not because the project needs both, but because **you** might. The whole reason this exists in two languages is so the next person to fork OCTAVE can pick up the side they're already fluent in and start building.
+
+- Love C++? `src/` is yours. Performance, app stores, mobile — that's the side that ships natively.
+- Live in Python? `backend/` is yours. Want to wire up a weird sensor on a Pi at 2am with a REPL open? Done in 20 lines.
+
+The frontend doesn't know or care which one is running. Mod whichever side you want, ship to whoever you want.
+
+I'll keep maintaining "vanilla" OCTAVE as the reference build. But the real win is the forks, the wild rigs, the custom dashboards, the ports to hardware I haven't even heard of yet. If you're sharper or weirder than me — and a lot of you are — take this and run.
 
 ## System Requirements
 
-- **Python** 3.8+
-- **OS:** Windows 10+, macOS 10.14+, Linux (Debian/Arch/Fedora), Raspberry Pi OS
+- **Python** 3.8+ (for the Python backend) / **Qt 6** + **CMake 3.16+** (for C++)
+- **OS:** Windows 10+, macOS 10.14+, Linux (Debian / Arch / Fedora), Raspberry Pi OS, Android
 
-## Wiki
+## Roadmap
 
-For comprehensive documentation — architecture, every backend manager, every frontend page, settings reference, hardware setup, build guides, and more — see the **[OCTAVE Wiki](wiki/index.html)**.
+A few of the bigger things in flight — full plans live under [`TODO/`](TODO/):
+
+- **Drag-and-drop dashboard editor** — Tony Hawk create-a-park, but for OBD gauges. See [`TODO/dashboards-roadmap.md`](TODO/dashboards-roadmap.md).
+- **Native C++ Android port** — App Store / Play Store distribution. See [`TODO/android-cpp-port.md`](TODO/android-cpp-port.md).
+- **In-app error notification UI** — surface backend issues without diving into log files.
+- **Expanded test coverage** — beyond the current smoke suite.
+
+## Documentation
+
+The wiki covers everything — architecture, every backend manager, every frontend page, settings reference, hardware setup, build guides, the gauge authoring spec — start at [`wiki/index.html`](wiki/index.html). For building gauges and dashboards specifically, [`docs/GAUGE_AUTHORING.md`](docs/GAUGE_AUTHORING.md) is the source of truth.
+
+## Contributing
+
+Pull requests welcome. Bug reports welcome. Hardware mods welcome.
+
+If you build something cool on top of OCTAVE — a custom dashboard, a new sensor integration, a port to weirder hardware — open an issue or PR and show it off. The more wild builds out there, the better the project gets.
+
+Star the repo if you'd like to follow along.
 
 ## License
 
-2026 [Way Better Solutions](https://waybetter.solutions/) — MIT License
+2026 [Way Better Solutions](https://waybetter.solutions/) — MIT License. Do whatever you want with it.

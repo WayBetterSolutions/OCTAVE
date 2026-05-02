@@ -321,10 +321,10 @@ Item {
                 spacing: App.Spacing.rowSpacing
 
                 SettingLabel {
-                    text: (typeof isAndroid !== "undefined" && isAndroid) ? "Bluetooth OBD Adapter" : "Bluetooth Device"
+                    text: (typeof isAndroid !== "undefined" && isAndroid) ? "BLE OBD Adapter" : "Bluetooth Device"
                 }
 
-                // Android: Scan + Pair + Connect buttons and device list
+                // Android: BLE Scan + Connect buttons and device list
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: dp(8)
@@ -334,16 +334,16 @@ Item {
                         Layout.fillWidth: true
                         spacing: dp(6)
 
-                        // Scan button
+                        // BLE Scan button
                         Rectangle {
-                            Layout.preferredWidth: dp(90)
+                            Layout.fillWidth: true
                             Layout.preferredHeight: dp(40)
                             radius: dpMin(6, 2)
                             color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
 
                             Text {
                                 anchors.centerIn: parent
-                                text: obdManager && obdManager.is_scanning() ? "Scanning..." : "Scan"
+                                text: obdManager && obdManager.is_scanning() ? "Scanning BLE..." : "Scan for BLE Adapters"
                                 color: "white"
                                 font.pixelSize: App.Spacing.overallText
                                 font.family: App.Style.fontFamily
@@ -358,31 +358,6 @@ Item {
                                         obdManager.refresh_ports()
                                         deviceListModel.clear()
                                     }
-                                }
-                            }
-                        }
-
-                        // Pair in Settings button
-                        Rectangle {
-                            Layout.preferredWidth: dp(130)
-                            Layout.preferredHeight: dp(40)
-                            radius: dpMin(6, 2)
-                            color: pairMouseArea.pressed ? Qt.darker("#8e44ad", 1.3) : "#8e44ad"
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "Pair in Settings"
-                                color: "white"
-                                font.pixelSize: App.Spacing.overallText
-                                font.family: App.Style.fontFamily
-                                font.bold: true
-                            }
-
-                            MouseArea {
-                                id: pairMouseArea
-                                anchors.fill: parent
-                                onClicked: {
-                                    if (obdManager) obdManager.open_bluetooth_settings()
                                 }
                             }
                         }
@@ -464,16 +439,18 @@ Item {
                     }
                 }
 
-                // Android: Manual MAC address entry
+                // MAC address entry (works on both Android and desktop —
+                // desktop accepts a serial path or a MAC).
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: dp(8)
-                    visible: typeof isAndroid !== "undefined" && isAndroid
 
                     SettingsTextField {
                         id: manualMacField
                         Layout.fillWidth: true
-                        placeholderText: "MAC address (e.g. 88:1B:99:00:11:22)"
+                        placeholderText: (typeof isAndroid !== "undefined" && isAndroid)
+                            ? "MAC address (e.g. 88:1B:99:00:11:22)"
+                            : "MAC address or device path"
                         text: settingsManager ? settingsManager.obdBluetoothPort : ""
                     }
 
@@ -496,46 +473,124 @@ Item {
                             id: manualConnectMouse
                             anchors.fill: parent
                             onClicked: {
-                                var mac = manualMacField.text.trim()
-                                if (mac && obdManager) {
-                                    obdManager.set_target_address(mac)
-                                    obdManager.force_connect()
+                                var entered = manualMacField.text.trim()
+                                if (!entered) return
+                                if (settingsManager) {
+                                    settingsManager.save_obd_bluetooth_port(entered)
+                                    // Looks like a MAC? Save it as a chip for quick reuse.
+                                    var macRe = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/
+                                    if (macRe.test(entered)) {
+                                        settingsManager.add_obd_saved_adapter(entered, entered)
+                                    }
+                                }
+                                if (obdManager) {
+                                    if (typeof obdManager.set_target_address === "function") {
+                                        obdManager.set_target_address(entered)
+                                    }
+                                    if (typeof obdManager.force_connect === "function") {
+                                        obdManager.force_connect()
+                                    } else if (typeof obdManager.reconnect === "function") {
+                                        obdManager.reconnect()
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // Desktop: text field for port path
-                RowLayout {
+                // Saved-adapter chips — tap to load that MAC into the field.
+                Flow {
                     Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing
-                    visible: typeof isAndroid === "undefined" || !isAndroid
+                    spacing: dp(6)
+                    visible: savedAdaptersRepeater.count > 0
 
-                    SettingsTextField {
-                        id: bluetoothPortField
-                        Layout.fillWidth: true
-                        text: settingsManager ? settingsManager.obdBluetoothPort : "/dev/rfcomm0"
-
-                        onEditingFinished: {
-                            if (settingsManager && text.trim() !== "") {
-                                settingsManager.save_obd_bluetooth_port(text)
+                    Repeater {
+                        id: savedAdaptersRepeater
+                        model: {
+                            if (!settingsManager) return []
+                            try {
+                                var raw = settingsManager.obdSavedAdapters || "[]"
+                                var arr = JSON.parse(raw)
+                                return Array.isArray(arr) ? arr : []
+                            } catch (e) {
+                                return []
                             }
                         }
-                    }
 
-                    Text {
-                        text: "e.g. /dev/rfcomm0"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.overallText * 0.8
-                        font.family: App.Style.fontFamily
+                        delegate: Rectangle {
+                            height: dp(32)
+                            width: chipLayout.implicitWidth + dp(20)
+                            radius: dpMin(16, 2)
+                            color: chipMouse.pressed
+                                ? Qt.darker(App.Style.cardBackground, 1.3)
+                                : Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.18)
+                            border.width: 1
+                            border.color: App.Style.accent
+
+                            RowLayout {
+                                id: chipLayout
+                                anchors.centerIn: parent
+                                spacing: dp(6)
+
+                                Text {
+                                    text: (modelData.name && modelData.name !== modelData.mac)
+                                        ? (modelData.name + " · " + modelData.mac)
+                                        : (modelData.mac || "")
+                                    color: App.Style.primaryTextColor
+                                    font.pixelSize: App.Spacing.overallText * 0.8
+                                    font.family: App.Style.fontFamily
+                                }
+
+                                Text {
+                                    text: "✕"
+                                    color: App.Style.secondaryTextColor
+                                    font.pixelSize: App.Spacing.overallText * 0.8
+                                    font.family: App.Style.fontFamily
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        anchors.margins: -dp(4)
+                                        onClicked: {
+                                            if (settingsManager && modelData.mac) {
+                                                settingsManager.remove_obd_saved_adapter(modelData.mac)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: chipMouse
+                                anchors.fill: parent
+                                onClicked: {
+                                    var mac = modelData.mac || ""
+                                    if (!mac) return
+                                    manualMacField.text = mac
+                                    if (settingsManager) {
+                                        settingsManager.save_obd_bluetooth_port(mac)
+                                        // Bump this MAC to the front of the recent list.
+                                        settingsManager.add_obd_saved_adapter(modelData.name || mac, mac)
+                                    }
+                                    if (obdManager) {
+                                        if (typeof obdManager.set_target_address === "function") {
+                                            obdManager.set_target_address(mac)
+                                        }
+                                        if (typeof obdManager.force_connect === "function") {
+                                            obdManager.force_connect()
+                                        } else if (typeof obdManager.reconnect === "function") {
+                                            obdManager.reconnect()
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
                 SettingDescription {
                     text: (typeof isAndroid !== "undefined" && isAndroid)
-                        ? "Pair your OBD adapter in Android Settings first, then Scan to find it."
-                        : "Serial port for your Bluetooth OBD adapter"
+                        ? "Tap a saved chip to reuse it, or enter a MAC and press Go. Chips are saved automatically when you connect."
+                        : "Serial port path or a Bluetooth MAC address. Saved adapters appear as chips above."
                 }
 
                 // ── Connection Log (Android only) ──────────────────

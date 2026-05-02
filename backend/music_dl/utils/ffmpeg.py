@@ -216,27 +216,6 @@ def get_local_ffmpeg() -> Optional[Path]:
                 pass
         return ffmpeg_path
 
-    # On Android, ffmpeg is bundled as libffmpeg.so in the native lib directory
-    from backend.platform_config import IS_ANDROID
-    if IS_ANDROID:
-        # The native lib dir path is in the app's ApplicationInfo
-        # Find it by looking up the package path
-        try:
-            import subprocess
-            result = subprocess.run(
-                ['pm', 'path', 'org.octave.octave'],
-                capture_output=True, text=True, timeout=5
-            )
-            if result.returncode == 0:
-                # Output: "package:/data/app/.../base.apk"
-                apk_path = result.stdout.strip().replace('package:', '')
-                lib_dir = Path(apk_path).parent / 'lib' / 'arm64'
-                ffmpeg_candidate = lib_dir / 'libffmpeg.so'
-                if ffmpeg_candidate.is_file():
-                    return ffmpeg_candidate
-        except Exception:
-            pass
-
     return None
 
 

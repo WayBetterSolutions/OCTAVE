@@ -146,13 +146,9 @@ else:
 
 def get_app_data_dir():
     """Get the appropriate directory for storing app data based on platform."""
-    from backend.platform_config import IS_ANDROID
     app_name = "OCTAVE"
 
-    if IS_ANDROID:
-        # Android: use app-private internal storage
-        data_dir = os.path.join(os.getcwd(), app_name)
-    elif sys.platform == 'win32':
+    if sys.platform == 'win32':
         # Windows: Use %APPDATA%/OCTAVE
         base = os.environ.get('APPDATA', os.path.expanduser('~'))
         data_dir = os.path.join(base, app_name)
@@ -186,6 +182,7 @@ class SettingsManager(QObject):
     colorTransitionMsChanged = Signal(int)
     songLengthTransitionChanged = Signal(bool)
     obdBluetoothPortChanged = Signal(str)
+    obdSavedAdaptersChanged = Signal(str)
     obdFastModeChanged = Signal(bool)
     obdParametersChanged = Signal()
     obdAutoReconnectAttemptsChanged = Signal(int)
@@ -291,7 +288,8 @@ class SettingsManager(QObject):
             "uiScale": 1.0,
             "colorTransitionMs": 1000,
             "songLengthTransition": False,
-            "obdBluetoothPort": "/dev/rfcomm0",
+            "obdBluetoothPort": "",
+            "obdSavedAdapters": "[]",
             "obdFastMode": True,
             "obdAutoReconnectAttempts": 0,  # 0 = disabled, 1-10 = number of attempts
             "showBackgroundOverlay": True,
@@ -524,10 +522,13 @@ class SettingsManager(QObject):
         self._color_transition_ms = self._settings.get("colorTransitionMs", self._default_settings["colorTransitionMs"])
         self._song_length_transition = self._settings.get("songLengthTransition", self._default_settings["songLengthTransition"])
         self._obd_bluetooth_port = self._settings.get("obdBluetoothPort", self._default_settings["obdBluetoothPort"])
+        # Migrate the legacy "/dev/rfcomm0" placeholder — meaningless now, was leaking into the UI.
+        if self._obd_bluetooth_port == "/dev/rfcomm0":
+            self._obd_bluetooth_port = ""
+        self._obd_saved_adapters = self._settings.get("obdSavedAdapters", self._default_settings["obdSavedAdapters"]) or "[]"
         self._obd_fast_mode = self._settings.get("obdFastMode", self._default_settings["obdFastMode"])
         self._obd_auto_reconnect_attempts = self._settings.get("obdAutoReconnectAttempts", self._default_settings["obdAutoReconnectAttempts"])
-        from backend.platform_config import IS_ANDROID
-        default_music = "/sdcard/Music" if IS_ANDROID else os.path.expanduser("~/Music")
+        default_music = os.path.expanduser("~/Music")
         self._media_folder = self._settings.get("mediaFolder", "") or default_music
         os.makedirs(self._media_folder, exist_ok=True)
         self._show_background_overlay = self._settings.get("showBackgroundOverlay", self._default_settings["showBackgroundOverlay"])
@@ -879,7 +880,11 @@ class SettingsManager(QObject):
     @Property(str, notify=obdBluetoothPortChanged)
     def obdBluetoothPort(self):
         return self._obd_bluetooth_port
-    
+
+    @Property(str, notify=obdSavedAdaptersChanged)
+    def obdSavedAdapters(self):
+        return self._obd_saved_adapters
+
     @Property(bool, notify=obdFastModeChanged)
     def obdFastMode(self):
         return self._obd_fast_mode
@@ -1002,6 +1007,52 @@ class SettingsManager(QObject):
         logger.debug(f"Saving OBD Bluetooth port: {port}")
         self._obd_bluetooth_port = port
         self.update_setting("obdBluetoothPort", port, self.obdBluetoothPortChanged)
+
+    @Slot(str)
+    def save_obd_saved_adapters(self, raw):
+        import json as _json
+        try:
+            parsed = _json.loads(raw) if raw else []
+            if not isinstance(parsed, list):
+                parsed = []
+        except (ValueError, TypeError):
+            parsed = []
+        self._obd_saved_adapters = _json.dumps(parsed, separators=(",", ":"))
+        self.update_setting("obdSavedAdapters", self._obd_saved_adapters, self.obdSavedAdaptersChanged)
+
+    @Slot(str, str)
+    def add_obd_saved_adapter(self, name, mac):
+        import json as _json
+        trimmed = (mac or "").strip().upper()
+        if not trimmed:
+            return
+        try:
+            arr = _json.loads(self._obd_saved_adapters) if self._obd_saved_adapters else []
+            if not isinstance(arr, list):
+                arr = []
+        except (ValueError, TypeError):
+            arr = []
+        # Drop any existing entry for this MAC, then prepend so most-recent is first.
+        arr = [e for e in arr if isinstance(e, dict) and (e.get("mac") or "").upper() != trimmed]
+        arr.insert(0, {"name": name or trimmed, "mac": trimmed})
+        # Cap at 8 entries.
+        del arr[8:]
+        self.save_obd_saved_adapters(_json.dumps(arr, separators=(",", ":")))
+
+    @Slot(str)
+    def remove_obd_saved_adapter(self, mac):
+        import json as _json
+        trimmed = (mac or "").strip().upper()
+        if not trimmed:
+            return
+        try:
+            arr = _json.loads(self._obd_saved_adapters) if self._obd_saved_adapters else []
+            if not isinstance(arr, list):
+                arr = []
+        except (ValueError, TypeError):
+            arr = []
+        arr = [e for e in arr if isinstance(e, dict) and (e.get("mac") or "").upper() != trimmed]
+        self.save_obd_saved_adapters(_json.dumps(arr, separators=(",", ":")))
     
     @Slot(bool)
     def save_obd_fast_mode(self, enabled):
@@ -2184,7 +2235,10 @@ class SettingsManager(QObject):
 
         self._obd_bluetooth_port = self._default_settings["obdBluetoothPort"]
         self.obdBluetoothPortChanged.emit(self._obd_bluetooth_port)
-        
+
+        self._obd_saved_adapters = self._default_settings["obdSavedAdapters"]
+        self.obdSavedAdaptersChanged.emit(self._obd_saved_adapters)
+
         self._obd_fast_mode = self._default_settings["obdFastMode"]
         self.obdFastModeChanged.emit(self._obd_fast_mode)
 
@@ -2193,9 +2247,8 @@ class SettingsManager(QObject):
 
         self._obd_parameters = self._default_settings["obdParameters"]
         self.obdParametersChanged.emit()
-        
-        from backend.platform_config import IS_ANDROID
-        default_music = "/sdcard/Music" if IS_ANDROID else os.path.expanduser("~/Music")
+
+        default_music = os.path.expanduser("~/Music")
         self._media_folder = self._default_settings["mediaFolder"] or default_music
         self.mediaFolderChanged.emit(self._media_folder)
 

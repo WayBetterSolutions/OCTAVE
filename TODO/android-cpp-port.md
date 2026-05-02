@@ -1,15 +1,20 @@
 # Android C++ Port
 
-**Status:** deferred — toolchain-install phase is user-owned, code phases blocked on toolchain.
-**Last updated:** 2026-04-20
+**Status:** active — toolchain installed, C++ APK builds and installs; remaining work is filling in the Android-specific behavior (most notably OBD over Bluetooth).
+**Last updated:** 2026-05-02
 
 ## Why this is parked here
 
-OCTAVE's C++ / Qt 6 backend (`src/`) is already the primary desktop build across Windows, macOS, Linux, Raspberry Pi. The Python / PySide6 APK (`deployment/buildozer.spec`) currently handles Android via buildozer + p4a, and is the reference for "Android-minimum" scope.
+OCTAVE's C++ / Qt 6 backend (`src/`) is the primary desktop build across Windows, macOS, Linux, Raspberry Pi, and is now the **only** Android build. The Python / PySide6 Android APK (buildozer/p4a) was deleted on 2026-05-02 — Python is desktop-only and there is no longer a Python reference build for Android.
 
-This TODO tracks building a **parallel C++ APK** targeting the Play Store. Sideload-first on the owner's two test devices, Play Store as a separate later milestone.
+This TODO tracks finishing the C++ APK feature work. Build + sideload already work:
 
-Parked because Phase 0 is toolchain downloads (hours of wall-clock, user-owned) and later phases need the toolchain present to verify work. When the user says "toolchain is ready," Phase 1 can start immediately.
+```bash
+cmake --build build-android -j
+adb install -r build-android/android-build/build/outputs/apk/debug/android-build-debug.apk
+```
+
+Remaining work: Android-specific manager paths (OBD Bluetooth, runtime permissions, Play Store polish).
 
 ## Target devices
 
@@ -22,9 +27,9 @@ Single ABI (`arm64-v8a`) for now. Add `armeabi-v7a` only if a real target emerge
 
 - **Distribution:** LGPL Qt, dynamically linked, open-source-licenses screen required in-app before Play Store submission.
 - **Play Store:** deferred to a dedicated later milestone after sideload is proven. Paid app (Qt for Small Business or ongoing LGPL compliance — decide closer to submission).
-- **Spotify:** **excluded from Android entirely** (both C++ and Python builds). Spotify is desktop-only.
+- **Spotify:** **excluded from Android entirely**. Spotify is desktop-only.
 - **Downloads (`yt-dlp`):** kept for sideload (`OCTAVE_ENABLE_DOWNLOADS=ON` default), stripped for Play Store (`OFF`) — YouTube downloads violate Play policy.
-- **OBD transport on Android:** QtBluetooth (`QBluetoothSocket` RFCOMM) first. Fall back to JNI bridge only if RFCOMM misbehaves with the NEXAS adapter.
+- **OBD transport on Android:** **BLE-first** (`QBluetoothDeviceDiscoveryAgent` restricted to `LowEnergyDiscoveryMethod` for scan; `QLowEnergyController` for connect). Manual MAC entry as a fallback for when the adapter is already known. Classic RFCOMM (`QBluetoothSocket`) only as a last-ditch fallback if a discovered device is explicitly tagged Classic. The QML UI in `frontend/settings/OBDSettingsPage.qml` (Android branch) is already wired for this — backend just needs the C++ implementation; the now-deleted `backend/android_obd_manager.py` is the reference for the API surface QML expects.
 - **CAMERA + RECORD_AUDIO permissions:** declared aspirationally in manifest (future reverse-camera / voice-command features). Review before Play Store submission — unused permissions trigger review friction.
 
 ## Android-minimum manager matrix

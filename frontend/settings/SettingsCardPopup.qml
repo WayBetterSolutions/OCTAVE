@@ -10,6 +10,9 @@ Rectangle {
 
     property string title: ""
     property var contentComponent: null
+    // Inner-content opacity — driven by the hero morph so header/body fade in
+    // as the popup expands out of the originating tile.
+    property real contentOpacity: 1.0
 
     signal backRequested()
 
@@ -25,6 +28,7 @@ Rectangle {
         anchors.rightMargin: App.Spacing.settingsContentMargin
         height: 1
         z: 1
+        opacity: popup.contentOpacity
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
         visible: App.EnvironmentTheme.active.contentHudLines
     }
@@ -37,6 +41,7 @@ Rectangle {
         anchors.rightMargin: App.Spacing.settingsContentMargin
         height: 1
         z: 1
+        opacity: popup.contentOpacity
         color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
         visible: App.EnvironmentTheme.active.contentHudLines
     }
@@ -44,6 +49,7 @@ Rectangle {
     // Header bar with back button — matches sidebar nav delegate sizing
     Item {
         id: header
+        opacity: popup.contentOpacity
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -103,6 +109,7 @@ Rectangle {
     // Content body — scrollable for tall cards
     Flickable {
         id: bodyFlick
+        opacity: popup.contentOpacity
         anchors {
             top: header.bottom
             left: parent.left

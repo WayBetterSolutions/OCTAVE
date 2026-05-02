@@ -316,14 +316,18 @@ Item {
             property bool useTileLayout: false
             property string detailCardId: ""
             property var detailTile: null
+            // Rect of the clicked tile in contentArea coordinates — drives
+            // the popup's zoom-from-tile transition.
+            property rect originRect: Qt.rect(0, 0, 0, 0)
 
-            function openTile(cardId) {
+            function openTile(cardId, rect) {
                 if (!contentLoader.item || typeof contentLoader.item.tileModel === "undefined")
                     return
                 var tm = contentLoader.item.tileModel
                 for (var i = 0; i < tm.length; i++) {
                     if (tm[i].cardId === cardId) {
                         detailTile = tm[i]
+                        if (rect) originRect = rect
                         detailCardId = cardId
                         return
                     }
@@ -450,31 +454,45 @@ Item {
                 visible: contentArea.useTileLayout
                 tileModel: contentArea.useTileLayout && contentLoader.item
                     ? contentLoader.item.tileModel : []
-                onTileSelected: function(cardId) { contentArea.openTile(cardId) }
+                hiddenCardId: contentArea.detailCardId
+                onTileSelected: function(cardId, rect) { contentArea.openTile(cardId, rect) }
             }
 
-            // ── Detail popup (slides in from the right, over the tile grid) ─────
+            // ── Detail popup (hero/morph: grows from the clicked tile's rect) ───
             SettingsCardPopup {
                 id: detailPopup
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: parent.width
                 z: 3
-                visible: contentArea.useTileLayout
+                visible: contentArea.useTileLayout && (openProgress > 0.001 || contentArea.detailCardId !== "")
                 title: contentArea.detailTile ? contentArea.detailTile.title : ""
                 contentComponent: contentArea.detailTile ? contentArea.detailTile.component : null
-                x: contentArea.detailCardId === "" ? width : 0
 
-                // Suppress slide animation on initial mount so the popup
-                // doesn't slide visibly off-screen at startup.
+                // 0.0 = collapsed onto the originating tile, 1.0 = filling
+                // the content area. Drives geometry + content fade together.
+                property real openProgress: contentArea.detailCardId === "" ? 0.0 : 1.0
+
+                // Geometry interpolates between the tile rect and the full pane.
+                x: contentArea.originRect.x * (1.0 - openProgress)
+                y: contentArea.originRect.y * (1.0 - openProgress)
+                width: contentArea.originRect.width
+                    + (parent.width - contentArea.originRect.width) * openProgress
+                height: contentArea.originRect.height
+                    + (parent.height - contentArea.originRect.height) * openProgress
+
+                // Header + body fade in during the second half of the morph,
+                // so we see the card grow first and the page contents resolve
+                // once there's enough room for them.
+                contentOpacity: Math.max(0.0, (openProgress - 0.45) / 0.55)
+
+                // Suppress animation on initial mount so the popup doesn't
+                // visibly animate at startup.
                 property bool _animEnabled: false
                 Component.onCompleted: Qt.callLater(function() { _animEnabled = true })
 
                 onBackRequested: contentArea.closeTile()
 
-                Behavior on x {
+                Behavior on openProgress {
                     enabled: detailPopup._animEnabled
-                    NumberAnimation { duration: 250; easing.type: Easing.OutQuad }
+                    NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
                 }
             }
         }

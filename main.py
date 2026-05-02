@@ -1,45 +1,17 @@
 import sys
 import os
 import platform
+import argparse
+import json
 from datetime import datetime
-
-# On Android, main.py may run from a temp dir — ensure the app directory is in sys.path
-for _candidate in [
-    os.environ.get('ANDROID_PRIVATE', ''),
-    os.environ.get('ANDROID_APP_PATH', ''),
-    '/data/user/0/org.octave.octave/files/app',
-    '/data/data/org.octave.octave/files/app',
-]:
-    if _candidate and os.path.isdir(os.path.join(_candidate, 'backend')):
-        if _candidate not in sys.path:
-            sys.path.insert(0, _candidate)
-        _sp = os.path.join(_candidate, '_python_bundle', 'site-packages')
-        if os.path.isdir(_sp) and _sp not in sys.path:
-            sys.path.insert(0, _sp)
-        os.chdir(_candidate)
-        break
-
-from backend.platform_config import IS_ANDROID
 
 # Force Qt Quick Controls to use Basic style (allows Slider customization)
 os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
-# Android: force landscape fullscreen
-if IS_ANDROID:
-    os.environ["QT_ANDROID_SCREEN_ORIENTATION"] = "landscape"
-
-# Parse command line arguments (not available on Android)
-if IS_ANDROID:
-    class _Args:
-        debug = False
-        profile = False
-    args = _Args()
-else:
-    import argparse
-    parser = argparse.ArgumentParser(description='OCTAVE Infotainment System')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
-    parser.add_argument('--profile', action='store_true', help='Enable performance monitor')
-    args, _ = parser.parse_known_args()
+parser = argparse.ArgumentParser(description='OCTAVE Infotainment System')
+parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+parser.add_argument('--profile', action='store_true', help='Enable performance monitor')
+args, _ = parser.parse_known_args()
 
 # Initialize logging FIRST (before other imports that might log)
 from backend.logging_config import setup_logging, get_logger
@@ -67,43 +39,13 @@ from backend.volume_utils import VolumeController
 from backend.dashboard_manager import DashboardManager
 from backend.settings_manager import get_app_data_dir
 
-# backend imports — platform-conditional (stubs on Android)
-if IS_ANDROID:
-    from backend.stubs import (
-        StubOBDManager,
-        StubBerryIMUManager,
-        StubGestureManager as GestureManager,
-        StubESP32VolumeManager as ESP32VolumeManager,
-        StubPhoneMirrorManager as PhoneMirrorManager,
-        StubAndroidAutoManager as AndroidAutoManager,
-        StubScrcpyCapture as ScrcpyCapture,
-        StubSpotifyManager as SpotifyManager,
-        StubEmbeddedDhuItem as EmbeddedDhuItem,
-        StubEmbeddedScrcpyItem as EmbeddedScrcpyItem,
-        StubScrcpyCaptureItem as ScrcpyCaptureItem,
-    )
-    # Use Android Bluetooth OBD instead of stub
-    try:
-        from backend.android_obd_manager import AndroidOBDManager as OBDManager
-        logger.info("Using Android Bluetooth OBD manager")
-    except Exception:
-        OBDManager = StubOBDManager
-        logger.info("Android OBD unavailable, using stub")
-    # Use Android device sensors instead of BerryIMU stub
-    try:
-        from backend.android_sensors import AndroidSensorManager as BerryIMUManager
-        logger.info("Using Android device sensors for IMU")
-    except Exception:
-        BerryIMUManager = StubBerryIMUManager
-        logger.info("Android sensors unavailable, using stub")
-else:
-    from backend.obd_manager import OBDManager
-    from backend.spotify_manager import SpotifyManager
-    from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
-    from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyCapture, ScrcpyCaptureItem
-    from backend.esp32_volume_manager import ESP32VolumeManager
-    from backend.berryimu_manager import BerryIMUManager
-    from backend.gesture_manager import GestureManager
+from backend.obd_manager import OBDManager
+from backend.spotify_manager import SpotifyManager
+from backend.android_auto import AndroidAutoManager, EmbeddedDhuItem
+from backend.phone_mirror import PhoneMirrorManager, EmbeddedScrcpyItem, ScrcpyCapture, ScrcpyCaptureItem
+from backend.esp32_volume_manager import ESP32VolumeManager
+from backend.berryimu_manager import BerryIMUManager
+from backend.gesture_manager import GestureManager
 
 app = QApplication(sys.argv)
 
@@ -130,17 +72,12 @@ qmlRegisterType(ScrcpyCaptureItem, "OCTAVE.PhoneMirror", 1, 0, "ScrcpyCaptureIte
 
 engine.addImportPath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend"))
 
-# Expose platform flag to QML
-engine.rootContext().setContextProperty("isAndroid", IS_ANDROID)
+# Expose platform flag to QML — always false on the Python (desktop) build.
+engine.rootContext().setContextProperty("isAndroid", False)
 
 # Settings Manager
 settings_manager = SettingsManager()
 engine.rootContext().setContextProperty("settingsManager", settings_manager)
-
-# Hide hardware-only settings sections on Android (OBD works via Bluetooth)
-if IS_ANDROID:
-    settings_manager.save_settings_section_visibility("phoneDockSettings", False)
-    settings_manager.save_settings_section_visibility("accessoriesSettings", False)
 
 # Clock
 clock = Clock(settings_manager)
@@ -155,9 +92,19 @@ engine.rootContext().setContextProperty("mediaManager", media_manager)
 audio_analyzer = AudioAnalyzer()
 engine.rootContext().setContextProperty("audioAnalyzer", audio_analyzer)
 
-# OBD Manager
-obd_manager = OBDManager(settings_manager)
-engine.rootContext().setContextProperty("obdManager", obd_manager)
+# OBD Manager — registered via install_obd_manager() so dev mode can swap in
+# a MockOBDManager before QML loads. Filled in either by the __main__ block
+# at the bottom of this file or by dev/dev_runtime.install_dev_runtime().
+obd_manager = None
+
+
+def install_obd_manager(manager):
+    """Register an OBD manager (real or mock) as the QML context property.
+    Must be called before load_main_qml()."""
+    global obd_manager
+    obd_manager = manager
+    engine.rootContext().setContextProperty("obdManager", manager)
+
 
 # Spotify Manager
 spotify_manager = SpotifyManager()
@@ -181,17 +128,16 @@ scrcpy_capture.setPhoneMirrorManager(phone_mirror_manager)  # Link to manager fo
 engine.rootContext().setContextProperty("scrcpyCapture", scrcpy_capture)
 engine.addImageProvider("scrcpyframe", scrcpy_capture.frame_provider)
 
-# Phone mirror settings (desktop only)
-if not IS_ANDROID:
-    saved_scrcpy_path = settings_manager.get_scrcpy_path()
-    if saved_scrcpy_path:
-        phone_mirror_manager.setScrcpyPath(saved_scrcpy_path)
-    phone_mirror_manager.setAudioEnabled(settings_manager.get_scrcpy_audio_enabled())
-    # Startup volume is applied to all outputs by VolumeController below,
-    # after every manager is constructed.
-    settings_manager.scrcpyAudioEnabledChanged.connect(
-        lambda enabled: phone_mirror_manager.setAudioEnabled(enabled)
-    )
+# Phone mirror settings
+saved_scrcpy_path = settings_manager.get_scrcpy_path()
+if saved_scrcpy_path:
+    phone_mirror_manager.setScrcpyPath(saved_scrcpy_path)
+phone_mirror_manager.setAudioEnabled(settings_manager.get_scrcpy_audio_enabled())
+# Startup volume is applied to all outputs by VolumeController below,
+# after every manager is constructed.
+settings_manager.scrcpyAudioEnabledChanged.connect(
+    lambda enabled: phone_mirror_manager.setAudioEnabled(enabled)
+)
 
 # ESP32 Volume Manager - wireless rotary encoder volume control
 esp32_volume_manager = ESP32VolumeManager()
@@ -206,8 +152,8 @@ volume_controller = VolumeController(
     settings_manager=settings_manager,
     media_manager=media_manager,
     spotify_manager=spotify_manager,
-    phone_mirror_manager=None if IS_ANDROID else phone_mirror_manager,
-    esp32_manager=None if IS_ANDROID else esp32_volume_manager,
+    phone_mirror_manager=phone_mirror_manager,
+    esp32_manager=esp32_volume_manager,
 )
 engine.rootContext().setContextProperty("volumeController", volume_controller)
 # Apply saved volume to every output at startup.
@@ -248,115 +194,113 @@ dashboard_manager.setPresetsDir(
 dashboard_manager.setUserDir(os.path.join(get_app_data_dir(), "dashboards"))
 engine.rootContext().setContextProperty("dashboardManager", dashboard_manager)
 
-# Hardware signal wiring (desktop only — gesture, ESP32, phone mirror)
-if not IS_ANDROID:
-    def handle_gesture_action(action):
-        if action == "next_track":
-            media_manager.next_track()
-        elif action == "previous_track":
-            media_manager.previous_track()
-        elif action == "play_pause":
-            media_manager.toggle_play()
-        elif action == "mute_toggle":
-            media_manager.toggle_mute()
-        elif action == "volume_up":
-            step = settings_manager.gestureVolumeStep
-            volume_controller.applyVolume(settings_manager.currentVolume + step)
-        elif action == "volume_down":
-            step = settings_manager.gestureVolumeStep
-            volume_controller.applyVolume(settings_manager.currentVolume - step)
-
-    gesture_manager.actionTriggered.connect(handle_gesture_action)
-
-    _volume_accumulator = 0.0
-
-    def handle_esp32_volume_change(delta):
-        global _volume_accumulator
-        _volume_accumulator += delta
-        if abs(_volume_accumulator) >= 1.0:
-            change = int(_volume_accumulator)
-            _volume_accumulator -= change
-            volume_controller.applyVolume(settings_manager.currentVolume + change)
-
-    def handle_esp32_mute_toggle():
+# Hardware signal wiring — gesture, ESP32, phone mirror
+def handle_gesture_action(action):
+    if action == "next_track":
+        media_manager.next_track()
+    elif action == "previous_track":
+        media_manager.previous_track()
+    elif action == "play_pause":
+        media_manager.toggle_play()
+    elif action == "mute_toggle":
         media_manager.toggle_mute()
-        esp32_volume_manager.send_mute_state(media_manager.is_muted())
+    elif action == "volume_up":
+        step = settings_manager.gestureVolumeStep
+        volume_controller.applyVolume(settings_manager.currentVolume + step)
+    elif action == "volume_down":
+        step = settings_manager.gestureVolumeStep
+        volume_controller.applyVolume(settings_manager.currentVolume - step)
 
-    esp32_volume_manager.volumeChangeRequested.connect(handle_esp32_volume_change)
-    esp32_volume_manager.muteToggleRequested.connect(handle_esp32_mute_toggle)
+gesture_manager.actionTriggered.connect(handle_gesture_action)
 
-    # ESP32 volume sync is handled by VolumeController.applyVolume() above —
-    # every volume change goes through it, so no separate listener needed.
+_volume_accumulator = 0.0
 
-    import json
+def handle_esp32_volume_change(delta):
+    global _volume_accumulator
+    _volume_accumulator += delta
+    if abs(_volume_accumulator) >= 1.0:
+        change = int(_volume_accumulator)
+        _volume_accumulator -= change
+        volume_controller.applyVolume(settings_manager.currentVolume + change)
 
-    def hex_to_rgb(hex_color):
-        hex_color = hex_color.lstrip('#')
-        r = int(hex_color[0:2], 16)
-        g = int(hex_color[2:4], 16)
-        b = int(hex_color[4:6], 16)
-        return r, g, b
+def handle_esp32_mute_toggle():
+    media_manager.toggle_mute()
+    esp32_volume_manager.send_mute_state(media_manager.is_muted())
 
-    def send_current_led_color():
-        color_mode = settings_manager.esp32LedColorMode
-        if color_mode == "static":
-            static_color = settings_manager.esp32LedStaticColor
+esp32_volume_manager.volumeChangeRequested.connect(handle_esp32_volume_change)
+esp32_volume_manager.muteToggleRequested.connect(handle_esp32_mute_toggle)
+
+# ESP32 volume sync is handled by VolumeController.applyVolume() above —
+# every volume change goes through it, so no separate listener needed.
+
+
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip('#')
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return r, g, b
+
+def send_current_led_color():
+    color_mode = settings_manager.esp32LedColorMode
+    if color_mode == "static":
+        static_color = settings_manager.esp32LedStaticColor
+        try:
+            r, g, b = hex_to_rgb(static_color)
+            esp32_volume_manager.send_theme_color(r, g, b)
+        except (ValueError, IndexError):
+            esp32_volume_manager.send_theme_color(0, 255, 255)
+    else:
+        colors_json = settings_manager.albumArtColors
+        if colors_json:
             try:
-                r, g, b = hex_to_rgb(static_color)
+                colors = json.loads(colors_json)
+                accent_hex = colors.get("accent", "#00FFFF")
+                r, g, b = hex_to_rgb(accent_hex)
                 esp32_volume_manager.send_theme_color(r, g, b)
-            except (ValueError, IndexError):
+            except (json.JSONDecodeError, ValueError, KeyError):
                 esp32_volume_manager.send_theme_color(0, 255, 255)
         else:
-            colors_json = settings_manager.albumArtColors
-            if colors_json:
-                try:
-                    colors = json.loads(colors_json)
-                    accent_hex = colors.get("accent", "#00FFFF")
-                    r, g, b = hex_to_rgb(accent_hex)
-                    esp32_volume_manager.send_theme_color(r, g, b)
-                except (json.JSONDecodeError, ValueError, KeyError):
-                    esp32_volume_manager.send_theme_color(0, 255, 255)
-            else:
-                esp32_volume_manager.send_theme_color(0, 255, 255)
+            esp32_volume_manager.send_theme_color(0, 255, 255)
 
-    def sync_theme_to_esp32(colors_json):
-        if settings_manager.esp32LedColorMode != "theme" or not colors_json:
-            return
+def sync_theme_to_esp32(colors_json):
+    if settings_manager.esp32LedColorMode != "theme" or not colors_json:
+        return
+    try:
+        colors = json.loads(colors_json)
+        accent_hex = colors.get("accent", "#00FFFF")
+        r, g, b = hex_to_rgb(accent_hex)
+        esp32_volume_manager.send_theme_color(r, g, b)
+    except (json.JSONDecodeError, ValueError, KeyError):
+        pass
+
+settings_manager.albumArtColorsChanged.connect(sync_theme_to_esp32)
+
+def on_static_color_changed(color):
+    if settings_manager.esp32LedColorMode == "static":
         try:
-            colors = json.loads(colors_json)
-            accent_hex = colors.get("accent", "#00FFFF")
-            r, g, b = hex_to_rgb(accent_hex)
+            r, g, b = hex_to_rgb(color)
             esp32_volume_manager.send_theme_color(r, g, b)
-        except (json.JSONDecodeError, ValueError, KeyError):
+        except (ValueError, IndexError):
             pass
 
-    settings_manager.albumArtColorsChanged.connect(sync_theme_to_esp32)
+settings_manager.esp32LedStaticColorChanged.connect(on_static_color_changed)
 
-    def on_static_color_changed(color):
-        if settings_manager.esp32LedColorMode == "static":
-            try:
-                r, g, b = hex_to_rgb(color)
-                esp32_volume_manager.send_theme_color(r, g, b)
-            except (ValueError, IndexError):
-                pass
+def on_color_mode_changed(mode):
+    send_current_led_color()
 
-    settings_manager.esp32LedStaticColorChanged.connect(on_static_color_changed)
+settings_manager.esp32LedColorModeChanged.connect(on_color_mode_changed)
 
-    def on_color_mode_changed(mode):
-        send_current_led_color()
+def on_esp32_connection_changed(status):
+    if status == "Connected":
+        from PySide6.QtCore import QTimer
+        def send_initial_state():
+            esp32_volume_manager.send_volume_update(settings_manager.currentVolume)
+            esp32_volume_manager.send_mute_state(media_manager.is_muted())
+            send_current_led_color()
+        QTimer.singleShot(500, send_initial_state)
 
-    settings_manager.esp32LedColorModeChanged.connect(on_color_mode_changed)
-
-    def on_esp32_connection_changed(status):
-        if status == "Connected":
-            from PySide6.QtCore import QTimer
-            def send_initial_state():
-                esp32_volume_manager.send_volume_update(settings_manager.currentVolume)
-                esp32_volume_manager.send_mute_state(media_manager.is_muted())
-                send_current_led_color()
-            QTimer.singleShot(500, send_initial_state)
-
-    esp32_volume_manager.connectionStatusChanged.connect(on_esp32_connection_changed)
+esp32_volume_manager.connectionStatusChanged.connect(on_esp32_connection_changed)
 
 # Add the cleanup connection after creating managers:
 def cleanup_on_quit():
@@ -374,16 +318,19 @@ def cleanup_on_quit():
 
 app.aboutToQuit.connect(cleanup_on_quit)
 
-# Update the path to Main.qml
-qml_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "Main.qml")
-engine.load(QUrl.fromLocalFile(qml_file))
 
-if not engine.rootObjects():
-    sys.exit(-1)
+def load_main_qml():
+    """Load frontend/Main.qml and return the root window. install_obd_manager()
+    must have been called first so the obdManager context property exists."""
+    qml_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "frontend", "Main.qml")
+    engine.load(QUrl.fromLocalFile(qml_file))
+    if not engine.rootObjects():
+        sys.exit(-1)
+    return engine.rootObjects()[0]
 
-# Performance monitor (--profile flag, desktop only)
-perf_monitor = None
-if not IS_ANDROID and args.profile:
+
+def setup_perf_profiling():
+    """Wire up perf monitor + command server. Called only when --profile is set."""
     from backend.perf_monitor import PerfMonitor
     perf_stamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     perf_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev", "perf", "logs")
@@ -435,4 +382,10 @@ if not IS_ANDROID and args.profile:
 
     app.aboutToQuit.connect(stop_perf_monitor)
 
-sys.exit(app.exec())
+
+if __name__ == "__main__":
+    install_obd_manager(OBDManager(settings_manager))
+    load_main_qml()
+    if args.profile:
+        setup_perf_profiling()
+    sys.exit(app.exec())

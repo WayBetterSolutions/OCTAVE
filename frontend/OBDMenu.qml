@@ -1127,7 +1127,7 @@ Item {
         property int colorTransitionSpeed: 100   // Color animation duration in ms (0 - 500)
         property bool pulseEnabled: false        // Enable pulse animation when active
 
-        // Flags list - each flag has: rpmLow, rpmHigh, color, flash, flashSpeed, fullScreenFlash, fullScreenFlashOpacity
+        // Flags list - each flag has: rpmLow, rpmHigh, color, flash, flashSpeed, fullScreenFlash, fullScreenFlashOpacity, auraFlash, auraFlashOpacity, auraSpread
         property var flags: []
 
         // Default colors for new flags
@@ -1183,7 +1183,10 @@ Item {
                 flash: false,
                 flashSpeed: 100,
                 fullScreenFlash: false,
-                fullScreenFlashOpacity: 0.5
+                fullScreenFlashOpacity: 0.5,
+                auraFlash: false,
+                auraFlashOpacity: 0.6,
+                auraSpread: 0.18
             }
             var newFlags = flags.slice()  // Create a copy
             newFlags.push(newFlag)
@@ -2633,6 +2636,317 @@ Item {
                                     height: width
                                     radius: width / 2
                                     color: flagOpacitySlider.pressed ? Qt.darker("white", 1.1) : "white"
+                                    border.color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
+                                    border.width: 2
+                                }
+                            }
+                        }
+
+                        // Aura overlay toggle for this flag (perimeter-only fade)
+                        Rectangle {
+                            width: parent.width
+                            height: dp(60)
+                            radius: App.Spacing.overallMargin * 0.5
+                            color: auraRowMouse.containsMouse ? Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3) : "transparent"
+
+                            MouseArea {
+                                id: auraRowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: {
+                                    var currentAura = flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.auraFlash : false
+                                    rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "auraFlash", !currentAura)
+                                }
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: App.Spacing.overallMargin
+                                anchors.rightMargin: App.Spacing.overallMargin
+                                spacing: App.Spacing.overallSpacing * 2
+
+                                Text {
+                                    text: "Aura overlay"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    Layout.fillWidth: true
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            var currentAura = flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.auraFlash : false
+                                            rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "auraFlash", !currentAura)
+                                        }
+                                    }
+                                }
+
+                                Item {
+                                    id: auraToggleItem
+                                    Layout.preferredWidth: dp(80)
+                                    Layout.preferredHeight: dp(40)
+
+                                    property bool isChecked: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraFlash
+
+                                    Rectangle {
+                                        id: auraTrack
+                                        anchors.fill: parent
+                                        radius: height / 2
+                                        color: auraToggleItem.isChecked ?
+                                            Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3) :
+                                            Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.3)
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: parent.radius
+                                            gradient: Gradient {
+                                                GradientStop { position: 0.0; color: "transparent" }
+                                                GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.05) }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: auraToggleItem.isChecked ? parent.width : 0
+                                            height: parent.height
+                                            radius: parent.radius
+                                            anchors.right: auraToggleItem.isChecked ? parent.right : undefined
+                                            anchors.left: !auraToggleItem.isChecked ? parent.left : undefined
+                                            color: App.Style.accent
+                                            opacity: auraToggleItem.isChecked ? 0.5 : 0
+
+                                            Behavior on width { NumberAnimation { duration: 300; easing.type: Easing.OutQuad } }
+                                            Behavior on opacity { NumberAnimation { duration: 300 } }
+                                        }
+
+                                        Text {
+                                            anchors {
+                                                left: auraToggleItem.isChecked ? undefined : parent.left
+                                                right: auraToggleItem.isChecked ? parent.right : undefined
+                                                margins: dp(10)
+                                                verticalCenter: parent.verticalCenter
+                                            }
+                                            text: auraToggleItem.isChecked ? "ON" : "OFF"
+                                            font.pixelSize: App.Spacing.overallText * 0.8
+                                            font.bold: true
+                                            font.family: obdPage.globalFont
+                                            color: auraToggleItem.isChecked ? App.Style.accent :
+                                                Qt.rgba(App.Style.hoverColor.r, App.Style.hoverColor.g, App.Style.hoverColor.b, 0.7)
+                                            visible: width < (parent.width - auraHandle.width - dp(10))
+
+                                            Behavior on color { ColorAnimation { duration: 200 } }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        id: auraHandle
+                                        width: dp(40)
+                                        height: dp(40)
+                                        radius: width / 2
+                                        x: auraToggleItem.isChecked ? parent.width - width : 0
+                                        y: 0
+                                        color: "white"
+
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: parent.width * 0.4
+                                            height: width
+                                            radius: width / 2
+                                            color: App.Style.accent
+                                            opacity: auraToggleItem.isChecked ? 1 : 0
+                                            scale: auraToggleItem.isChecked ? 1 : 0.5
+
+                                            Behavior on opacity { NumberAnimation { duration: 200 } }
+                                            Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                        }
+
+                                        layer.enabled: true
+                                        layer.effect: DropShadow {
+                                            verticalOffset: 2
+                                            radius: 6.0
+                                            samples: 17
+                                            color: Qt.rgba(0, 0, 0, 0.2)
+                                        }
+
+                                        scale: auraFlagToggleMouse.pressed ? 0.95 : 1.0
+
+                                        Behavior on x {
+                                            NumberAnimation {
+                                                duration: 300
+                                                easing.type: Easing.OutBack
+                                                easing.overshoot: 0.6
+                                            }
+                                        }
+                                        Behavior on scale { NumberAnimation { duration: 100 } }
+                                    }
+
+                                    MouseArea {
+                                        id: auraFlagToggleMouse
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "auraFlash", !auraToggleItem.isChecked)
+                                        }
+                                        onPressed: {
+                                            auraPulseAnimation.start()
+                                        }
+
+                                        SequentialAnimation {
+                                            id: auraPulseAnimation
+                                            PropertyAnimation {
+                                                target: auraHandle
+                                                property: "scale"
+                                                to: 0.9
+                                                duration: 100
+                                            }
+                                            PropertyAnimation {
+                                                target: auraHandle
+                                                property: "scale"
+                                                to: 1.0
+                                                duration: 100
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Aura opacity slider (only visible when aura overlay is enabled for this flag)
+                        Column {
+                            width: parent.width
+                            spacing: App.Spacing.overallSpacing * 0.5
+                            visible: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraFlash
+
+                            RowLayout {
+                                width: parent.width
+
+                                Text {
+                                    text: "Aura Opacity"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    Layout.fillWidth: true
+                                    leftPadding: App.Spacing.overallMargin
+                                }
+
+                                Text {
+                                    text: Math.round((flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraFlashOpacity !== undefined ? flagSettingsColumn.currentFlag.auraFlashOpacity : 0.6) * 100) + "%"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.bold: true
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    rightPadding: App.Spacing.overallMargin
+                                }
+                            }
+
+                            Slider {
+                                id: flagAuraOpacitySlider
+                                width: parent.width - App.Spacing.overallMargin * 2
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                implicitHeight: App.Spacing.overallSliderHeight * 2.5
+                                from: 0.1
+                                to: 1.0
+                                stepSize: 0.05
+                                value: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraFlashOpacity !== undefined ? flagSettingsColumn.currentFlag.auraFlashOpacity : 0.6
+                                onMoved: {
+                                    rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "auraFlashOpacity", value)
+                                }
+
+                                background: Rectangle {
+                                    x: flagAuraOpacitySlider.leftPadding
+                                    y: flagAuraOpacitySlider.topPadding + flagAuraOpacitySlider.availableHeight / 2 - height / 2
+                                    width: flagAuraOpacitySlider.availableWidth
+                                    height: App.Spacing.overallSliderHeight * 0.5
+                                    radius: height / 2
+                                    color: Qt.darker(App.Style.contentColor, 1.2)
+
+                                    Rectangle {
+                                        width: flagAuraOpacitySlider.visualPosition * parent.width
+                                        height: parent.height
+                                        radius: height / 2
+                                        color: {
+                                            var flagColor = flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
+                                            var opacityVal = flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraFlashOpacity !== undefined ? flagSettingsColumn.currentFlag.auraFlashOpacity : 0.6
+                                            return Qt.rgba(Qt.lighter(flagColor, 1).r, Qt.lighter(flagColor, 1).g, Qt.lighter(flagColor, 1).b, opacityVal)
+                                        }
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: flagAuraOpacitySlider.leftPadding + flagAuraOpacitySlider.visualPosition * (flagAuraOpacitySlider.availableWidth - width)
+                                    y: flagAuraOpacitySlider.topPadding + flagAuraOpacitySlider.availableHeight / 2 - height / 2
+                                    width: App.Spacing.overallSliderHeight * 1.5
+                                    height: width
+                                    radius: width / 2
+                                    color: flagAuraOpacitySlider.pressed ? Qt.darker("white", 1.1) : "white"
+                                    border.color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
+                                    border.width: 2
+                                }
+                            }
+                        }
+
+                        // Aura spread slider (only visible when aura overlay is enabled for this flag)
+                        Column {
+                            width: parent.width
+                            spacing: App.Spacing.overallSpacing * 0.5
+                            visible: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraFlash
+
+                            RowLayout {
+                                width: parent.width
+
+                                Text {
+                                    text: "Aura Spread"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    Layout.fillWidth: true
+                                    leftPadding: App.Spacing.overallMargin
+                                }
+
+                                Text {
+                                    text: Math.round((flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraSpread !== undefined ? flagSettingsColumn.currentFlag.auraSpread : 0.18) * 100) + "%"
+                                    font.pixelSize: App.Spacing.overallText * 1.1
+                                    font.bold: true
+                                    font.family: obdPage.globalFont
+                                    color: App.Style.primaryTextColor
+                                    rightPadding: App.Spacing.overallMargin
+                                }
+                            }
+
+                            Slider {
+                                id: flagAuraSpreadSlider
+                                width: parent.width - App.Spacing.overallMargin * 2
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                implicitHeight: App.Spacing.overallSliderHeight * 2.5
+                                from: 0.05
+                                to: 0.5
+                                stepSize: 0.01
+                                value: flagSettingsColumn.currentFlag && flagSettingsColumn.currentFlag.auraSpread !== undefined ? flagSettingsColumn.currentFlag.auraSpread : 0.18
+                                onMoved: {
+                                    rpmSettingsPopup.updateFlag(rpmSettingsPopup.selectedFlagIndex, "auraSpread", value)
+                                }
+
+                                background: Rectangle {
+                                    x: flagAuraSpreadSlider.leftPadding
+                                    y: flagAuraSpreadSlider.topPadding + flagAuraSpreadSlider.availableHeight / 2 - height / 2
+                                    width: flagAuraSpreadSlider.availableWidth
+                                    height: App.Spacing.overallSliderHeight * 0.5
+                                    radius: height / 2
+                                    color: Qt.darker(App.Style.contentColor, 1.2)
+
+                                    Rectangle {
+                                        width: flagAuraSpreadSlider.visualPosition * parent.width
+                                        height: parent.height
+                                        radius: height / 2
+                                        color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: flagAuraSpreadSlider.leftPadding + flagAuraSpreadSlider.visualPosition * (flagAuraSpreadSlider.availableWidth - width)
+                                    y: flagAuraSpreadSlider.topPadding + flagAuraSpreadSlider.availableHeight / 2 - height / 2
+                                    width: App.Spacing.overallSliderHeight * 1.5
+                                    height: width
+                                    radius: width / 2
+                                    color: flagAuraSpreadSlider.pressed ? Qt.darker("white", 1.1) : "white"
                                     border.color: flagSettingsColumn.currentFlag ? flagSettingsColumn.currentFlag.color : App.Style.accent
                                     border.width: 2
                                 }

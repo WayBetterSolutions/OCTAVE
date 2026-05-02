@@ -78,6 +78,7 @@ class SettingsManager : public QObject
 
     // --- OBD ---
     Q_PROPERTY(QString obdBluetoothPort READ obdBluetoothPort NOTIFY obdBluetoothPortChanged)
+    Q_PROPERTY(QString obdSavedAdapters READ obdSavedAdapters NOTIFY obdSavedAdaptersChanged)
     Q_PROPERTY(bool obdFastMode READ obdFastMode NOTIFY obdFastModeChanged)
     Q_PROPERTY(int obdAutoReconnectAttempts READ obdAutoReconnectAttempts NOTIFY obdAutoReconnectAttemptsChanged)
     Q_PROPERTY(float fuelTankCapacity READ fuelTankCapacity NOTIFY fuelTankCapacityChanged)
@@ -181,6 +182,7 @@ public:
 
     // OBD
     QString obdBluetoothPort() const;
+    QString obdSavedAdapters() const;
     bool obdFastMode() const;
     int obdAutoReconnectAttempts() const;
     float fuelTankCapacity() const;
@@ -279,6 +281,7 @@ signals:
 
     // OBD
     void obdBluetoothPortChanged(const QString &value);
+    void obdSavedAdaptersChanged(const QString &value);
     void obdFastModeChanged(bool value);
     void obdAutoReconnectAttemptsChanged(int value);
     void fuelTankCapacityChanged(float value);
@@ -391,6 +394,9 @@ public slots:
 
     // OBD
     void save_obd_bluetooth_port(const QString &port);
+    void save_obd_saved_adapters(const QString &json);
+    void add_obd_saved_adapter(const QString &name, const QString &mac);
+    void remove_obd_saved_adapter(const QString &mac);
     void save_obd_fast_mode(bool enabled);
     void save_obd_auto_reconnect_attempts(int attempts);
     void save_fuel_tank_capacity(float capacity);
@@ -565,6 +571,7 @@ private:
     int m_colorTransitionMs = 1000;
     bool m_songLengthTransition = false;
     QString m_obdBluetoothPort;
+    QString m_obdSavedAdapters = QStringLiteral("[]");
     bool m_obdFastMode = true;
     int m_obdAutoReconnectAttempts = 0;
     QString m_mediaFolder;

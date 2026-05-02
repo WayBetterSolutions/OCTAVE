@@ -14,7 +14,6 @@ from PySide6.QtCore import QObject
 
 
 BACKEND_MODULES = [
-    "backend.platform_config",
     "backend.logging_config",
     "backend.clock",
     "backend.settings_manager",
