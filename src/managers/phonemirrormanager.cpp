@@ -484,9 +484,12 @@ void PhoneMirrorManager::findScrcpyWindow()
     if (!m_process || m_process->state() == QProcess::NotRunning) {
         m_windowPollTimer.stop();
         m_isStarting = false;
-        const QString stderr = m_process ? QString::fromUtf8(m_process->readAllStandardError()) : QString();
-        qCDebug(lcPhoneMirror) << "scrcpy exited before window found:" << stderr.left(200);
-        emit scrcpyError(QStringLiteral("scrcpy failed: ") + stderr.left(100));
+        // Local intentionally not named `stderr`: <windows.h> defines stderr as
+        // a macro that expands to `(__acrt_iob_func(2))` (a FILE*), which collides
+        // with any variable of that name on MSVC.
+        const QString errOutput = m_process ? QString::fromUtf8(m_process->readAllStandardError()) : QString();
+        qCDebug(lcPhoneMirror) << "scrcpy exited before window found:" << errOutput.left(200);
+        emit scrcpyError(QStringLiteral("scrcpy failed: ") + errOutput.left(100));
         return;
     }
 

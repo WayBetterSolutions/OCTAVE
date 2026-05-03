@@ -127,6 +127,20 @@ set_target_properties(octave PROPERTIES
     QT_QML_IMPORT_PATH "${CMAKE_SOURCE_DIR}/frontend"
 )
 
+# ---- macOS bundle ----
+# qt_add_executable does not auto-set MACOSX_BUNDLE; without this, the macOS
+# build emits a plain `octave` ELF binary instead of `octave.app`, and
+# macdeployqt has nothing to bundle. iOS would also need this once enabled.
+if(APPLE)
+    set_target_properties(octave PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_BUNDLE_NAME "OCTAVE"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.waybettersolutions.octave"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+    )
+endif()
+
 # ---- Android packaging ----
 if(ANDROID)
     # androiddeployqt packages the app, bundles Qt .so's, generates the APK.

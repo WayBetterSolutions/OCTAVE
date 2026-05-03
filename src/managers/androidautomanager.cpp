@@ -22,6 +22,13 @@
 
 #include <QLoggingCategory>
 
+#ifdef Q_OS_WIN
+// QProcess::CreateProcessArguments::startupInfo is a STARTUPINFOW* — Qt
+// forward-declares the struct in qprocess.h, so accessing its members
+// requires the full definition from <windows.h>.
+#include <windows.h>
+#endif
+
 Q_LOGGING_CATEGORY(lcAndroidAuto, "octave.androidauto")
 
 // =====================================================================
