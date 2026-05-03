@@ -339,7 +339,7 @@ jobs:
           version: '6.7.3'
           host: 'linux'
           target: 'desktop'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat'
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat qtshadertools'
 
       - name: Install Qt 6 (Android arm64)
         uses: jurplel/install-qt-action@v4
@@ -348,7 +348,7 @@ jobs:
           host: 'linux'
           target: 'android'
           arch: 'android_arm64_v8a'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat'
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat qtshadertools'
 
       - name: Set up Android SDK + NDK
         uses: android-actions/setup-android@v3
