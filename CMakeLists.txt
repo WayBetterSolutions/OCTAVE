@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(OCTAVE VERSION 0.1.0 LANGUAGES CXX)
+project(OCTAVE VERSION 0.9.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -15,10 +15,16 @@ find_package(Qt6 REQUIRED COMPONENTS ${OCTAVE_QT_COMPONENTS})
 # separately-findable component. Linking it grants access to private headers
 # (QtAndroidPrivate::requestPermission on Android).
 
-# TagLib only available on desktop (no pkg-config on Android host; mobile uses Qt metadata fallback)
+# TagLib only available on desktop (no pkg-config on Android host; mobile uses Qt metadata fallback).
+# Windows: vcpkg ships taglib's CMake config — find_package is the supported path there.
+# Linux/macOS: pkg-config remains the easiest route (apt's libtag1-dev / Homebrew's taglib both ship .pc files).
 if(NOT ANDROID)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
+    if(WIN32)
+        find_package(taglib CONFIG REQUIRED)
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(TAGLIB REQUIRED IMPORTED_TARGET taglib)
+    endif()
 endif()
 
 # ---- Download feature flag ----
@@ -98,6 +104,8 @@ target_link_libraries(octave PRIVATE
 )
 if(ANDROID)
     target_link_libraries(octave PRIVATE Qt6::Sensors Qt6::CorePrivate)
+elseif(WIN32)
+    target_link_libraries(octave PRIVATE TagLib::tag)
 else()
     target_link_libraries(octave PRIVATE PkgConfig::TAGLIB)
 endif()
