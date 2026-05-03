@@ -118,13 +118,30 @@ jobs:
           # Copy taglib runtime DLL alongside the .exe (vcpkg dynamic build).
           cp "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/bin/tag.dll dist/OCTAVE/ 2>/dev/null || true
           windeployqt --qmldir frontend --release dist/OCTAVE/octave.exe
+          # Inno Setup expects the binary at OCTAVE.exe (capitalized) per the .iss.
+          mv dist/OCTAVE/octave.exe dist/OCTAVE/OCTAVE.exe
 
-      - name: Upload Windows .exe
+      - name: Build Windows installer (Inno Setup)
+        shell: pwsh
+        run: |
+          # Inno Setup 6 ships pre-installed on windows-latest runners as iscc.exe.
+          # Patch the .iss version to match the git tag (or 0.9.0 fallback for dispatches).
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          if ([string]::IsNullOrEmpty($version)) { $version = '0.9.0' }
+          (Get-Content build_scripts/installer_windows.iss) `
+            -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`"" |
+            Set-Content build_scripts/installer_windows.iss
+          # Compile from build_scripts/ so the relative paths in the .iss resolve.
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" build_scripts\installer_windows.iss
+          Get-ChildItem dist\
+
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: OCTAVE-Windows-cpp
-          path: dist/OCTAVE/
+          path: dist/OCTAVE_Setup_*.exe
           retention-days: 30
+          if-no-files-found: error
 
   cpp-build-macos:
     needs: [lint, test]
@@ -502,22 +519,16 @@ jobs:
         with:
           path: artifacts/
 
-      - name: Prepare release files
-        run: |
-          cd artifacts
-          cd OCTAVE-Windows-cpp && zip -r ../OCTAVE-Windows.zip . && cd ..
-          cd OCTAVE-macOS-cpp-App && zip -r ../OCTAVE-macOS-App.zip . && cd ..
-          cd OCTAVE-Linux-cpp && zip -r ../OCTAVE-Linux.zip . && cd ..
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          # Four installers, one per platform. AppImage and the Linux portable
+          # zip and the macOS .app.zip are produced by the build jobs as
+          # workflow artifacts (downloadable from the run page) but are not
+          # attached to the public Release — keeps the Releases page tidy.
           files: |
-            artifacts/OCTAVE-Windows.zip
-            artifacts/OCTAVE-macOS-App.zip
+            artifacts/OCTAVE-Windows-cpp/OCTAVE_Setup_*.exe
             artifacts/OCTAVE-macOS-cpp-DMG/OCTAVE.dmg
-            artifacts/OCTAVE-Linux.zip
-            artifacts/OCTAVE-Linux-cpp-AppImage/OCTAVE-x86_64-cpp.AppImage
             artifacts/OCTAVE-Linux-cpp-deb/octave_*_amd64.deb
             artifacts/OCTAVE-Android-APK/OCTAVE-*-arm64-v8a.apk
           generate_release_notes: true
