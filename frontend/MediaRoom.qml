@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Controls.Basic 2.15
 import QtQuick.Layouts 1.15
 import Qt5Compat.GraphicalEffects
+import QtQuick.Effects
 import "." as App
 
 Item {
@@ -253,11 +254,10 @@ Item {
                 // multi-pass re-render when grid images change source mid-transition
                 layer.enabled: true
                 layer.live: !mediaRoom._cardAnimBusy
-                layer.effect: GaussianBlur {
-                    radius: settingsManager ? settingsManager.backgroundBlurRadius : 40
-                    samples: Math.min(32, Math.max(1, radius))
-                    deviation: radius / 2.5
-                    transparentBorder: false
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blurMax: 64
+                    blur: settingsManager ? Math.min(1.0, settingsManager.backgroundBlurRadius / 64) : 0.625
                 }
 
                 Repeater {
