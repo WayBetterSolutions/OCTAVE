@@ -46,6 +46,7 @@ public class OctaveMediaBridge {
     private static volatile boolean ytInitialized = false;
     private static volatile boolean ffInitialized = false;
     private static volatile boolean ytmusicapiReady = false;
+    private static volatile boolean ytUpdateAttempted = false;
     private static volatile String initError = null;
 
     // Single-slot progress state
@@ -80,6 +81,29 @@ public class OctaveMediaBridge {
             }
             // Opportunistic — non-fatal if it fails, search will fall back to yt-dlp.
             ensureYtmusicapi(ctx);
+            // Best-effort yt-dlp self-update on a background thread. The
+            // youtubedl-android AAR bundles a snapshot of yt-dlp from when
+            // the AAR was published; YouTube's bot detection rotates faster
+            // than that, so without this update most downloads fail with
+            // "Sign in to confirm you're not a bot." The NIGHTLY channel has
+            // the most current YouTube extractor patches.
+            if (!ytUpdateAttempted) {
+                ytUpdateAttempted = true;
+                final Context appCtx = ctx.getApplicationContext();
+                new Thread(() -> {
+                    // youtubedl-android 0.18.1's built-in updater (updateYoutubeDL)
+                    // is permanently broken on Android: it depends on
+                    // commons-io's Java7Support whose static initializer NPEs
+                    // on Android because getClassLoader() returns null in this
+                    // context. We bypass it entirely and download the yt-dlp
+                    // zipapp directly from yt-dlp/yt-dlp's GitHub release page,
+                    // overwriting the AAR-bundled binary in place. The AAR's
+                    // execute() reads from this same path on every call, so
+                    // the next download attempt picks up the new version.
+                    boolean updated = directDownloadYtDlp(appCtx);
+                    Log.i(TAG, "yt-dlp self-update finished (updated=" + updated + ")");
+                }, "ytdlp-updater").start();
+            }
             initError = null;
             return true;
         } catch (YoutubeDLException e) {
@@ -94,6 +118,88 @@ public class OctaveMediaBridge {
     }
 
     public static String lastInitError() { return initError == null ? "" : initError; }
+
+    /**
+     * Direct yt-dlp downloader -- bypasses youtubedl-android's broken updater.
+     *
+     * The AAR stores its yt-dlp zipapp at
+     *     {noBackupFilesDir}/youtubedl-android/yt-dlp/yt-dlp
+     * and the library's execute() invokes that same path on every call. So if
+     * we overwrite that file with a fresher zipapp from the yt-dlp project's
+     * GitHub release page, all future execute() calls use the new version.
+     *
+     * Best-effort, non-fatal: any failure (no network, GitHub down, etc.)
+     * leaves the AAR-bundled fallback in place.
+     */
+    private static boolean directDownloadYtDlp(Context ctx) {
+        // yt-dlp/yt-dlp ships a self-contained zipapp called "yt-dlp" on every
+        // release; /releases/latest/download/ always 302's to the current
+        // release's binary, so we never need to resolve a version tag.
+        final String url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+        File targetDir = new File(ctx.getNoBackupFilesDir(), "youtubedl-android/yt-dlp");
+        File target = new File(targetDir, "yt-dlp");
+        if (!targetDir.exists() && !targetDir.mkdirs()) {
+            Log.w(TAG, "yt-dlp updater: cannot create " + targetDir);
+            return false;
+        }
+        File tmp = new File(targetDir, "yt-dlp.new");
+        HttpURLConnection conn = null;
+        try {
+            URL u = new URL(url);
+            conn = (HttpURLConnection) u.openConnection();
+            conn.setInstanceFollowRedirects(true);
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(60000);
+            int code = conn.getResponseCode();
+            if (code / 100 != 2) {
+                Log.w(TAG, "yt-dlp updater: HTTP " + code + " from " + url);
+                return false;
+            }
+            try (InputStream in = conn.getInputStream();
+                 FileOutputStream out = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[64 * 1024];
+                int n;
+                long total = 0;
+                while ((n = in.read(buf)) > 0) {
+                    out.write(buf, 0, n);
+                    total += n;
+                }
+                Log.i(TAG, "yt-dlp updater: downloaded " + total + " bytes");
+                if (total < 100_000) {
+                    Log.w(TAG, "yt-dlp updater: download too small, aborting");
+                    return false;
+                }
+            }
+            // Sanity check: zipapps start with "#!" shebang.
+            try (java.io.FileInputStream fis = new java.io.FileInputStream(tmp)) {
+                int b1 = fis.read();
+                int b2 = fis.read();
+                if (b1 != '#' || b2 != '!') {
+                    Log.w(TAG, "yt-dlp updater: download is not a zipapp (no shebang)");
+                    return false;
+                }
+            }
+            // Atomic-ish replace.
+            if (target.exists() && !target.delete()) {
+                Log.w(TAG, "yt-dlp updater: cannot delete existing " + target);
+                return false;
+            }
+            if (!tmp.renameTo(target)) {
+                Log.w(TAG, "yt-dlp updater: rename failed");
+                return false;
+            }
+            target.setExecutable(true, false);
+            Log.i(TAG, "yt-dlp updater: replaced " + target + " (" + target.length() + " bytes)");
+            return true;
+        } catch (Throwable t) {
+            Log.w(TAG, "yt-dlp updater threw " + t.getClass().getSimpleName()
+                + ": " + t.getMessage(), t);
+            return false;
+        } finally {
+            if (conn != null) conn.disconnect();
+            if (tmp.exists()) tmp.delete();
+        }
+    }
 
     /**
      * Run yt-dlp with the given args. Blocks until done. Returns combined
