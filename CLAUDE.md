@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OCTAVE (Open-source Cross-platform Telematics for Augmented Vehicle Experience) is a **C++ / Qt 6 / QML** infotainment system designed for vehicles. It runs on Windows, macOS, Linux, Raspberry Pi, iOS, and Android.
 
-### Backend state: C++ and Python are both first-class on desktop; only C++ ships to mobile
+### Backend state: C++ is the only shipped binary; Python is a developer/tinkerer backend
 
-OCTAVE intentionally maintains **two parallel backends** — C++ / Qt 6 (`src/`) and Python / PySide6 (`backend/`, `main.py`) — that expose the same API surface to the shared QML frontend (`frontend/`). This is deliberate: Python stays alive for tinkering, accessibility, rapid prototyping, and hardware hacking on Raspberry Pi / single-board setups where a Python REPL is invaluable; C++ stays primary for performance-critical paths, app-store distribution, and mobile targets.
+OCTAVE intentionally maintains **two parallel backends** — C++ / Qt 6 (`src/`) and Python / PySide6 (`backend/`, `main.py`) — that expose the same API surface to the shared QML frontend (`frontend/`). This is deliberate: Python stays alive for tinkering, accessibility, rapid prototyping, and hardware hacking on Raspberry Pi / single-board setups where a Python REPL is invaluable; C++ is the **sole distribution path** — every shipped binary on every platform (Windows `.exe`, macOS `.dmg`, Linux AppImage / `.deb`, Android `.apk`, iOS `.ipa` once enabled) is built from the C++ tree. Python is not compiled or packaged by CI; tinkerers run it via `python setup.py` or `python main.py` from a checkout.
 
 **Mobile (Android/iOS) is C++-only.** The Python backend is desktop-only (Linux / Windows / macOS / Raspberry Pi). Python-on-Android via buildozer/p4a has been removed — do not reintroduce `backend/platform_config.py`, `backend/stubs.py`, `backend/android_obd_manager.py`, `backend/android_sensors.py`, `deployment/buildozer.spec`, or `requirements-android.txt`. Mobile-specific code lives behind `#ifdef Q_OS_ANDROID` / `#ifdef Q_OS_IOS` in C++ and does **not** need a Python mirror.
 
@@ -196,9 +196,9 @@ Rotating log files in `logs/` subdirectory of the config path:
 
 **C++:** CMake + Qt 6 produces native executables per platform (see `BUILD.md`). App store builds use the `OCTAVE_ENABLE_DOWNLOADS=OFF` CMake option to strip out yt-dlp.
 
-**Python:** PyInstaller creates standalone desktop executables from the Python tree. Still actively supported on desktop only — used for Raspberry Pi deploys, rapid iteration, and anywhere a Python REPL beats recompiling. Python is **not** packaged for Android or iOS; mobile builds always go through the C++ / Qt for Mobile pipeline.
+**Python:** PyInstaller is **no longer part of the official build pipeline** — Python is a developer-only backend. You can still run `python build_scripts/build.py` locally if you want a personal Python-side desktop binary for tinkering on a Pi, but no PyInstaller artifacts are produced by CI or attached to releases. Mobile (Android `.apk` / iOS `.ipa`) always goes through the C++ / Qt for Mobile pipeline.
 
-GitHub Actions (`.github/workflows/build.yml`) runs `lint` (ruff, Python only) and `test` (headless pytest smoke suite) on every push and PR to `main`, and builds for Windows, macOS, and Linux on version tags (`v*`) or manual dispatch, producing platform-specific installers (Inno Setup, DMG, AppImage). Build jobs depend on lint + test passing. CI migration to CMake-native builds is ongoing.
+GitHub Actions (`.github/workflows/build.yml`) runs `lint` (ruff, Python only — keeps the dev backend honest) and `test` (headless pytest smoke suite) on every push and PR to `main`. On version tags (`v*`) or manual dispatch, the C++ matrix runs (`cpp-build-windows`, `cpp-build-macos`, `cpp-build-linux`, `cpp-build-android`) and the `release` job attaches every produced artifact (`.exe` zip, `.app` zip, `.dmg`, AppImage, `.deb`, `.apk`) to a single GitHub Release. Build jobs depend on lint + test passing.
 
 ## Key Conventions
 

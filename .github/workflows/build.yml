@@ -68,196 +68,6 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: pytest tests/ -v
 
-  build-windows:
-    needs: [lint, test]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Download scrcpy
-        run: python scripts/download_scrcpy.py
-
-      - name: Build with PyInstaller
-        run: python -m PyInstaller build_scripts/octave.spec --noconfirm
-
-      - name: Upload Windows build
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Windows
-          path: dist/OCTAVE/
-          retention-days: 30
-
-  build-macos:
-    needs: [lint, test]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: macos-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Download scrcpy
-        run: |
-          # Install scrcpy via Homebrew and copy to tools directory
-          brew install scrcpy
-          mkdir -p tools/scrcpy
-          cp $(which scrcpy) tools/scrcpy/
-          cp $(which adb) tools/scrcpy/
-
-      - name: Build with PyInstaller
-        run: python -m PyInstaller build_scripts/octave.spec --noconfirm
-
-      - name: Create DMG
-        run: |
-          # Create DMG directory
-          mkdir -p dist/dmg
-          cp -R dist/OCTAVE.app dist/dmg/
-          ln -s /Applications dist/dmg/Applications
-
-          # Create DMG
-          hdiutil create -volname "OCTAVE" -srcfolder dist/dmg -ov -format UDZO dist/OCTAVE.dmg
-
-      - name: Upload macOS App
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-macOS-App
-          path: dist/OCTAVE.app/
-          retention-days: 30
-
-      - name: Upload macOS DMG
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-macOS-DMG
-          path: dist/OCTAVE.dmg
-          retention-days: 30
-
-  build-linux:
-    needs: [lint, test]
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libxcb-xinerama0 \
-            libxcb-cursor0 \
-            libxkbcommon0 \
-            libgl1-mesa-glx \
-            libegl1 \
-            libfuse2
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Download scrcpy
-        run: python scripts/download_scrcpy.py
-
-      - name: Build with PyInstaller
-        run: python -m PyInstaller build_scripts/octave.spec --noconfirm
-
-      - name: Create AppImage
-        run: |
-          # Download appimagetool
-          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-
-          # Create AppDir structure
-          mkdir -p OCTAVE.AppDir/usr/bin
-          mkdir -p OCTAVE.AppDir/usr/share/applications
-          mkdir -p OCTAVE.AppDir/usr/share/icons/hicolor/256x256/apps
-
-          # Copy application
-          cp -r dist/OCTAVE/* OCTAVE.AppDir/usr/bin/
-
-          # Create desktop entry
-          cat > OCTAVE.AppDir/octave.desktop << 'EOF'
-          [Desktop Entry]
-          Type=Application
-          Name=OCTAVE
-          Comment=Open-source Cross-platform Telematics for Augmented Vehicle Experience
-          Exec=octave
-          Icon=octave
-          Categories=AudioVideo;Audio;Player;
-          Terminal=false
-          EOF
-          sed -i 's/^          //' OCTAVE.AppDir/octave.desktop
-
-          cp OCTAVE.AppDir/octave.desktop OCTAVE.AppDir/usr/share/applications/
-
-          # Create AppRun
-          cat > OCTAVE.AppDir/AppRun << 'APPRUN'
-          #!/bin/bash
-          SELF=$(readlink -f "$0")
-          HERE=${SELF%/*}
-          export PATH="${HERE}/usr/bin/:${PATH}"
-          export LD_LIBRARY_PATH="${HERE}/usr/bin/:${LD_LIBRARY_PATH}"
-          export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/bin/PySide6/Qt/plugins/platforms"
-          export QML2_IMPORT_PATH="${HERE}/usr/bin/PySide6/Qt/qml"
-          exec "${HERE}/usr/bin/octave" "$@"
-          APPRUN
-          sed -i 's/^          //' OCTAVE.AppDir/AppRun
-          chmod +x OCTAVE.AppDir/AppRun
-
-          # Create placeholder icon (SVG)
-          cat > OCTAVE.AppDir/octave.svg << 'EOF'
-          <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
-            <rect width="256" height="256" fill="#2196F3" rx="32"/>
-            <text x="128" y="160" text-anchor="middle" font-family="sans-serif" font-size="120" font-weight="bold" fill="white">O</text>
-          </svg>
-          EOF
-
-          # Build AppImage
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage OCTAVE.AppDir dist/OCTAVE-x86_64.AppImage
-
-      - name: Upload Linux build
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Linux
-          path: dist/OCTAVE/
-          retention-days: 30
-
-      - name: Upload Linux AppImage
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Linux-AppImage
-          path: dist/OCTAVE-x86_64.AppImage
-          retention-days: 30
-
   # ---------------------------------------------------------------------------
   # C++ / CMake / Qt 6 builds (primary distribution path)
   # ---------------------------------------------------------------------------
@@ -584,14 +394,13 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Release: bundle every artifact (Python + C++) into a single GitHub Release
+  # Release: bundle the C++ artifacts into a single GitHub Release.
+  # The Python tree is a developer/tinkerer backend (run via setup.py / main.py)
+  # and is not packaged for end-user distribution — only C++ ships.
   # ---------------------------------------------------------------------------
 
   release:
     needs:
-      - build-windows
-      - build-macos
-      - build-linux
       - cpp-build-windows
       - cpp-build-macos
       - cpp-build-linux
@@ -610,30 +419,18 @@ jobs:
       - name: Prepare release files
         run: |
           cd artifacts
-
-          # Python builds
-          cd OCTAVE-Windows && zip -r ../OCTAVE-Windows-python.zip . && cd ..
-          cd OCTAVE-macOS-App && zip -r ../OCTAVE-macOS-python-App.zip . && cd ..
-          cd OCTAVE-Linux && zip -r ../OCTAVE-Linux-python.zip . && cd ..
-
-          # C++ builds
-          cd OCTAVE-Windows-cpp && zip -r ../OCTAVE-Windows-cpp.zip . && cd ..
-          cd OCTAVE-macOS-cpp-App && zip -r ../OCTAVE-macOS-cpp-App.zip . && cd ..
-          cd OCTAVE-Linux-cpp && zip -r ../OCTAVE-Linux-cpp.zip . && cd ..
+          cd OCTAVE-Windows-cpp && zip -r ../OCTAVE-Windows.zip . && cd ..
+          cd OCTAVE-macOS-cpp-App && zip -r ../OCTAVE-macOS-App.zip . && cd ..
+          cd OCTAVE-Linux-cpp && zip -r ../OCTAVE-Linux.zip . && cd ..
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/OCTAVE-Windows-python.zip
-            artifacts/OCTAVE-macOS-python-App.zip
-            artifacts/OCTAVE-macOS-DMG/OCTAVE.dmg
-            artifacts/OCTAVE-Linux-python.zip
-            artifacts/OCTAVE-Linux-AppImage/OCTAVE-x86_64.AppImage
-            artifacts/OCTAVE-Windows-cpp.zip
-            artifacts/OCTAVE-macOS-cpp-App.zip
+            artifacts/OCTAVE-Windows.zip
+            artifacts/OCTAVE-macOS-App.zip
             artifacts/OCTAVE-macOS-cpp-DMG/OCTAVE.dmg
-            artifacts/OCTAVE-Linux-cpp.zip
+            artifacts/OCTAVE-Linux.zip
             artifacts/OCTAVE-Linux-cpp-AppImage/OCTAVE-x86_64-cpp.AppImage
             artifacts/OCTAVE-Linux-cpp-deb/octave_*_amd64.deb
             artifacts/OCTAVE-Android-APK/**/*.apk
