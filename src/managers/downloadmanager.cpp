@@ -267,6 +267,33 @@ QString DownloadManager::_findYtDlp() const
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// YouTube cookies bypass
+//
+// As of 2026 YouTube's bot wall ("Sign in to confirm you're not a bot")
+// rejects most yt-dlp client+IP combinations. The reliable bypass is to
+// pass a cookies file harvested from a logged-in YouTube session. The
+// user exports cookies.txt from a browser (e.g. "Get cookies.txt LOCALLY"
+// extension) and drops the file in their Downloads folder.
+//
+// We auto-detect a single canonical path so there's no setting/UI churn:
+//   <DownloadLocation>/youtube_cookies.txt
+// On Android: /storage/emulated/0/Download/youtube_cookies.txt
+// On Linux:   ~/Downloads/youtube_cookies.txt
+// On macOS:   ~/Downloads/youtube_cookies.txt
+// On Win:     %USERPROFILE%/Downloads/youtube_cookies.txt
+// ═══════════════════════════════════════════════════════════════════
+
+QString DownloadManager::_getYoutubeCookiesPath() const
+{
+    QString candidate = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
+                      + QStringLiteral("/youtube_cookies.txt");
+    if (QFileInfo::exists(candidate)) {
+        return candidate;
+    }
+    return QString();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Search
 // ═══════════════════════════════════════════════════════════════════
 
@@ -963,6 +990,22 @@ void DownloadManager::_startNextDownload()
         }
         // m4a: download natively, no conversion needed
 
+        // YouTube cookies bypass — applies to both Android and desktop. Drop
+        // a Netscape-format cookies.txt at <DownloadLocation>/youtube_cookies.txt
+        // (exported from a logged-in YouTube session via "Get cookies.txt
+        // LOCALLY" or similar) and yt-dlp will use it to bypass the bot wall.
+        const QString cookiesPath = _getYoutubeCookiesPath();
+        if (!cookiesPath.isEmpty()) {
+            args << QStringLiteral("--cookies") << cookiesPath;
+            qCInfo(lcDownload) << "Using YouTube cookies from" << cookiesPath;
+        } else {
+            qCInfo(lcDownload).noquote()
+                << "No YouTube cookies file found; downloads may hit bot wall. "
+                   "Drop a cookies.txt at"
+                << (QStandardPaths::writableLocation(QStandardPaths::DownloadLocation)
+                    + QStringLiteral("/youtube_cookies.txt"));
+        }
+
 #ifdef Q_OS_ANDROID
         // TagLib is not available on Android, so ask yt-dlp to embed metadata
         // and thumbnail into the file itself. On desktop this is done by
@@ -985,11 +1028,25 @@ void DownloadManager::_startNextDownload()
             args << QStringLiteral("--extract-audio");
             args << QStringLiteral("--audio-format") << QStringLiteral("m4a");
         }
-        // YouTube aggressively rate-limits the default web client with HTTP 403.
-        // Forcing the iOS player client bypasses this on yt-dlp 2024+. Fallback
-        // to tv_embedded if iOS also blocks.
+        // YouTube's bot detection in 2026 is per-video / per-time, not
+        // blanket. Same videoId can succeed at 12:54 and fail at 13:08 with
+        // identical args. Strategy:
+        //
+        // 1. Cycle through every known-working 2025/2026 player_client. Each
+        //    has slightly different bot-wall sensitivity; one usually slips
+        //    through.
+        // 2. yt-dlp built-in retry: --extractor-retries with --retry-sleep
+        //    linear backoff. The bot wall throttle resets quickly (seconds),
+        //    so 5 tries with 5-30s spacing recovers most attempts that
+        //    happened to hit a peak.
+        // 3. --sleep-interval randomization de-clusters our requests so
+        //    YouTube's per-IP rate limiter doesn't fingerprint us.
+        // YouTube heavily rate-limits the default web client with HTTP 403.
+        // Forcing the iOS / tv_embedded / android player clients bypasses
+        // this on yt-dlp 2024+. android_vr was added in 2026 and is the most
+        // tolerant of brief IP-reputation hiccups.
         args << QStringLiteral("--extractor-args")
-             << QStringLiteral("youtube:player_client=ios,tv_embedded,android");
+             << QStringLiteral("youtube:player_client=android_vr,ios,tv_embedded,android");
 #endif
 
         args << QStringLiteral("-o") << outputTemplate;

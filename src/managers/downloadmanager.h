@@ -135,6 +135,12 @@ private:
     QString _getDownloadFormat() const;
     QString _getDownloadBitrate() const;
     QString _findYtDlp() const;
+    // Returns the absolute path to a Netscape-format cookies file if one is
+    // present at <DownloadLocation>/youtube_cookies.txt; empty otherwise.
+    // Used to bypass YouTube's "Sign in to confirm you're not a bot" wall by
+    // passing --cookies to yt-dlp. The user exports the file via a browser
+    // extension (e.g. "Get cookies.txt LOCALLY") and drops it in Downloads.
+    QString _getYoutubeCookiesPath() const;
     QJsonArray _parseSearchOutput(const QByteArray &rawOutput);
     void _markDownloaded(QJsonArray &results);
     QMap<QString, QString> _getDownloadedFiles() const;

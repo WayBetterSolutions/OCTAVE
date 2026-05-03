@@ -13,7 +13,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QObject, QTimer, Signal, Slot, Property
+from PySide6.QtCore import QObject, QStandardPaths, QTimer, Signal, Slot, Property
 
 from backend.logging_config import get_logger
 
@@ -122,6 +122,25 @@ class DownloadManager(QObject):
             return "auto"
         return self._settings_manager.get_setting("downloadBitrate", "auto")
 
+    def _youtube_cookies_default_path(self) -> str:
+        """Canonical location for the user's exported YouTube cookies file."""
+        return os.path.join(
+            QStandardPaths.writableLocation(QStandardPaths.DownloadLocation),
+            "youtube_cookies.txt",
+        )
+
+    def _get_youtube_cookies_path(self) -> Optional[str]:
+        """Return the absolute path to youtube_cookies.txt if present, else None.
+
+        Mirrors C++ DownloadManager::_getYoutubeCookiesPath. The user exports
+        cookies.txt from a logged-in YouTube session via a browser extension
+        (e.g. 'Get cookies.txt LOCALLY') and drops it in their Downloads
+        folder; yt-dlp uses it via --cookies / cookiefile to bypass the 2026
+        'Sign in to confirm you're not a bot' wall.
+        """
+        candidate = self._youtube_cookies_default_path()
+        return candidate if os.path.exists(candidate) else None
+
     def _ensure_music_dl(self) -> bool:
         """
         Lazily initialize the music_dl engine.
@@ -146,18 +165,35 @@ class DownloadManager(QObject):
             dl_format = self._get_download_format()
             bitrate = self._get_download_bitrate()
 
+            # YouTube cookies bypass — mirrors C++ DownloadManager. Drop a
+            # Netscape cookies.txt at <DownloadLocation>/youtube_cookies.txt
+            # exported from a logged-in YouTube session and the downloader
+            # will pass it to yt-dlp via cookiefile.
+            cookies_path = self._get_youtube_cookies_path()
+
+            downloader_settings = {
+                "output": os.path.join(download_path, "{artists} - {title}.{output-ext}"),
+                "format": dl_format,
+                "bitrate": bitrate,
+                "threads": 2,
+                "overwrite": "skip",
+                "_progress_callback": self._on_download_progress,
+            }
+            if cookies_path:
+                downloader_settings["cookie_file"] = cookies_path
+                logger.info("Using YouTube cookies from %s", cookies_path)
+            else:
+                logger.info(
+                    "No YouTube cookies file found; downloads may hit bot wall. "
+                    "Drop a cookies.txt at %s",
+                    self._youtube_cookies_default_path(),
+                )
+
             self._music_dl = MusicDL(
                 client_id=client_id,
                 client_secret=client_secret,
                 headless=True,
-                downloader_settings={
-                    "output": os.path.join(download_path, "{artists} - {title}.{output-ext}"),
-                    "format": dl_format,
-                    "bitrate": bitrate,
-                    "threads": 2,
-                    "overwrite": "skip",
-                    "_progress_callback": self._on_download_progress,
-                },
+                downloader_settings=downloader_settings,
             )
             has_spotify = "with" if self._music_dl.has_spotify else "without"
             logger.info("MusicDL engine initialized %s Spotify (format=%s, path=%s)", has_spotify, dl_format, download_path)

@@ -111,6 +111,25 @@ cmake --build build -j
 
 Full build matrix (9 targets including iOS, Android, Flatpak, and app store variants) lives in [BUILD.md](BUILD.md).
 
+### YouTube downloads failing? Check your VPN first.
+
+**99% of the time the fix is to turn off your VPN.** YouTube's bot detection blocklists most VPN exit IPs (NordVPN, ExpressVPN, Mullvad, ProtonVPN, etc. — they're shared with thousands of automated tools), and every download will fail with *"Sign in to confirm you're not a bot"* until you reconnect on a residential IP. If you need to stay on a VPN, switch to a residential-IP plan or a dedicated-IP exit node.
+
+If turning off the VPN isn't an option (geo-restricted regions, privacy requirements), you can authenticate with your YouTube account via cookies as a fallback:
+
+1. Install the **Get cookies.txt LOCALLY** extension in any Chromium-based browser:
+   - Desktop: Chrome / Brave / Edge / Vivaldi.
+   - Android: **Kiwi Browser** or **Brave** (Chrome on Android doesn't support extensions).
+2. Log into <https://www.youtube.com> in that browser.
+3. Click the extension's icon while on a YouTube tab → **Export → cookies.txt**.
+4. Save (or rename) the file to `youtube_cookies.txt` in your **Downloads** folder:
+   - **Linux / macOS:** `~/Downloads/youtube_cookies.txt`
+   - **Windows:** `%USERPROFILE%\Downloads\youtube_cookies.txt`
+   - **Android:** `/storage/emulated/0/Download/youtube_cookies.txt` (visible as `Internal storage / Download / youtube_cookies.txt` in any file manager)
+5. Restart OCTAVE — every download will now use those cookies. Cookies usually stay valid for weeks.
+
+OCTAVE detects the file automatically — no settings to configure. If you don't have the file, downloads still work for any video that isn't currently walled by YouTube on your network.
+
 ## Two Backends, One Frontend — Built For The Community
 
 This is the part I care about most.
