@@ -551,12 +551,12 @@ jobs:
             -DANDROID_PLATFORM=android-30 \
             -DQT_HOST_PATH="$HOST_QT"
 
-      - name: Build APK (preferred: cmake apk target)
+      - name: "Build APK (preferred — cmake apk target)"
         id: apk_cmake
         continue-on-error: true
         run: cmake --build build-android --target apk -j
 
-      - name: Build APK (fallback: gradlew assembleRelease)
+      - name: "Build APK (fallback — gradlew assembleRelease)"
         if: steps.apk_cmake.outcome == 'failure'
         run: |
           # Build native .so first, then run androiddeployqt + Gradle by hand.
