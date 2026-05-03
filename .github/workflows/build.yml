@@ -371,6 +371,27 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      - name: Dereference android/assets symlinks
+        run: |
+          # APKs do not support symlinks — entries get bundled as broken 0-byte
+          # files. android/assets/frontend is a symlink to ../../frontend on
+          # disk for dev convenience; replace it with a real copy before the
+          # APK build runs, otherwise QML asset loads (assets:/frontend/Main.qml)
+          # return empty and the app crashes on launch with "Failed to load
+          # Main.qml". Same fix for the scripts symlink.
+          set -e
+          cd android/assets
+          for link in frontend scripts; do
+            if [ -L "$link" ]; then
+              target=$(readlink -f "$link")
+              echo "Dereferencing $link -> $target"
+              rm "$link"
+              cp -RL "$target" "$link"
+            fi
+          done
+          ls -la
+          ls frontend | head
+
       - name: Configure CMake (Android arm64)
         run: |
           # install-qt-action exports Qt6_DIR pointing at the android target install.
