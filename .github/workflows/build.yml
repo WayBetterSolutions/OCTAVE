@@ -448,11 +448,18 @@ jobs:
           BUILD_TOOLS="$ANDROID_HOME/build-tools/33.0.2"
           "$BUILD_TOOLS/zipalign" -v -p 4 "$UNSIGNED" octave-aligned.apk
 
-          # 4. Sign with apksigner (v1+v2 signing schemes)
+          # 4. Sign with apksigner — explicitly enable v1, v2, AND v3 signature
+          # schemes. apksigner's default with minSdk>=28 is v3-only, but many
+          # Android package installers (especially sideload via Files app)
+          # report "package appears to be invalid" on v3-only APKs. Forcing
+          # v1+v2+v3 maximizes installer compatibility.
           "$BUILD_TOOLS/apksigner" sign \
             --ks octave.keystore \
             --ks-pass pass:octavepass \
             --key-pass pass:octavepass \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled true \
             --out octave-signed.apk \
             octave-aligned.apk
 
