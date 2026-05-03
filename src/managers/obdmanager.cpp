@@ -6,9 +6,18 @@
 #include <QDir>
 #include <QMetaObject>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QSerialPortInfo>
 #include <QVariantMap>
 #include <QElapsedTimer>
+
+#ifdef Q_OS_ANDROID
+#include <QBluetoothLocalDevice>
+#include <QPermissions>
+#include <QJniObject>
+#include <QtCore/private/qandroidextras_p.h>
+#include <QCoreApplication>
+#endif
 
 // ===========================================================================
 // OBDManager
@@ -63,7 +72,9 @@ OBDManager::~OBDManager()
 
 OBDManager::Platform OBDManager::detectPlatform() const
 {
-#ifdef Q_OS_WIN
+#ifdef Q_OS_ANDROID
+    return Platform::Android;
+#elif defined(Q_OS_WIN)
     return Platform::Windows;
 #elif defined(Q_OS_MACOS)
     return Platform::macOS;
@@ -87,14 +98,22 @@ QString OBDManager::getConfiguredPort() const
     switch (detectPlatform()) {
     case Platform::Windows: return QStringLiteral("COM3");
     case Platform::macOS:   return QStringLiteral("/dev/tty.OBD");
+    case Platform::Android: return QString();  // user must enter MAC
     default:                return QStringLiteral("/dev/rfcomm0");
     }
 }
 
 bool OBDManager::checkPortExists(const QString &port) const
 {
+    if (detectPlatform() == Platform::Android) {
+        // On Android, "port" is a Bluetooth MAC address. We don't probe the
+        // adapter here -- a real reachability test happens at connectToService
+        // time via QBluetoothSocket::error(). Just validate format.
+        static const QRegularExpression macRe(
+            QStringLiteral("^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"));
+        return macRe.match(port).hasMatch();
+    }
     if (detectPlatform() == Platform::Windows) {
-        // Check via QSerialPortInfo
         const auto infos = QSerialPortInfo::availablePorts();
         for (const auto &info : infos) {
             if (info.portName() == port || info.systemLocation() == port)
@@ -470,6 +489,18 @@ void OBDManager::scanForDevices()
         }
         break;
     }
+    case Platform::Android: {
+#ifdef Q_OS_ANDROID
+        // List paired Bluetooth devices (MAC addresses) -- the user must pair
+        // their ELM327 in the Android Settings app first. We don't run an
+        // active discovery here because Qt's QBluetoothDeviceDiscoveryAgent
+        // has historically crashed on Android with NullPointerException; the
+        // bonded list is enough for the typical flow (pair once, reconnect by
+        // MAC thereafter).
+        ports = listAndroidPairedDevices();
+#endif
+        break;
+    }
     }
 
     // Remove duplicates and sort
@@ -531,6 +562,13 @@ void OBDManager::startConnection()
     emit connectionStatusDetailChanged(
         QStringLiteral("Attempt %1...").arg(m_connectionAttempts));
     emit connectionProgressChanged(10);
+
+#ifdef Q_OS_ANDROID
+    // Android: skip the QSerialPort + worker-thread flow entirely; the
+    // QBluetoothSocket lives on this thread and is event-driven.
+    startAndroidConnection();
+    return;
+#endif
 
     QString port = getConfiguredPort();
     bool fastMode = m_settingsManager ? m_settingsManager->obdFastMode() : true;
@@ -700,6 +738,10 @@ void OBDManager::cleanupConnection()
 {
     m_dataWatchdogTimer.stop();
     m_lastDataReceived = 0;
+
+#ifdef Q_OS_ANDROID
+    cleanupAndroidConnection();
+#endif
 
     // Tell worker to stop polling and disconnect
     if (m_worker) {
@@ -1838,3 +1880,445 @@ void OBDConnectionWorker::doScanVehicle()
 
     if (wasPolling) startPolling();
 }
+
+// ===========================================================================
+// Android Bluetooth RFCOMM implementation
+//
+// On Android the QSerialPort/worker-thread flow is bypassed. QBluetoothSocket
+// runs on the main thread and is fully event-driven: connectToService()
+// returns immediately and we react to connected()/readyRead()/error() signals.
+// ELM327 init runs as a state machine via QTimer between AT commands; PID
+// polling is response-driven (next PID requested when the previous response
+// arrives). Mirrors the deleted Python AndroidOBDManager (commit 75b1d3f^).
+// ===========================================================================
+#ifdef Q_OS_ANDROID
+
+QStringList OBDManager::listAndroidPairedDevices()
+{
+    // Listing paired devices requires QBluetoothLocalDevice, which Qt's
+    // permission helper guards behind QBluetoothPermission::Access. If we
+    // haven't been granted Bluetooth at runtime yet, instantiating the
+    // local device just spams a warning every poll cycle. Skip until the
+    // user has actually triggered the permission flow via force_connect.
+    QStringList macs;
+    if (!m_androidPermissionGranted)
+        return macs;
+    QBluetoothLocalDevice local;
+    if (!local.isValid())
+        return macs;
+    const auto bonded = local.connectedDevices();
+    for (const QBluetoothAddress &addr : bonded)
+        macs.append(addr.toString());
+    return macs;
+}
+
+void OBDManager::requestAndroidBluetoothPermission(std::function<void(bool)> done)
+{
+    if (m_androidPermissionGranted) {
+        done(true);
+        return;
+    }
+
+    // Qt 6.7's QBluetoothPermission helper has been observed to return
+    // PermissionStatus::Denied (and immediately fail requestPermission()
+    // synchronously without showing a dialog) even when the underlying
+    // Android grants for BLUETOOTH_CONNECT/BLUETOOTH_SCAN are present.
+    // Bypass it: check the system permission grants directly via
+    // QJniObject/Android Context, and if either is missing fall back to
+    // Qt's request flow (which DOES correctly pop the system dialog when
+    // the permission is first-time-undetermined).
+    auto isSystemGranted = [](const QString &perm) -> bool {
+#ifdef Q_OS_ANDROID
+        QJniObject context = QNativeInterface::QAndroidApplication::context();
+        if (!context.isValid()) return false;
+        QJniObject jPerm = QJniObject::fromString(perm);
+        // ContextCompat.checkSelfPermission would be cleaner but pulls in
+        // androidx; Context.checkSelfPermission has the same semantics on
+        // API 23+ (we target API 30+ via manifest).
+        jint result = context.callMethod<jint>(
+            "checkSelfPermission", "(Ljava/lang/String;)I", jPerm.object<jstring>());
+        // PackageManager.PERMISSION_GRANTED == 0
+        return result == 0;
+#else
+        Q_UNUSED(perm);
+        return true;
+#endif
+    };
+
+    bool connectGranted = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_CONNECT"));
+    bool scanGranted    = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_SCAN"));
+    qDebug() << "[OBD] Android: system perms — CONNECT:" << connectGranted
+             << " SCAN:" << scanGranted;
+
+    if (connectGranted && scanGranted) {
+        m_androidPermissionGranted = true;
+        done(true);
+        return;
+    }
+
+    // System grant is missing -- ask via Qt's request flow (which on first
+    // run does pop the system dialog correctly).
+    QBluetoothPermission perm;
+    perm.setCommunicationModes(QBluetoothPermission::Access);
+    qApp->requestPermission(perm, this, [this, done, isSystemGranted](const QPermission &p) {
+        bool granted = (p.status() == Qt::PermissionStatus::Granted);
+        // Re-check the system state regardless of Qt's verdict — Qt's
+        // QBluetoothPermission has the false-negative bug noted above.
+        if (!granted) {
+            granted = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_CONNECT"))
+                   && isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_SCAN"));
+        }
+        m_androidPermissionGranted = granted;
+        if (!granted) {
+            qDebug() << "[OBD] Android: Bluetooth permission denied";
+            emit connectionStatusChanged(QStringLiteral("Bluetooth permission denied"));
+            emit connectionStatusDetailChanged(
+                QStringLiteral("Grant Bluetooth in Settings -> Apps -> OCTAVE -> Permissions"));
+        }
+        done(granted);
+    });
+}
+
+void OBDManager::startAndroidConnection()
+{
+    QString address = getConfiguredPort();
+    if (!checkPortExists(address)) {
+        m_connected = false;
+        emit connectionStatusChanged(QStringLiteral("No MAC Address"));
+        emit connectionStatusDetailChanged(
+            QStringLiteral("Enter your ELM327 MAC in OBD Settings, then tap Connect"));
+        emit connectionProgressChanged(0);
+        emit devicePresenceChanged(false);
+        qDebug() << "[OBD] Android: no/invalid MAC configured:" << address;
+        {
+            QMutexLocker locker(&m_lock);
+            m_isConnecting = false;
+        }
+        return;
+    }
+
+    requestAndroidBluetoothPermission([this, address](bool granted) {
+        if (!granted) {
+            QMutexLocker locker(&m_lock);
+            m_isConnecting = false;
+            return;
+        }
+
+        cleanupAndroidConnection();
+
+        m_btSocket = new QBluetoothSocket(QBluetoothServiceInfo::RfcommProtocol, this);
+        QObject::connect(m_btSocket, &QBluetoothSocket::connected,
+                         this, &OBDManager::onBtSocketConnected);
+        QObject::connect(m_btSocket, &QBluetoothSocket::disconnected,
+                         this, &OBDManager::onBtSocketDisconnected);
+        QObject::connect(m_btSocket, &QBluetoothSocket::readyRead,
+                         this, &OBDManager::onBtSocketReadyRead);
+        QObject::connect(m_btSocket, &QBluetoothSocket::errorOccurred,
+                         this, &OBDManager::onBtSocketError);
+
+        m_btResponseBuffer.clear();
+        m_androidElmInitialized = false;
+        m_androidInitStep = 0;
+        m_androidPolling = false;
+        m_androidStaleCount = 0;
+        m_androidSupportedPids.clear();
+
+        emit connectionProgressChanged(20);
+        emit connectionStatusChanged(QStringLiteral("Connecting RFCOMM..."));
+        qDebug() << "[OBD] Android: RFCOMM connect to" << address;
+
+        QBluetoothAddress btAddr(address);
+        QBluetoothUuid spp(QString::fromLatin1(SPP_UUID));
+        m_btSocket->connectToService(btAddr, spp);
+    });
+}
+
+void OBDManager::cleanupAndroidConnection()
+{
+    m_androidInitTimer.stop();
+    m_androidPollWatchdog.stop();
+    m_androidPolling = false;
+    m_androidElmInitialized = false;
+
+    if (m_btSocket) {
+        m_btSocket->disconnect(this);
+        if (m_btSocket->state() != QBluetoothSocket::SocketState::UnconnectedState)
+            m_btSocket->disconnectFromService();
+        m_btSocket->deleteLater();
+        m_btSocket = nullptr;
+    }
+    m_btResponseBuffer.clear();
+}
+
+void OBDManager::onBtSocketConnected()
+{
+    qDebug() << "[OBD] Android: RFCOMM socket connected";
+    {
+        QMutexLocker locker(&m_lock);
+        m_isConnecting = false;
+    }
+    emit connectionProgressChanged(50);
+    emit connectionStatusChanged(QStringLiteral("Initializing ELM327..."));
+
+    if (m_settingsManager && !getConfiguredPort().isEmpty()) {
+        // Save the working MAC so reconnects don't lose it.
+        m_settingsManager->save_obd_bluetooth_port(getConfiguredPort());
+    }
+
+    m_androidElmInitialized = false;
+    m_androidInitStep = 0;
+    m_btResponseBuffer.clear();
+
+    // Wire up the init timer to step through INIT_COMMANDS one at a time.
+    m_androidInitTimer.disconnect();
+    m_androidInitTimer.setSingleShot(true);
+    QObject::connect(&m_androidInitTimer, &QTimer::timeout,
+                     this, &OBDManager::onAndroidInitStep);
+
+    QTimer::singleShot(500, this, &OBDManager::sendNextAndroidInitCommand);
+}
+
+void OBDManager::onBtSocketDisconnected()
+{
+    qDebug() << "[OBD] Android: RFCOMM socket disconnected";
+    bool wasConnected = m_connected;
+    m_connected = false;
+    m_androidElmInitialized = false;
+    m_androidPolling = false;
+    m_androidPollWatchdog.stop();
+    emit connectionStatusChanged(QStringLiteral("Disconnected"));
+    emit connectionProgressChanged(0);
+
+    if (wasConnected && m_androidReconnectAttempts < m_androidMaxReconnect) {
+        ++m_androidReconnectAttempts;
+        int delay = qMin(2000 * m_androidReconnectAttempts, 10000);
+        qDebug() << "[OBD] Android: auto-reconnect in" << delay << "ms"
+                 << "(" << m_androidReconnectAttempts << "/" << m_androidMaxReconnect << ")";
+        QTimer::singleShot(delay, this, &OBDManager::startAndroidConnection);
+    }
+}
+
+void OBDManager::onBtSocketReadyRead()
+{
+    if (!m_btSocket) return;
+    QByteArray data = m_btSocket->readAll();
+    m_btResponseBuffer.feed(data);
+    while (true) {
+        auto resp = m_btResponseBuffer.getResponse();
+        if (!resp.has_value()) break;
+        processAndroidResponse(resp.value());
+    }
+}
+
+void OBDManager::onBtSocketError(QBluetoothSocket::SocketError error)
+{
+    QString errText;
+    switch (error) {
+    case QBluetoothSocket::SocketError::NoSocketError:        errText = QStringLiteral("No error"); break;
+    case QBluetoothSocket::SocketError::HostNotFoundError:    errText = QStringLiteral("Adapter not reachable -- powered off?"); break;
+    case QBluetoothSocket::SocketError::ServiceNotFoundError: errText = QStringLiteral("SPP service not found -- pair the adapter in Bluetooth settings first"); break;
+    case QBluetoothSocket::SocketError::NetworkError:         errText = QStringLiteral("Network error"); break;
+    case QBluetoothSocket::SocketError::UnsupportedProtocolError: errText = QStringLiteral("Protocol not supported"); break;
+    case QBluetoothSocket::SocketError::OperationError:       errText = QStringLiteral("Operation error"); break;
+    case QBluetoothSocket::SocketError::RemoteHostClosedError:errText = QStringLiteral("Adapter closed connection"); break;
+    default:                                                  errText = QStringLiteral("Unknown error"); break;
+    }
+    qDebug() << "[OBD] Android: socket error:" << errText;
+
+    {
+        QMutexLocker locker(&m_lock);
+        m_isConnecting = false;
+    }
+    emit connectionStatusChanged(QStringLiteral("RFCOMM: %1").arg(errText));
+    emit connectionStatusDetailChanged(errText);
+    emit connectionProgressChanged(0);
+
+    if (m_androidReconnectAttempts < m_androidMaxReconnect) {
+        ++m_androidReconnectAttempts;
+        int delay = qMin(2000 * m_androidReconnectAttempts, 10000);
+        QTimer::singleShot(delay, this, &OBDManager::startAndroidConnection);
+    }
+}
+
+void OBDManager::writeAndroidBytes(const QByteArray &data)
+{
+    if (!m_btSocket || m_btSocket->state() != QBluetoothSocket::SocketState::ConnectedState) {
+        qDebug() << "[OBD] Android: write while not connected, dropping" << data;
+        return;
+    }
+    m_btSocket->write(data);
+}
+
+void OBDManager::sendNextAndroidInitCommand()
+{
+    const auto &cmds = ELM327Protocol::initCommands();
+    if (m_androidInitStep >= cmds.size()) {
+        m_androidElmInitialized = true;
+        qDebug() << "[OBD] Android: ELM327 init complete, querying supported PIDs";
+        emit connectionProgressChanged(80);
+        emit connectionStatusChanged(QStringLiteral("Querying PIDs..."));
+        queryAndroidSupportedPids();
+        return;
+    }
+    const InitCommand &c = cmds[m_androidInitStep];
+    qDebug() << "[OBD] Android: init"
+             << (m_androidInitStep + 1) << "/" << cmds.size()
+             << ":" << c.command.trimmed();
+    writeAndroidBytes(c.command);
+    ++m_androidInitStep;
+    m_androidInitTimer.start(c.timeoutMs);
+}
+
+void OBDManager::onAndroidInitStep()
+{
+    // Init-step timeout: send the next command regardless of response.
+    sendNextAndroidInitCommand();
+}
+
+void OBDManager::queryAndroidSupportedPids()
+{
+    writeAndroidBytes(QByteArrayLiteral("0100\r"));
+    QTimer::singleShot(2000, this, &OBDManager::finalizeAndroidConnection);
+}
+
+void OBDManager::finalizeAndroidConnection()
+{
+    m_connected = true;
+    m_androidReconnectAttempts = 0;
+    qDebug() << "[OBD] Android: connected with"
+             << m_androidSupportedPids.size() << "supported PIDs";
+    emit connectionStatusChanged(QStringLiteral("Connected"));
+    emit connectionProgressChanged(100);
+    emit devicePresenceChanged(true);
+
+    // Build poll list from settings (same logic as desktop) intersected with
+    // what the vehicle reports supporting via mode 01 PID 00/20/40/60.
+    static const QHash<PidKey, QString> pidToCommand = {
+        {{1,0x05}, QStringLiteral("COOLANT_TEMP")},
+        {{1,0x42}, QStringLiteral("CONTROL_MODULE_VOLTAGE")},
+        {{1,0x04}, QStringLiteral("ENGINE_LOAD")},
+        {{1,0x11}, QStringLiteral("THROTTLE_POS")},
+        {{1,0x0F}, QStringLiteral("INTAKE_TEMP")},
+        {{1,0x0E}, QStringLiteral("TIMING_ADVANCE")},
+        {{1,0x10}, QStringLiteral("MAF")},
+        {{1,0x0D}, QStringLiteral("SPEED")},
+        {{1,0x0C}, QStringLiteral("RPM")},
+        {{1,0x44}, QStringLiteral("COMMANDED_EQUIV_RATIO")},
+        {{1,0x2F}, QStringLiteral("FUEL_LEVEL")},
+        {{1,0x0B}, QStringLiteral("INTAKE_PRESSURE")},
+        {{1,0x06}, QStringLiteral("SHORT_FUEL_TRIM_1")},
+        {{1,0x07}, QStringLiteral("LONG_FUEL_TRIM_1")},
+        {{1,0x14}, QStringLiteral("O2_B1S1")},
+        {{1,0x0A}, QStringLiteral("FUEL_PRESSURE")},
+        {{1,0x5C}, QStringLiteral("OIL_TEMP")},
+    };
+    static const QSet<QString> defaultEnabled = {
+        QStringLiteral("COOLANT_TEMP"), QStringLiteral("CONTROL_MODULE_VOLTAGE"),
+        QStringLiteral("ENGINE_LOAD"), QStringLiteral("THROTTLE_POS"),
+        QStringLiteral("INTAKE_TEMP"), QStringLiteral("TIMING_ADVANCE"),
+        QStringLiteral("MAF"), QStringLiteral("SPEED"), QStringLiteral("RPM"),
+        QStringLiteral("COMMANDED_EQUIV_RATIO"), QStringLiteral("FUEL_LEVEL"),
+        QStringLiteral("INTAKE_PRESSURE"), QStringLiteral("SHORT_FUEL_TRIM_1"),
+        QStringLiteral("LONG_FUEL_TRIM_1"), QStringLiteral("O2_B1S1"),
+        QStringLiteral("FUEL_PRESSURE"), QStringLiteral("OIL_TEMP"),
+    };
+
+    m_androidEnabledPids.clear();
+    for (auto it = pidToCommand.constBegin(); it != pidToCommand.constEnd(); ++it) {
+        bool isDefault = defaultEnabled.contains(it.value());
+        bool watch = m_settingsManager
+            ? m_settingsManager->get_obd_parameter_enabled(it.value(), isDefault)
+            : isDefault;
+        if (!watch) continue;
+        // If the vehicle reported a supported set, filter to only those PIDs.
+        // (mode-1 PID number is the second of the pair.)
+        if (!m_androidSupportedPids.isEmpty() &&
+            !m_androidSupportedPids.contains(it.key().second))
+            continue;
+        m_androidEnabledPids.append(it.key());
+    }
+    if (m_androidEnabledPids.isEmpty()) {
+        // Vehicle didn't answer 0100 -- fall back to the default set so the
+        // user still sees readings. ELM327 will return NO DATA for unsupported
+        // PIDs which our code paths already ignore.
+        for (auto it = pidToCommand.constBegin(); it != pidToCommand.constEnd(); ++it) {
+            if (defaultEnabled.contains(it.value()))
+                m_androidEnabledPids.append(it.key());
+        }
+    }
+
+    m_androidPollIndex = 0;
+    m_androidPolling = true;
+    m_androidStaleCount = 0;
+
+    m_androidPollWatchdog.disconnect();
+    m_androidPollWatchdog.setSingleShot(true);
+    QObject::connect(&m_androidPollWatchdog, &QTimer::timeout,
+                     this, &OBDManager::onAndroidPollWatchdog);
+
+    pollNextAndroidPid();
+}
+
+void OBDManager::pollNextAndroidPid()
+{
+    if (!m_connected || !m_androidPolling || m_androidEnabledPids.isEmpty())
+        return;
+    const PidKey &pid = m_androidEnabledPids[m_androidPollIndex];
+    m_androidPollIndex = (m_androidPollIndex + 1) % m_androidEnabledPids.size();
+    writeAndroidBytes(ELM327Protocol::formatPidRequest(pid.first, pid.second));
+    m_androidPollWatchdog.start(500);
+}
+
+void OBDManager::onAndroidPollWatchdog()
+{
+    if (!m_androidPolling || !m_connected)
+        return;
+    ++m_androidStaleCount;
+    if (m_androidStaleCount >= 10) {
+        qDebug() << "[OBD] Android: data stale 5s, flushing buffer";
+        m_btResponseBuffer.clear();
+        m_androidStaleCount = 0;
+    }
+    pollNextAndroidPid();
+}
+
+void OBDManager::processAndroidResponse(const QString &response)
+{
+    if (response.isEmpty()) return;
+
+    if (!m_androidElmInitialized) {
+        qDebug() << "[OBD] Android: init response:" << response;
+        return;
+    }
+
+    m_androidStaleCount = 0;
+
+    auto parsed = ELM327Protocol::parseResponse(response);
+    if (!parsed.has_value()) {
+        if (m_androidPolling)
+            pollNextAndroidPid();
+        return;
+    }
+
+    if (parsed->mode == 1 &&
+        (parsed->pid == 0x00 || parsed->pid == 0x20 ||
+         parsed->pid == 0x40 || parsed->pid == 0x60)) {
+        const auto pids = ELM327Protocol::parseSupportedPids(parsed->dataBytes);
+        for (int p : pids)
+            m_androidSupportedPids.insert(p + parsed->pid);
+        if (m_androidPolling)
+            pollNextAndroidPid();
+        return;
+    }
+
+    auto decoded = ELM327Protocol::decodePid(parsed->mode, parsed->pid, parsed->dataBytes);
+    if (decoded.has_value()) {
+        emitParameterSignal(decoded->signalName, static_cast<float>(decoded->value));
+        m_lastDataReceived = QDateTime::currentMSecsSinceEpoch();
+    }
+
+    if (m_androidPolling)
+        pollNextAndroidPid();
+}
+
+#endif // Q_OS_ANDROID

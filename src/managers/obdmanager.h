@@ -5,6 +5,7 @@
 #include <QMutex>
 #include <QSerialPort>
 #include <QSerialPortInfo>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QThread>
@@ -17,6 +18,12 @@
 
 #include "elm327protocol.h"
 #include "settingsmanager.h"
+
+#ifdef Q_OS_ANDROID
+#include <QBluetoothAddress>
+#include <QBluetoothSocket>
+#include <QBluetoothUuid>
+#endif
 
 class OBDConnectionWorker;
 
@@ -281,9 +288,20 @@ private slots:
     // Post-diagnostic reconnect
     void delayedReconnectAfterDiagnostic();
 
+#ifdef Q_OS_ANDROID
+    // Android Bluetooth RFCOMM connection state machine -- runs on the main
+    // thread (QBluetoothSocket is event-driven and meant for the GUI thread).
+    void onBtSocketConnected();
+    void onBtSocketDisconnected();
+    void onBtSocketReadyRead();
+    void onBtSocketError(QBluetoothSocket::SocketError error);
+    void onAndroidInitStep();
+    void onAndroidPollWatchdog();
+#endif
+
 private:
     // Platform detection
-    enum class Platform { Windows, macOS, Linux };
+    enum class Platform { Windows, macOS, Linux, Android };
     Platform detectPlatform() const;
 
     // Configuration helpers
@@ -455,6 +473,37 @@ private:
 
     // Pending port change
     QString m_pendingPort;
+
+#ifdef Q_OS_ANDROID
+    // Android-only RFCOMM state -- on Android the worker thread is bypassed
+    // entirely; the main thread owns m_btSocket directly.
+    void startAndroidConnection();
+    void cleanupAndroidConnection();
+    void requestAndroidBluetoothPermission(std::function<void(bool)> done);
+    QStringList listAndroidPairedDevices();
+    void writeAndroidBytes(const QByteArray &data);
+    void processAndroidResponse(const QString &response);
+    void sendNextAndroidInitCommand();
+    void queryAndroidSupportedPids();
+    void finalizeAndroidConnection();
+    void pollNextAndroidPid();
+
+    QBluetoothSocket *m_btSocket = nullptr;
+    ResponseBuffer m_btResponseBuffer;
+    int m_androidInitStep = 0;
+    bool m_androidElmInitialized = false;
+    QList<PidKey> m_androidEnabledPids;
+    int m_androidPollIndex = 0;
+    bool m_androidPolling = false;
+    int m_androidStaleCount = 0;
+    int m_androidReconnectAttempts = 0;
+    int m_androidMaxReconnect = 3;
+    QSet<int> m_androidSupportedPids;
+    QTimer m_androidInitTimer;
+    QTimer m_androidPollWatchdog;
+    bool m_androidPermissionGranted = false;
+    QString m_androidPendingInitResponse;
+#endif
 };
 
 // ===========================================================================
