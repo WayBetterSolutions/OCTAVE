@@ -341,6 +341,19 @@ jobs:
           sdkmanager --install "ndk;26.1.10909125" "platforms;android-33" "build-tools;33.0.2"
           echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          # Maven Central / Google Maven artifacts pinned by android/build.gradle —
+          # cache them so repeat runs survive transient 429 rate limits and finish
+          # faster. Bust the cache when the gradle file changes.
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/build.gradle', 'android/gradle.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Configure CMake (Android arm64)
         run: |
           # install-qt-action exports Qt6_DIR pointing at the android target install.
@@ -370,18 +383,32 @@ jobs:
             -DANDROID_PLATFORM=android-30 \
             -DQT_HOST_PATH="$HOST_QT"
 
-      - name: "Build APK (preferred — cmake apk target)"
-        id: apk_cmake
-        continue-on-error: true
-        run: cmake --build build-android --target apk -j
-
-      - name: "Build APK (fallback — gradlew assembleRelease)"
-        if: steps.apk_cmake.outcome == 'failure'
+      - name: "Build APK (with retry on Maven 429 / network blips)"
         run: |
-          # Build native .so first, then run androiddeployqt + Gradle by hand.
-          cmake --build build-android -j
-          cd build-android/android-build
-          ./gradlew assembleRelease --no-daemon
+          # Maven Central rate-limits GH Actions runner IPs intermittently
+          # (HTTP 429 on the youtubedl-android AAR fetch). Retry the whole
+          # build a few times with backoff before giving up.
+          set -e
+          attempt=1
+          max_attempts=4
+          delay=20
+          while true; do
+            echo "::group::APK build attempt $attempt/$max_attempts"
+            if cmake --build build-android --target apk -j; then
+              echo "::endgroup::"
+              echo "APK build succeeded on attempt $attempt"
+              break
+            fi
+            echo "::endgroup::"
+            if [ $attempt -ge $max_attempts ]; then
+              echo "APK build failed after $max_attempts attempts"
+              exit 1
+            fi
+            echo "Attempt $attempt failed; sleeping ${delay}s before retry"
+            sleep $delay
+            delay=$((delay * 2))
+            attempt=$((attempt + 1))
+          done
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
