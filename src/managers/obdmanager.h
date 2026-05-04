@@ -19,11 +19,10 @@
 #include "elm327protocol.h"
 #include "settingsmanager.h"
 
-#ifdef Q_OS_ANDROID
-#include <QBluetoothAddress>
-#include <QBluetoothSocket>
-#include <QBluetoothUuid>
-#endif
+// Android-only OBD: we deliberately bypass Qt's QLowEnergyController stack
+// (Qt 6.7's QBluetoothPermission aggregator is broken on Android 16/API 36
+// and refuses to initialize the BLE adapter even with all underlying perms
+// granted). All BLE work runs through OctaveOBDBridge.java via JNI instead.
 
 class OBDConnectionWorker;
 
@@ -168,6 +167,10 @@ signals:
     void dtcClearResult(bool success, const QString &message);
     void freezeFrameChanged(const QVariantList &data);
 
+    // Live log line for the QML OBD page's connection log/terminal element.
+    // One signal = one new line appended; QML can keep a rolling buffer.
+    void connectionLogLineAppended(const QString &line);
+
 public:
     explicit OBDManager(SettingsManager *settingsManager = nullptr,
                         QObject *parent = nullptr);
@@ -289,12 +292,10 @@ private slots:
     void delayedReconnectAfterDiagnostic();
 
 #ifdef Q_OS_ANDROID
-    // Android Bluetooth RFCOMM connection state machine -- runs on the main
-    // thread (QBluetoothSocket is event-driven and meant for the GUI thread).
-    void onBtSocketConnected();
-    void onBtSocketDisconnected();
-    void onBtSocketReadyRead();
-    void onBtSocketError(QBluetoothSocket::SocketError error);
+    // Android BLE state-machine slots. Transport runs through
+    // OctaveOBDBridge.java (native BluetoothGatt); we poll for state
+    // transitions and notification bytes here on a Qt timer.
+    void onAndroidBlePoll();
     void onAndroidInitStep();
     void onAndroidPollWatchdog();
 #endif
@@ -475,12 +476,14 @@ private:
     QString m_pendingPort;
 
 #ifdef Q_OS_ANDROID
-    // Android-only RFCOMM state -- on Android the worker thread is bypassed
-    // entirely; the main thread owns m_btSocket directly.
+    // Android-only BLE GATT state -- on Android the worker thread is bypassed
+    // entirely; the main thread owns the QLowEnergyController directly.
     void startAndroidConnection();
     void cleanupAndroidConnection();
     void requestAndroidBluetoothPermission(std::function<void(bool)> done);
     QStringList listAndroidPairedDevices();
+    // Logs to qDebug + emits to the QML connection-log element.
+    void logAndroid(const QString &line);
     void writeAndroidBytes(const QByteArray &data);
     void processAndroidResponse(const QString &response);
     void sendNextAndroidInitCommand();
@@ -488,7 +491,11 @@ private:
     void finalizeAndroidConnection();
     void pollNextAndroidPid();
 
-    QBluetoothSocket *m_btSocket = nullptr;
+    // Java-side state we mirror via JNI polling. m_bleLastJavaState tracks
+    // the most recent stateCode() value we've seen so we only emit log lines
+    // on actual transitions (poll runs every 50ms).
+    int m_bleLastJavaState = 0;
+    QTimer m_bleNotifyPoller;
     ResponseBuffer m_btResponseBuffer;
     int m_androidInitStep = 0;
     bool m_androidElmInitialized = false;
@@ -502,7 +509,6 @@ private:
     QTimer m_androidInitTimer;
     QTimer m_androidPollWatchdog;
     bool m_androidPermissionGranted = false;
-    QString m_androidPendingInitResponse;
 #endif
 };
 

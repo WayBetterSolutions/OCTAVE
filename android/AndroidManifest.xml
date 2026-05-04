@@ -9,11 +9,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- OBD-II Bluetooth (Classic RFCOMM to ELM327 adapter) -->
+    <!-- OBD-II Bluetooth (BLE GATT to NEXAS-style ELM327 dongles, FFE0/FFE1) -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <!-- Qt 6.7's QtBluetoothLE Java helper checks BLUETOOTH_ADVERTISE on
+         API 31+ before allowing QLowEnergyController to initialize, even
+         though we never advertise. Declaring it here lets the permission
+         gate pass; we never call requestPermission for it so no dialog. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <!-- Pre-Android-12 legacy: Bluetooth scan required location -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
 

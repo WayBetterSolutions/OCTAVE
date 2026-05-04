@@ -1043,6 +1043,14 @@ void OBDManager::force_connect()
 {
     qDebug() << "[OBD] Force connect requested";
     m_connectionAttempts = 0;
+    // Always clear the in-progress flag — without this, a previous attempt
+    // that wedged (BLE controller never reported back, GATT timed out
+    // silently, etc.) would block every subsequent tap of Connect with
+    // "Already connecting -- skipping".
+    {
+        QMutexLocker locker(&m_lock);
+        m_isConnecting = false;
+    }
     cleanupConnection();
     startConnection();
 }
@@ -1893,6 +1901,15 @@ void OBDConnectionWorker::doScanVehicle()
 // ===========================================================================
 #ifdef Q_OS_ANDROID
 
+void OBDManager::logAndroid(const QString &line)
+{
+    qDebug().noquote() << "[OBD]" << line;
+    emit connectionLogLineAppended(line);
+    // Mirror to the existing detail text element on the OBD page so the user
+    // sees the latest state transition without needing a new QML widget.
+    emit connectionStatusDetailChanged(line);
+}
+
 QStringList OBDManager::listAndroidPairedDevices()
 {
     // Listing paired devices requires QBluetoothLocalDevice, which Qt's
@@ -1947,30 +1964,58 @@ void OBDManager::requestAndroidBluetoothPermission(std::function<void(bool)> don
 
     bool connectGranted = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_CONNECT"));
     bool scanGranted    = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_SCAN"));
-    qDebug() << "[OBD] Android: system perms — CONNECT:" << connectGranted
-             << " SCAN:" << scanGranted;
+    bool advertiseGranted = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_ADVERTISE"));
+    logAndroid(QStringLiteral("system perms — CONNECT:%1 SCAN:%2 ADVERTISE:%3")
+        .arg(connectGranted ? QStringLiteral("yes") : QStringLiteral("NO"),
+             scanGranted    ? QStringLiteral("yes") : QStringLiteral("NO"),
+             advertiseGranted ? QStringLiteral("yes") : QStringLiteral("NO")));
 
-    if (connectGranted && scanGranted) {
-        m_androidPermissionGranted = true;
-        done(true);
-        return;
-    }
+    // Compare against Qt's view via QtAndroidPrivate::checkPermission so we
+    // can see exactly which name Qt thinks is denied.
+    auto qtCheck = [](const QString &p) -> QString {
+#ifdef Q_OS_ANDROID
+        auto fut = QtAndroidPrivate::checkPermission(p);
+        fut.waitForFinished();
+        QtAndroidPrivate::PermissionResult r = fut.result();
+        if (r == QtAndroidPrivate::Authorized) return QStringLiteral("granted");
+        return QStringLiteral("DENIED");
+#else
+        Q_UNUSED(p);
+        return QStringLiteral("?");
+#endif
+    };
+    logAndroid(QStringLiteral("Qt perms — CONNECT:%1 SCAN:%2 ADVERTISE:%3")
+        .arg(qtCheck(QStringLiteral("android.permission.BLUETOOTH_CONNECT")),
+             qtCheck(QStringLiteral("android.permission.BLUETOOTH_SCAN")),
+             qtCheck(QStringLiteral("android.permission.BLUETOOTH_ADVERTISE"))));
+    logAndroid(QStringLiteral("Qt sdk version: %1")
+        .arg(QtAndroidPrivate::androidSdkVersion()));
 
-    // System grant is missing -- ask via Qt's request flow (which on first
-    // run does pop the system dialog correctly).
+    // Always go through Qt's requestPermission(), even when the system grant
+    // is already present. Qt 6.7's QBluetoothPermission/QBluetoothLocalDevice
+    // have an internal cache that doesn't get updated by external `pm grant`
+    // or by silent grants from a previous request — they only flip to
+    // Granted when requestPermission() resolves to Granted in *this* process.
+    // QLowEnergyController checks the same cache before initializing the
+    // BLE adapter, so without this re-trigger every BLE connect fails with
+    // "Permissions not authorized" / "invalid adapter" / "Bluetooth disabled
+    // on phone" even when dumpsys clearly shows the runtime grants. When the
+    // system already says granted, requestPermission resolves synchronously
+    // with Granted (no dialog is shown), so this is essentially free.
     QBluetoothPermission perm;
     perm.setCommunicationModes(QBluetoothPermission::Access);
     qApp->requestPermission(perm, this, [this, done, isSystemGranted](const QPermission &p) {
-        bool granted = (p.status() == Qt::PermissionStatus::Granted);
-        // Re-check the system state regardless of Qt's verdict — Qt's
-        // QBluetoothPermission has the false-negative bug noted above.
-        if (!granted) {
-            granted = isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_CONNECT"))
-                   && isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_SCAN"));
-        }
+        bool qtGranted = (p.status() == Qt::PermissionStatus::Granted);
+        // Backstop with a direct system check in case Qt's API is buggy.
+        bool sysGranted =
+            isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_CONNECT"))
+         && isSystemGranted(QStringLiteral("android.permission.BLUETOOTH_SCAN"));
+        bool granted = qtGranted || sysGranted;
         m_androidPermissionGranted = granted;
+        logAndroid(QStringLiteral("permission resolved — qt:%1 system:%2")
+            .arg(qtGranted  ? QStringLiteral("yes") : QStringLiteral("NO"),
+                 sysGranted ? QStringLiteral("yes") : QStringLiteral("NO")));
         if (!granted) {
-            qDebug() << "[OBD] Android: Bluetooth permission denied";
             emit connectionStatusChanged(QStringLiteral("Bluetooth permission denied"));
             emit connectionStatusDetailChanged(
                 QStringLiteral("Grant Bluetooth in Settings -> Apps -> OCTAVE -> Permissions"));
@@ -1997,156 +2042,190 @@ void OBDManager::startAndroidConnection()
         return;
     }
 
-    requestAndroidBluetoothPermission([this, address](bool granted) {
-        if (!granted) {
-            QMutexLocker locker(&m_lock);
-            m_isConnecting = false;
-            return;
-        }
+    cleanupAndroidConnection();
 
-        cleanupAndroidConnection();
+    m_btResponseBuffer.clear();
+    m_androidElmInitialized = false;
+    m_androidInitStep = 0;
+    m_androidPolling = false;
+    m_androidStaleCount = 0;
+    m_androidSupportedPids.clear();
+    m_bleLastJavaState = -1;
 
-        m_btSocket = new QBluetoothSocket(QBluetoothServiceInfo::RfcommProtocol, this);
-        QObject::connect(m_btSocket, &QBluetoothSocket::connected,
-                         this, &OBDManager::onBtSocketConnected);
-        QObject::connect(m_btSocket, &QBluetoothSocket::disconnected,
-                         this, &OBDManager::onBtSocketDisconnected);
-        QObject::connect(m_btSocket, &QBluetoothSocket::readyRead,
-                         this, &OBDManager::onBtSocketReadyRead);
-        QObject::connect(m_btSocket, &QBluetoothSocket::errorOccurred,
-                         this, &OBDManager::onBtSocketError);
+    emit connectionProgressChanged(20);
+    emit connectionStatusChanged(QStringLiteral("Connecting BLE..."));
+    logAndroid(QStringLiteral("BLE connect → %1 (via OctaveOBDBridge)").arg(address));
 
-        m_btResponseBuffer.clear();
-        m_androidElmInitialized = false;
-        m_androidInitStep = 0;
-        m_androidPolling = false;
-        m_androidStaleCount = 0;
-        m_androidSupportedPids.clear();
+    // Hand off to the Java bridge — bypasses Qt's broken BLE permission gate.
+    QJniObject ctx = QNativeInterface::QAndroidApplication::context();
+    QJniObject jMac = QJniObject::fromString(address);
+    jboolean ok = QJniObject::callStaticMethod<jboolean>(
+        "org/octave/app/OctaveOBDBridge",
+        "connect",
+        "(Landroid/content/Context;Ljava/lang/String;)Z",
+        ctx.object<jobject>(),
+        jMac.object<jstring>());
+    if (!ok) {
+        QString err = QJniObject::callStaticObjectMethod(
+            "org/octave/app/OctaveOBDBridge", "lastError",
+            "()Ljava/lang/String;").toString();
+        logAndroid(QStringLiteral("connect() failed: %1").arg(err));
+        emit connectionStatusChanged(QStringLiteral("BLE connect failed"));
+        emit connectionProgressChanged(0);
+        QMutexLocker locker(&m_lock);
+        m_isConnecting = false;
+        return;
+    }
 
-        emit connectionProgressChanged(20);
-        emit connectionStatusChanged(QStringLiteral("Connecting RFCOMM..."));
-        qDebug() << "[OBD] Android: RFCOMM connect to" << address;
-
-        QBluetoothAddress btAddr(address);
-        QBluetoothUuid spp(QString::fromLatin1(SPP_UUID));
-        m_btSocket->connectToService(btAddr, spp);
-    });
+    // Poll the Java bridge for state transitions and notification bytes.
+    // 50 ms is fast enough that BLE notifications feel real-time without
+    // burning CPU when idle.
+    m_bleNotifyPoller.disconnect();
+    m_bleNotifyPoller.setInterval(50);
+    QObject::connect(&m_bleNotifyPoller, &QTimer::timeout,
+                     this, &OBDManager::onAndroidBlePoll);
+    m_bleNotifyPoller.start();
 }
 
 void OBDManager::cleanupAndroidConnection()
 {
     m_androidInitTimer.stop();
     m_androidPollWatchdog.stop();
+    m_bleNotifyPoller.stop();
     m_androidPolling = false;
     m_androidElmInitialized = false;
-
-    if (m_btSocket) {
-        m_btSocket->disconnect(this);
-        if (m_btSocket->state() != QBluetoothSocket::SocketState::UnconnectedState)
-            m_btSocket->disconnectFromService();
-        m_btSocket->deleteLater();
-        m_btSocket = nullptr;
-    }
+    QJniObject::callStaticMethod<void>(
+        "org/octave/app/OctaveOBDBridge", "disconnect", "()V");
     m_btResponseBuffer.clear();
 }
 
-void OBDManager::onBtSocketConnected()
+void OBDManager::onAndroidBlePoll()
 {
-    qDebug() << "[OBD] Android: RFCOMM socket connected";
-    {
-        QMutexLocker locker(&m_lock);
-        m_isConnecting = false;
-    }
-    emit connectionProgressChanged(50);
-    emit connectionStatusChanged(QStringLiteral("Initializing ELM327..."));
-
-    if (m_settingsManager && !getConfiguredPort().isEmpty()) {
-        // Save the working MAC so reconnects don't lose it.
-        m_settingsManager->save_obd_bluetooth_port(getConfiguredPort());
-    }
-
-    m_androidElmInitialized = false;
-    m_androidInitStep = 0;
-    m_btResponseBuffer.clear();
-
-    // Wire up the init timer to step through INIT_COMMANDS one at a time.
-    m_androidInitTimer.disconnect();
-    m_androidInitTimer.setSingleShot(true);
-    QObject::connect(&m_androidInitTimer, &QTimer::timeout,
-                     this, &OBDManager::onAndroidInitStep);
-
-    QTimer::singleShot(500, this, &OBDManager::sendNextAndroidInitCommand);
-}
-
-void OBDManager::onBtSocketDisconnected()
-{
-    qDebug() << "[OBD] Android: RFCOMM socket disconnected";
-    bool wasConnected = m_connected;
-    m_connected = false;
-    m_androidElmInitialized = false;
-    m_androidPolling = false;
-    m_androidPollWatchdog.stop();
-    emit connectionStatusChanged(QStringLiteral("Disconnected"));
-    emit connectionProgressChanged(0);
-
-    if (wasConnected && m_androidReconnectAttempts < m_androidMaxReconnect) {
-        ++m_androidReconnectAttempts;
-        int delay = qMin(2000 * m_androidReconnectAttempts, 10000);
-        qDebug() << "[OBD] Android: auto-reconnect in" << delay << "ms"
-                 << "(" << m_androidReconnectAttempts << "/" << m_androidMaxReconnect << ")";
-        QTimer::singleShot(delay, this, &OBDManager::startAndroidConnection);
-    }
-}
-
-void OBDManager::onBtSocketReadyRead()
-{
-    if (!m_btSocket) return;
-    QByteArray data = m_btSocket->readAll();
-    m_btResponseBuffer.feed(data);
+    // 1) Drain any pending FFE1 notification bytes.
     while (true) {
-        auto resp = m_btResponseBuffer.getResponse();
-        if (!resp.has_value()) break;
-        processAndroidResponse(resp.value());
+        QJniObject jArr = QJniObject::callStaticObjectMethod(
+            "org/octave/app/OctaveOBDBridge", "pollResponse", "()[B");
+        if (!jArr.isValid()) break;
+        jbyteArray rawArr = jArr.object<jbyteArray>();
+        if (!rawArr) break;
+        QJniEnvironment env;
+        jsize len = env->GetArrayLength(rawArr);
+        if (len <= 0) break;
+        QByteArray chunk(len, 0);
+        env->GetByteArrayRegion(rawArr, 0, len,
+            reinterpret_cast<jbyte *>(chunk.data()));
+        m_btResponseBuffer.feed(chunk);
+        while (true) {
+            auto resp = m_btResponseBuffer.getResponse();
+            if (!resp.has_value()) break;
+            processAndroidResponse(resp.value());
+        }
     }
-}
 
-void OBDManager::onBtSocketError(QBluetoothSocket::SocketError error)
-{
-    QString errText;
-    switch (error) {
-    case QBluetoothSocket::SocketError::NoSocketError:        errText = QStringLiteral("No error"); break;
-    case QBluetoothSocket::SocketError::HostNotFoundError:    errText = QStringLiteral("Adapter not reachable -- powered off?"); break;
-    case QBluetoothSocket::SocketError::ServiceNotFoundError: errText = QStringLiteral("SPP service not found -- pair the adapter in Bluetooth settings first"); break;
-    case QBluetoothSocket::SocketError::NetworkError:         errText = QStringLiteral("Network error"); break;
-    case QBluetoothSocket::SocketError::UnsupportedProtocolError: errText = QStringLiteral("Protocol not supported"); break;
-    case QBluetoothSocket::SocketError::OperationError:       errText = QStringLiteral("Operation error"); break;
-    case QBluetoothSocket::SocketError::RemoteHostClosedError:errText = QStringLiteral("Adapter closed connection"); break;
-    default:                                                  errText = QStringLiteral("Unknown error"); break;
-    }
-    qDebug() << "[OBD] Android: socket error:" << errText;
+    // 2) Watch state transitions and react.
+    jint state = QJniObject::callStaticMethod<jint>(
+        "org/octave/app/OctaveOBDBridge", "stateCode", "()I");
+    if (state == m_bleLastJavaState) return;
 
-    {
-        QMutexLocker locker(&m_lock);
-        m_isConnecting = false;
+    // 0=DISCONNECTED 1=CONNECTING 2=DISCOVERING 3=READY 4=ERROR
+    switch (state) {
+    case 0: { // DISCONNECTED
+        QString ev = QJniObject::callStaticObjectMethod(
+            "org/octave/app/OctaveOBDBridge", "lastEvent",
+            "()Ljava/lang/String;").toString();
+        logAndroid(QStringLiteral("disconnected (%1)").arg(ev));
+        bool wasConnected = m_connected;
+        m_connected = false;
+        m_androidElmInitialized = false;
+        m_androidPolling = false;
+        m_bleNotifyPoller.stop();
+        m_androidPollWatchdog.stop();
+        emit connectionStatusChanged(QStringLiteral("Disconnected"));
+        emit connectionProgressChanged(0);
+        if (wasConnected && m_androidReconnectAttempts < m_androidMaxReconnect) {
+            ++m_androidReconnectAttempts;
+            int delay = qMin(2000 * m_androidReconnectAttempts, 10000);
+            QTimer::singleShot(delay, this, &OBDManager::startAndroidConnection);
+        }
+        break;
     }
-    emit connectionStatusChanged(QStringLiteral("RFCOMM: %1").arg(errText));
-    emit connectionStatusDetailChanged(errText);
-    emit connectionProgressChanged(0);
+    case 2: { // DISCOVERING (GATT connected, services pending)
+        logAndroid(QStringLiteral("GATT connected, discovering services…"));
+        emit connectionProgressChanged(50);
+        emit connectionStatusChanged(QStringLiteral("Discovering services..."));
+        break;
+    }
+    case 3: { // READY (FFE0 + FFE1 + notifications enabled)
+        logAndroid(QStringLiteral("FFE0/FFE1 ready, notifications enabled"));
+        {
+            QMutexLocker locker(&m_lock);
+            m_isConnecting = false;
+        }
+        emit connectionProgressChanged(70);
+        emit connectionStatusChanged(QStringLiteral("Initializing ELM327..."));
 
-    if (m_androidReconnectAttempts < m_androidMaxReconnect) {
-        ++m_androidReconnectAttempts;
-        int delay = qMin(2000 * m_androidReconnectAttempts, 10000);
-        QTimer::singleShot(delay, this, &OBDManager::startAndroidConnection);
+        // Don't re-save the MAC back to settings here — it was already
+        // persisted when the user entered it. Saving the same value triggers
+        // SettingsManager::obdBluetoothPortChanged → onSettingsPortChanged →
+        // port-change debounce → force_connect → which would tear this very
+        // session down mid-ELM-init.
+
+        m_androidElmInitialized = false;
+        m_androidInitStep = 0;
+        m_btResponseBuffer.clear();
+
+        m_androidInitTimer.disconnect();
+        m_androidInitTimer.setSingleShot(true);
+        QObject::connect(&m_androidInitTimer, &QTimer::timeout,
+                         this, &OBDManager::onAndroidInitStep);
+
+        QTimer::singleShot(500, this, &OBDManager::sendNextAndroidInitCommand);
+        break;
     }
+    case 4: { // ERROR
+        QString err = QJniObject::callStaticObjectMethod(
+            "org/octave/app/OctaveOBDBridge", "lastError",
+            "()Ljava/lang/String;").toString();
+        logAndroid(QStringLiteral("BLE error: %1").arg(err));
+        emit connectionStatusChanged(QStringLiteral("BLE error"));
+        emit connectionProgressChanged(0);
+        m_bleNotifyPoller.stop();
+        {
+            QMutexLocker locker(&m_lock);
+            m_isConnecting = false;
+        }
+        if (m_androidReconnectAttempts < m_androidMaxReconnect) {
+            ++m_androidReconnectAttempts;
+            int delay = qMin(2000 * m_androidReconnectAttempts, 10000);
+            QTimer::singleShot(delay, this, &OBDManager::startAndroidConnection);
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    m_bleLastJavaState = state;
 }
 
 void OBDManager::writeAndroidBytes(const QByteArray &data)
 {
-    if (!m_btSocket || m_btSocket->state() != QBluetoothSocket::SocketState::ConnectedState) {
-        qDebug() << "[OBD] Android: write while not connected, dropping" << data;
+    if (m_bleLastJavaState != 3) {
+        qDebug() << "[OBD] Android: write while not READY (state="
+                 << m_bleLastJavaState << "), dropping" << data;
         return;
     }
-    m_btSocket->write(data);
+    // BLE default ATT MTU is 23 bytes (20 byte payload). Chunk to be safe.
+    constexpr int CHUNK = 20;
+    QJniEnvironment env;
+    for (int i = 0; i < data.size(); i += CHUNK) {
+        QByteArray slice = data.mid(i, CHUNK);
+        jbyteArray jArr = env->NewByteArray(slice.size());
+        env->SetByteArrayRegion(jArr, 0, slice.size(),
+            reinterpret_cast<const jbyte *>(slice.constData()));
+        QJniObject::callStaticMethod<jboolean>(
+            "org/octave/app/OctaveOBDBridge", "write", "([B)Z", jArr);
+        env->DeleteLocalRef(jArr);
+    }
 }
 
 void OBDManager::sendNextAndroidInitCommand()
