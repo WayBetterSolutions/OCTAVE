@@ -22,7 +22,7 @@ Flickable {
         { cardId: "display_layout",     title: "Layout",     icon: "▦", component: layoutContent },
         { cardId: "display_window",     title: "Window",     icon: "▣", component: windowContent },
         { cardId: "display_appearance", title: "Appearance", icon: "❖", component: appearanceContent },
-        { cardId: "display_clock",      title: "Clock",      icon: "◔", component: clockContent }
+        { cardId: "display_clock",      title: "Clock",      icon: "◐", component: clockContent }
     ]
 
     function buildThemeChipColors() {

@@ -20,6 +20,21 @@ Item {
     property int dragSourceIndex: -1
     property int dropPreviewIndex: -1
 
+    // ── Live connection log (mirrors what OBDHome.qml shows) ─────────
+    // Surfaces every BLE state transition so the user can debug from this
+    // page without needing adb logcat. Capped at 60 lines.
+    property var connectionLog: []
+    Connections {
+        target: obdManager
+        enabled: obdManager !== null
+        function onConnectionLogLineAppended(line) {
+            var arr = pageRoot.connectionLog.slice()
+            arr.push(line)
+            if (arr.length > 60) arr = arr.slice(arr.length - 60)
+            pageRoot.connectionLog = arr
+        }
+    }
+
     Flickable {
         id: rootFlickable
         anchors.fill: parent
@@ -264,6 +279,38 @@ Item {
                                 deviceNotFoundNotification.open()
                             }
                         }
+                    }
+                }
+
+                // ── Live OBD log ──────────────────────────────────
+                SettingLabel {
+                    text: "Connection Log"
+                    visible: pageRoot.connectionLog.length > 0
+                }
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: dp(180)
+                    visible: pageRoot.connectionLog.length > 0
+                    radius: dpMin(6, 2)
+                    color: "#0d0d10"
+                    border.color: "#22ff88"
+                    border.width: 1
+
+                    ListView {
+                        id: settingsLogList
+                        anchors.fill: parent
+                        anchors.margins: dp(8)
+                        clip: true
+                        model: pageRoot.connectionLog
+                        delegate: Text {
+                            text: modelData
+                            color: "#88ffaa"
+                            font.pixelSize: App.Spacing.overallText * 0.7
+                            font.family: "Monospace"
+                            wrapMode: Text.Wrap
+                            width: settingsLogList.width
+                        }
+                        onCountChanged: positionViewAtEnd()
                     }
                 }
 

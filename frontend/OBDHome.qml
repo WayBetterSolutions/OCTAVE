@@ -29,6 +29,11 @@ Item {
     property string connectionDetail: ""
     property bool connected: obdManager ? obdManager.is_connected() : false
 
+    // Rolling connection log shown beneath the status row. Most useful on
+    // Android where the BLE state machine has many steps and silent failures
+    // are easy unless we surface each transition. Capped at 40 lines.
+    property var connectionLog: []
+
     Connections {
         target: obdManager
         enabled: obdManager !== null
@@ -39,6 +44,12 @@ Item {
         }
         function onConnectionStatusDetailChanged(detail) {
             obdHome.connectionDetail = detail
+        }
+        function onConnectionLogLineAppended(line) {
+            var arr = obdHome.connectionLog.slice()
+            arr.push(line)
+            if (arr.length > 40) arr = arr.slice(arr.length - 40)
+            obdHome.connectionLog = arr
         }
     }
 
@@ -117,6 +128,36 @@ Item {
                         elide: Text.ElideRight
                         Layout.fillWidth: true
                     }
+                }
+            }
+
+            // Connection log — surfaces each BLE/RFCOMM state transition so
+            // failures are visible without an adb cable. Auto-scrolls to the
+            // newest line; tap to clear isn't worth the complexity for v0.9.
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: dp(120)
+                visible: obdHome.connectionLog.length > 0
+                radius: dpMin(6, 2)
+                color: Qt.darker(backgroundColor, 1.2)
+                border.color: Qt.lighter(backgroundColor, 1.4)
+                border.width: 1
+
+                ListView {
+                    id: logList
+                    anchors.fill: parent
+                    anchors.margins: dp(8)
+                    clip: true
+                    model: obdHome.connectionLog
+                    delegate: Text {
+                        text: modelData
+                        color: labelColor
+                        font.pixelSize: App.Spacing.overallText * 0.75
+                        font.family: "Monospace"
+                        wrapMode: Text.Wrap
+                        width: logList.width
+                    }
+                    onCountChanged: positionViewAtEnd()
                 }
             }
 
