@@ -208,7 +208,7 @@ jobs:
             build-essential cmake ninja-build pkg-config \
             libtag1-dev libgl1-mesa-dev libegl1-mesa-dev \
             libxcb-xinerama0 libxcb-cursor0 libxkbcommon-dev \
-            libpulse-dev libfuse2 libssl-dev
+            libpulse-dev libfuse2 libssl-dev wget file
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4
@@ -218,104 +218,19 @@ jobs:
           target: 'desktop'
           modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity'
 
-      - name: Configure CMake
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build -j
-
-      - name: Stage install tree
-        run: |
-          mkdir -p dist/OCTAVE/usr/bin
-          mkdir -p dist/OCTAVE/usr/share/applications
-          mkdir -p dist/OCTAVE/usr/share/icons/hicolor/256x256/apps
-          mkdir -p dist/OCTAVE/usr/share/octave/frontend
-          cp build/octave dist/OCTAVE/usr/bin/
-          cp -r frontend/* dist/OCTAVE/usr/share/octave/frontend/
-
-      - name: Create AppImage
-        run: |
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-*.AppImage
-
-          cat > dist/OCTAVE/octave.desktop << 'EOF'
-          [Desktop Entry]
-          Type=Application
-          Name=OCTAVE
-          Comment=Open-source Cross-platform Telematics for Augmented Vehicle Experience
-          Exec=octave
-          Icon=octave
-          Categories=AudioVideo;Audio;Player;
-          Terminal=false
-          EOF
-
-          cat > dist/OCTAVE/octave.svg << 'EOF'
-          <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
-            <rect width="256" height="256" fill="#2196F3" rx="32"/>
-            <text x="128" y="160" text-anchor="middle" font-family="sans-serif" font-size="120" font-weight="bold" fill="white">O</text>
-          </svg>
-          EOF
-
-          export QML_SOURCES_PATHS=frontend
-          ./linuxdeploy-x86_64.AppImage --appdir dist/OCTAVE \
-            --executable build/octave \
-            --desktop-file dist/OCTAVE/octave.desktop \
-            --icon-file dist/OCTAVE/octave.svg \
-            --plugin qt --output appimage
-
-          mv OCTAVE*.AppImage dist/OCTAVE-x86_64-cpp.AppImage
-
-      - name: Build .deb package
-        run: |
-          # Derive a deb-style version from the git ref. Tags like v0.9 / v0.9.0 / v0.9.0-beta.1
-          # all map to a Debian-policy-compliant version string.
-          REF_NAME="${GITHUB_REF_NAME:-0.0.0}"
-          DEB_VERSION="${REF_NAME#v}"
-          [ -z "$DEB_VERSION" ] && DEB_VERSION="0.0.0"
-          echo "DEB_VERSION=$DEB_VERSION" >> $GITHUB_ENV
-
-          mkdir -p pkg/DEBIAN pkg/usr/bin pkg/usr/share/octave/frontend pkg/usr/share/applications pkg/usr/share/icons/hicolor/256x256/apps
-          cp build/octave pkg/usr/bin/octave
-          cp -r frontend/* pkg/usr/share/octave/frontend/
-          cp dist/OCTAVE/octave.desktop pkg/usr/share/applications/
-          cp dist/OCTAVE/octave.svg pkg/usr/share/icons/hicolor/256x256/apps/octave.svg
-
-          cat > pkg/DEBIAN/control << EOF
-          Package: octave
-          Version: ${DEB_VERSION}
-          Section: sound
-          Priority: optional
-          Architecture: amd64
-          Depends: libqt6core6, libqt6gui6, libqt6qml6, libqt6quick6, libqt6quickcontrols2-6, libqt6multimedia6, libqt6network6, libqt6concurrent6, libqt6networkauth6, libqt6serialport6, libqt6bluetooth6, libtag1v5
-          Maintainer: Rob DeGeorge <rob.degeorge@gmail.com>
-          Description: OCTAVE infotainment system
-           Open-source Cross-platform Telematics for Augmented Vehicle Experience.
-          EOF
-          # Strip the leading indentation that the heredoc introduced (Debian control format is column-sensitive).
-          sed -i 's/^          //' pkg/DEBIAN/control
-
-          dpkg-deb --build pkg "dist/octave_${DEB_VERSION}_amd64.deb"
-
-      - name: Upload Linux binary tree
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Linux-cpp
-          path: dist/OCTAVE/
-          retention-days: 30
+      - name: Build AppImage
+        env:
+          # install-qt-action puts qmake6 in $QT_ROOT_DIR/bin; point linuxdeploy-plugin-qt at it
+          # so it picks up Qt 6 modules instead of any system Qt 5 stub.
+          QMAKE: ${{ env.QT_ROOT_DIR }}/bin/qmake6
+          OCTAVE_VERSION: ${{ github.ref_name }}
+        run: bash packaging/linux/build-appimage.sh
 
       - name: Upload Linux AppImage
         uses: actions/upload-artifact@v4
         with:
           name: OCTAVE-Linux-cpp-AppImage
-          path: dist/OCTAVE-x86_64-cpp.AppImage
-          retention-days: 30
-
-      - name: Upload Linux .deb
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Linux-cpp-deb
-          path: dist/octave_*_amd64.deb
+          path: dist/OCTAVE-*-x86_64.AppImage
           retention-days: 30
           if-no-files-found: error
 
@@ -554,13 +469,13 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          # Four installers, one per platform. AppImage and the Linux portable
-          # zip and the macOS .app.zip are produced by the build jobs as
-          # workflow artifacts (downloadable from the run page) but are not
-          # attached to the public Release — keeps the Releases page tidy.
+          # Four installers, one per platform. The macOS .app.zip is produced
+          # by the build job as a workflow artifact (downloadable from the run
+          # page) but is not attached to the public Release — keeps the
+          # Releases page tidy.
           files: |
             artifacts/OCTAVE-Windows-cpp/OCTAVE_Setup_*.exe
             artifacts/OCTAVE-macOS-cpp-DMG/OCTAVE.dmg
-            artifacts/OCTAVE-Linux-cpp-deb/octave_*_amd64.deb
+            artifacts/OCTAVE-Linux-cpp-AppImage/OCTAVE-*-x86_64.AppImage
             artifacts/OCTAVE-Android-APK/OCTAVE-*-arm64-v8a.apk
           generate_release_notes: true
