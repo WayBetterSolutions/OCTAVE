@@ -80,6 +80,18 @@ OCTAVE is the option when you want a head unit that runs **on its own**, not a s
 - 100+ user-configurable settings, all persisted to disk
 - Custom gauge primitives and dashboard system — build your own and drop them in
 
+## Pre-built downloads
+
+Each tagged release attaches one installer per platform on the [Releases](https://github.com/WayBetterSolutions/OCTAVE/releases) page:
+
+- **Windows:** `OCTAVE_Setup_<version>.exe` — run the installer.
+- **macOS:** `OCTAVE.dmg` — open, drag to Applications.
+- **Linux:** `OCTAVE-<version>-x86_64.AppImage` — `chmod +x` and run. Works on Ubuntu 22.04+, Debian, Mint, Fedora, openSUSE, and Arch.
+  - Arch users may need `fuse2`: `sudo pacman -S fuse2`. Alternative without FUSE: `./OCTAVE-*.AppImage --appimage-extract-and-run`.
+- **Android:** `OCTAVE-<version>-arm64-v8a.apk` — sideload (the released APK uses a per-build keystore, so updates require uninstalling the previous version).
+
+For source checkouts and live development, keep reading.
+
 ## Quick Start
 
 The fast path — clone, run one script, done:

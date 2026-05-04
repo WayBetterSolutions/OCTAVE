@@ -1,237 +1,324 @@
 # OCTAVE Build Guide
 
-This guide explains how to compile OCTAVE into standalone executables and installers for Windows, macOS, and Linux.
+OCTAVE ships as a **C++ / Qt 6** application. Every distributed binary — `.exe`, `.dmg`, `.AppImage`, `.apk`, and (planned) `.ipa` — is built from `src/` via CMake. The Python tree in `backend/` is a developer/tinkerer backend, not a distribution path.
 
-## Quick Start
+This guide covers:
 
-The simplest way to build is using the unified build script:
-
-```bash
-python build.py
-```
-
-This will automatically:
-1. Create/activate a virtual environment
-2. Install dependencies
-3. Build the executable with PyInstaller
-4. Create a platform-specific installer (if tools are available)
-
-## Platform-Specific Instructions
-
-### Windows
-
-**Requirements:**
-- Python 3.8+
-- (Optional) [Inno Setup 6](https://jrsoftware.org/isdl.php) for creating the installer
-
-**Build:**
-```batch
-# Option 1: Use unified script
-python build.py
-
-# Option 2: Use Windows batch file
-build_scripts\build_windows.bat
-```
-
-**Output:**
-- `dist\OCTAVE\OCTAVE.exe` - Standalone executable (portable)
-- `dist\OCTAVE_Setup_1.0.0.exe` - Installer (if Inno Setup is installed)
-
-**Distribution:**
-- With installer: Distribute `OCTAVE_Setup_1.0.0.exe`
-- Without installer: Zip the entire `dist\OCTAVE` folder
+1. [Quick start](#quick-start)
+2. [Desktop builds](#desktop-builds-linux--macos--windows) (Linux / macOS / Windows)
+3. [Android build](#android-build) (full toolchain setup + APK)
+4. [iOS build](#ios-build) (planned, not yet wired)
+5. [Python developer backend](#python-developer-backend) (`pip install` and run)
+6. [CI parity](#ci-parity) (how local commands map to GitHub Actions)
 
 ---
 
-### macOS
+## Quick start
 
-**Requirements:**
-- Python 3.8+
-- Xcode Command Line Tools (`xcode-select --install`)
-- (Optional) `create-dmg` for prettier DMG (`brew install create-dmg`)
-
-**Build:**
 ```bash
-# Option 1: Use unified script
-python build.py
+# Configure + build (Debug, current platform)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j
 
-# Option 2: Use shell script
-chmod +x build_scripts/build_macos.sh
-./build_scripts/build_macos.sh
+# Run
+./build/octave            # Linux/macOS
+./build/Debug/octave.exe  # Windows MSVC multi-config
 ```
 
-**Output:**
-- `dist/OCTAVE.app` - Application bundle
-- `dist/OCTAVE_1.0.0.dmg` - DMG installer
+App-store builds (downloads feature stripped):
 
-**Distribution:**
-- Distribute the `.dmg` file
-- Users open DMG and drag OCTAVE to Applications
-
-**Code Signing (Optional):**
-For distribution outside the App Store, you may want to sign the app:
 ```bash
-codesign --deep --force --verify --verbose --sign "Developer ID Application: Your Name" dist/OCTAVE.app
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DOCTAVE_ENABLE_DOWNLOADS=OFF
+cmake --build build -j
 ```
 
 ---
+
+## Desktop builds (Linux / macOS / Windows)
+
+### Common requirements
+
+- **CMake 3.21+**
+- **Qt 6.7.3** (CI-pinned). Other 6.7.x / 6.8.x will likely work but aren't tested in CI.
+- **Ninja** (recommended on Linux/macOS for faster builds — `cmake -G Ninja`).
+- A C++17 compiler (GCC 11+/Clang 14+/MSVC 2022).
 
 ### Linux
 
-**Requirements:**
-- Python 3.8+
-- Build essentials (`sudo apt install build-essential`)
-- (Optional) `wget` for automatic appimagetool download
-
-**Build:**
 ```bash
-# Option 1: Use unified script
-python build.py
+sudo apt install -y build-essential cmake ninja-build pkg-config \
+                    libgl1-mesa-dev libxkbcommon-dev libfontconfig1 libdbus-1-3 \
+                    libxcb-cursor0 libxcb-xinerama0 libxcb-icccm4 libxcb-image0 \
+                    libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+                    libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1
+# Qt 6.7.3 — install via the Qt online installer or aqtinstall:
+pipx install aqtinstall
+aqt install-qt linux desktop 6.7.3 linux_gcc_64 -O ~/Qt \
+    -m qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors
 
-# Option 2: Use shell script
-chmod +x build_scripts/build_linux.sh
-./build_scripts/build_linux.sh
+export PATH="$HOME/Qt/6.7.3/gcc_64/bin:$PATH"
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
 ```
 
-**Output:**
-- `dist/OCTAVE/octave` - Standalone executable
-- `dist/OCTAVE-x86_64.AppImage` - AppImage (portable, single-file)
+Outputs: `build/octave`. CI packages this into a portable `OCTAVE-<version>-x86_64.AppImage` via `packaging/linux/build-appimage.sh` (see [CI parity](#ci-parity)) — no local installer needed for development.
 
-**Distribution:**
-- Distribute the `.AppImage` file
-- Users make it executable and run: `chmod +x OCTAVE-*.AppImage && ./OCTAVE-*.AppImage`
+To produce an AppImage locally (matches CI's layout, but linked against your distro's glibc — only safe to run on the same distro):
+
+```bash
+# Ubuntu 22.04 prereqs (see the script's header for the full list)
+sudo apt-get install -y libtag1-dev libfuse2 wget file
+
+bash packaging/linux/build-appimage.sh
+# -> dist/OCTAVE-<version>-x86_64.AppImage
+```
+
+On Arch the bundled `linuxdeploy` `strip` rejects modern `.relr.dyn` ELF sections; pass `NO_STRIP=1` and expect a slightly larger artifact. AppImages built on Arch will not run on Ubuntu/Debian (newer glibc) — for distributable builds, let CI on `ubuntu-22.04` produce the AppImage.
+
+### macOS
+
+```bash
+# Install Xcode Command Line Tools
+xcode-select --install
+
+# Qt 6.7.3 (Apple Silicon and Intel both supported)
+pipx install aqtinstall
+aqt install-qt mac desktop 6.7.3 -O ~/Qt \
+    -m qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors
+
+export PATH="$HOME/Qt/6.7.3/macos/bin:$PATH"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+Outputs: `build/octave.app`. CI runs `macdeployqt` and `hdiutil` to produce the `.dmg`.
+
+### Windows
+
+CI uses **vcpkg** to provide `taglib` and pins Qt 6.7.3 via `jurplel/install-qt-action`.
+
+```powershell
+# Visual Studio 2022 with "Desktop development with C++" workload required.
+# Qt 6.7.3 — install via the Qt online installer (msvc2019_64 or msvc2022_64).
+# vcpkg — bootstrap once if you don't have it.
+
+cmake -S . -B build `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release -j
+```
+
+Outputs: `build/Release/octave.exe`. CI runs `windeployqt` then `iscc.exe build_scripts/installer_windows.iss` to produce `OCTAVE_Setup_<version>.exe`.
 
 ---
 
-## Build Options
+## Android build
+
+Produces an installable `.apk` for arm64-v8a (Android 11+). Tested on Samsung Galaxy Tab S6 and S22 Ultra.
+
+**Distribution model:** LGPL Qt, dynamically linked, shared `.so`s bundled in APK. No commercial Qt license required at this stage.
+
+**Scope note:** Spotify is **excluded from the Android build**. The Spotify experience is desktop-only — simplifies OAuth (no custom URI scheme gymnastics) and shrinks dependency surface for store review.
+
+### Toolchain prerequisites
 
 ```bash
-# Clean build artifacts
-python build.py --clean
-
-# Clean and rebuild
-python build.py --clean --build-after-clean
-
-# Show help
-python build.py --help
+java -version          # OpenJDK 17.x — required by Android Gradle Plugin 8.x. Not 11, not 21.
+cmake --version        # 3.21+
+adb version            # sudo pacman -S android-tools  (or apt install android-tools-adb)
 ```
 
-## Adding an App Icon
+You'll need roughly **40–60 GB free** on the disk hosting `$HOME` (Qt for Android + SDK + NDK + build outputs).
 
-For professional distribution, add platform-specific icons:
+### Step 1 — Install Qt for Android 6.7.3
 
-1. Create a `build_resources` folder (already created)
-2. Add your icons:
-   - `build_resources/icon.ico` - Windows (256x256, .ico format)
-   - `build_resources/icon.icns` - macOS (.icns format)
-   - `build_resources/icon.png` - Linux (256x256 PNG)
+We use **Qt 6.7.3** specifically — Qt 6.8+ moved behind a login-gated channel, while 6.7.3 is available through aqtinstall's public-mirror CLI path.
 
-**Creating icons:**
-- Start with a 1024x1024 PNG
-- Windows: Use an online converter or GIMP to create .ico
-- macOS: Use `iconutil` or online converter for .icns
-- Linux: Use 256x256 PNG directly
-
-## Troubleshooting
-
-### "DLL not found" errors on Windows
-Install the Visual C++ Redistributable:
-https://aka.ms/vs/17/release/vc_redist.x64.exe
-
-### "App is damaged" on macOS
-The app isn't signed. Users can bypass with:
 ```bash
-xattr -cr /Applications/OCTAVE.app
+pipx install aqtinstall
+
+# Android target build (~1 GB)
+aqt install-qt linux android 6.7.3 android_arm64_v8a -O ~/Qt \
+    -m qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors
+
+# Desktop host tools Qt (needed for cross-compile, ~1 GB)
+aqt install-qt linux desktop 6.7.3 linux_gcc_64 -O ~/Qt \
+    -m qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors
 ```
 
-### Missing Qt plugins
-Ensure PySide6 is the same version in requirements.txt and the build environment.
+Verify:
 
-### AppImage won't run on Linux
-Make sure it's executable:
 ```bash
-chmod +x OCTAVE-x86_64.AppImage
+ls ~/Qt/6.7.3/android_arm64_v8a/bin/qt-cmake       # Android cross-compile wrapper
+ls ~/Qt/6.7.3/gcc_64/bin/androiddeployqt           # APK packaging tool (runs on host)
 ```
 
-If FUSE isn't available, extract and run:
+**OpenSSL for Android:** wired in at build time via the KDAB `android_openssl` CMake project (already integrated). No separate install step needed.
+
+### Step 2 — Install Android SDK + NDK
+
+Pick one route.
+
+**Route A (recommended): Android Studio.** Easier; keeps SDK up to date.
+
 ```bash
-./OCTAVE-x86_64.AppImage --appimage-extract
-./squashfs-root/AppRun
+yay -S android-studio   # or download from https://developer.android.com/studio
 ```
 
-## CI/CD Integration
+Launch Android Studio once, accept licenses. Then via SDK Manager:
+- **SDK Platforms:** Android 14 (API 34)
+- **SDK Tools:** NDK (Side by side) — version `26.1.10909125` (what Qt 6.7.3 expects)
+- **SDK Tools:** Android SDK Command-line Tools (latest), Build-Tools 35.0.0
 
-For automated builds, you can use GitHub Actions. Example workflow:
+**Route B: cmdline-tools only (lean).**
 
-```yaml
-name: Build OCTAVE
+```bash
+mkdir -p ~/Android/Sdk/cmdline-tools
+cd ~/Downloads
+curl -L -O "https://dl.google.com/android/repository/commandlinetools-linux-14742923_latest.zip"
+unzip commandlinetools-linux-14742923_latest.zip
+mv cmdline-tools ~/Android/Sdk/cmdline-tools/latest
 
-on:
-  push:
-    tags:
-      - 'v*'
+yes | ~/Android/Sdk/cmdline-tools/latest/bin/sdkmanager --licenses
 
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python build.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Windows
-          path: dist/OCTAVE/
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python build.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-macOS
-          path: dist/*.dmg
-
-  build-linux:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: python build.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: OCTAVE-Linux
-          path: dist/*.AppImage
+~/Android/Sdk/cmdline-tools/latest/bin/sdkmanager \
+    "platform-tools" \
+    "platforms;android-34" \
+    "build-tools;35.0.0" \
+    "ndk;26.1.10909125"
 ```
 
-## File Structure
+`cmdline-tools/` **must** live at `~/Android/Sdk/cmdline-tools/latest/` (not `~/Android/cmdline-tools/latest/`) or sdkmanager produces "inconsistent location" warnings.
 
-After running the build, your project will have:
+### Step 3 — Environment variables
 
+Add to `~/.bashrc` (or `~/.zshrc`):
+
+```bash
+# OCTAVE Android build toolchain
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/26.1.10909125"
+export JAVA_HOME="/usr/lib/jvm/java-17-openjdk"
+export QT_ANDROID_ROOT="$HOME/Qt/6.7.3/android_arm64_v8a"
+export QT_HOST_PATH="$HOME/Qt/6.7.3/gcc_64"
+export PATH="$QT_ANDROID_ROOT/bin:$QT_HOST_PATH/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
 ```
-OCTAVE/
-├── build.py                    # Unified build script
-├── octave.spec                 # PyInstaller configuration
-├── requirements-build.txt      # Build dependencies
-├── build_scripts/
-│   ├── build_windows.bat       # Windows build script
-│   ├── build_macos.sh          # macOS build script
-│   ├── build_linux.sh          # Linux build script
-│   └── installer_windows.iss   # Inno Setup script
-├── build_resources/
-│   ├── icon.ico                # Windows icon (add this)
-│   ├── icon.icns               # macOS icon (add this)
-│   └── icon.png                # Linux icon (add this)
-├── dist/                       # Build output (generated)
-│   ├── OCTAVE/                 # Executable folder
-│   └── OCTAVE_Setup_*.exe      # Installer (Windows)
-└── build/                      # Temp build files (generated)
+
+`QT_HOST_PATH` is required — `qt-cmake` uses it to locate the host toolchain during cross-compile. Without it, `find_package(Qt6 ...)` will set `Qt6_FOUND=FALSE` at configure time.
+
+Reload and verify:
+
+```bash
+source ~/.bashrc
+echo $ANDROID_NDK_ROOT
+ls $ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake   # must exist
+ls $QT_ANDROID_ROOT/lib/cmake/Qt6/qt.toolchain.cmake       # must exist
 ```
+
+### Step 4 — Build the APK
+
+```bash
+qt-cmake -S . -B build-android \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DANDROID_ABI=arm64-v8a \
+    -DANDROID_PLATFORM=android-30 \
+    -DOCTAVE_ENABLE_DOWNLOADS=OFF \
+    -DQT_ANDROID_SIGN_APK=OFF
+
+cmake --build build-android --target apk -j
+adb install build-android/android-build/build/outputs/apk/debug/android-build-debug.apk
+```
+
+If `INSTALL_FAILED_UPDATE_INCOMPATIBLE`: a release-signed APK of the same package is already installed. `adb uninstall org.OCTAVE` first.
+
+### Enabling USB debugging on devices
+
+**Tab S6 / S22 Ultra:** Settings → About → Software information → tap **Build number** 7 times → back out → Developer options → USB debugging → ON. Plug in cable, accept the "Allow USB debugging?" prompt.
+
+Verify both devices:
+
+```bash
+adb devices
+# expect "device" (not "unauthorized") for each
+```
+
+### Android troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `qt-cmake: command not found` | `QT_ANDROID_ROOT/bin` not on PATH — re-check Step 3 + `source ~/.bashrc` |
+| `Could not find NDK` | `ANDROID_NDK_ROOT` points to a missing version — `ls ~/Android/Sdk/ndk/` |
+| `Could not find Java 17` | `update-alternatives --config java` (Arch) or set `JAVA_HOME` explicitly |
+| `adb devices` → `unauthorized` | Trust prompt was dismissed — unplug, replug, watch device screen |
+| Gradle complains about JDK 21 | Something on PATH resolves to 21 — switch via `update-alternatives` |
+
+---
+
+## iOS build
+
+**Status:** Not yet wired. iOS is the planned 5th target. CMakeLists.txt does not currently set up iOS toolchain or Info.plist generation, and there is no iOS job in CI. Implementing it requires:
+
+- An Apple Developer account (US$99/yr) for code-signing certs.
+- `qt-cmake` from `~/Qt/6.7.3/ios/` (separate aqtinstall pull).
+- `qt_add_executable` + `set_target_properties(... MACOSX_BUNDLE_INFO_PLIST ...)` wiring.
+- A signing identity exported as a CI secret (or local-only for sideload).
+
+When this work happens, it will be added here as section 4 alongside Android.
+
+---
+
+## Python developer backend
+
+The Python tree in `backend/` + `main.py` is a peer backend for tinkering — same QML frontend, same managers in pure Python. Useful for rapid prototyping, hardware hacking on a Pi, or running with a REPL attached.
+
+```bash
+python -m venv venv
+source venv/bin/activate           # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+Flags:
+
+```bash
+python main.py --debug             # debug logging
+python dev/dev_main.py             # developer mode: simulated OBD + keyboard controls
+```
+
+Lint and headless smoke tests (run by CI):
+
+```bash
+ruff check .
+QT_QPA_PLATFORM=offscreen pytest tests/
+```
+
+The Python backend is **never** packaged or shipped. There is no PyInstaller pipeline. If you want a personal Python-side desktop binary for a Pi, run `python main.py` directly from the checkout.
+
+**Mobile (Android/iOS) is C++-only.** Do not attempt to package the Python backend for mobile.
+
+---
+
+## CI parity
+
+`.github/workflows/build.yml` is the source of truth. Each platform job runs the same CMake commands documented above.
+
+| Platform | Runner | Build command | Output |
+|---|---|---|---|
+| Windows | `windows-latest` | `cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=…/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release` then `iscc.exe build_scripts/installer_windows.iss` | `OCTAVE_Setup_<v>.exe` |
+| macOS | `macos-latest` | `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` then `macdeployqt` + `hdiutil` | `OCTAVE.dmg` |
+| Linux | `ubuntu-22.04` | `bash packaging/linux/build-appimage.sh` (CMake Release + `linuxdeploy` + `linuxdeploy-plugin-qt`) | `OCTAVE-<v>-x86_64.AppImage` |
+| Android | `ubuntu-22.04` | `qt-cmake -S . -B build-android …` then `cmake --build build-android --target apk` | `OCTAVE.apk` |
+
+**Pinned versions** (matched locally for parity):
+
+| Tool | Version |
+|---|---|
+| Qt | 6.7.3 |
+| JDK | 17 |
+| Android NDK | 26.1.10909125 |
+| Android SDK platform | 34 |
+| Android Build-Tools | 35.0.0 |
+| CMake | 3.21+ (latest stable in CI) |
+
+If a local build matches the pinned versions above, the same commands will produce the same artifacts as CI. Releases are cut on `v*` tag push and attach all 4 installers to a single GitHub Release.
