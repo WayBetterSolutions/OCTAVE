@@ -128,6 +128,7 @@ QJsonObject SettingsManager::buildDefaultSettings() const
     d[QStringLiteral("startUpVolume")]        = 0.1;
     d[QStringLiteral("showClock")]            = true;
     d[QStringLiteral("clockFormat24Hour")]    = true;
+    d[QStringLiteral("clockShowSeconds")]     = false;
     d[QStringLiteral("clockSize")]            = 18;
     d[QStringLiteral("backgroundGrid")]       = QStringLiteral("4x4");
     d[QStringLiteral("screenWidth")]          = 1280;
@@ -368,6 +369,7 @@ SettingsManager::SettingsManager(QObject *parent)
     m_startVolume       = static_cast<float>(s(QStringLiteral("startUpVolume")).toDouble());
     m_showClock         = s(QStringLiteral("showClock")).toBool();
     m_clockFormat24Hour = s(QStringLiteral("clockFormat24Hour")).toBool();
+    m_clockShowSeconds  = s(QStringLiteral("clockShowSeconds")).toBool();
     m_clockSize         = s(QStringLiteral("clockSize")).toInt();
     m_backgroundGrid    = s(QStringLiteral("backgroundGrid")).toString();
     m_screenWidth       = s(QStringLiteral("screenWidth")).toInt();
@@ -753,6 +755,7 @@ int     SettingsManager::colorTransitionMs() const { return m_colorTransitionMs;
 bool    SettingsManager::songLengthTransition() const { return m_songLengthTransition; }
 bool    SettingsManager::showClock() const         { return m_showClock; }
 bool    SettingsManager::clockFormat24Hour() const { return m_clockFormat24Hour; }
+bool    SettingsManager::clockShowSeconds() const  { return m_clockShowSeconds; }
 int     SettingsManager::clockSize() const         { return m_clockSize; }
 QString SettingsManager::backgroundGrid() const    { return m_backgroundGrid; }
 int     SettingsManager::screenWidth() const       { return m_screenWidth; }
@@ -923,6 +926,14 @@ void SettingsManager::save_clock_format(bool is24hour)
     m_clockFormat24Hour = is24hour;
     updateSetting(QStringLiteral("clockFormat24Hour"), is24hour);
     emit clockFormatChanged(is24hour);
+}
+
+void SettingsManager::save_clock_show_seconds(bool show)
+{
+    qCDebug(lcSettings) << "Saving clock show seconds:" << show;
+    m_clockShowSeconds = show;
+    updateSetting(QStringLiteral("clockShowSeconds"), show);
+    emit clockShowSecondsChanged(show);
 }
 
 void SettingsManager::save_clock_size(int size)
@@ -2020,6 +2031,9 @@ void SettingsManager::reset_to_defaults()
 
     m_clockFormat24Hour = m_defaultSettings.value(QStringLiteral("clockFormat24Hour")).toBool();
     emit clockFormatChanged(m_clockFormat24Hour);
+
+    m_clockShowSeconds = m_defaultSettings.value(QStringLiteral("clockShowSeconds")).toBool();
+    emit clockShowSecondsChanged(m_clockShowSeconds);
 
     m_clockSize = m_defaultSettings.value(QStringLiteral("clockSize")).toInt();
     emit clockSizeChanged(m_clockSize);

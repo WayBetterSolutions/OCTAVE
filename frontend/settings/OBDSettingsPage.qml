@@ -362,132 +362,94 @@ Item {
 
             SettingsDivider {}
 
-            // Bluetooth Device — Android: Classic BT scan + picker, Desktop: port text field
+            // OBD Adapter — single universal layout. The manager hides every
+            // platform-specific detail (BLE on Android, rfcomm bind on Linux,
+            // COM enumeration on Windows, paired-list on macOS) behind a
+            // uniform availableAdapters / scan() / connect_to_adapter() API.
+            // The QML below renders pixel-identically on every OS.
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: App.Spacing.rowSpacing
 
                 SettingLabel {
-                    text: (typeof isAndroid !== "undefined" && isAndroid) ? "BLE OBD Adapter" : "Bluetooth Device"
+                    text: "OBD Adapter"
                 }
 
-                // Android: BLE Scan + Connect buttons and device list
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: dp(8)
-                    visible: typeof isAndroid !== "undefined" && isAndroid
-
-                    RowLayout {
+                // Discovered adapters — bound to obdManager.availableAdapters
+                // ({name, identifier, kind} on every OS). The "kind" tag tells
+                // the user what flavour each row is so they can pick.
+                Repeater {
+                    id: adaptersRepeater
+                    model: obdManager && obdManager.availableAdapters
+                        ? obdManager.availableAdapters
+                        : []
+                    delegate: Rectangle {
                         Layout.fillWidth: true
-                        spacing: dp(6)
+                        Layout.preferredHeight: dp(44)
+                        radius: dpMin(4, 2)
+                        color: adapterItemMouse.pressed
+                            ? Qt.darker(App.Style.cardBackground, 1.2)
+                            : App.Style.cardBackground
+                        border.width: 1
+                        border.color: App.Style.accent
 
-                        // BLE Scan button
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: dp(40)
-                            radius: dpMin(6, 2)
-                            color: scanMouseArea.pressed ? Qt.darker(App.Style.accent, 1.3) : App.Style.accent
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: obdManager && obdManager.is_scanning() ? "Scanning BLE..." : "Scan for BLE Adapters"
-                                color: "white"
-                                font.pixelSize: App.Spacing.overallText
-                                font.family: App.Style.fontFamily
-                                font.bold: true
-                            }
-
-                            MouseArea {
-                                id: scanMouseArea
-                                anchors.fill: parent
-                                onClicked: {
-                                    if (obdManager) {
-                                        obdManager.refresh_ports()
-                                        deviceListModel.clear()
-                                    }
-                                }
-                            }
-                        }
-
-                        // Connect button
-                        Rectangle {
-                            Layout.preferredWidth: dp(100)
-                            Layout.preferredHeight: dp(40)
-                            radius: dpMin(6, 2)
-                            color: connectMouseArea.pressed ? Qt.darker("#27ae60", 1.3) : "#27ae60"
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: dp(10)
+                            anchors.rightMargin: dp(10)
+                            spacing: dp(8)
 
                             Text {
-                                anchors.centerIn: parent
-                                text: obdManager && obdManager.is_connected() ? "Connected" : "Connect"
-                                color: "white"
-                                font.pixelSize: App.Spacing.overallText
-                                font.family: App.Style.fontFamily
-                                font.bold: true
-                            }
-
-                            MouseArea {
-                                id: connectMouseArea
-                                anchors.fill: parent
-                                onClicked: {
-                                    if (obdManager) obdManager.force_connect()
-                                }
-                            }
-                        }
-                    }
-
-                    // Device list
-                    ListModel {
-                        id: deviceListModel
-                    }
-
-                    Connections {
-                        target: obdManager
-                        function onAvailablePortsChanged(ports) {
-                            deviceListModel.clear()
-                            for (var i = 0; i < ports.length; i++) {
-                                deviceListModel.append({"deviceText": ports[i]})
-                            }
-                        }
-                    }
-
-                    // Discovered devices
-                    Repeater {
-                        model: deviceListModel
-                        delegate: Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: dp(40)
-                            radius: dpMin(4, 2)
-                            color: deviceItemMouse.pressed ? Qt.darker(App.Style.cardBackground, 1.2) : App.Style.cardBackground
-                            border.width: 1
-                            border.color: App.Style.accent
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: model.deviceText
+                                Layout.fillWidth: true
+                                text: modelData.name || ""
                                 color: App.Style.textColor
                                 font.pixelSize: App.Spacing.overallText * 0.9
                                 font.family: App.Style.fontFamily
+                                elide: Text.ElideRight
                             }
 
-                            MouseArea {
-                                id: deviceItemMouse
-                                anchors.fill: parent
-                                onClicked: {
-                                    if (obdManager) {
-                                        var addr = model.deviceText.match(/\(([^)]+)\)/)
-                                        if (addr && addr[1]) {
-                                            obdManager.set_target_address(addr[1])
-                                        }
-                                        obdManager.force_connect()
-                                    }
+                            Rectangle {
+                                Layout.preferredWidth: kindLabel.implicitWidth + dp(10)
+                                Layout.preferredHeight: dp(20)
+                                radius: dpMin(10, 2)
+                                color: Qt.rgba(App.Style.accent.r,
+                                               App.Style.accent.g,
+                                               App.Style.accent.b, 0.22)
+                                Text {
+                                    id: kindLabel
+                                    anchors.centerIn: parent
+                                    text: (modelData.kind || "").toUpperCase()
+                                    color: App.Style.primaryTextColor
+                                    font.pixelSize: App.Spacing.overallText * 0.7
+                                    font.family: App.Style.fontFamily
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: adapterItemMouse
+                            anchors.fill: parent
+                            onClicked: {
+                                var ident = modelData.identifier || ""
+                                if (!ident) return
+                                manualMacField.text = ident
+                                if (obdManager
+                                    && typeof obdManager.connect_to_adapter === "function") {
+                                    obdManager.connect_to_adapter(ident)
+                                } else if (obdManager) {
+                                    if (typeof obdManager.set_target_address === "function")
+                                        obdManager.set_target_address(ident)
+                                    obdManager.force_connect()
                                 }
                             }
                         }
                     }
                 }
 
-                // MAC address entry (works on both Android and desktop —
-                // desktop accepts a serial path or a MAC).
+                // Manual entry — universal escape hatch. Accepts a MAC, a
+                // /dev/... path, or a COM port. The manager classifies and
+                // dispatches accordingly.
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: dp(8)
@@ -495,9 +457,7 @@ Item {
                     SettingsTextField {
                         id: manualMacField
                         Layout.fillWidth: true
-                        placeholderText: (typeof isAndroid !== "undefined" && isAndroid)
-                            ? "MAC address (e.g. 88:1B:99:00:11:22)"
-                            : "MAC address or device path"
+                        placeholderText: "MAC address, /dev path, or COM port"
                         text: settingsManager ? settingsManager.obdBluetoothPort : ""
                     }
 
@@ -522,30 +482,24 @@ Item {
                             onClicked: {
                                 var entered = manualMacField.text.trim()
                                 if (!entered) return
-                                if (settingsManager) {
-                                    settingsManager.save_obd_bluetooth_port(entered)
-                                    // Looks like a MAC? Save it as a chip for quick reuse.
-                                    var macRe = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/
-                                    if (macRe.test(entered)) {
-                                        settingsManager.add_obd_saved_adapter(entered, entered)
-                                    }
-                                }
-                                if (obdManager) {
-                                    if (typeof obdManager.set_target_address === "function") {
+                                if (obdManager
+                                    && typeof obdManager.connect_to_adapter === "function") {
+                                    obdManager.connect_to_adapter(entered)
+                                } else if (obdManager) {
+                                    // Fallback for any backend that hasn't been
+                                    // updated yet — keeps the UI working.
+                                    if (settingsManager)
+                                        settingsManager.save_obd_bluetooth_port(entered)
+                                    if (typeof obdManager.set_target_address === "function")
                                         obdManager.set_target_address(entered)
-                                    }
-                                    if (typeof obdManager.force_connect === "function") {
-                                        obdManager.force_connect()
-                                    } else if (typeof obdManager.reconnect === "function") {
-                                        obdManager.reconnect()
-                                    }
+                                    obdManager.force_connect()
                                 }
                             }
                         }
                     }
                 }
 
-                // Saved-adapter chips — tap to load that MAC into the field.
+                // Saved-adapter chips — tap to reuse a previous connection.
                 Flow {
                     Layout.fillWidth: true
                     spacing: dp(6)
@@ -613,20 +567,15 @@ Item {
                                     var mac = modelData.mac || ""
                                     if (!mac) return
                                     manualMacField.text = mac
-                                    if (settingsManager) {
-                                        settingsManager.save_obd_bluetooth_port(mac)
-                                        // Bump this MAC to the front of the recent list.
-                                        settingsManager.add_obd_saved_adapter(modelData.name || mac, mac)
-                                    }
-                                    if (obdManager) {
-                                        if (typeof obdManager.set_target_address === "function") {
+                                    if (obdManager
+                                        && typeof obdManager.connect_to_adapter === "function") {
+                                        obdManager.connect_to_adapter(mac)
+                                    } else if (obdManager) {
+                                        if (settingsManager)
+                                            settingsManager.save_obd_bluetooth_port(mac)
+                                        if (typeof obdManager.set_target_address === "function")
                                             obdManager.set_target_address(mac)
-                                        }
-                                        if (typeof obdManager.force_connect === "function") {
-                                            obdManager.force_connect()
-                                        } else if (typeof obdManager.reconnect === "function") {
-                                            obdManager.reconnect()
-                                        }
+                                        obdManager.force_connect()
                                     }
                                 }
                             }
@@ -634,60 +583,25 @@ Item {
                     }
                 }
 
+                // Per-OS hint — the *only* place this page knows about
+                // platform variation. Drives copy, never structure.
                 SettingDescription {
-                    text: (typeof isAndroid !== "undefined" && isAndroid)
-                        ? "Tap a saved chip to reuse it, or enter a MAC and press Go. Chips are saved automatically when you connect."
-                        : "Serial port path or a Bluetooth MAC address. Saved adapters appear as chips above."
-                }
-
-                // ── Connection Log (Android only) ──────────────────
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: dp(4)
-                    visible: typeof isAndroid !== "undefined" && isAndroid
-
-                    SettingLabel {
-                        text: "Connection Log"
+                    text: {
+                        var hint = (obdManager && typeof obdManager.platform_hint === "function")
+                            ? obdManager.platform_hint() : ""
+                        if (hint === "android")
+                            return "Pair your ELM327 in Android Settings first, then enter its MAC here and press Go."
+                        if (hint === "linux")
+                            return "Enter MAC (auto-binds rfcomm) or /dev/rfcomm0. " +
+                                   "USB ELM327 also works (/dev/ttyUSB0). See Connection Log for rfcomm errors."
+                        if (hint === "windows")
+                            return "Enter the COM port assigned to your paired ELM327 (e.g. COM5), or its MAC."
+                        if (hint === "macos")
+                            return "Enter MAC for Classic BT, or the /dev/tty.* path."
+                        if (hint === "ios")
+                            return "iOS only exposes BLE devices by UUID — MAC entry is not supported by iOS."
+                        return "Enter your adapter's MAC, /dev path, or COM port and press Go."
                     }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: dp(160)
-                        radius: dpMin(4, 2)
-                        color: Qt.darker(App.Style.cardBackground, 1.4)
-                        clip: true
-
-                        Flickable {
-                            id: logFlickable
-                            anchors.fill: parent
-                            anchors.margins: dp(6)
-                            contentWidth: width
-                            contentHeight: logText.implicitHeight
-                            flickableDirection: Flickable.VerticalFlick
-                            boundsBehavior: Flickable.StopAtBounds
-
-                            Text {
-                                id: logText
-                                width: parent.width
-                                text: ""
-                                color: "#88cc88"
-                                font.pixelSize: App.Spacing.overallText * 0.75
-                                font.family: "monospace"
-                                wrapMode: Text.Wrap
-                            }
-
-                            // Auto-scroll to bottom on new content
-                            onContentHeightChanged: {
-                                if (contentHeight > height)
-                                    contentY = contentHeight - height
-                            }
-                        }
-                    }
-
-                    // Dead signal handler removed — obdManager has no
-                    // connectionLogChanged signal (never implemented on either
-                    // backend). The QML parser was logging a warning on every
-                    // page load. Revisit if a connection-log UI is wanted.
                 }
             }
 

@@ -175,6 +175,8 @@
             <tr><td><code>connectionProgressChanged</code></td><td>int (0-100)</td><td>Connection progress bar updates</td></tr>
             <tr><td><code>devicePresenceChanged</code></td><td>bool</td><td>OBD adapter detected/lost on USB/BT</td></tr>
             <tr><td><code>availablePortsChanged</code></td><td>list</td><td>Serial port scan discovers new ports</td></tr>
+            <tr><td><code>availableAdaptersChanged</code></td><td>list</td><td>Same scan, richer shape: <code>[{name, identifier, kind}, ...]</code> for the unified OBD settings UI</td></tr>
+            <tr><td><code>connectionLogLineAppended</code></td><td>str</td><td>One live log line for the OBD settings page Connection Log card</td></tr>
             <tr><td><code>scanProgressChanged</code></td><td>int, str (progress, message)</td><td>Vehicle PID scan progress</td></tr>
             <tr><td><code>scanCompleteChanged</code></td><td>list</td><td>Vehicle scan completed with supported PIDs</td></tr>
             <tr><td><code>scanOutputChanged</code></td><td>str</td><td>Terminal-style scan output text</td></tr>
@@ -206,6 +208,10 @@
             <tr><td><code>enter_diagnostic_mode()</code></td><td>-</td><td>-</td><td>Pause async polling, switch to sync for DTC operations</td></tr>
             <tr><td><code>exit_diagnostic_mode()</code></td><td>-</td><td>-</td><td>Resume async polling after diagnostics</td></tr>
             <tr><td><code>get_available_ports()</code></td><td>-</td><td>list</td><td>Get detected serial ports</td></tr>
+            <tr><td><code>scan()</code></td><td>-</td><td>-</td><td>Trigger discovery (alias of <code>refresh_ports</code>) — used by the unified OBD settings page</td></tr>
+            <tr><td><code>connect_to_adapter(str)</code></td><td>identifier</td><td>-</td><td>Single entry point used by the OBD settings page. Accepts a MAC, <code>/dev</code> path, or COM port; on Linux runs <code>rfcomm bind</code> when given a MAC, then calls <code>force_connect</code>.</td></tr>
+            <tr><td><code>platform_hint()</code></td><td>-</td><td>str</td><td>Returns <code>"linux"</code> / <code>"macos"</code> / <code>"windows"</code> / <code>"android"</code> / <code>"ios"</code>. Drives the per-OS hint copy under the entry field — never structural branching.</td></tr>
+            <tr><td><code>availableAdapters</code></td><td>property</td><td>list</td><td>Rich <code>[{name, identifier, kind}, ...]</code> form of <code>availablePorts</code>. Bound directly by the OBD settings page list.</td></tr>
           </tbody>
         </table>
 

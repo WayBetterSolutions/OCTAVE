@@ -1,9 +1,12 @@
-from PySide6.QtCore import QObject, Signal, Slot, QTimer, QThread
+from PySide6.QtCore import QObject, Signal, Slot, Property, QTimer, QThread
 import obd
 from obd import OBDStatus
 import time
 import os
+import re
 import sys
+import shutil
+import subprocess
 import threading
 import glob
 
@@ -167,6 +170,12 @@ class OBDManager(QObject):
     connectionProgressChanged = Signal(int)
     devicePresenceChanged = Signal(bool)
     availablePortsChanged = Signal(list)  # Signal for discovered ports
+    # Emitted alongside availablePortsChanged but with the richer
+    # {name, identifier, kind} shape the unified QML binds to.
+    availableAdaptersChanged = Signal(list)
+    # Live connection-log line — same surface the C++ side emits so the QML
+    # connection-log card binds to either backend without branching.
+    connectionLogLineAppended = Signal(str)
     supportedCommandsChanged = Signal(list)  # Signal for vehicle-supported commands
     scanProgressChanged = Signal(int, str)  # progress (0-100), message
     scanCompleteChanged = Signal(list)  # list of supported command names
@@ -445,6 +454,7 @@ class OBDManager(QObject):
             if ports != self._available_ports:
                 self._available_ports = ports
                 self.availablePortsChanged.emit(ports)
+                self.availableAdaptersChanged.emit(self._build_adapter_list(ports))
                 logger.info(f"[OBD] Discovered ports: {ports}")
 
                 # If we found a new port and we're not connected, try to connect
@@ -1578,6 +1588,138 @@ class OBDManager(QObject):
         """Get list of available serial/OBD ports"""
         self._scan_for_devices()
         return self._available_ports
+
+    # ──────────────────────────────────────────────────────────────────
+    # Unified adapter API — mirrors the C++ OBDManager so the QML OBD
+    # settings page calls the same names against either backend. All
+    # platform variation (rfcomm bind on Linux, COM lookup on Windows,
+    # paired-list on macOS) lives in this manager — never in QML.
+    # ──────────────────────────────────────────────────────────────────
+
+    _MAC_RE = re.compile(r"^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$")
+
+    def _kind_for_identifier(self, identifier):
+        if self._MAC_RE.match(identifier):
+            return "ble"
+        if identifier.startswith("/dev/rfcomm"):
+            return "serial-rfcomm"
+        if identifier.startswith("/dev/ttyUSB") or identifier.startswith("/dev/ttyACM"):
+            return "serial-usb"
+        if identifier.startswith("/dev/tty.") or identifier.startswith("/dev/cu."):
+            return "tty"
+        if identifier.startswith("COM"):
+            return "com"
+        return "serial"
+
+    def _display_name_for_identifier(self, identifier):
+        kind = self._kind_for_identifier(identifier)
+        if kind == "ble":            return f"Bluetooth · {identifier}"
+        if kind == "serial-rfcomm":  return f"Bluetooth (bound) · {identifier}"
+        if kind == "serial-usb":     return f"USB ELM327 · {identifier}"
+        if kind == "tty":            return identifier
+        if kind == "com":            return f"Serial · {identifier}"
+        return identifier
+
+    def _build_adapter_list(self, ports):
+        return [
+            {
+                "identifier": p,
+                "name": self._display_name_for_identifier(p),
+                "kind": self._kind_for_identifier(p),
+            }
+            for p in ports
+        ]
+
+    @Property(list, notify=availableAdaptersChanged)
+    def availableAdapters(self):
+        return self._build_adapter_list(self._available_ports)
+
+    @Slot()
+    def scan(self):
+        """Trigger a discovery sweep — same name + behaviour as C++."""
+        self._scan_for_devices()
+
+    @Slot(result=str)
+    def platform_hint(self):
+        return self._get_platform()  # 'windows' | 'macos' | 'linux'
+
+    def _ensure_rfcomm_bound(self, mac):
+        """Linux/Pi: translate a MAC into a /dev/rfcommN node, binding it via
+        `rfcomm bind 0 <mac> 1` if no node already exists. Returns the path on
+        success, None on failure (with reason logged to the connection-log)."""
+        # Existing bound node wins — user may have pre-bound manually.
+        for i in range(8):
+            dev = f"/dev/rfcomm{i}"
+            if os.path.exists(dev):
+                self.connectionLogLineAppended.emit(f"rfcomm: using existing {dev}")
+                return dev
+
+        if shutil.which("rfcomm") is None:
+            self.connectionLogLineAppended.emit(
+                "rfcomm bind failed: rfcomm binary not found "
+                "(install bluez-utils, or pre-bind and enter /dev/rfcomm0)")
+            return None
+
+        self.connectionLogLineAppended.emit(f"rfcomm: binding {mac} → /dev/rfcomm0")
+        try:
+            result = subprocess.run(
+                ["rfcomm", "bind", "0", mac, "1"],
+                capture_output=True, text=True, timeout=5)
+        except subprocess.TimeoutExpired:
+            self.connectionLogLineAppended.emit("rfcomm bind failed: timed out")
+            return None
+        except OSError as e:
+            self.connectionLogLineAppended.emit(f"rfcomm bind failed: {e}")
+            return None
+        if result.returncode != 0:
+            err = (result.stderr or "").strip() or "non-zero exit"
+            self.connectionLogLineAppended.emit(f"rfcomm bind failed: {err}")
+            self.connectionLogLineAppended.emit(
+                f"tip: add user to bluetooth group, or run "
+                f"`sudo rfcomm bind 0 {mac}` once and enter /dev/rfcomm0")
+            return None
+        # Wait for the node to appear (rfcomm sometimes succeeds async).
+        for _ in range(10):
+            if os.path.exists("/dev/rfcomm0"):
+                self.connectionLogLineAppended.emit("rfcomm: bound, opening /dev/rfcomm0")
+                return "/dev/rfcomm0"
+            time.sleep(0.1)
+        self.connectionLogLineAppended.emit(
+            "rfcomm bind reported success but /dev/rfcomm0 missing")
+        return None
+
+    @Slot(str)
+    def connect_to_adapter(self, identifier):
+        """One-shot connect: normalise the identifier, save it, optionally
+        rfcomm-bind on Linux, then force_connect(). The single entry point
+        the QML uses for both adapter-row taps and the manual-entry Go button."""
+        trimmed = (identifier or "").strip()
+        if not trimmed:
+            logger.debug("[OBD] connect_to_adapter: empty identifier, ignoring")
+            return
+
+        is_mac = bool(self._MAC_RE.match(trimmed))
+        kind = self._kind_for_identifier(trimmed)
+        logger.info(f"[OBD] connect_to_adapter: {trimmed} (kind: {kind})")
+        self.connectionLogLineAppended.emit(
+            f"connect → {self._display_name_for_identifier(trimmed)}")
+
+        if self._settings_manager:
+            self._settings_manager.save_obd_bluetooth_port(trimmed)
+            if is_mac:
+                self._settings_manager.add_obd_saved_adapter(trimmed, trimmed)
+
+        if self._get_platform() == "linux" and is_mac:
+            bound = self._ensure_rfcomm_bound(trimmed)
+            if bound and self._settings_manager:
+                self._settings_manager.save_obd_bluetooth_port(bound)
+            elif bound is None:
+                self.connectionStatusChanged.emit("Error")
+                self.connectionStatusDetailChanged.emit(
+                    "rfcomm bind failed — see Connection Log")
+                return
+
+        self.force_connect()
 
     @Slot(bool)
     def set_auto_reconnect(self, enabled):

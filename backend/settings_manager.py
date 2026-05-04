@@ -173,6 +173,7 @@ class SettingsManager(QObject):
     startUpVolumeChanged = Signal(str)
     showClockChanged = Signal(bool)
     clockFormatChanged = Signal(bool)
+    clockShowSecondsChanged = Signal(bool)
     clockSizeChanged = Signal(int)
     backgroundGridChanged = Signal(str)
     screenWidthChanged = Signal(int)
@@ -280,6 +281,7 @@ class SettingsManager(QObject):
             "startUpVolume": 0.1,
             "showClock": True,
             "clockFormat24Hour": True,
+            "clockShowSeconds": False,
             "clockSize": 18,
             "backgroundGrid": "4x4",
             "screenWidth": 1280,
@@ -513,6 +515,7 @@ class SettingsManager(QObject):
         self._start_volume = self._settings.get("startUpVolume", self._default_settings["startUpVolume"])
         self._show_clock = self._settings.get("showClock", self._default_settings["showClock"])
         self._clock_format_24hour = self._settings.get("clockFormat24Hour", self._default_settings["clockFormat24Hour"])
+        self._clock_show_seconds = self._settings.get("clockShowSeconds", self._default_settings["clockShowSeconds"])
         self._clock_size = self._settings.get("clockSize", self._default_settings["clockSize"])
         self._background_grid = self._settings.get("backgroundGrid", self._default_settings["backgroundGrid"])
         self._screen_width = self._settings.get("screenWidth", self._default_settings["screenWidth"])
@@ -860,7 +863,11 @@ class SettingsManager(QObject):
     @Property(bool, notify=clockFormatChanged)
     def clockFormat24Hour(self):
         return self._clock_format_24hour
-    
+
+    @Property(bool, notify=clockShowSecondsChanged)
+    def clockShowSeconds(self):
+        return self._clock_show_seconds
+
     @Property(int, notify=clockSizeChanged)
     def clockSize(self):
         return self._clock_size
@@ -977,6 +984,12 @@ class SettingsManager(QObject):
         logger.debug(f"Saving clock format setting: {is_24hour}")
         self._clock_format_24hour = is_24hour
         self.update_setting("clockFormat24Hour", is_24hour, self.clockFormatChanged)
+
+    @Slot(bool)
+    def save_clock_show_seconds(self, show):
+        logger.debug(f"Saving clock show seconds setting: {show}")
+        self._clock_show_seconds = show
+        self.update_setting("clockShowSeconds", show, self.clockShowSecondsChanged)
 
     @Slot(int)
     def save_clock_size(self, size):
@@ -2208,7 +2221,10 @@ class SettingsManager(QObject):
         
         self._clock_format_24hour = self._default_settings["clockFormat24Hour"]
         self.clockFormatChanged.emit(self._clock_format_24hour)
-        
+
+        self._clock_show_seconds = self._default_settings["clockShowSeconds"]
+        self.clockShowSecondsChanged.emit(self._clock_show_seconds)
+
         self._clock_size = self._default_settings["clockSize"]
         self.clockSizeChanged.emit(self._clock_size)
         

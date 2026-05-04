@@ -76,11 +76,13 @@ Item {
         Text {
             id: compactLabel
             anchors.left: compactIndicator.right
-            anchors.leftMargin: App.Spacing.overallSpacing * 0.4
+            anchors.leftMargin: App.Spacing.overallSpacing * 0.6
             anchors.verticalCenter: parent.verticalCenter
             text: control.text
             color: App.Style.primaryTextColor
-            font: control.font
+            font.family: App.Style.fontFamily
+            font.pixelSize: App.Spacing.overallText * 1.3
+            font.bold: true
         }
 
         MouseArea {

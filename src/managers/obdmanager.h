@@ -40,6 +40,11 @@ class OBDManager : public QObject
     Q_PROPERTY(bool connected READ isConnected NOTIFY connectionStatusChanged)
     Q_PROPERTY(QString connectionStatus READ getConnectionStatus NOTIFY connectionStatusChanged)
 
+    // Unified adapter list — list of {name, identifier, kind} on every OS.
+    // QML binds to this directly so the OBD settings page renders identically
+    // on Android / Linux / Pi / Windows / macOS.
+    Q_PROPERTY(QVariantList availableAdapters READ availableAdapters NOTIFY availableAdaptersChanged)
+
 signals:
     // ======================================================================
     // OBD parameter signals -- Original 18
@@ -153,6 +158,9 @@ signals:
     void connectionProgressChanged(int progress);
     void devicePresenceChanged(bool present);
     void availablePortsChanged(const QVariantList &ports);
+    // Emitted alongside availablePortsChanged but with the richer
+    // {name, identifier, kind} shape the unified QML binds to.
+    void availableAdaptersChanged(const QVariantList &adapters);
     void supportedCommandsChanged(const QVariantList &commands);
     void scanProgressChanged(int progress, const QString &message);
     void scanCompleteChanged(const QVariantList &supportedParams);
@@ -200,6 +208,25 @@ public slots:
     // ======================================================================
     void refresh_ports();
     QVariantList get_available_ports();
+
+    // ======================================================================
+    // Unified adapter API — same shape on every OS. The QML OBD settings
+    // page calls these instead of branching on isAndroid / platformHint.
+    // ======================================================================
+    // Alias of refresh_ports() so QML reads consistently as `obdManager.scan()`.
+    void scan();
+    // Rich list of {name, identifier, kind} maps. `kind` is one of
+    // "ble", "serial-rfcomm", "serial-usb", "com", "tty", "serial".
+    QVariantList availableAdapters() const;
+    // One-shot connect: normalises the identifier (MAC vs /dev path vs COM),
+    // saves it to settings, runs rfcomm bind on Linux when given a MAC, and
+    // kicks off force_connect(). The single entry point QML uses for both
+    // adapter-row taps and manual entry "Go". snake_case to match Python.
+    void connect_to_adapter(const QString &identifier);
+    // Returns "windows" | "macos" | "linux" | "android" | "ios". QML uses
+    // this only for the per-OS hint string under the entry field — never
+    // for structural branching.
+    QString platform_hint() const;
 
     // ======================================================================
     // Vehicle scan
@@ -319,6 +346,20 @@ private:
 
     // Port scanning
     void scanForDevices();
+
+    // Unified-adapter helpers — classify an identifier (MAC/COM/dev path)
+    // into the {name, kind} the QML chip / row renders.
+    QString kindForIdentifier(const QString &id) const;
+    QString displayNameForIdentifier(const QString &id) const;
+    QVariantList buildAdapterList(const QStringList &ports) const;
+
+#ifdef Q_OS_LINUX
+    // Linux/Pi only: when the user gives us a MAC, run `rfcomm bind 0 <mac> 1`
+    // so the kernel hands us a /dev/rfcommN node we can open like any serial
+    // port. Returns the resulting device path on success, empty string on
+    // failure (and emits the failure reason to the connection log).
+    QString ensureRfcommBound(const QString &mac);
+#endif
 
     // Build the signal-name -> emit-lambda dispatch table
     void buildSignalDispatch();

@@ -544,16 +544,41 @@ self._socket.errorOccurred.connect(self._on_classic_error)</code></pre>
           </tbody>
         </table>
 
+        <h2 id="unified-adapter-api">Unified Adapter API</h2>
+        <p>
+          The OBD settings page renders pixel-identically on every OS. All
+          platform variation (BLE on Android, <code>rfcomm bind</code> on
+          Linux/Pi, COM enumeration on Windows, paired-list on macOS) lives
+          inside the manager — never in QML — and is exposed through a single
+          shape both backends implement.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Slot / Property</th><th>Signature</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>availableAdapters</code></td><td>property: list</td><td>List of <code>{name, identifier, kind}</code> maps. <code>kind</code> is one of <code>ble</code>, <code>serial-rfcomm</code>, <code>serial-usb</code>, <code>com</code>, <code>tty</code>, <code>serial</code>.</td></tr>
+            <tr><td><code>availableAdaptersChanged</code></td><td>signal(list)</td><td>Emitted alongside <code>availablePortsChanged</code> with the rich shape.</td></tr>
+            <tr><td><code>scan</code></td><td>()</td><td>Trigger a discovery sweep — paired-list on Android, paired+<code>/dev</code>-glob on Linux, <code>QSerialPortInfo</code> on Windows. Alias of <code>refresh_ports</code>.</td></tr>
+            <tr><td><code>connect_to_adapter</code></td><td>(identifier: str)</td><td>One-shot connect entry point. Classifies the identifier (MAC vs <code>/dev</code> path vs COM), saves it, runs <code>rfcomm bind</code> on Linux when given a MAC, then calls <code>force_connect</code>. The QML calls this for both adapter-row taps and the manual-entry "Go" button.</td></tr>
+            <tr><td><code>platform_hint</code></td><td>() -> str</td><td>Returns <code>"linux"</code> / <code>"macos"</code> / <code>"windows"</code> / <code>"android"</code> / <code>"ios"</code>. The QML uses this only to pick a hint string under the entry field — never for structural branching.</td></tr>
+            <tr><td><code>connectionLogLineAppended</code></td><td>signal(str)</td><td>One-line-at-a-time live log. The settings page binds this into the Connection Log card so users see <code>rfcomm bind</code> failures, BLE state transitions, etc. without needing <code>adb logcat</code> or a terminal.</td></tr>
+          </tbody>
+        </table>
+
         <div class="info-box info">
-          <div class="info-box-title">Android-Specific Slots</div>
-          AndroidOBDManager adds these additional slots:
-          <ul>
-            <li><code>open_bluetooth_settings()</code> - Launches Android's BT settings activity</li>
-            <li><code>refresh_ports()</code> - Scans bonded devices via dumpsys</li>
-            <li><code>set_target_address(address)</code> - Sets MAC address for connection</li>
-            <li><code>get_connection_log()</code> - Returns debug log lines</li>
-            <li><code>get_available_ports()</code> - Returns discovered device names</li>
-          </ul>
+          <div class="info-box-title">Linux/Pi: automatic <code>rfcomm bind</code></div>
+          <p>
+            When <code>connect_to_adapter</code> receives a MAC on Linux, the
+            manager runs <code>rfcomm bind 0 &lt;mac&gt; 1</code> itself before
+            opening the resulting <code>/dev/rfcomm0</code> node. If the
+            <code>rfcomm</code> binary is missing, fails with permission
+            errors, or the user doesn't belong to the <code>bluetooth</code>
+            group, the failure reason and a suggested fix are pushed to
+            <code>connectionLogLineAppended</code>. The user can always
+            bypass auto-bind by entering <code>/dev/rfcomm0</code> directly
+            after a manual <code>sudo rfcomm bind</code>.
+          </p>
         </div>
 
         <!-- Related Pages -->

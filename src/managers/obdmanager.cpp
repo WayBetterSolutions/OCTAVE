@@ -514,6 +514,7 @@ void OBDManager::scanForDevices()
         for (const QString &p : ports)
             varPorts.append(p);
         emit availablePortsChanged(varPorts);
+        emit availableAdaptersChanged(buildAdapterList(ports));
 
         qDebug() << "[OBD] Discovered ports:" << ports;
 
@@ -1101,6 +1102,182 @@ QVariantList OBDManager::get_available_ports()
     for (const QString &p : m_availablePorts)
         result.append(p);
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// Unified adapter API
+// ---------------------------------------------------------------------------
+// The OBD settings page binds to these instead of forking on isAndroid /
+// platform-specific port-string conventions. All variation lives here:
+// scan() does the right discovery for the OS, availableAdapters returns a
+// uniform {name, identifier, kind} list, connectToAdapter() classifies the
+// identifier and (on Linux) auto-binds rfcomm before opening.
+
+void OBDManager::scan()
+{
+    scanForDevices();
+}
+
+QString OBDManager::kindForIdentifier(const QString &id) const
+{
+    static const QRegularExpression macRe(
+        QStringLiteral("^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"));
+    if (macRe.match(id).hasMatch())                     return QStringLiteral("ble");
+    if (id.startsWith(QStringLiteral("/dev/rfcomm")))   return QStringLiteral("serial-rfcomm");
+    if (id.startsWith(QStringLiteral("/dev/ttyUSB"))
+        || id.startsWith(QStringLiteral("/dev/ttyACM"))) return QStringLiteral("serial-usb");
+    if (id.startsWith(QStringLiteral("/dev/tty."))
+        || id.startsWith(QStringLiteral("/dev/cu.")))    return QStringLiteral("tty");
+    if (id.startsWith(QStringLiteral("COM")))            return QStringLiteral("com");
+    return QStringLiteral("serial");
+}
+
+QString OBDManager::displayNameForIdentifier(const QString &id) const
+{
+    const QString kind = kindForIdentifier(id);
+    if (kind == QStringLiteral("ble"))           return QStringLiteral("Bluetooth · %1").arg(id);
+    if (kind == QStringLiteral("serial-rfcomm")) return QStringLiteral("Bluetooth (bound) · %1").arg(id);
+    if (kind == QStringLiteral("serial-usb"))    return QStringLiteral("USB ELM327 · %1").arg(id);
+    if (kind == QStringLiteral("tty"))           return id;
+    if (kind == QStringLiteral("com"))           return QStringLiteral("Serial · %1").arg(id);
+    return id;
+}
+
+QVariantList OBDManager::buildAdapterList(const QStringList &ports) const
+{
+    QVariantList result;
+    for (const QString &p : ports) {
+        QVariantMap entry;
+        entry[QStringLiteral("identifier")] = p;
+        entry[QStringLiteral("name")]       = displayNameForIdentifier(p);
+        entry[QStringLiteral("kind")]       = kindForIdentifier(p);
+        result.append(entry);
+    }
+    return result;
+}
+
+QVariantList OBDManager::availableAdapters() const
+{
+    return buildAdapterList(m_availablePorts);
+}
+
+QString OBDManager::platform_hint() const
+{
+    switch (detectPlatform()) {
+    case Platform::Windows: return QStringLiteral("windows");
+    case Platform::macOS:   return QStringLiteral("macos");
+    case Platform::Linux:   return QStringLiteral("linux");
+    case Platform::Android: return QStringLiteral("android");
+    }
+    return QStringLiteral("unknown");
+}
+
+#ifdef Q_OS_LINUX
+QString OBDManager::ensureRfcommBound(const QString &mac)
+{
+    // 1) If any /dev/rfcommN already exists, the user pre-bound it (or a
+    //    previous run did) — just use the lowest-numbered one. We don't
+    //    verify the bound MAC matches; the user typing a MAC into the field
+    //    while a different rfcomm is already bound is exotic enough that
+    //    surfacing the actual open() failure is better than guessing.
+    for (int i = 0; i < 8; ++i) {
+        const QString dev = QStringLiteral("/dev/rfcomm%1").arg(i);
+        if (QDir().exists(dev)) {
+            emit connectionLogLineAppended(
+                QStringLiteral("rfcomm: using existing %1").arg(dev));
+            return dev;
+        }
+    }
+
+    // 2) Try `rfcomm bind 0 <mac> 1`. Channel 1 is the universal SPP channel
+    //    for ELM327 clones; if the adapter advertises a different channel
+    //    the user can pre-bind manually.
+    emit connectionLogLineAppended(
+        QStringLiteral("rfcomm: binding %1 → /dev/rfcomm0").arg(mac));
+    QProcess proc;
+    proc.start(QStringLiteral("rfcomm"),
+               QStringList() << QStringLiteral("bind")
+                             << QStringLiteral("0") << mac
+                             << QStringLiteral("1"));
+    if (!proc.waitForStarted(2000)) {
+        emit connectionLogLineAppended(
+            QStringLiteral("rfcomm bind failed: rfcomm binary not found "
+                           "(install bluez-utils, or pre-bind and enter /dev/rfcomm0)"));
+        return QString();
+    }
+    proc.waitForFinished(5000);
+    if (proc.exitCode() != 0) {
+        const QString err = QString::fromUtf8(proc.readAllStandardError()).trimmed();
+        emit connectionLogLineAppended(
+            QStringLiteral("rfcomm bind failed: %1")
+                .arg(err.isEmpty() ? QStringLiteral("non-zero exit") : err));
+        emit connectionLogLineAppended(
+            QStringLiteral("tip: add user to bluetooth group, or run "
+                           "`sudo rfcomm bind 0 %1` once and enter /dev/rfcomm0")
+                .arg(mac));
+        return QString();
+    }
+    // Confirm the node now exists (rfcomm sometimes succeeds asynchronously).
+    for (int wait = 0; wait < 10; ++wait) {
+        if (QDir().exists(QStringLiteral("/dev/rfcomm0"))) {
+            emit connectionLogLineAppended(
+                QStringLiteral("rfcomm: bound, opening /dev/rfcomm0"));
+            return QStringLiteral("/dev/rfcomm0");
+        }
+        QThread::msleep(100);
+    }
+    emit connectionLogLineAppended(
+        QStringLiteral("rfcomm bind reported success but /dev/rfcomm0 missing"));
+    return QString();
+}
+#endif
+
+void OBDManager::connect_to_adapter(const QString &identifier)
+{
+    const QString trimmed = identifier.trimmed();
+    if (trimmed.isEmpty()) {
+        qDebug() << "[OBD] connect_to_adapter: empty identifier, ignoring";
+        return;
+    }
+
+    static const QRegularExpression macRe(
+        QStringLiteral("^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$"));
+    const bool isMac = macRe.match(trimmed).hasMatch();
+
+    qDebug() << "[OBD] connect_to_adapter:" << trimmed
+             << "(kind:" << kindForIdentifier(trimmed) << ")";
+    emit connectionLogLineAppended(
+        QStringLiteral("connect → %1").arg(displayNameForIdentifier(trimmed)));
+
+    // Persist the choice so reconnects + restarts use it.
+    if (m_settingsManager) {
+        m_settingsManager->save_obd_bluetooth_port(trimmed);
+        if (isMac) {
+            // Re-add as a saved chip; SettingsManager dedupes.
+            m_settingsManager->add_obd_saved_adapter(trimmed, trimmed);
+        }
+    }
+
+#ifdef Q_OS_LINUX
+    // On Linux/Pi, a MAC alone isn't openable — translate to /dev/rfcommN.
+    // (Android takes the MAC straight to QBluetoothSocket; Windows would need
+    // a MAC→COM lookup which we punt on for now and let the user enter COM.)
+    if (isMac) {
+        const QString bound = ensureRfcommBound(trimmed);
+        if (!bound.isEmpty() && m_settingsManager) {
+            // Save the dev path as the active port so the worker thread
+            // opens the bound node, not the MAC string.
+            m_settingsManager->save_obd_bluetooth_port(bound);
+        } else if (bound.isEmpty()) {
+            emit connectionStatusChanged(QStringLiteral("Error"));
+            emit connectionStatusDetailChanged(
+                QStringLiteral("rfcomm bind failed — see Connection Log"));
+            return;
+        }
+    }
+#endif
+
+    force_connect();
 }
 
 // ---------------------------------------------------------------------------

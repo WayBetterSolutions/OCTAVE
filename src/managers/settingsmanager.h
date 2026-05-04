@@ -33,6 +33,7 @@ class SettingsManager : public QObject
     Q_PROPERTY(bool songLengthTransition READ songLengthTransition NOTIFY songLengthTransitionChanged)
     Q_PROPERTY(bool showClock READ showClock NOTIFY showClockChanged)
     Q_PROPERTY(bool clockFormat24Hour READ clockFormat24Hour NOTIFY clockFormatChanged)
+    Q_PROPERTY(bool clockShowSeconds READ clockShowSeconds NOTIFY clockShowSecondsChanged)
     Q_PROPERTY(int clockSize READ clockSize NOTIFY clockSizeChanged)
     Q_PROPERTY(QString backgroundGrid READ backgroundGrid NOTIFY backgroundGridChanged)
     Q_PROPERTY(int screenWidth READ screenWidth NOTIFY screenWidthChanged)
@@ -137,6 +138,7 @@ public:
     bool songLengthTransition() const;
     bool showClock() const;
     bool clockFormat24Hour() const;
+    bool clockShowSeconds() const;
     int clockSize() const;
     QString backgroundGrid() const;
     int screenWidth() const;
@@ -236,6 +238,7 @@ signals:
     void songLengthTransitionChanged(bool value);
     void showClockChanged(bool value);
     void clockFormatChanged(bool value);
+    void clockShowSecondsChanged(bool value);
     void clockSizeChanged(int value);
     void backgroundGridChanged(const QString &value);
     void screenWidthChanged(int value);
@@ -348,6 +351,7 @@ public slots:
     void save_song_length_transition(bool enabled);
     void save_show_clock(bool show);
     void save_clock_format(bool is24hour);
+    void save_clock_show_seconds(bool show);
     void save_clock_size(int size);
     void save_background_grid(const QString &grid);
     void save_screen_width(int width);
@@ -562,6 +566,7 @@ private:
     float m_startVolume = 0.1f;
     bool m_showClock = true;
     bool m_clockFormat24Hour = true;
+    bool m_clockShowSeconds = false;
     int m_clockSize = 18;
     QString m_backgroundGrid;
     int m_screenWidth = 1280;

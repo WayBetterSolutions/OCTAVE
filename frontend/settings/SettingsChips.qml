@@ -271,7 +271,7 @@ Flow {
                     anchors.rightMargin: dp(10)
                     anchors.topMargin: dp(4)
                     anchors.bottomMargin: dp(4)
-                    text: modelData
+                    text: String(modelData).split(" ")[0]
                     color: "white"
                     font.family: chipWrapper.hasFont
                         ? (control.chipFonts[modelData] || App.Style.systemDefaultFont || App.Style.fontFamily)

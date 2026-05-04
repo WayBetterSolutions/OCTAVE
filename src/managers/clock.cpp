@@ -20,24 +20,22 @@ void Clock::update_time()
     }
 
     QTime currentTime = QTime::currentTime();
+    const bool showSeconds = m_settingsManager->clockShowSeconds();
 
     if (m_settingsManager->clockFormat24Hour()) {
-        // "%H:%M" equivalent
-        emit timeChanged(currentTime.toString(QStringLiteral("HH:mm")));
+        const QString fmt = showSeconds ? QStringLiteral("HH:mm:ss") : QStringLiteral("HH:mm");
+        emit timeChanged(currentTime.toString(fmt));
     } else {
-        // "%I:%M %p" equivalent, with uppercase AM/PM
-        QString hourMin = currentTime.toString(QStringLiteral("hh:mm"));
-        QString amPm = currentTime.toString(QStringLiteral("AP"));
-
-        // Qt uses 'hh' for 24-hour by default; use the 12-hour approach:
         int hour12 = currentTime.hour() % 12;
         if (hour12 == 0)
             hour12 = 12;
-        hourMin = QStringLiteral("%1:%2")
-                      .arg(hour12, 2, 10, QLatin1Char('0'))
-                      .arg(currentTime.minute(), 2, 10, QLatin1Char('0'));
-        amPm = (currentTime.hour() >= 12) ? QStringLiteral("PM") : QStringLiteral("AM");
-
+        QString hourMin = QStringLiteral("%1:%2")
+                              .arg(hour12, 2, 10, QLatin1Char('0'))
+                              .arg(currentTime.minute(), 2, 10, QLatin1Char('0'));
+        if (showSeconds) {
+            hourMin += QStringLiteral(":%1").arg(currentTime.second(), 2, 10, QLatin1Char('0'));
+        }
+        const QString amPm = (currentTime.hour() >= 12) ? QStringLiteral("PM") : QStringLiteral("AM");
         emit timeChanged(hourMin + QStringLiteral(" ") + amPm);
     }
 }

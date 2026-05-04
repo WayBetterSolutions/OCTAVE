@@ -153,12 +153,14 @@ Flickable {
 
             SettingCategory {
                 title: "Nav Bar Media Controls"
+                description: "Show play/pause and track skip buttons in the navigation bar."
 
-                inlineContent: SettingsToggle {
+                SettingsToggle {
                     id: bottomBarMediaControlsToggle
                     compact: true
                     Layout.fillWidth: false
-                    text: ""
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.showBottomBarMediaControls : true
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
@@ -502,7 +504,7 @@ Flickable {
                         id: songLengthTransitionToggle
                         compact: true
                         Layout.fillWidth: true
-                        text: ""
+                        text: checked ? "On" : "Off"
                         checked: settingsManager ? settingsManager.songLengthTransition : false
                         activeColor: App.Style.accent
                         inactiveColor: App.Style.hoverColor
@@ -562,16 +564,45 @@ Flickable {
 
             SettingCategory {
                 title: "Show Clock"
+                description: "Display the current time on screen."
 
-                inlineContent: SettingsToggle {
+                SettingsToggle {
                     compact: true
-                    text: ""
                     Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.showClock : true
 
                     onToggled: function(checked) {
                         if (settingsManager) {
                             settingsManager.save_show_clock(checked)
+                        }
+                    }
+                }
+            }
+
+            SettingCategory {
+                title: "Show Seconds"
+                description: "Append seconds to the clock display."
+
+                SettingsToggle {
+                    id: clockShowSecondsToggle
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
+                    checked: settingsManager ? settingsManager.clockShowSeconds : false
+
+                    onToggled: function(checked) {
+                        if (settingsManager) {
+                            settingsManager.save_clock_show_seconds(checked)
+                        }
+                    }
+
+                    Connections {
+                        target: settingsManager
+                        function onClockShowSecondsChanged() {
+                            clockShowSecondsToggle.checked = settingsManager.clockShowSeconds
                         }
                     }
                 }
@@ -599,27 +630,30 @@ Flickable {
             SettingCategory {
                 title: "Clock Size"
 
-                inlineContent: [
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.overallSpacing
+
                     SettingsSlider {
                         id: clockSizeSlider
                         from: 10
                         to: 85
                         stepSize: 1
                         value: settingsManager ? settingsManager.clockSize : 18
-                        Layout.preferredWidth: 280
-                        Layout.fillWidth: false
+                        Layout.fillWidth: true
 
                         onMoved: {
                             if (settingsManager) {
                                 settingsManager.save_clock_size(value)
                             }
                         }
-                    },
+                    }
+
                     ValueDisplay {
                         text: clockSizeSlider.value.toFixed(0) + " px"
                         Layout.fillWidth: false
                     }
-                ]
+                }
             }
         }
     }
