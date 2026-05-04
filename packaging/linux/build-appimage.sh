@@ -8,7 +8,7 @@
 # the lookup and the app exits silently with no window.
 #
 # Inputs:  none (run from the repo root or any cwd; script resolves its own paths)
-# Output:  dist/OCTAVE-${VERSION}-x86_64.AppImage
+# Output:  dist/OCTAVE-${VERSION}-linux-x86_64.AppImage
 #
 # Required system packages (Ubuntu 22.04): build-essential cmake ninja-build
 #   pkg-config qt6-base-dev qt6-declarative-dev qt6-multimedia-dev
@@ -151,7 +151,7 @@ export QML_SOURCES_PATHS="$APPDIR/usr/frontend"
 # Skip linuxdeploy's auto-AppRun (we wrote our own with the right QML paths).
 export DEPLOY_PLATFORM_THEMES=1
 
-OUTPUT_NAME="OCTAVE-${VERSION}-x86_64.AppImage"
+OUTPUT_NAME="OCTAVE-${VERSION}-linux-x86_64.AppImage"
 
 echo "==> Running linuxdeploy"
 "$TOOLS_DIR/$LD_BIN" \

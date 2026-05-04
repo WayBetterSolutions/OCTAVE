@@ -22,7 +22,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 ; Output settings
 OutputDir=..\dist
-OutputBaseFilename=OCTAVE_Setup_{#MyAppVersion}
+OutputBaseFilename=OCTAVE-{#MyAppVersion}-windows-x86_64
 ; Compression
 Compression=lzma2/ultra64
 SolidCompression=yes

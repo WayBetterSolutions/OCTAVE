@@ -139,7 +139,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OCTAVE-Windows-cpp
-          path: dist/OCTAVE_Setup_*.exe
+          path: dist/OCTAVE-*-windows-x86_64.exe
           retention-days: 30
           if-no-files-found: error
 
@@ -174,9 +174,11 @@ jobs:
           mkdir -p dist
           mv build/octave.app dist/OCTAVE.app
           macdeployqt dist/OCTAVE.app -qmldir=frontend -dmg
-          mv dist/OCTAVE.dmg dist/OCTAVE.dmg.tmp 2>/dev/null || true
-          # macdeployqt -dmg writes <bundle>.dmg next to the bundle.
-          [ -f dist/OCTAVE.dmg.tmp ] && mv dist/OCTAVE.dmg.tmp dist/OCTAVE.dmg
+          # Rename to the unified scheme: OCTAVE-<version>-macos.dmg.
+          # Workflow runs on tag pushes only, so GITHUB_REF_NAME is always vX.Y.
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ -z "$VERSION" ] && VERSION="0.0.0"
+          mv dist/OCTAVE.dmg "dist/OCTAVE-${VERSION}-macos.dmg"
           ls -la dist/
 
       - name: Upload macOS .app
@@ -190,7 +192,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OCTAVE-macOS-cpp-DMG
-          path: dist/OCTAVE.dmg
+          path: dist/OCTAVE-*-macos.dmg
           retention-days: 30
 
   cpp-build-linux:
@@ -235,7 +237,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OCTAVE-Linux-cpp-AppImage
-          path: dist/OCTAVE-*-x86_64.AppImage
+          path: dist/OCTAVE-*-linux-x86_64.AppImage
           retention-days: 30
           if-no-files-found: error
 
@@ -435,16 +437,18 @@ jobs:
           # 5. Verify
           "$BUILD_TOOLS/apksigner" verify --verbose octave-signed.apk
 
-          # 6. Stage with a clean name for upload
+          # 6. Stage with a clean name for upload (unified scheme: strip leading 'v').
           mkdir -p dist
-          cp octave-signed.apk "dist/OCTAVE-${GITHUB_REF_NAME:-dev}-arm64-v8a.apk"
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ -z "$VERSION" ] && VERSION="dev"
+          cp octave-signed.apk "dist/OCTAVE-${VERSION}-android-arm64-v8a.apk"
           ls -la dist/
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: OCTAVE-Android-APK
-          path: dist/OCTAVE-*-arm64-v8a.apk
+          path: dist/OCTAVE-*-android-arm64-v8a.apk
           retention-days: 30
           if-no-files-found: error
 
@@ -479,8 +483,8 @@ jobs:
           # page) but is not attached to the public Release — keeps the
           # Releases page tidy.
           files: |
-            artifacts/OCTAVE-Windows-cpp/OCTAVE_Setup_*.exe
-            artifacts/OCTAVE-macOS-cpp-DMG/OCTAVE.dmg
-            artifacts/OCTAVE-Linux-cpp-AppImage/OCTAVE-*-x86_64.AppImage
-            artifacts/OCTAVE-Android-APK/OCTAVE-*-arm64-v8a.apk
+            artifacts/OCTAVE-Windows-cpp/OCTAVE-*-windows-x86_64.exe
+            artifacts/OCTAVE-macOS-cpp-DMG/OCTAVE-*-macos.dmg
+            artifacts/OCTAVE-Linux-cpp-AppImage/OCTAVE-*-linux-x86_64.AppImage
+            artifacts/OCTAVE-Android-APK/OCTAVE-*-android-arm64-v8a.apk
           generate_release_notes: true
