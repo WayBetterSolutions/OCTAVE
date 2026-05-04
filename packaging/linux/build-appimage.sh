@@ -131,7 +131,10 @@ if [ ! -x "$LDQT_BIN" ]; then
 fi
 
 # ---- 6. Locate libtag (linuxdeploy occasionally misses it) --------------
-TAGLIB_SO="$(ldconfig -p | awk '/libtag\.so\.[0-9]/ {print $NF; exit}')"
+# Avoid `awk ... exit` here: it would close the pipe early and SIGPIPE the
+# upstream ldconfig, which `set -o pipefail` then turns into a script abort.
+LDCONFIG_OUT="$(ldconfig -p || true)"
+TAGLIB_SO="$(echo "$LDCONFIG_OUT" | grep -m1 -oE '/[^ ]*libtag\.so\.[0-9][^ ]*' || true)"
 if [ -z "$TAGLIB_SO" ] || [ ! -e "$TAGLIB_SO" ]; then
     echo "WARNING: libtag.so not found via ldconfig; AppImage may be missing it."
     TAGLIB_ARG=""
