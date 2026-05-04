@@ -25,9 +25,8 @@ extend-exclude = [
     "dev",
     "dist",
     "build",
+    "build-android",
     "__pycache__",
-    "backend/stubs.py",
-    "build_scripts",
     "tools",
     "wiki",
 ]

@@ -1,43 +1,50 @@
+<div align="center">
+
 # OCTAVE
 
-**Open-source car infotainment / carputer / DIY head unit — for Raspberry Pi, desktop, and Android.**
+### Open-source car infotainment · carputer · DIY head unit
+**Raspberry Pi · Desktop · Android — fully programmable, hackable, MIT-licensed.**
 
-OCTAVE is a fully programmable, open-source infotainment system — a carputer you actually own. Rip out your factory head unit, bolt a Raspberry Pi to your dash, run it on a laptop in a project car, or sideload it onto an Android tablet. Plays your music, talks to your car over OBD-II, themes itself to your album art, and stays out of your way when you want to make it do something new.
+<img src="frontend/assets/readme/display.gif" alt="OCTAVE in motion" width="780">
 
-Think of it as an open alternative to **Crankshaft, OpenAuto Pro, and AGL** — closer to a hackable foundation than a polished consumer product, with both a C++/Qt and a Python/PySide6 backend so you can fork whichever side you're already fluent in.
+[![Latest Release](https://img.shields.io/github/v/release/WayBetterSolutions/OCTAVE?label=latest%20release&style=for-the-badge&color=41cd52)](https://github.com/WayBetterSolutions/OCTAVE/releases/latest)
+[![Stars](https://img.shields.io/github/stars/WayBetterSolutions/OCTAVE?style=for-the-badge&color=ffb400&logo=github)](https://github.com/WayBetterSolutions/OCTAVE/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/WayBetterSolutions/OCTAVE/total?style=for-the-badge&color=2b8aff&label=downloads)](https://github.com/WayBetterSolutions/OCTAVE/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-orange?style=for-the-badge)](LICENSE)
 
-<p align="center">
-  <img src="frontend/assets/readme/display.gif" alt="OCTAVE in motion" width="720">
-</p>
+[![Platforms](https://img.shields.io/badge/platforms-Win%20%7C%20macOS%20%7C%20Linux%20%7C%20Pi%20%7C%20Android-success?style=flat-square)](#pre-built-downloads)
+[![Backend](https://img.shields.io/badge/backend-C%2B%2B%20%7C%20Python-orange?style=flat-square)](#two-backends-one-frontend--built-for-the-community)
+[![Frontend](https://img.shields.io/badge/frontend-Qt%206%20%2F%20QML-41cd52?style=flat-square)](#)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/WayBetterSolutions/OCTAVE?style=flat-square&label=commits%2Fmonth)](https://github.com/WayBetterSolutions/OCTAVE/pulse)
+[![Forks](https://img.shields.io/github/forks/WayBetterSolutions/OCTAVE?style=flat-square&color=8a4fff)](https://github.com/WayBetterSolutions/OCTAVE/network/members)
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/platforms-Win%20%7C%20macOS%20%7C%20Linux%20%7C%20Pi%20%7C%20Android-success" alt="Platforms">
-  <img src="https://img.shields.io/badge/backend-C%2B%2B%20%2B%20Python-orange" alt="Dual backend">
-  <img src="https://img.shields.io/badge/frontend-Qt%206%20%2F%20QML-41cd52" alt="Qt 6">
-</p>
+### [Download Latest Release →](https://github.com/WayBetterSolutions/OCTAVE/releases/latest)
+
+</div>
+
+---
+
+OCTAVE is an open-source infotainment system. A carputer you actually own. Rip out your factory head unit and bolt a Raspberry Pi to your dash, run it on a laptop in a project car, or sideload it onto an Android tablet. It plays your music, talks to your car over OBD-II, and themes itself to your album art.
+
+If you've poked at **Crankshaft, OpenAuto Pro, or AGL** before, OCTAVE lives in the same neighborhood — closer to a hackable foundation than a polished product. Two backends ship side by side, C++/Qt and Python/PySide6, so you can fork whichever one you're already fluent in.
 
 ---
 
 ## Why OCTAVE
 
-Stock head units age out fast. Aftermarket units lock you in. Android Auto and CarPlay are great, until you want to do something the manufacturer didn't think of.
+Stock head units age out fast. Aftermarket units lock you in. Android Auto and CarPlay are great until you want to do something the manufacturer didn't sign off on.
 
-OCTAVE is the third option: a **fully programmable** infotainment stack that you build, modify, and run on whatever hardware you want. It plays your music, talks to your car, syncs with hardware you solder yourself, and gets out of the way when you want to make it do something new.
+OCTAVE is the third option: a stack you build, modify, and run on whatever hardware you want. If you've ever wanted to wire a rotary encoder to your dash, throw a custom OBD gauge on screen, or theme your UI to match your album art in real time, this is the project for you.
 
-If you've ever wanted to wire a rotary encoder to your dash, throw a custom OBD gauge on screen, or theme your UI to match your album art in real time — this is for you.
-
-This isn't a product. It's a starting point. I maintain "vanilla" OCTAVE — but the whole point is that you fork it, mod it, and build the head unit *you* want.
+It's not really a product. It's more like vanilla Minecraft — I'll keep the base build healthy and supported, but the amount of customization baked in means no two OCTAVE installs are going to look the same. Themes, dashboards, layouts, hardware bindings, gauges, sensors, the lot. And if you want to go further than the built-in knobs allow, the whole thing is yours to fork.
 
 ## Who This Is For
 
-- **The Pi tinkerer** — you've got a Raspberry Pi 4/5, a touchscreen, and a free weekend. You want a real infotainment stack to hack on, not a kiosk wrapped around a browser tab.
-- **The factory-head-unit refugee** — your 2008 Civic / E46 / Tacoma / van came with something terrible (or nothing at all), and you'd rather wire a tablet into the dash than buy a $900 double-DIN.
-- **The Android Auto / CarPlay defector** — those are great until you want to do something the manufacturer didn't sign off on. OCTAVE is the "do whatever you want" option.
-- **The OBD-II data nerd** — you want live gauges, custom dashboards, and 50+ PIDs on screen without paying for a subscription app.
-- **The van-build / overlander / project-car person** — you need an interface that survives being rebuilt three times and fits hardware nobody else supports.
-
-If any of those sound like you, keep reading.
+- **The Pi tinkerer.** You've got a Raspberry Pi 4 or 5, a touchscreen, and a free weekend. You want a real infotainment stack to hack on, not a kiosk wrapped around a browser tab.
+- **The factory-head-unit refugee.** Your 2008 Civic / E46 / Tacoma / van came with something terrible (or nothing at all), and you'd rather wire a tablet into the dash than drop $900 on a double-DIN.
+- **The Android Auto / CarPlay defector.** Those are fine until you want to do something the manufacturer didn't sign off on. OCTAVE is the "do whatever you want" option.
+- **The OBD-II data nerd.** You want live gauges, custom dashboards, and 50+ PIDs on screen without paying a subscription.
+- **The van-build / overlander / project-car person.** You need an interface that survives being rebuilt three times and fits hardware nobody else supports.
 
 ## How It Compares
 
@@ -50,7 +57,7 @@ If any of those sound like you, keep reading.
 | Local music + Spotify + downloads | yes | via phone | via phone | via phone |
 | Desktop dev loop | yes (Win/macOS/Linux) | Pi only | Pi only | n/a |
 
-OCTAVE is the option when you want a head unit that runs **on its own**, not a screen that mirrors your phone.
+If you want a head unit that runs **on its own** instead of a screen that mirrors your phone, OCTAVE is the one.
 
 ## See It
 
@@ -80,9 +87,9 @@ OCTAVE is the option when you want a head unit that runs **on its own**, not a s
 - 100+ user-configurable settings, all persisted to disk
 - Custom gauge primitives and dashboard system — build your own and drop them in
 
-## Pre-built downloads
+## Get OCTAVE
 
-Each tagged release attaches one installer per platform on the [Releases](https://github.com/WayBetterSolutions/OCTAVE/releases) page:
+The fastest way to try OCTAVE is to grab the pre-built binary for your OS from the [Releases](https://github.com/WayBetterSolutions/OCTAVE/releases) page and give it a spin — no toolchain, no build, no Python venv. One installer per platform:
 
 - **Windows:** `OCTAVE-<version>-windows-x86_64.exe` — run the installer.
 - **macOS:** `OCTAVE-<version>-macos.dmg` — open, drag to Applications.
@@ -90,11 +97,11 @@ Each tagged release attaches one installer per platform on the [Releases](https:
   - Arch users may need `fuse2`: `sudo pacman -S fuse2`. Alternative without FUSE: `./OCTAVE-*.AppImage --appimage-extract-and-run`.
 - **Android:** `OCTAVE-<version>-android-arm64-v8a.apk` — sideload (the released APK uses a per-build keystore, so updates require uninstalling the previous version).
 
-For source checkouts and live development, keep reading.
+If you'd rather build it yourself, hack on the code, or run from a checkout, keep reading.
 
-## Quick Start
+## Building from source
 
-The fast path — clone, run one script, done:
+If you just want to run the app, use the pre-built download above. Building from source is for hacking on OCTAVE — the Python backend is the fastest dev loop:
 
 ```bash
 git clone https://github.com/waybettersolutions/octave.git
@@ -142,18 +149,18 @@ If turning off the VPN isn't an option (geo-restricted regions, privacy requirem
 
 OCTAVE detects the file automatically — no settings to configure. If you don't have the file, downloads still work for any video that isn't currently walled by YouTube on your network.
 
-## Two Backends, One Frontend — Built For The Community
+## Two backends, one frontend
 
 This is the part I care about most.
 
-OCTAVE ships **two parallel backends** — C++ / Qt 6 and Python / PySide6 — both driving the same QML frontend. Not because the project needs both, but because **you** might. The whole reason this exists in two languages is so the next person to fork OCTAVE can pick up the side they're already fluent in and start building.
+OCTAVE ships **two parallel backends**, C++ / Qt 6 and Python / PySide6, both driving the same QML frontend. Not because the project needs both, but because **you** might. The whole reason it exists in two languages is so the next person to fork OCTAVE can pick up the side they already speak and start building.
 
 - Love C++? `src/` is yours. Performance, app stores, mobile — that's the side that ships natively.
 - Live in Python? `backend/` is yours. Want to wire up a weird sensor on a Pi at 2am with a REPL open? Done in 20 lines.
 
 The frontend doesn't know or care which one is running. Mod whichever side you want, ship to whoever you want.
 
-I'll keep maintaining "vanilla" OCTAVE as the reference build. But the real win is the forks, the wild rigs, the custom dashboards, the ports to hardware I haven't even heard of yet. If you're sharper or weirder than me — and a lot of you are — take this and run.
+You don't have to fork to make OCTAVE yours — most of the customization is just settings, themes, and dashboards you build inside the app. But if you do want to fork and ship something I'd never have thought of, the wild rigs and weird hardware ports are the part I'm most excited to see.
 
 ## System Requirements
 
@@ -173,13 +180,19 @@ A few of the bigger things in flight — full plans live under [`TODO/`](TODO/):
 
 The wiki covers everything — architecture, every backend manager, every frontend page, settings reference, hardware setup, build guides, the gauge authoring spec — start at [`wiki/index.html`](wiki/index.html). For building gauges and dashboards specifically, [`docs/GAUGE_AUTHORING.md`](docs/GAUGE_AUTHORING.md) is the source of truth.
 
+## Star History
+
+<a href="https://star-history.com/#WayBetterSolutions/OCTAVE&Date">
+  <img src="https://api.star-history.com/svg?repos=WayBetterSolutions/OCTAVE&type=Date" alt="Star History Chart" width="720">
+</a>
+
 ## Contributing
 
-Pull requests welcome. Bug reports welcome. Hardware mods welcome.
+Pull requests welcome. Bug reports welcome. Hardware mods extremely welcome.
 
 If you build something cool on top of OCTAVE — a custom dashboard, a new sensor integration, a port to weirder hardware — open an issue or PR and show it off. The more wild builds out there, the better the project gets.
 
-Star the repo if you'd like to follow along.
+Star the repo if you want to follow along.
 
 ## License
 
