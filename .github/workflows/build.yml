@@ -216,7 +216,12 @@ jobs:
           version: '6.7.3'
           host: 'linux'
           target: 'desktop'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity'
+          # qt5compat — frontend imports Qt5Compat.GraphicalEffects (drop-shadow,
+          # blur, etc.). qtquick3d / qtshadertools — frontend imports QtQuick3D
+          # and QtQuick.Effects, both of which pull qtshadertools transitively.
+          # Without these, linuxdeploy-plugin-qt can't bundle the modules and
+          # Main.qml fails with `module "..." is not installed` at runtime.
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qt5compat qtquick3d qtshadertools'
 
       - name: Build AppImage
         env:
