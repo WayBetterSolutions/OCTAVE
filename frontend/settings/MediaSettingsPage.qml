@@ -6,24 +6,26 @@ import Qt5Compat.GraphicalEffects
 import ".." as App
 
 Flickable {
+    id: pageRoot
+
     // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
     function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
     function dpMin(size, floor) { return Math.max(floor, Math.round(size * (App.Spacing.effectiveScale || 1.0))) }
 
-    id: mediaSettingsRoot
-    contentWidth: width
-    contentHeight: mediaSettingsContent.implicitHeight
-    flickableDirection: Flickable.VerticalFlick
-    clip: true
-    boundsBehavior: Flickable.DragAndOvershootBounds
-    flickDeceleration: 1200
-    maximumFlickVelocity: 4000
-    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
-
+    property var stackView: null
+    property var mainWindow: null
     property string currentSection: ""
 
     // Reactive property for Spotify devices
     property var spotifyDevicesList: []
+
+    // Tile model — consumed by SettingsSidebarLayout (grid + slide-in popup).
+    property var tileModel: [
+        { cardId: "media_library",     title: "Library",     icon: "♪", component: libraryContent },
+        { cardId: "media_playback",    title: "Playback",    icon: "▶", component: playbackContent },
+        { cardId: "media_now_playing", title: "Now Playing", icon: "❒", component: nowPlayingContent },
+        { cardId: "media_spotify",     title: "Spotify",     icon: "♫", component: spotifyContent }
+    ]
 
     // Refresh Spotify devices when navigating to media settings
     onCurrentSectionChanged: {
@@ -32,7 +34,6 @@ Flickable {
         }
     }
 
-    // Refresh devices on initial load if starting on media settings
     Component.onCompleted: {
         if (currentSection === "mediaSettings" && spotifyManager && spotifyManager.is_connected()) {
             spotifyManager.refresh_devices()
@@ -42,17 +43,16 @@ Flickable {
         }
     }
 
-    // Top-level Spotify connections
     Connections {
         target: spotifyManager
         function onDevicesChanged(devices) {
-            mediaSettingsRoot.spotifyDevicesList = devices
+            pageRoot.spotifyDevicesList = devices
         }
         function onConnectionStateChanged(connected) {
             if (connected) {
                 spotifyManager.refresh_devices()
             } else {
-                mediaSettingsRoot.spotifyDevicesList = []
+                pageRoot.spotifyDevicesList = []
             }
         }
     }
@@ -68,17 +68,13 @@ Flickable {
             var path = selectedFolder.toString()
 
             if (path.startsWith("content://")) {
-                // SAF tree URI: content://com.android.externalstorage.documents/tree/primary%3AMusic
                 var treeIdx = path.indexOf("/tree/")
                 if (treeIdx >= 0) {
                     var encoded = path.substring(treeIdx + 6)
-                    // Only convert the primary-storage case we can map to a real path.
                     var decoded = decodeURIComponent(encoded)
                     if (decoded.indexOf("primary:") === 0) {
                         path = "/storage/emulated/0/" + decoded.substring(8)
                     } else {
-                        // Removable storage (SD card, USB OTG) — can't convert
-                        // reliably. Save the URI and let the user know.
                         path = decoded
                     }
                 }
@@ -91,169 +87,168 @@ Flickable {
                 }
             }
 
-            mediaFolderField.text = path
             if (settingsManager) {
                 settingsManager.save_media_folder(path)
             }
         }
     }
 
-    ColumnLayout {
-        id: mediaSettingsContent
-        width: parent.width
-        spacing: App.Spacing.sectionSpacing
+    contentWidth: width
+    contentHeight: settingsContent.implicitHeight
+    flickableDirection: Flickable.VerticalFlick
+    clip: true
+    boundsBehavior: Flickable.DragAndOvershootBounds
+    flickDeceleration: 1200
+    maximumFlickVelocity: 4000
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
-        // ── Card 1: Library ──
-        SettingsCard {
-            objectName: "Library"
-            cardId: "media_library"
-            title: "Library"
+    // ── Card body components — shared between the Flickable rendering (below)
+    //    and the SettingsCardPopup in the Sidebar layout.
 
-            // Music Library Folder
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+    // ─────────────────────────────────────────── Library
+    Component {
+        id: libraryContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-                SettingLabel {
-                    text: "Library Folder"
-                }
+            SettingCategory {
+                title: "Library Folder"
+                description: "Subfolders become playlists. Root MP3s go to 'Unsorted'."
 
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
                     spacing: App.Spacing.rowSpacing
 
-                    SettingsTextField {
-                        id: mediaFolderField
+                    RowLayout {
                         Layout.fillWidth: true
-                        text: settingsManager ? settingsManager.mediaFolder : ""
+                        spacing: App.Spacing.rowSpacing
+
+                        SettingsTextField {
+                            id: mediaFolderField
+                            Layout.fillWidth: true
+                            text: settingsManager ? settingsManager.mediaFolder : ""
+
+                            Connections {
+                                target: settingsManager
+                                function onMediaFolderChanged() {
+                                    mediaFolderField.text = settingsManager.mediaFolder
+                                }
+                            }
+
+                            onEditingFinished: {
+                                if (text.trim() !== "" && settingsManager) {
+                                    settingsManager.save_media_folder(text)
+                                }
+                            }
+                        }
+
+                        SettingsButton {
+                            text: "Browse"
+                            Layout.preferredHeight: mediaFolderField.height
+                            onClicked: folderDialog.open()
+                        }
+
+                        SettingsButton {
+                            text: "Scan"
+                            Layout.preferredHeight: mediaFolderField.height
+                            onClicked: {
+                                if (mediaManager) mediaManager.scan_library()
+                            }
+                        }
+
+                        SettingsButton {
+                            text: "Strip"
+                            Layout.preferredHeight: mediaFolderField.height
+                            onClicked: {
+                                if (mediaManager) mediaManager.strip_filenames()
+                            }
+                        }
+                    }
+
+                    App.TerminalFeedback {
+                        id: scanTerminal
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: pageRoot.dp(300)
+                        Layout.topMargin: App.Spacing.rowSpacing
+                        title: "Library Scan Terminal Output"
 
                         Connections {
-                            target: settingsManager
-                            function onMediaFolderChanged() {
-                                mediaFolderField.text = settingsManager.mediaFolder
+                            target: mediaManager
+                            function onScanProgress(message) {
+                                scanTerminal.appendLine(message)
                             }
-                        }
-
-                        onEditingFinished: {
-                            if (text.trim() !== "" && settingsManager) {
-                                settingsManager.save_media_folder(text)
-                            }
-                        }
-                    }
-
-                    SettingsButton {
-                        text: "Browse"
-                        Layout.preferredHeight: mediaFolderField.height
-                        onClicked: folderDialog.open()
-                    }
-
-                    SettingsButton {
-                        text: "Scan"
-                        Layout.preferredHeight: mediaFolderField.height
-                        onClicked: {
-                            if (mediaManager) {
-                                mediaManager.scan_library()
-                            }
-                        }
-                    }
-
-                    SettingsButton {
-                        text: "Strip"
-                        Layout.preferredHeight: mediaFolderField.height
-                        onClicked: {
-                            if (mediaManager) {
-                                mediaManager.strip_filenames()
-                            }
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Subfolders become playlists. Root MP3s go to 'Unsorted'."
-                }
-
-                // Terminal feedback for scan progress
-                App.TerminalFeedback {
-                    id: scanTerminal
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: dp(300)
-                    Layout.topMargin: App.Spacing.rowSpacing
-                    title: "Library Scan Terminal Output"
-
-                    Connections {
-                        target: mediaManager
-                        function onScanProgress(message) {
-                            scanTerminal.appendLine(message)
                         }
                     }
                 }
             }
         }
+    }
 
-        // ── Card 2: Playback ──
-        SettingsCard {
-            objectName: "Playback"
-            cardId: "media_playback"
-            title: "Playback"
+    // ─────────────────────────────────────────── Playback
+    Component {
+        id: playbackContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-            // Startup Volume
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Startup Volume"
+                description: "Volume level applied when the app launches."
 
-                SettingLabel {
-                    text: "Startup volume"
-                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.overallSpacing
 
-                SettingsSlider {
-                    id: volumeSlider
-                    from: 0
-                    to: 1
-                    stepSize: 0.01
-                    value: settingsManager ? settingsManager.startUpVolume : 0.5
-                    visualValue: Math.round(Math.sqrt(value) * 100)
-                    valueDisplay: visualValue + "%"
-                    activeColor: App.Style.volumeSliderColor
+                    SettingsSlider {
+                        id: volumeSlider
+                        from: 0
+                        to: 1
+                        stepSize: 0.01
+                        value: settingsManager ? settingsManager.startUpVolume : 0.5
+                        visualValue: Math.round(Math.sqrt(value) * 100)
+                        valueDisplay: visualValue + "%"
+                        activeColor: App.Style.volumeSliderColor
+                        Layout.fillWidth: true
 
-                    Timer {
-                        id: volumeUpdateTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_start_volume(volumeSlider.value)
+                        Timer {
+                            id: volumeUpdateTimer
+                            interval: 100
+                            running: false
+                            repeat: false
+                            onTriggered: {
+                                if (settingsManager) {
+                                    settingsManager.save_start_volume(volumeSlider.value)
+                                }
                             }
                         }
+
+                        onMoved: volumeUpdateTimer.restart()
                     }
 
-                    onMoved: volumeUpdateTimer.restart()
-                }
-
-                ValueDisplay {
-                    text: volumeSlider.valueDisplay
+                    ValueDisplay {
+                        text: volumeSlider.valueDisplay
+                        Layout.fillWidth: false
+                    }
                 }
             }
 
-            SettingsDivider {}
-
-            // Auto-Play on Startup
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Autoplay on Startup"
+                description: "Resume the last track automatically when the app launches."
 
                 SettingsToggle {
                     id: autoPlayToggle
-                    Layout.fillWidth: true
-                    text: "Autoplay on startup"
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.autoPlayOnStartup : false
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
 
                     onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_auto_play_on_startup(checked)
-                        }
+                        if (settingsManager) settingsManager.save_auto_play_on_startup(checked)
                     }
 
                     Connections {
@@ -265,25 +260,22 @@ Flickable {
                 }
             }
 
-            SettingsDivider {}
-
-            // Persistent Shuffle
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Remember Shuffle State"
+                description: "Persist shuffle on/off across app restarts."
 
                 SettingsToggle {
                     id: persistShuffleToggle
-                    Layout.fillWidth: true
-                    text: "Remember shuffle state"
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.persistShuffleState : false
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
 
                     onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_persist_shuffle_state(checked)
-                        }
+                        if (settingsManager) settingsManager.save_persist_shuffle_state(checked)
                     }
 
                     Connections {
@@ -295,17 +287,16 @@ Flickable {
                 }
             }
 
-            SettingsDivider {}
-
-            // Music Button Default Page
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Default to Library View"
+                description: "When opening Music, show the library list instead of the now-playing screen."
 
                 SettingsToggle {
                     id: musicButtonDefaultPageToggle
-                    Layout.fillWidth: true
-                    text: "Default to library view"
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.musicButtonDefaultPage === "mediaPlayer" : false
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
@@ -325,25 +316,22 @@ Flickable {
                 }
             }
 
-            SettingsDivider {}
-
-            // Return to Library After Selection
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Return to Library After Playing"
+                description: "Bounce back to the library list once a track has been queued from it."
 
                 SettingsToggle {
                     id: returnToLibraryToggle
-                    Layout.fillWidth: true
-                    text: "Return to library after playing"
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.returnToLibraryAfterSelection : false
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
 
                     onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_return_to_library_after_selection(checked)
-                        }
+                        if (settingsManager) settingsManager.save_return_to_library_after_selection(checked)
                     }
 
                     Connections {
@@ -354,110 +342,107 @@ Flickable {
                     }
                 }
             }
+
         }
+    }
 
-        // ── Card 3: Album Art ──
-        SettingsCard {
-            objectName: "Album Art"
-            cardId: "media_album_art"
-            title: "Album Art"
+    // ─────────────────────────────────────────── Now Playing
+    Component {
+        id: nowPlayingContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
 
-            // Rounded Album Art
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Rounded Corners"
+                description: "Apply rounded corners to album art in the media room."
 
-                SettingsToggle {
-                    id: roundedAlbumArtToggle
+                ColumnLayout {
                     Layout.fillWidth: true
-                    text: "Rounded Corners"
-                    checked: settingsManager ? settingsManager.roundedAlbumArt : true
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
+                    spacing: App.Spacing.rowSpacing
 
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_rounded_album_art(checked)
+                    SettingsToggle {
+                        id: roundedAlbumArtToggle
+                        compact: true
+                        Layout.fillWidth: false
+                        Layout.alignment: Qt.AlignLeft
+                        text: checked ? "On" : "Off"
+                        checked: settingsManager ? settingsManager.roundedAlbumArt : true
+                        activeColor: App.Style.accent
+                        inactiveColor: App.Style.hoverColor
+
+                        onToggled: function(checked) {
+                            if (settingsManager) settingsManager.save_rounded_album_art(checked)
                         }
-                    }
 
-                    Connections {
-                        target: settingsManager
-                        function onRoundedAlbumArtChanged() {
-                            roundedAlbumArtToggle.checked = settingsManager.roundedAlbumArt
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Apply rounded corners to album art in the media room."
-                }
-            }
-
-            // Corner Radius (conditional on Rounded Corners)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.roundedAlbumArt
-
-                SettingLabel {
-                    text: "Corner Radius"
-                }
-
-                SettingsSlider {
-                    id: cornerRadiusSlider
-                    from: 2
-                    to: 32
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.albumArtCornerRadius : 16
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: cornerRadiusTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_album_art_corner_radius(cornerRadiusSlider.value)
+                        Connections {
+                            target: settingsManager
+                            function onRoundedAlbumArtChanged() {
+                                roundedAlbumArtToggle.checked = settingsManager.roundedAlbumArt
                             }
                         }
                     }
 
-                    onMoved: cornerRadiusTimer.restart()
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.overallSpacing
+                        visible: settingsManager && settingsManager.roundedAlbumArt
 
-                    Connections {
-                        target: settingsManager
-                        function onAlbumArtCornerRadiusChanged() {
-                            cornerRadiusSlider.value = settingsManager.albumArtCornerRadius
+                        SettingsSlider {
+                            id: cornerRadiusSlider
+                            from: 2
+                            to: 32
+                            stepSize: 1
+                            value: settingsManager ? settingsManager.albumArtCornerRadius : 16
+                            activeColor: App.Style.accent
+                            Layout.fillWidth: true
+
+                            Timer {
+                                id: cornerRadiusTimer
+                                interval: 100
+                                running: false
+                                repeat: false
+                                onTriggered: {
+                                    if (settingsManager) {
+                                        settingsManager.save_album_art_corner_radius(cornerRadiusSlider.value)
+                                    }
+                                }
+                            }
+
+                            onMoved: cornerRadiusTimer.restart()
+
+                            Connections {
+                                target: settingsManager
+                                function onAlbumArtCornerRadiusChanged() {
+                                    cornerRadiusSlider.value = settingsManager.albumArtCornerRadius
+                                }
+                            }
+                        }
+
+                        ValueDisplay {
+                            text: cornerRadiusSlider.value.toFixed(0) + " dp"
+                            Layout.fillWidth: false
                         }
                     }
                 }
-
-                ValueDisplay {
-                    text: cornerRadiusSlider.value.toFixed(0) + " dp"
-                }
             }
 
-            SettingsDivider {}
-
-            // Drop Shadow
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Drop Shadow"
+                description: "Shadow behind the album art card for depth."
 
                 SettingsToggle {
                     id: albumArtShadowToggle
-                    Layout.fillWidth: true
-                    text: "Drop Shadow"
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.showAlbumArtShadow : true
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
 
                     onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_album_art_shadow(checked)
-                        }
+                        if (settingsManager) settingsManager.save_show_album_art_shadow(checked)
                     }
 
                     Connections {
@@ -467,56 +452,11 @@ Flickable {
                         }
                     }
                 }
-
-                SettingDescription {
-                    text: "Shadow behind the album art card for depth."
-                }
             }
 
-            SettingsDivider {}
-
-            // Vinyl Record Mode
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: vinylRecordToggle
-                    Layout.fillWidth: true
-                    text: "Vinyl Record Mode"
-                    checked: settingsManager ? settingsManager.vinylRecordMode : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_vinyl_record_mode(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onVinylRecordModeChanged() {
-                            vinylRecordToggle.checked = settingsManager.vinylRecordMode
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Turn album art into a spinning vinyl record during playback."
-                }
-            }
-
-            SettingsDivider {}
-
-            // Album Art Transition
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Track Transition"
-                }
+            SettingCategory {
+                title: "Track Transition"
+                description: "Animation style when switching between tracks."
 
                 SettingsSegmentedControl {
                     id: albumArtTransitionControl
@@ -525,9 +465,7 @@ Flickable {
                     options: ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"]
 
                     onSelected: function(value) {
-                        if (settingsManager) {
-                            settingsManager.save_album_art_transition(value)
-                        }
+                        if (settingsManager) settingsManager.save_album_art_transition(value)
                     }
 
                     Connections {
@@ -537,351 +475,241 @@ Flickable {
                         }
                     }
                 }
-
-                SettingDescription {
-                    text: "Animation style when switching between tracks."
-                }
             }
 
-            SettingsDivider {}
-
-            // 3D Album Preview
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Vinyl Record Mode"
+                description: "Turn album art into a spinning vinyl record during playback."
 
                 SettingsToggle {
-                    id: albumPreviewToggle
-                    Layout.fillWidth: true
-                    text: "3D Album Preview"
-                    checked: settingsManager ? settingsManager.show3DAlbumPreview : false
+                    id: vinylRecordToggle
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
+                    checked: settingsManager ? settingsManager.vinylRecordMode : false
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
 
                     onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_3d_album_preview(checked)
-                        }
+                        if (settingsManager) settingsManager.save_vinyl_record_mode(checked)
                     }
 
                     Connections {
                         target: settingsManager
-                        function onShow3DAlbumPreviewChanged() {
-                            albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
+                        function onVinylRecordModeChanged() {
+                            vinylRecordToggle.checked = settingsManager.vinylRecordMode
                         }
                     }
                 }
-
-                SettingDescription {
-                    text: "Coverflow-style card stack showing next and previous album art with 3D rotation transitions."
-                }
             }
 
-            // 3D Preview Transition (conditional on 3D Album Preview)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DAlbumPreview
+            SettingCategory {
+                title: "3D Album Preview"
+                description: "Coverflow-style card stack showing next and previous album art with 3D rotation."
 
-                SettingLabel {
-                    text: "3D Preview Transition"
-                }
-
-                SettingsSegmentedControl {
-                    id: albumArt3DTransitionControl
+                ColumnLayout {
                     Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.albumArt3DTransition : "Coverflow"
-                    options: ["Coverflow", "Conveyor", "Stack", "Depth", "Swing"]
+                    spacing: App.Spacing.rowSpacing
 
-                    onSelected: function(value) {
-                        if (settingsManager) {
-                            settingsManager.save_album_art_3d_transition(value)
+                    SettingsToggle {
+                        id: albumPreviewToggle
+                        compact: true
+                        Layout.fillWidth: false
+                        Layout.alignment: Qt.AlignLeft
+                        text: checked ? "On" : "Off"
+                        checked: settingsManager ? settingsManager.show3DAlbumPreview : false
+                        activeColor: App.Style.accent
+                        inactiveColor: App.Style.hoverColor
+
+                        onToggled: function(checked) {
+                            if (settingsManager) settingsManager.save_show_3d_album_preview(checked)
                         }
-                    }
 
-                    Connections {
-                        target: settingsManager
-                        function onAlbumArt3DTransitionChanged() {
-                            albumArt3DTransitionControl.currentValue = settingsManager.albumArt3DTransition
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Animation style for the 3D album art card stack."
-                }
-            }
-
-            // Side Card Opacity (conditional on 3D Album Preview)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DAlbumPreview
-
-                SettingLabel {
-                    text: "Side Card Opacity"
-                }
-
-                SettingsSlider {
-                    id: sideCardOpacitySlider
-                    from: 0.1
-                    to: 1.0
-                    stepSize: 0.05
-                    value: settingsManager ? settingsManager.sideCardOpacity : 0.4
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: sideCardOpacityTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_side_card_opacity(sideCardOpacitySlider.value)
+                        Connections {
+                            target: settingsManager
+                            function onShow3DAlbumPreviewChanged() {
+                                albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
                             }
                         }
                     }
 
-                    onMoved: sideCardOpacityTimer.restart()
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.rowSpacing
+                        visible: settingsManager && settingsManager.show3DAlbumPreview
 
-                    Connections {
-                        target: settingsManager
-                        function onSideCardOpacityChanged() {
-                            sideCardOpacitySlider.value = settingsManager.sideCardOpacity
+                        SettingLabel { text: "3D Preview Transition" }
+
+                        SettingsSegmentedControl {
+                            id: albumArt3DTransitionControl
+                            Layout.fillWidth: true
+                            currentValue: settingsManager ? settingsManager.albumArt3DTransition : "Coverflow"
+                            options: ["Coverflow", "Conveyor", "Stack", "Depth", "Swing"]
+
+                            onSelected: function(value) {
+                                if (settingsManager) settingsManager.save_album_art_3d_transition(value)
+                            }
+
+                            Connections {
+                                target: settingsManager
+                                function onAlbumArt3DTransitionChanged() {
+                                    albumArt3DTransitionControl.currentValue = settingsManager.albumArt3DTransition
+                                }
+                            }
                         }
-                    }
-                }
 
-                ValueDisplay {
-                    text: Math.round(sideCardOpacitySlider.value * 100) + "%"
-                }
-            }
+                        SettingLabel { text: "Side Card Opacity"; Layout.topMargin: App.Spacing.rowSpacing }
 
-            // Side Card Angle (conditional on 3D Album Preview)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DAlbumPreview
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: App.Spacing.overallSpacing
 
-                SettingLabel {
-                    text: "Side Card Angle"
-                }
+                            SettingsSlider {
+                                id: sideCardOpacitySlider
+                                from: 0.1
+                                to: 1.0
+                                stepSize: 0.05
+                                value: settingsManager ? settingsManager.sideCardOpacity : 0.4
+                                activeColor: App.Style.accent
+                                Layout.fillWidth: true
 
-                SettingsSlider {
-                    id: sideCardAngleSlider
-                    from: 5
-                    to: 60
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.sideCardAngle : 30
-                    activeColor: App.Style.accent
+                                Timer {
+                                    id: sideCardOpacityTimer
+                                    interval: 100
+                                    running: false
+                                    repeat: false
+                                    onTriggered: {
+                                        if (settingsManager) {
+                                            settingsManager.save_side_card_opacity(sideCardOpacitySlider.value)
+                                        }
+                                    }
+                                }
 
-                    Timer {
-                        id: sideCardAngleTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_side_card_angle(sideCardAngleSlider.value)
+                                onMoved: sideCardOpacityTimer.restart()
+
+                                Connections {
+                                    target: settingsManager
+                                    function onSideCardOpacityChanged() {
+                                        sideCardOpacitySlider.value = settingsManager.sideCardOpacity
+                                    }
+                                }
+                            }
+
+                            ValueDisplay {
+                                text: Math.round(sideCardOpacitySlider.value * 100) + "%"
+                                Layout.fillWidth: false
+                            }
+                        }
+
+                        SettingLabel { text: "Side Card Angle"; Layout.topMargin: App.Spacing.rowSpacing }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: App.Spacing.overallSpacing
+
+                            SettingsSlider {
+                                id: sideCardAngleSlider
+                                from: 5
+                                to: 60
+                                stepSize: 1
+                                value: settingsManager ? settingsManager.sideCardAngle : 30
+                                activeColor: App.Style.accent
+                                Layout.fillWidth: true
+
+                                Timer {
+                                    id: sideCardAngleTimer
+                                    interval: 100
+                                    running: false
+                                    repeat: false
+                                    onTriggered: {
+                                        if (settingsManager) {
+                                            settingsManager.save_side_card_angle(sideCardAngleSlider.value)
+                                        }
+                                    }
+                                }
+
+                                onMoved: sideCardAngleTimer.restart()
+
+                                Connections {
+                                    target: settingsManager
+                                    function onSideCardAngleChanged() {
+                                        sideCardAngleSlider.value = settingsManager.sideCardAngle
+                                    }
+                                }
+                            }
+
+                            ValueDisplay {
+                                text: sideCardAngleSlider.value.toFixed(0) + "°"
+                                Layout.fillWidth: false
                             }
                         }
                     }
-
-                    onMoved: sideCardAngleTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onSideCardAngleChanged() {
-                            sideCardAngleSlider.value = settingsManager.sideCardAngle
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: sideCardAngleSlider.value.toFixed(0) + "°"
                 }
             }
 
-            SettingsDivider {}
+            SettingCategory {
+                title: "Text Scroll Speed"
+                description: "Duration for scrolling long song titles and metadata. Lower is faster."
 
-            // Album Art Layout
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Background Layout"
-                }
-
-                SettingsSegmentedControl {
-                    id: backgroundGridButton
+                RowLayout {
                     Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.backgroundGrid : "4x4"
-                    options: ["Normal", "2x2", "4x4"]
+                    spacing: App.Spacing.overallSpacing
 
-                    onSelected: function(value) {
-                        if (settingsManager) {
-                            settingsManager.save_background_grid(value)
+                    SettingsSlider {
+                        id: textScrollSpeedSlider
+                        from: 1000
+                        to: 10000
+                        stepSize: 500
+                        value: settingsManager ? settingsManager.textScrollSpeed : 5000
+                        activeColor: App.Style.accent
+                        Layout.fillWidth: true
+
+                        Timer {
+                            id: textScrollSpeedTimer
+                            interval: 100
+                            running: false
+                            repeat: false
+                            onTriggered: {
+                                if (settingsManager) {
+                                    settingsManager.save_text_scroll_speed(textScrollSpeedSlider.value)
+                                }
+                            }
                         }
-                    }
-                }
 
-                SettingDescription {
-                    text: "Grid layout for the album art background behind the player."
-                }
-            }
-        }
+                        onMoved: textScrollSpeedTimer.restart()
 
-        // ── Card 4: Background ──
-        SettingsCard {
-            objectName: "Background"
-            cardId: "media_background"
-            title: "Background"
-
-            // Album Art Blur
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Album Art Blur"
-                }
-
-                SettingsSlider {
-                    id: blurRadiusSlider
-                    from: 0
-                    to: 100
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.backgroundBlurRadius : 40
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: blurUpdateTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_background_blur_radius(blurRadiusSlider.value)
+                        Connections {
+                            target: settingsManager
+                            function onTextScrollSpeedChanged() {
+                                textScrollSpeedSlider.value = settingsManager.textScrollSpeed
                             }
                         }
                     }
 
-                    onMoved: blurUpdateTimer.restart()
-                }
-
-                ValueDisplay {
-                    text: blurRadiusSlider.value.toFixed(0)
-                }
-
-                SettingDescription {
-                    text: "Gaussian blur intensity on the background album art grid."
+                    ValueDisplay {
+                        text: (textScrollSpeedSlider.value / 1000).toFixed(1) + " s"
+                        Layout.fillWidth: false
+                    }
                 }
             }
 
-            SettingsDivider {}
-
-            // Dark Overlay
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: backgroundOverlayToggle
-                    Layout.fillWidth: true
-                    text: "Dark Overlay"
-                    checked: settingsManager ? settingsManager.showBackgroundOverlay : true
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_background_overlay(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShowBackgroundOverlayChanged() {
-                            backgroundOverlayToggle.checked = settingsManager.showBackgroundOverlay
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "Semi-transparent dark layer over the background for readability."
-                }
-            }
-
-            // Overlay Opacity (conditional on Dark Overlay)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.showBackgroundOverlay
-
-                SettingLabel {
-                    text: "Overlay Opacity"
-                }
-
-                SettingsSlider {
-                    id: overlayOpacitySlider
-                    from: 0
-                    to: 100
-                    stepSize: 1
-                    value: settingsManager ? settingsManager.backgroundOverlayOpacity : 80
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: overlayOpacityTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_background_overlay_opacity(overlayOpacitySlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: overlayOpacityTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onBackgroundOverlayOpacityChanged() {
-                            overlayOpacitySlider.value = settingsManager.backgroundOverlayOpacity
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: overlayOpacitySlider.value.toFixed(0) + "%"
-                }
-            }
-        }
-
-        // ── Card 5: Effects ──
-        SettingsCard {
-            objectName: "Effects"
-            cardId: "media_effects"
-            title: "Effects"
-
-            // Waveform Visualizer
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
+            SettingCategory {
+                title: "Waveform Visualizer"
+                description: "Animated waveform in Now Playing, themed to match."
 
                 SettingsToggle {
                     id: waveformVisualizerToggle
-                    Layout.fillWidth: true
-                    text: "Waveform Visualizer"
+                    compact: true
+                    Layout.fillWidth: false
+                    Layout.alignment: Qt.AlignLeft
+                    text: checked ? "On" : "Off"
                     checked: settingsManager ? settingsManager.showWaveformVisualizer : true
                     activeColor: App.Style.accent
                     inactiveColor: App.Style.hoverColor
 
                     onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_waveform_visualizer(checked)
-                        }
+                        if (settingsManager) settingsManager.save_show_waveform_visualizer(checked)
                     }
 
                     Connections {
@@ -891,353 +719,424 @@ Flickable {
                         }
                     }
                 }
-
-                SettingDescription {
-                    text: "Animated waveform in Now Playing, themed to match."
-                }
             }
 
-            SettingsDivider {}
+            SettingCategory {
+                title: "3D Button Tilt"
+                description: "3D tilt and scale effect when pressing playback buttons."
 
-            // 3D Button Tilt
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingsToggle {
-                    id: buttonTiltToggle
-                    Layout.fillWidth: true
-                    text: "3D Button Tilt"
-                    checked: settingsManager ? settingsManager.show3DButtonTilt : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) {
-                            settingsManager.save_show_3d_button_tilt(checked)
-                        }
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShow3DButtonTiltChanged() {
-                            buttonTiltToggle.checked = settingsManager.show3DButtonTilt
-                        }
-                    }
-                }
-
-                SettingDescription {
-                    text: "3D tilt and scale effect when pressing playback buttons."
-                }
-            }
-
-            // Tilt Duration (conditional on 3D Button Tilt)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-                visible: settingsManager && settingsManager.show3DButtonTilt
-
-                SettingLabel {
-                    text: "Tilt Duration"
-                }
-
-                SettingsSlider {
-                    id: buttonTiltDurationSlider
-                    from: 50
-                    to: 500
-                    stepSize: 10
-                    value: settingsManager ? settingsManager.buttonTiltDuration : 200
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: buttonTiltDurationTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_button_tilt_duration(buttonTiltDurationSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: buttonTiltDurationTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onButtonTiltDurationChanged() {
-                            buttonTiltDurationSlider.value = settingsManager.buttonTiltDuration
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: buttonTiltDurationSlider.value.toFixed(0) + " ms"
-                }
-            }
-
-            SettingsDivider {}
-
-            // Text Scroll Speed (always visible)
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Text Scroll Speed"
-                }
-
-                SettingsSlider {
-                    id: textScrollSpeedSlider
-                    from: 1000
-                    to: 10000
-                    stepSize: 500
-                    value: settingsManager ? settingsManager.textScrollSpeed : 5000
-                    activeColor: App.Style.accent
-
-                    Timer {
-                        id: textScrollSpeedTimer
-                        interval: 100
-                        running: false
-                        repeat: false
-                        onTriggered: {
-                            if (settingsManager) {
-                                settingsManager.save_text_scroll_speed(textScrollSpeedSlider.value)
-                            }
-                        }
-                    }
-
-                    onMoved: textScrollSpeedTimer.restart()
-
-                    Connections {
-                        target: settingsManager
-                        function onTextScrollSpeedChanged() {
-                            textScrollSpeedSlider.value = settingsManager.textScrollSpeed
-                        }
-                    }
-                }
-
-                ValueDisplay {
-                    text: (textScrollSpeedSlider.value / 1000).toFixed(1) + " s"
-                }
-
-                SettingDescription {
-                    text: "Duration for scrolling long song titles and metadata. Lower is faster."
-                }
-            }
-        }
-
-        // ── Card 6: Spotify ──
-        SettingsCard {
-            objectName: "Spotify"
-            cardId: "media_spotify"
-            title: "Spotify"
-
-            // Spotify Connect Section
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: App.Spacing.rowSpacing
-
-                SettingLabel {
-                    text: "Spotify Connect"
-                }
-
-                SettingDescription {
-                    text: "Get credentials from developer.spotify.com"
-                }
-
-                // Credentials row with Client ID and Secret
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing
-
-                    // Client ID field
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: dp(4)
-
-                        Text {
-                            text: "Client ID"
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText - 2
-                            font.family: App.Style.fontFamily
-                        }
-
-                        SettingsTextField {
-                            id: spotifyClientIdField
-                            Layout.fillWidth: true
-                            text: settingsManager ? settingsManager.get_spotify_client_id() : ""
-
-                            onEditingFinished: {
-                                if (settingsManager && text.trim() !== "") {
-                                    settingsManager.save_spotify_credentials(
-                                        text.trim(),
-                                        spotifyClientSecretField.text.trim()
-                                    )
-                                }
-                            }
-
-                            Connections {
-                                target: settingsManager
-                                function onSpotifyCredentialsChanged() {
-                                    spotifyClientIdField.text = settingsManager.get_spotify_client_id()
-                                }
-                            }
-                        }
-                    }
-
-                    // Client Secret field
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: dp(4)
-
-                        Text {
-                            text: "Client Secret"
-                            color: App.Style.secondaryTextColor
-                            font.pixelSize: App.Spacing.overallText - 2
-                            font.family: App.Style.fontFamily
-                        }
-
-                        SettingsTextField {
-                            id: spotifyClientSecretField
-                            Layout.fillWidth: true
-                            text: settingsManager ? settingsManager.get_spotify_client_secret() : ""
-                            echoMode: TextInput.Password
-
-                            onEditingFinished: {
-                                if (settingsManager && text.trim() !== "") {
-                                    settingsManager.save_spotify_credentials(
-                                        spotifyClientIdField.text.trim(),
-                                        text.trim()
-                                    )
-                                }
-                            }
-
-                            Connections {
-                                target: settingsManager
-                                function onSpotifyCredentialsChanged() {
-                                    spotifyClientSecretField.text = settingsManager.get_spotify_client_secret()
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // Action buttons row
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing
-
-                    SettingsButton {
-                        text: "Connect"
-                        Layout.preferredHeight: spotifyClientIdField.height
-                        visible: spotifyManager && !spotifyManager.is_connected()
-                        tooltipText: "Connect to Spotify"
-                        onClicked: {
-                            if (spotifyManager) spotifyManager.authenticate()
-                        }
-                    }
-
-                    SettingsButton {
-                        text: "Disconnect"
-                        Layout.preferredHeight: spotifyClientIdField.height
-                        Layout.minimumWidth: dp(90)
-                        visible: spotifyManager && spotifyManager.is_connected()
-                        buttonColor: App.Style.statusDanger
-                        tooltipText: "Disconnect from Spotify"
-                        onClicked: {
-                            if (spotifyManager) spotifyManager.disconnect()
-                        }
-                    }
-
-                    SettingsButton {
-                        text: "Refresh"
-                        Layout.preferredHeight: spotifyClientIdField.height
-                        visible: spotifyManager && spotifyManager.is_connected()
-                        tooltipText: "Refresh available devices"
-                        onClicked: {
-                            if (spotifyManager) spotifyManager.refresh_devices()
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
-                }
-
-                // Terminal feedback for Spotify connection
-                App.TerminalFeedback {
-                    id: spotifyTerminal
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: dp(300)
-                    title: "Spotify Connection Terminal Output"
-
-                    Connections {
-                        target: spotifyManager
-                        function onStatusProgress(message) {
-                            spotifyTerminal.appendLine(message)
-                        }
-                        function onAuthUrlReady(url) {
-                            spotifyTerminal.appendLine("[INFO] Auth URL ready - opening browser...")
-                            spotifyAuthUrlText.text = url
-                            spotifyAuthUrlText.visible = true
-                        }
-                        function onConnectionStateChanged(connected) {
-                            spotifyAuthUrlText.visible = false
-                            if (connected && spotifyManager) {
-                                spotifyManager.refresh_devices()
-                            }
-                        }
-                    }
-                }
-
-                // Clickable auth URL (fallback if browser doesn't open)
-                Text {
-                    id: spotifyAuthUrlText
-                    Layout.fillWidth: true
-                    visible: false
-                    color: App.Style.accent
-                    font.pixelSize: App.Spacing.overallText - 2
-                    font.underline: true
-                    font.family: App.Style.fontFamily
-                    wrapMode: Text.WrapAnywhere
-                    elide: Text.ElideMiddle
-                    maximumLineCount: 2
-
-                    ToolTip.visible: authUrlMouseArea.containsMouse
-                    ToolTip.text: "Click to open in browser"
-                    ToolTip.delay: 300
-
-                    MouseArea {
-                        id: authUrlMouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            Qt.openUrlExternally(spotifyAuthUrlText.text)
-                        }
-                    }
-                }
-
-                // Available devices list (when connected)
                 ColumnLayout {
                     Layout.fillWidth: true
-                    visible: spotifyManager && spotifyManager.is_connected()
-                    spacing: App.Spacing.overallSpacing
+                    spacing: App.Spacing.rowSpacing
 
-                    Text {
-                        text: "Available Devices"
-                        color: App.Style.secondaryTextColor
-                        font.pixelSize: App.Spacing.overallText
-                        font.family: App.Style.fontFamily
+                    SettingsToggle {
+                        id: buttonTiltToggle
+                        compact: true
+                        Layout.fillWidth: false
+                        Layout.alignment: Qt.AlignLeft
+                        text: checked ? "On" : "Off"
+                        checked: settingsManager ? settingsManager.show3DButtonTilt : false
+                        activeColor: App.Style.accent
+                        inactiveColor: App.Style.hoverColor
+
+                        onToggled: function(checked) {
+                            if (settingsManager) settingsManager.save_show_3d_button_tilt(checked)
+                        }
+
+                        Connections {
+                            target: settingsManager
+                            function onShow3DButtonTiltChanged() {
+                                buttonTiltToggle.checked = settingsManager.show3DButtonTilt
+                            }
+                        }
                     }
 
-                    // Chip-style device selector
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.rowSpacing
+                        visible: settingsManager && settingsManager.show3DButtonTilt
+
+                        SettingLabel { text: "Tilt Duration" }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: App.Spacing.overallSpacing
+
+                            SettingsSlider {
+                                id: buttonTiltDurationSlider
+                                from: 50
+                                to: 500
+                                stepSize: 10
+                                value: settingsManager ? settingsManager.buttonTiltDuration : 200
+                                activeColor: App.Style.accent
+                                Layout.fillWidth: true
+
+                                Timer {
+                                    id: buttonTiltDurationTimer
+                                    interval: 100
+                                    running: false
+                                    repeat: false
+                                    onTriggered: {
+                                        if (settingsManager) {
+                                            settingsManager.save_button_tilt_duration(buttonTiltDurationSlider.value)
+                                        }
+                                    }
+                                }
+
+                                onMoved: buttonTiltDurationTimer.restart()
+
+                                Connections {
+                                    target: settingsManager
+                                    function onButtonTiltDurationChanged() {
+                                        buttonTiltDurationSlider.value = settingsManager.buttonTiltDuration
+                                    }
+                                }
+                            }
+
+                            ValueDisplay {
+                                text: buttonTiltDurationSlider.value.toFixed(0) + " ms"
+                                Layout.fillWidth: false
+                            }
+                        }
+                    }
+                }
+            }
+
+            SettingCategory {
+                title: "Background Layout"
+                description: "Grid layout for the album art tiled across the background."
+
+                SettingsSegmentedControl {
+                    id: backgroundGridButton
+                    Layout.fillWidth: true
+                    currentValue: settingsManager ? settingsManager.backgroundGrid : "4x4"
+                    options: ["Normal", "2x2", "4x4"]
+
+                    onSelected: function(value) {
+                        if (settingsManager) settingsManager.save_background_grid(value)
+                    }
+                }
+            }
+
+            SettingCategory {
+                title: "Background Blur"
+                description: "Gaussian blur intensity on the background album art grid."
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.overallSpacing
+
+                    SettingsSlider {
+                        id: blurRadiusSlider
+                        from: 0
+                        to: 100
+                        stepSize: 1
+                        value: settingsManager ? settingsManager.backgroundBlurRadius : 40
+                        activeColor: App.Style.accent
+                        Layout.fillWidth: true
+
+                        Timer {
+                            id: blurUpdateTimer
+                            interval: 100
+                            running: false
+                            repeat: false
+                            onTriggered: {
+                                if (settingsManager) {
+                                    settingsManager.save_background_blur_radius(blurRadiusSlider.value)
+                                }
+                            }
+                        }
+
+                        onMoved: blurUpdateTimer.restart()
+                    }
+
+                    ValueDisplay {
+                        text: blurRadiusSlider.value.toFixed(0)
+                        Layout.fillWidth: false
+                    }
+                }
+            }
+
+            SettingCategory {
+                title: "Background Dark Overlay"
+                description: "Semi-transparent dark layer over the background for readability."
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.rowSpacing
+
+                    SettingsToggle {
+                        id: backgroundOverlayToggle
+                        compact: true
+                        Layout.fillWidth: false
+                        Layout.alignment: Qt.AlignLeft
+                        text: checked ? "On" : "Off"
+                        checked: settingsManager ? settingsManager.showBackgroundOverlay : true
+                        activeColor: App.Style.accent
+                        inactiveColor: App.Style.hoverColor
+
+                        onToggled: function(checked) {
+                            if (settingsManager) settingsManager.save_show_background_overlay(checked)
+                        }
+
+                        Connections {
+                            target: settingsManager
+                            function onShowBackgroundOverlayChanged() {
+                                backgroundOverlayToggle.checked = settingsManager.showBackgroundOverlay
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.rowSpacing
+                        visible: settingsManager && settingsManager.showBackgroundOverlay
+
+                        SettingLabel { text: "Overlay Opacity" }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: App.Spacing.overallSpacing
+
+                            SettingsSlider {
+                                id: overlayOpacitySlider
+                                from: 0
+                                to: 100
+                                stepSize: 1
+                                value: settingsManager ? settingsManager.backgroundOverlayOpacity : 80
+                                activeColor: App.Style.accent
+                                Layout.fillWidth: true
+
+                                Timer {
+                                    id: overlayOpacityTimer
+                                    interval: 100
+                                    running: false
+                                    repeat: false
+                                    onTriggered: {
+                                        if (settingsManager) {
+                                            settingsManager.save_background_overlay_opacity(overlayOpacitySlider.value)
+                                        }
+                                    }
+                                }
+
+                                onMoved: overlayOpacityTimer.restart()
+
+                                Connections {
+                                    target: settingsManager
+                                    function onBackgroundOverlayOpacityChanged() {
+                                        overlayOpacitySlider.value = settingsManager.backgroundOverlayOpacity
+                                    }
+                                }
+                            }
+
+                            ValueDisplay {
+                                text: overlayOpacitySlider.value.toFixed(0) + "%"
+                                Layout.fillWidth: false
+                            }
+                        }
+                    }
+                }
+            }
+
+        }
+    }
+
+    // ─────────────────────────────────────────── Spotify
+    Component {
+        id: spotifyContent
+        ColumnLayout {
+            width: parent ? parent.width : 0
+            spacing: App.Spacing.sectionSpacing
+
+            SettingCategory {
+                title: "Spotify Connect"
+                description: "Get credentials from developer.spotify.com"
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.rowSpacing
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.overallSpacing
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: pageRoot.dp(4)
+
+                            Text {
+                                text: "Client ID"
+                                color: App.Style.secondaryTextColor
+                                font.pixelSize: App.Spacing.overallText - 2
+                                font.family: App.Style.fontFamily
+                            }
+
+                            SettingsTextField {
+                                id: spotifyClientIdField
+                                Layout.fillWidth: true
+                                text: settingsManager ? settingsManager.get_spotify_client_id() : ""
+
+                                onEditingFinished: {
+                                    if (settingsManager && text.trim() !== "") {
+                                        settingsManager.save_spotify_credentials(
+                                            text.trim(),
+                                            spotifyClientSecretField.text.trim()
+                                        )
+                                    }
+                                }
+
+                                Connections {
+                                    target: settingsManager
+                                    function onSpotifyCredentialsChanged() {
+                                        spotifyClientIdField.text = settingsManager.get_spotify_client_id()
+                                    }
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: pageRoot.dp(4)
+
+                            Text {
+                                text: "Client Secret"
+                                color: App.Style.secondaryTextColor
+                                font.pixelSize: App.Spacing.overallText - 2
+                                font.family: App.Style.fontFamily
+                            }
+
+                            SettingsTextField {
+                                id: spotifyClientSecretField
+                                Layout.fillWidth: true
+                                text: settingsManager ? settingsManager.get_spotify_client_secret() : ""
+                                echoMode: TextInput.Password
+
+                                onEditingFinished: {
+                                    if (settingsManager && text.trim() !== "") {
+                                        settingsManager.save_spotify_credentials(
+                                            spotifyClientIdField.text.trim(),
+                                            text.trim()
+                                        )
+                                    }
+                                }
+
+                                Connections {
+                                    target: settingsManager
+                                    function onSpotifyCredentialsChanged() {
+                                        spotifyClientSecretField.text = settingsManager.get_spotify_client_secret()
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: App.Spacing.overallSpacing
+
+                        SettingsButton {
+                            text: "Connect"
+                            Layout.preferredHeight: spotifyClientIdField.height
+                            visible: spotifyManager && !spotifyManager.is_connected()
+                            tooltipText: "Connect to Spotify"
+                            onClicked: {
+                                if (spotifyManager) spotifyManager.authenticate()
+                            }
+                        }
+
+                        SettingsButton {
+                            text: "Disconnect"
+                            Layout.preferredHeight: spotifyClientIdField.height
+                            Layout.minimumWidth: pageRoot.dp(90)
+                            visible: spotifyManager && spotifyManager.is_connected()
+                            buttonColor: App.Style.statusDanger
+                            tooltipText: "Disconnect from Spotify"
+                            onClicked: {
+                                if (spotifyManager) spotifyManager.disconnect()
+                            }
+                        }
+
+                        SettingsButton {
+                            text: "Refresh"
+                            Layout.preferredHeight: spotifyClientIdField.height
+                            visible: spotifyManager && spotifyManager.is_connected()
+                            tooltipText: "Refresh available devices"
+                            onClicked: {
+                                if (spotifyManager) spotifyManager.refresh_devices()
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    App.TerminalFeedback {
+                        id: spotifyTerminal
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: pageRoot.dp(300)
+                        title: "Spotify Connection Terminal Output"
+
+                        Connections {
+                            target: spotifyManager
+                            function onStatusProgress(message) {
+                                spotifyTerminal.appendLine(message)
+                            }
+                            function onAuthUrlReady(url) {
+                                spotifyTerminal.appendLine("[INFO] Auth URL ready - opening browser...")
+                                spotifyAuthUrlText.text = url
+                                spotifyAuthUrlText.visible = true
+                            }
+                            function onConnectionStateChanged(connected) {
+                                spotifyAuthUrlText.visible = false
+                                if (connected && spotifyManager) {
+                                    spotifyManager.refresh_devices()
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        id: spotifyAuthUrlText
+                        Layout.fillWidth: true
+                        visible: false
+                        color: App.Style.accent
+                        font.pixelSize: App.Spacing.overallText - 2
+                        font.underline: true
+                        font.family: App.Style.fontFamily
+                        wrapMode: Text.WrapAnywhere
+                        elide: Text.ElideMiddle
+                        maximumLineCount: 2
+
+                        ToolTip.visible: authUrlMouseArea.containsMouse
+                        ToolTip.text: "Click to open in browser"
+                        ToolTip.delay: 300
+
+                        MouseArea {
+                            id: authUrlMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: Qt.openUrlExternally(spotifyAuthUrlText.text)
+                        }
+                    }
+                }
+            }
+
+            SettingCategory {
+                title: "Available Devices"
+                description: "Tap a device to make it the active Spotify Connect target."
+                visible: spotifyManager && spotifyManager.is_connected()
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: App.Spacing.overallSpacing
+
                     Flow {
                         Layout.fillWidth: true
                         spacing: App.Spacing.overallSpacing
 
                         Repeater {
                             id: spotifyDevicesRepeater
-                            model: mediaSettingsRoot.spotifyDevicesList
+                            model: pageRoot.spotifyDevicesList
 
                             Rectangle {
                                 id: deviceChip
@@ -1260,7 +1159,6 @@ Flickable {
                                 }
 
                                 MouseArea {
-                                    id: deviceChipMouseArea
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
@@ -1273,9 +1171,7 @@ Flickable {
                                     onExited: deviceChip.scale = 1.0
                                 }
 
-                                Behavior on scale {
-                                    NumberAnimation { duration: 100 }
-                                }
+                                Behavior on scale { NumberAnimation { duration: 100 } }
 
                                 layer.enabled: modelData.is_active
                                 layer.effect: DropShadow {
@@ -1300,8 +1196,31 @@ Flickable {
                 }
             }
         }
+    }
 
-        // Bottom spacer
+    // ── Default rendering: stacked SettingsCards (Carousel/Hub/Dashboard layouts).
+    //    Sidebar layout sets pageRoot.visible = false and renders the tile grid + popup instead.
+    ColumnLayout {
+        id: settingsContent
+        width: parent.width
+        spacing: App.Spacing.sectionSpacing
+
+        Repeater {
+            model: pageRoot.tileModel
+
+            SettingsCard {
+                Layout.fillWidth: true
+                objectName: modelData.title
+                cardId: modelData.cardId
+                title: modelData.title
+
+                Loader {
+                    Layout.fillWidth: true
+                    sourceComponent: modelData.component
+                }
+            }
+        }
+
         Item {
             Layout.fillHeight: true
             Layout.minimumHeight: App.Spacing.bottomBarHeight
