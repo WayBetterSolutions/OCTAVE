@@ -7,6 +7,9 @@ backend/temp/
 # Build artifacts
 dist/
 build/
+build-appimage/
+AppDir/
+packaging/linux/tools/
 *.spec.bak
 appimagetool-*.AppImage
 *.AppImage
