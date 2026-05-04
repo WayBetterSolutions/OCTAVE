@@ -23,6 +23,7 @@
  */
 package org.octave.app;
 
+import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
@@ -33,9 +34,12 @@ import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -117,6 +121,39 @@ public class OctaveOBDBridge {
             setError("connect: null context");
             return false;
         }
+
+        // On API 31+ Android requires runtime BLUETOOTH_CONNECT and
+        // BLUETOOTH_SCAN grants for any Gatt operation. Fresh installs
+        // (e.g. CI APKs the user just sideloaded) don't have them yet —
+        // pop the system dialog from the Activity before we call connectGatt
+        // and bail with a friendly error so the next tap succeeds.
+        if (Build.VERSION.SDK_INT >= 31) {
+            List<String> missing = new ArrayList<>();
+            if (ctx.checkSelfPermission("android.permission.BLUETOOTH_CONNECT")
+                    != PackageManager.PERMISSION_GRANTED) {
+                missing.add("android.permission.BLUETOOTH_CONNECT");
+            }
+            if (ctx.checkSelfPermission("android.permission.BLUETOOTH_SCAN")
+                    != PackageManager.PERMISSION_GRANTED) {
+                missing.add("android.permission.BLUETOOTH_SCAN");
+            }
+            if (!missing.isEmpty()) {
+                if (ctx instanceof Activity) {
+                    setError("Requesting Bluetooth permission — tap Allow, then tap Connect again");
+                    try {
+                        ((Activity) ctx).requestPermissions(
+                            missing.toArray(new String[0]), 7301);
+                    } catch (Throwable t) {
+                        setError("requestPermissions failed: " + t.getMessage());
+                    }
+                } else {
+                    setError("Bluetooth permission missing and no Activity to request from");
+                }
+                currentState = STATE_ERROR;
+                return false;
+            }
+        }
+
         BluetoothManager bm = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
         if (bm == null) {
             setError("connect: no BluetoothManager service");
