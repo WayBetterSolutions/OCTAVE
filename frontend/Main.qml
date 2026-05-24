@@ -45,6 +45,21 @@ ApplicationWindow {
     property bool isVerticalLayout: settingsManager ?
                                    settingsManager.bottomBarOrientation === "side" : false
 
+    // ── Now Playing Studio overlay ──
+    // When true, the Now Playing immersive editor takes over the entire window
+    // (covers stackView + BottomBar). Toggled from the Now Playing tile click
+    // in the settings tile pages. Origin rect drives the hero-morph open
+    // animation (matches SettingsCardPopup): studio grows from the clicked
+    // tile's rect to fill the window.
+    property bool nowPlayingStudioOpen: false
+    property rect nowPlayingStudioOriginRect: Qt.rect(0, 0, 0, 0)
+    function openNowPlayingStudio(originRect) {
+        if (originRect && originRect.width > 0)
+            nowPlayingStudioOriginRect = originRect
+        nowPlayingStudioOpen = true
+    }
+    function closeNowPlayingStudio() { nowPlayingStudioOpen = false }
+
     // Global shift light flash properties
     property real currentRpm: 0
     property var shiftLightFlags: []
@@ -517,6 +532,46 @@ ApplicationWindow {
                     anchors.top = undefined
                     height = parent.height * App.Spacing.bottomBarHeightPercent
                 }
+            }
+        }
+
+        // ── Now Playing Studio: window-filling immersive editor ──
+        // Covers StackView (settings tabs) + BottomBar; opened by the Now Playing
+        // tile in Media settings. Internal back chip closes it. Geometry is
+        // driven by the studio's openProgress + originRect for the hero-morph
+        // open animation (matches SettingsCardPopup); we keep `visible` true
+        // through the close animation until openProgress fully returns to 0.
+        NowPlayingStudio {
+            id: nowPlayingStudio
+            z: 5
+            visible: mainWindow.nowPlayingStudioOpen || openProgress > 0.001
+            mainWindow: mainWindow
+            originRect: mainWindow.nowPlayingStudioOriginRect
+            openProgress: mainWindow.nowPlayingStudioOpen ? 1.0 : 0.0
+            // Fully-open target excludes the BottomBar (so the nav stays
+            // visible) and — when settings is in Sidebar layout — also the
+            // settings sidebar on the left, so the user can switch sections
+            // without closing the studio.
+            readonly property bool _reserveSettingsSidebar:
+                settingsManager && settingsManager.settingsLayoutStyle === "Sidebar"
+            readonly property int _sidebarReserve:
+                _reserveSettingsSidebar ? App.Spacing.settingsNavWidth : 0
+            targetX: (isVerticalLayout ? bottomBar.width : 0) + _sidebarReserve
+            targetY: 0
+            targetWidth: parent.width - (isVerticalLayout ? bottomBar.width : 0) - _sidebarReserve
+            targetHeight: parent.height - (isVerticalLayout ? 0 : bottomBar.height)
+            onCloseRequested: mainWindow.closeNowPlayingStudio()
+        }
+
+        // BottomBar nav presists from inside the studio: if the user taps
+        // Home / Music / OBD / Settings while the studio is open, the
+        // stackView changes pages and we close the studio so it doesn't
+        // hang on top of an unrelated screen.
+        Connections {
+            target: stackView
+            function onCurrentItemChanged() {
+                if (mainWindow.nowPlayingStudioOpen)
+                    mainWindow.closeNowPlayingStudio()
             }
         }
 

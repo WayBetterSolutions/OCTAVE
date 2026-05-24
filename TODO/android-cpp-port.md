@@ -1,7 +1,7 @@
 # Android C++ Port
 
-**Status:** active — toolchain installed, C++ APK builds and installs; remaining work is filling in the Android-specific behavior (most notably OBD over Bluetooth).
-**Last updated:** 2026-05-02
+**Status:** active — Phases 0–3 complete. OBD-over-BLE and YT Music search/download both shipped. Remaining work is Phase 4 (sideload polish).
+**Last updated:** 2026-05-07
 
 ## Why this is parked here
 
@@ -80,18 +80,10 @@ Follow `ANDROID_BUILD_SETUP.md` at repo root. Installs Qt for Android 6.11.0, An
 
 **Done when:** fresh install on S22 Ultra walks through a clean permission flow for OBD + media library.
 
-### Phase 3 — OBD over Bluetooth (QtBluetooth path)
-1. Refactor `obdmanager` to use `IOBDTransport` interface.
-2. `SerialELM327Transport` — wraps existing `QSerialPort` path (desktop).
-3. `BluetoothELM327Transport` — wraps `QBluetoothSocket` RFCOMM with SPP UUID `00001101-0000-1000-8000-00805F9B34FB`.
-4. `obdmanager` picks transport by platform, exposed as a setting on desktop (BT adapters exist on Linux/Windows too).
-5. Settings UI: Android shows paired/discovered devices list, user taps NEXAS, MAC persists to `settingsConfigure.json`.
-6. Mirror the transport split on Python side (`obd_manager.py`) so parity holds.
-7. End-to-end test with NEXAS adapter at MAC in `.private-notes.md`.
+### Phase 3 — OBD over Bluetooth — DONE (2026-05-07)
+Shipped via JNI bypass of Qt's broken BLE stack. `OctaveOBDBridge` handles BLE on Android; `OBDManager` is wired through it. The QtBluetooth `IOBDTransport` refactor was abandoned in favor of the JNI path — Qt's BLE implementation was unreliable enough that the fallback became the primary. Live PIDs stream on the S22 Ultra. Bluetooth permission auto-requested on first connect.
 
-**Fallback trigger:** if RFCOMM to NEXAS is flaky (packet loss, unexpected disconnects, ELM327 timeout storms), port the JNI bridge logic from `backend/android_obd_manager.py` into a C++ JNI transport. Don't plan for this; decide on evidence.
-
-**Done when:** NEXAS connects from a cold app launch on the S22 Ultra, live PIDs stream, gauges render on an actual dashboard.
+Reference commits: `f1901d9` (BLE working via JNI), `2d05676` (OBDManager wired to OctaveOBDBridge), `08e8245` (auto-request Bluetooth permission), `542b446` (live connection log).
 
 ### Phase 4 — Sideload polish
 - Splash screen, app icon (all mipmap densities).
@@ -109,10 +101,8 @@ Play Store submission. Write `TODO/android-play-store.md` at that point covering
 
 ## Prerequisites and blockers
 
-- **Phase 1–4 blocked on Phase 0** (toolchain install on the user's Linux box).
-- **Phase 2 blocked on Phase 1** (need a running APK to test permission flows).
-- **Phase 3 blocked on Phase 1 and on live access to both test devices** (paired NEXAS required).
-- **Phase 4 blocked on Phase 3** (an APK without working OBD isn't sideload-ready).
+- Phases 0–3 complete.
+- **Phase 4** is the only remaining open phase — daily-drivable APK polish.
 - **Phase 5 blocked on Phase 4 AND on an LGPL-vs-commercial-Qt license decision.**
 
 ## Cross-references

@@ -347,599 +347,558 @@ Flickable {
     }
 
     // ─────────────────────────────────────────── Now Playing
+    // L-shape: live MediaRoom PiP locked top-right, two scrollable
+    // SettingCategory columns wrapping under and to the left of it.
+    // Both scroll columns use the bare Flickable + ColumnLayout recipe
+    // shared with every other settings submenu — no rail chrome.
     Component {
         id: nowPlayingContent
-        ColumnLayout {
+        Item {
+            id: dashboard
             width: parent ? parent.width : 0
-            spacing: App.Spacing.sectionSpacing
+            // Fill the popup's body so the PiP can lock to the top-right
+            // corner and the two column flickables get a real bottom anchor.
+            // SettingsCardPopup's contentLoader sets height = implicitHeight,
+            // so bind height explicitly — Item.height defaults to 0.
+            implicitHeight: parent && parent.parent ? parent.parent.height : pageRoot.dp(620)
+            height: implicitHeight
 
-            SettingCategory {
-                title: "Rounded Corners"
-                description: "Apply rounded corners to album art in the media room."
+            readonly property int gap: pageRoot.dp(8)
+
+            // PiP sized to the running window's aspect so the preview reads
+            // as a faithful miniature. Caps at 40% of dashboard height to
+            // leave the two scroll columns plenty of room.
+            readonly property real windowAspect: (mainWindow && mainWindow.height > 0)
+                ? (mainWindow.width / mainWindow.height) : (1280.0 / 720.0)
+            readonly property real pipMaxHeight: Math.max(pageRoot.dp(160), dashboard.height * 0.40)
+            readonly property real pipNaturalWidth: pipMaxHeight * windowAspect
+            readonly property int leftColMin: pageRoot.dp(280)
+            readonly property real pipFitWidth: Math.max(pageRoot.dp(160),
+                Math.min(pipNaturalWidth, dashboard.width - leftColMin - dashboard.gap))
+            readonly property real pipFitHeight: pipFitWidth / windowAspect
+
+            // Bundled looks — apply with one tap, then dial in.
+            readonly property var presetDefs: [
+                { label: "Minimal", settings: {
+                    roundedAlbumArt: true, showAlbumArtShadow: false, vinylRecordMode: false,
+                    showWaveformVisualizer: false, show3DButtonTilt: false, show3DAlbumPreview: false,
+                    backgroundBlurRadius: 60, backgroundOverlayOpacity: 80,
+                    albumArtCornerRadius: 16, albumArtTransition: "Crossfade", backgroundGrid: "Normal"
+                }},
+                { label: "Vinyl", settings: {
+                    roundedAlbumArt: false, showAlbumArtShadow: true, vinylRecordMode: true,
+                    showWaveformVisualizer: true, show3DButtonTilt: false, show3DAlbumPreview: false,
+                    backgroundBlurRadius: 30, backgroundOverlayOpacity: 60,
+                    albumArtTransition: "Vinyl Lift", backgroundGrid: "Normal"
+                }},
+                { label: "Showcase 3D", settings: {
+                    roundedAlbumArt: true, showAlbumArtShadow: true, vinylRecordMode: false,
+                    showWaveformVisualizer: false, show3DButtonTilt: true, show3DAlbumPreview: true,
+                    backgroundBlurRadius: 50, backgroundOverlayOpacity: 70,
+                    albumArtCornerRadius: 16, albumArtTransition: "Coverflow",
+                    backgroundGrid: "4x4",
+                    sideCardOpacity: 0.4, sideCardAngle: 30, buttonTiltDuration: 200
+                }},
+                { label: "Cinema", settings: {
+                    roundedAlbumArt: true, showAlbumArtShadow: true, vinylRecordMode: false,
+                    showWaveformVisualizer: true, show3DButtonTilt: false, show3DAlbumPreview: false,
+                    backgroundBlurRadius: 80, backgroundOverlayOpacity: 90,
+                    albumArtCornerRadius: 24, albumArtTransition: "Dissolve", backgroundGrid: "4x4"
+                }}
+            ]
+
+            function applyPreset(preset) {
+                if (!settingsManager || !preset || !preset.settings) return
+                var s = preset.settings
+                if ("roundedAlbumArt" in s)         settingsManager.save_rounded_album_art(s.roundedAlbumArt)
+                if ("showAlbumArtShadow" in s)      settingsManager.save_show_album_art_shadow(s.showAlbumArtShadow)
+                if ("vinylRecordMode" in s)         settingsManager.save_vinyl_record_mode(s.vinylRecordMode)
+                if ("showWaveformVisualizer" in s)  settingsManager.save_show_waveform_visualizer(s.showWaveformVisualizer)
+                if ("show3DButtonTilt" in s)        settingsManager.save_show_3d_button_tilt(s.show3DButtonTilt)
+                if ("show3DAlbumPreview" in s)      settingsManager.save_show_3d_album_preview(s.show3DAlbumPreview)
+                if ("backgroundBlurRadius" in s)    settingsManager.save_background_blur_radius(s.backgroundBlurRadius)
+                if ("backgroundOverlayOpacity" in s) settingsManager.save_background_overlay_opacity(s.backgroundOverlayOpacity)
+                if ("albumArtCornerRadius" in s)    settingsManager.save_album_art_corner_radius(s.albumArtCornerRadius)
+                if ("albumArtTransition" in s)      settingsManager.save_album_art_transition(s.albumArtTransition)
+                if ("backgroundGrid" in s)          settingsManager.save_background_grid(s.backgroundGrid)
+                if ("sideCardOpacity" in s)         settingsManager.save_side_card_opacity(s.sideCardOpacity)
+                if ("sideCardAngle" in s)           settingsManager.save_side_card_angle(s.sideCardAngle)
+                if ("buttonTiltDuration" in s)      settingsManager.save_button_tilt_duration(s.buttonTiltDuration)
+            }
+
+            // ── PiP locked top-right ──
+            MediaRoomLivePreview {
+                id: centerPip
+                anchors.top: parent.top
+                anchors.right: parent.right
+                width: dashboard.pipFitWidth
+                height: dashboard.pipFitHeight
+            }
+
+            // ── Left scroll: same bare Flickable + ColumnLayout of
+            //    SettingCategory cards as Library / Playback / Display.
+            Flickable {
+                id: leftFlick
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: centerPip.left
+                anchors.rightMargin: dashboard.gap
+                contentWidth: width
+                contentHeight: leftCol.implicitHeight
+                flickableDirection: Flickable.VerticalFlick
+                clip: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1200
+                maximumFlickVelocity: 4000
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
                 ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.rowSpacing
+                    id: leftCol
+                    width: leftFlick.width
+                    spacing: App.Spacing.sectionSpacing
 
-                    SettingsToggle {
-                        id: roundedAlbumArtToggle
-                        compact: true
-                        Layout.fillWidth: false
-                        Layout.alignment: Qt.AlignLeft
-                        text: checked ? "On" : "Off"
-                        checked: settingsManager ? settingsManager.roundedAlbumArt : true
-                        activeColor: App.Style.accent
-                        inactiveColor: App.Style.hoverColor
+                    SettingCategory {
+                        title: "Background Layout"
+                        description: "Tile pattern for the album art behind the player."
 
-                        onToggled: function(checked) {
-                            if (settingsManager) settingsManager.save_rounded_album_art(checked)
-                        }
-
-                        Connections {
-                            target: settingsManager
-                            function onRoundedAlbumArtChanged() {
-                                roundedAlbumArtToggle.checked = settingsManager.roundedAlbumArt
-                            }
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: App.Spacing.overallSpacing
-                        visible: settingsManager && settingsManager.roundedAlbumArt
-
-                        SettingsSlider {
-                            id: cornerRadiusSlider
-                            from: 2
-                            to: 32
-                            stepSize: 1
-                            value: settingsManager ? settingsManager.albumArtCornerRadius : 16
-                            activeColor: App.Style.accent
-                            Layout.fillWidth: true
-
-                            Timer {
-                                id: cornerRadiusTimer
-                                interval: 100
-                                running: false
-                                repeat: false
-                                onTriggered: {
-                                    if (settingsManager) {
-                                        settingsManager.save_album_art_corner_radius(cornerRadiusSlider.value)
-                                    }
-                                }
-                            }
-
-                            onMoved: cornerRadiusTimer.restart()
-
+                        NowPlayingButtonGrid {
+                            id: bgGridCtl
+                            options: ["Normal", "2x2", "4x4"]
+                            currentValue: settingsManager ? settingsManager.backgroundGrid : "4x4"
+                            onSelected: function(v) { if (settingsManager) settingsManager.save_background_grid(v) }
                             Connections {
                                 target: settingsManager
-                                function onAlbumArtCornerRadiusChanged() {
-                                    cornerRadiusSlider.value = settingsManager.albumArtCornerRadius
-                                }
-                            }
-                        }
-
-                        ValueDisplay {
-                            text: cornerRadiusSlider.value.toFixed(0) + " dp"
-                            Layout.fillWidth: false
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Drop Shadow"
-                description: "Shadow behind the album art card for depth."
-
-                SettingsToggle {
-                    id: albumArtShadowToggle
-                    compact: true
-                    Layout.fillWidth: false
-                    Layout.alignment: Qt.AlignLeft
-                    text: checked ? "On" : "Off"
-                    checked: settingsManager ? settingsManager.showAlbumArtShadow : true
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) settingsManager.save_show_album_art_shadow(checked)
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShowAlbumArtShadowChanged() {
-                            albumArtShadowToggle.checked = settingsManager.showAlbumArtShadow
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Track Transition"
-                description: "Animation style when switching between tracks."
-
-                SettingsSegmentedControl {
-                    id: albumArtTransitionControl
-                    Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.albumArtTransition : "Crossfade"
-                    options: ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"]
-
-                    onSelected: function(value) {
-                        if (settingsManager) settingsManager.save_album_art_transition(value)
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onAlbumArtTransitionChanged() {
-                            albumArtTransitionControl.currentValue = settingsManager.albumArtTransition
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Vinyl Record Mode"
-                description: "Turn album art into a spinning vinyl record during playback."
-
-                SettingsToggle {
-                    id: vinylRecordToggle
-                    compact: true
-                    Layout.fillWidth: false
-                    Layout.alignment: Qt.AlignLeft
-                    text: checked ? "On" : "Off"
-                    checked: settingsManager ? settingsManager.vinylRecordMode : false
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) settingsManager.save_vinyl_record_mode(checked)
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onVinylRecordModeChanged() {
-                            vinylRecordToggle.checked = settingsManager.vinylRecordMode
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "3D Album Preview"
-                description: "Coverflow-style card stack showing next and previous album art with 3D rotation."
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.rowSpacing
-
-                    SettingsToggle {
-                        id: albumPreviewToggle
-                        compact: true
-                        Layout.fillWidth: false
-                        Layout.alignment: Qt.AlignLeft
-                        text: checked ? "On" : "Off"
-                        checked: settingsManager ? settingsManager.show3DAlbumPreview : false
-                        activeColor: App.Style.accent
-                        inactiveColor: App.Style.hoverColor
-
-                        onToggled: function(checked) {
-                            if (settingsManager) settingsManager.save_show_3d_album_preview(checked)
-                        }
-
-                        Connections {
-                            target: settingsManager
-                            function onShow3DAlbumPreviewChanged() {
-                                albumPreviewToggle.checked = settingsManager.show3DAlbumPreview
+                                function onBackgroundGridChanged() { bgGridCtl.currentValue = settingsManager.backgroundGrid }
                             }
                         }
                     }
 
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: App.Spacing.rowSpacing
-                        visible: settingsManager && settingsManager.show3DAlbumPreview
-
-                        SettingLabel { text: "3D Preview Transition" }
-
-                        SettingsSegmentedControl {
-                            id: albumArt3DTransitionControl
-                            Layout.fillWidth: true
-                            currentValue: settingsManager ? settingsManager.albumArt3DTransition : "Coverflow"
-                            options: ["Coverflow", "Conveyor", "Stack", "Depth", "Swing"]
-
-                            onSelected: function(value) {
-                                if (settingsManager) settingsManager.save_album_art_3d_transition(value)
-                            }
-
-                            Connections {
-                                target: settingsManager
-                                function onAlbumArt3DTransitionChanged() {
-                                    albumArt3DTransitionControl.currentValue = settingsManager.albumArt3DTransition
-                                }
-                            }
-                        }
-
-                        SettingLabel { text: "Side Card Opacity"; Layout.topMargin: App.Spacing.rowSpacing }
+                    SettingCategory {
+                        title: "Background Blur"
+                        description: "Soften the album art behind the player."
 
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: App.Spacing.overallSpacing
 
                             SettingsSlider {
-                                id: sideCardOpacitySlider
-                                from: 0.1
-                                to: 1.0
-                                stepSize: 0.05
-                                value: settingsManager ? settingsManager.sideCardOpacity : 0.4
+                                id: blurSlider
+                                from: 0; to: 100; stepSize: 1
+                                value: settingsManager ? settingsManager.backgroundBlurRadius : 40
                                 activeColor: App.Style.accent
                                 Layout.fillWidth: true
-
-                                Timer {
-                                    id: sideCardOpacityTimer
-                                    interval: 100
-                                    running: false
-                                    repeat: false
-                                    onTriggered: {
-                                        if (settingsManager) {
-                                            settingsManager.save_side_card_opacity(sideCardOpacitySlider.value)
-                                        }
-                                    }
-                                }
-
-                                onMoved: sideCardOpacityTimer.restart()
-
+                                onMoved: { if (settingsManager) settingsManager.save_background_blur_radius(blurSlider.value) }
                                 Connections {
                                     target: settingsManager
-                                    function onSideCardOpacityChanged() {
-                                        sideCardOpacitySlider.value = settingsManager.sideCardOpacity
-                                    }
+                                    function onBackgroundBlurRadiusChanged() { blurSlider.value = settingsManager.backgroundBlurRadius }
                                 }
                             }
 
                             ValueDisplay {
-                                text: Math.round(sideCardOpacitySlider.value * 100) + "%"
+                                text: blurSlider.value.toFixed(0)
                                 Layout.fillWidth: false
                             }
                         }
+                    }
 
-                        SettingLabel { text: "Side Card Angle"; Layout.topMargin: App.Spacing.rowSpacing }
+                    SettingCategory {
+                        title: "Dark Overlay"
+                        description: "Tint over the blurred background."
 
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: App.Spacing.overallSpacing
 
                             SettingsSlider {
-                                id: sideCardAngleSlider
-                                from: 5
-                                to: 60
-                                stepSize: 1
-                                value: settingsManager ? settingsManager.sideCardAngle : 30
-                                activeColor: App.Style.accent
-                                Layout.fillWidth: true
-
-                                Timer {
-                                    id: sideCardAngleTimer
-                                    interval: 100
-                                    running: false
-                                    repeat: false
-                                    onTriggered: {
-                                        if (settingsManager) {
-                                            settingsManager.save_side_card_angle(sideCardAngleSlider.value)
-                                        }
-                                    }
-                                }
-
-                                onMoved: sideCardAngleTimer.restart()
-
-                                Connections {
-                                    target: settingsManager
-                                    function onSideCardAngleChanged() {
-                                        sideCardAngleSlider.value = settingsManager.sideCardAngle
-                                    }
-                                }
-                            }
-
-                            ValueDisplay {
-                                text: sideCardAngleSlider.value.toFixed(0) + "°"
-                                Layout.fillWidth: false
-                            }
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Text Scroll Speed"
-                description: "Duration for scrolling long song titles and metadata. Lower is faster."
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing
-
-                    SettingsSlider {
-                        id: textScrollSpeedSlider
-                        from: 1000
-                        to: 10000
-                        stepSize: 500
-                        value: settingsManager ? settingsManager.textScrollSpeed : 5000
-                        activeColor: App.Style.accent
-                        Layout.fillWidth: true
-
-                        Timer {
-                            id: textScrollSpeedTimer
-                            interval: 100
-                            running: false
-                            repeat: false
-                            onTriggered: {
-                                if (settingsManager) {
-                                    settingsManager.save_text_scroll_speed(textScrollSpeedSlider.value)
-                                }
-                            }
-                        }
-
-                        onMoved: textScrollSpeedTimer.restart()
-
-                        Connections {
-                            target: settingsManager
-                            function onTextScrollSpeedChanged() {
-                                textScrollSpeedSlider.value = settingsManager.textScrollSpeed
-                            }
-                        }
-                    }
-
-                    ValueDisplay {
-                        text: (textScrollSpeedSlider.value / 1000).toFixed(1) + " s"
-                        Layout.fillWidth: false
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Waveform Visualizer"
-                description: "Animated waveform in Now Playing, themed to match."
-
-                SettingsToggle {
-                    id: waveformVisualizerToggle
-                    compact: true
-                    Layout.fillWidth: false
-                    Layout.alignment: Qt.AlignLeft
-                    text: checked ? "On" : "Off"
-                    checked: settingsManager ? settingsManager.showWaveformVisualizer : true
-                    activeColor: App.Style.accent
-                    inactiveColor: App.Style.hoverColor
-
-                    onToggled: function(checked) {
-                        if (settingsManager) settingsManager.save_show_waveform_visualizer(checked)
-                    }
-
-                    Connections {
-                        target: settingsManager
-                        function onShowWaveformVisualizerChanged() {
-                            waveformVisualizerToggle.checked = settingsManager.showWaveformVisualizer
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "3D Button Tilt"
-                description: "3D tilt and scale effect when pressing playback buttons."
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.rowSpacing
-
-                    SettingsToggle {
-                        id: buttonTiltToggle
-                        compact: true
-                        Layout.fillWidth: false
-                        Layout.alignment: Qt.AlignLeft
-                        text: checked ? "On" : "Off"
-                        checked: settingsManager ? settingsManager.show3DButtonTilt : false
-                        activeColor: App.Style.accent
-                        inactiveColor: App.Style.hoverColor
-
-                        onToggled: function(checked) {
-                            if (settingsManager) settingsManager.save_show_3d_button_tilt(checked)
-                        }
-
-                        Connections {
-                            target: settingsManager
-                            function onShow3DButtonTiltChanged() {
-                                buttonTiltToggle.checked = settingsManager.show3DButtonTilt
-                            }
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: App.Spacing.rowSpacing
-                        visible: settingsManager && settingsManager.show3DButtonTilt
-
-                        SettingLabel { text: "Tilt Duration" }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: App.Spacing.overallSpacing
-
-                            SettingsSlider {
-                                id: buttonTiltDurationSlider
-                                from: 50
-                                to: 500
-                                stepSize: 10
-                                value: settingsManager ? settingsManager.buttonTiltDuration : 200
-                                activeColor: App.Style.accent
-                                Layout.fillWidth: true
-
-                                Timer {
-                                    id: buttonTiltDurationTimer
-                                    interval: 100
-                                    running: false
-                                    repeat: false
-                                    onTriggered: {
-                                        if (settingsManager) {
-                                            settingsManager.save_button_tilt_duration(buttonTiltDurationSlider.value)
-                                        }
-                                    }
-                                }
-
-                                onMoved: buttonTiltDurationTimer.restart()
-
-                                Connections {
-                                    target: settingsManager
-                                    function onButtonTiltDurationChanged() {
-                                        buttonTiltDurationSlider.value = settingsManager.buttonTiltDuration
-                                    }
-                                }
-                            }
-
-                            ValueDisplay {
-                                text: buttonTiltDurationSlider.value.toFixed(0) + " ms"
-                                Layout.fillWidth: false
-                            }
-                        }
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Background Layout"
-                description: "Grid layout for the album art tiled across the background."
-
-                SettingsSegmentedControl {
-                    id: backgroundGridButton
-                    Layout.fillWidth: true
-                    currentValue: settingsManager ? settingsManager.backgroundGrid : "4x4"
-                    options: ["Normal", "2x2", "4x4"]
-
-                    onSelected: function(value) {
-                        if (settingsManager) settingsManager.save_background_grid(value)
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Background Blur"
-                description: "Gaussian blur intensity on the background album art grid."
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.overallSpacing
-
-                    SettingsSlider {
-                        id: blurRadiusSlider
-                        from: 0
-                        to: 100
-                        stepSize: 1
-                        value: settingsManager ? settingsManager.backgroundBlurRadius : 40
-                        activeColor: App.Style.accent
-                        Layout.fillWidth: true
-
-                        Timer {
-                            id: blurUpdateTimer
-                            interval: 100
-                            running: false
-                            repeat: false
-                            onTriggered: {
-                                if (settingsManager) {
-                                    settingsManager.save_background_blur_radius(blurRadiusSlider.value)
-                                }
-                            }
-                        }
-
-                        onMoved: blurUpdateTimer.restart()
-                    }
-
-                    ValueDisplay {
-                        text: blurRadiusSlider.value.toFixed(0)
-                        Layout.fillWidth: false
-                    }
-                }
-            }
-
-            SettingCategory {
-                title: "Background Dark Overlay"
-                description: "Semi-transparent dark layer over the background for readability."
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: App.Spacing.rowSpacing
-
-                    SettingsToggle {
-                        id: backgroundOverlayToggle
-                        compact: true
-                        Layout.fillWidth: false
-                        Layout.alignment: Qt.AlignLeft
-                        text: checked ? "On" : "Off"
-                        checked: settingsManager ? settingsManager.showBackgroundOverlay : true
-                        activeColor: App.Style.accent
-                        inactiveColor: App.Style.hoverColor
-
-                        onToggled: function(checked) {
-                            if (settingsManager) settingsManager.save_show_background_overlay(checked)
-                        }
-
-                        Connections {
-                            target: settingsManager
-                            function onShowBackgroundOverlayChanged() {
-                                backgroundOverlayToggle.checked = settingsManager.showBackgroundOverlay
-                            }
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: App.Spacing.rowSpacing
-                        visible: settingsManager && settingsManager.showBackgroundOverlay
-
-                        SettingLabel { text: "Overlay Opacity" }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: App.Spacing.overallSpacing
-
-                            SettingsSlider {
-                                id: overlayOpacitySlider
-                                from: 0
-                                to: 100
-                                stepSize: 1
+                                id: darkSlider
+                                from: 0; to: 100; stepSize: 1
                                 value: settingsManager ? settingsManager.backgroundOverlayOpacity : 80
                                 activeColor: App.Style.accent
                                 Layout.fillWidth: true
-
-                                Timer {
-                                    id: overlayOpacityTimer
-                                    interval: 100
-                                    running: false
-                                    repeat: false
-                                    onTriggered: {
-                                        if (settingsManager) {
-                                            settingsManager.save_background_overlay_opacity(overlayOpacitySlider.value)
-                                        }
-                                    }
-                                }
-
-                                onMoved: overlayOpacityTimer.restart()
-
+                                onMoved: { if (settingsManager) settingsManager.save_background_overlay_opacity(darkSlider.value) }
                                 Connections {
                                     target: settingsManager
-                                    function onBackgroundOverlayOpacityChanged() {
-                                        overlayOpacitySlider.value = settingsManager.backgroundOverlayOpacity
-                                    }
+                                    function onBackgroundOverlayOpacityChanged() { darkSlider.value = settingsManager.backgroundOverlayOpacity }
                                 }
                             }
 
                             ValueDisplay {
-                                text: overlayOpacitySlider.value.toFixed(0) + "%"
+                                text: darkSlider.value.toFixed(0) + "%"
                                 Layout.fillWidth: false
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "Rounded Album Art"
+                        description: "Soft corners on the current track's album art."
+
+                        SettingsToggle {
+                            id: roundedToggle
+                            compact: true
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignLeft
+                            text: checked ? "On" : "Off"
+                            checked: settingsManager ? settingsManager.roundedAlbumArt : true
+                            activeColor: App.Style.accent
+                            inactiveColor: App.Style.hoverColor
+                            onToggled: function(c) { if (settingsManager) settingsManager.save_rounded_album_art(c) }
+                            Connections {
+                                target: settingsManager
+                                function onRoundedAlbumArtChanged() { roundedToggle.checked = settingsManager.roundedAlbumArt }
+                            }
+                        }
+
+                        SettingSubcategory {
+                            Layout.fillWidth: true
+                            visible: settingsManager && settingsManager.roundedAlbumArt
+                            title: "Corner Radius"
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing
+
+                                SettingsSlider {
+                                    id: radiusSlider
+                                    from: 2; to: 32; stepSize: 1
+                                    value: settingsManager ? settingsManager.albumArtCornerRadius : 16
+                                    activeColor: App.Style.accent
+                                    Layout.fillWidth: true
+                                    onMoved: { if (settingsManager) settingsManager.save_album_art_corner_radius(radiusSlider.value) }
+                                    Connections {
+                                        target: settingsManager
+                                        function onAlbumArtCornerRadiusChanged() { radiusSlider.value = settingsManager.albumArtCornerRadius }
+                                    }
+                                }
+
+                                ValueDisplay {
+                                    text: radiusSlider.value.toFixed(0) + " dp"
+                                    Layout.fillWidth: false
+                                }
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "Album Art Shadow"
+                        description: "Drop shadow behind the current track's album art."
+
+                        SettingsToggle {
+                            id: shadowToggle
+                            compact: true
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignLeft
+                            text: checked ? "On" : "Off"
+                            checked: settingsManager ? settingsManager.showAlbumArtShadow : true
+                            activeColor: App.Style.accent
+                            inactiveColor: App.Style.hoverColor
+                            onToggled: function(c) { if (settingsManager) settingsManager.save_show_album_art_shadow(c) }
+                            Connections {
+                                target: settingsManager
+                                function onShowAlbumArtShadowChanged() { shadowToggle.checked = settingsManager.showAlbumArtShadow }
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "Vinyl Record Mode"
+                        description: "Swap album art for a spinning vinyl while playing."
+
+                        SettingsToggle {
+                            id: vinylToggle
+                            compact: true
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignLeft
+                            text: checked ? "On" : "Off"
+                            checked: settingsManager ? settingsManager.vinylRecordMode : false
+                            activeColor: App.Style.accent
+                            inactiveColor: App.Style.hoverColor
+                            onToggled: function(c) { if (settingsManager) settingsManager.save_vinyl_record_mode(c) }
+                            Connections {
+                                target: settingsManager
+                                function onVinylRecordModeChanged() { vinylToggle.checked = settingsManager.vinylRecordMode }
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "Waveform Visualizer"
+                        description: "FFT bars reacting to the playing audio."
+
+                        SettingsToggle {
+                            id: waveformToggle
+                            compact: true
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignLeft
+                            text: checked ? "On" : "Off"
+                            checked: settingsManager ? settingsManager.showWaveformVisualizer : true
+                            activeColor: App.Style.accent
+                            inactiveColor: App.Style.hoverColor
+                            onToggled: function(c) { if (settingsManager) settingsManager.save_show_waveform_visualizer(c) }
+                            Connections {
+                                target: settingsManager
+                                function onShowWaveformVisualizerChanged() { waveformToggle.checked = settingsManager.showWaveformVisualizer }
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "3D Album Preview"
+                        description: "Tilted side cards flanking the current track."
+
+                        SettingsToggle {
+                            id: preview3dToggle
+                            compact: true
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignLeft
+                            text: checked ? "On" : "Off"
+                            checked: settingsManager ? settingsManager.show3DAlbumPreview : false
+                            activeColor: App.Style.accent
+                            inactiveColor: App.Style.hoverColor
+                            onToggled: function(c) { if (settingsManager) settingsManager.save_show_3d_album_preview(c) }
+                            Connections {
+                                target: settingsManager
+                                function onShow3DAlbumPreviewChanged() { preview3dToggle.checked = settingsManager.show3DAlbumPreview }
+                            }
+                        }
+
+                        SettingSubcategory {
+                            Layout.fillWidth: true
+                            visible: settingsManager && settingsManager.show3DAlbumPreview
+                            title: "Side Cards"
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.rowSpacing
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: App.Spacing.overallSpacing
+
+                                    SettingsSlider {
+                                        id: angleSlider
+                                        from: 5; to: 60; stepSize: 1
+                                        value: settingsManager ? settingsManager.sideCardAngle : 30
+                                        activeColor: App.Style.accent
+                                        Layout.fillWidth: true
+                                        onMoved: { if (settingsManager) settingsManager.save_side_card_angle(angleSlider.value) }
+                                        Connections {
+                                            target: settingsManager
+                                            function onSideCardAngleChanged() { angleSlider.value = settingsManager.sideCardAngle }
+                                        }
+                                    }
+
+                                    ValueDisplay {
+                                        text: angleSlider.value.toFixed(0) + "°"
+                                        Layout.fillWidth: false
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: App.Spacing.overallSpacing
+
+                                    SettingsSlider {
+                                        id: sideOpSlider
+                                        from: 0.1; to: 1.0; stepSize: 0.05
+                                        value: settingsManager ? settingsManager.sideCardOpacity : 0.4
+                                        activeColor: App.Style.accent
+                                        Layout.fillWidth: true
+                                        onMoved: { if (settingsManager) settingsManager.save_side_card_opacity(sideOpSlider.value) }
+                                        Connections {
+                                            target: settingsManager
+                                            function onSideCardOpacityChanged() { sideOpSlider.value = settingsManager.sideCardOpacity }
+                                        }
+                                    }
+
+                                    ValueDisplay {
+                                        text: Math.round(sideOpSlider.value * 100) + "%"
+                                        Layout.fillWidth: false
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "Text Scroll Speed"
+                        description: "How long marquees take to wipe across one cycle."
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: App.Spacing.overallSpacing
+
+                            SettingsSlider {
+                                id: textScrollSpeedSlider
+                                from: 1000; to: 10000; stepSize: 500
+                                value: settingsManager ? settingsManager.textScrollSpeed : 5000
+                                activeColor: App.Style.accent
+                                Layout.fillWidth: true
+                                onMoved: { if (settingsManager) settingsManager.save_text_scroll_speed(textScrollSpeedSlider.value) }
+                                Connections {
+                                    target: settingsManager
+                                    function onTextScrollSpeedChanged() { textScrollSpeedSlider.value = settingsManager.textScrollSpeed }
+                                }
+                            }
+
+                            ValueDisplay {
+                                text: (textScrollSpeedSlider.value / 1000).toFixed(1) + " s"
+                                Layout.fillWidth: false
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "3D Button Tilt"
+                        description: "Press effect on the playback control buttons."
+
+                        SettingsToggle {
+                            id: tiltToggle
+                            compact: true
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignLeft
+                            text: checked ? "On" : "Off"
+                            checked: settingsManager ? settingsManager.show3DButtonTilt : false
+                            activeColor: App.Style.accent
+                            inactiveColor: App.Style.hoverColor
+                            onToggled: function(c) { if (settingsManager) settingsManager.save_show_3d_button_tilt(c) }
+                            Connections {
+                                target: settingsManager
+                                function onShow3DButtonTiltChanged() { tiltToggle.checked = settingsManager.show3DButtonTilt }
+                            }
+                        }
+
+                        SettingSubcategory {
+                            Layout.fillWidth: true
+                            visible: settingsManager && settingsManager.show3DButtonTilt
+                            title: "Tilt Duration"
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing
+
+                                SettingsSlider {
+                                    id: tiltDurationSlider
+                                    from: 50; to: 500; stepSize: 10
+                                    value: settingsManager ? settingsManager.buttonTiltDuration : 200
+                                    activeColor: App.Style.accent
+                                    Layout.fillWidth: true
+                                    onMoved: { if (settingsManager) settingsManager.save_button_tilt_duration(tiltDurationSlider.value) }
+                                    Connections {
+                                        target: settingsManager
+                                        function onButtonTiltDurationChanged() { tiltDurationSlider.value = settingsManager.buttonTiltDuration }
+                                    }
+                                }
+
+                                ValueDisplay {
+                                    text: tiltDurationSlider.value.toFixed(0) + " ms"
+                                    Layout.fillWidth: false
+                                }
                             }
                         }
                     }
                 }
             }
 
+            // ── Bottom-right scroll: presets + track transition. Lives
+            //    directly under the PiP so picking a preset / chip animates
+            //    above. Same bare Flickable recipe as the left column.
+            Flickable {
+                id: bottomFlick
+                anchors.top: centerPip.bottom
+                anchors.topMargin: dashboard.gap
+                anchors.bottom: parent.bottom
+                anchors.left: centerPip.left
+                anchors.right: parent.right
+                contentWidth: width
+                contentHeight: bottomCol.implicitHeight
+                flickableDirection: Flickable.VerticalFlick
+                clip: true
+                boundsBehavior: Flickable.DragAndOvershootBounds
+                flickDeceleration: 1200
+                maximumFlickVelocity: 4000
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+                ColumnLayout {
+                    id: bottomCol
+                    width: bottomFlick.width
+                    spacing: App.Spacing.sectionSpacing
+
+                    SettingCategory {
+                        title: "Presets"
+                        description: "Apply a curated bundle, then dial in."
+
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: 2
+                            columnSpacing: pageRoot.dp(8)
+                            rowSpacing: pageRoot.dp(8)
+
+                            Repeater {
+                                model: dashboard.presetDefs
+                                delegate: Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: pageRoot.dp(40)
+                                    radius: pageRoot.dp(8)
+                                    color: presetMouse.containsMouse
+                                        ? App.Style.accent
+                                        : Qt.rgba(App.Style.primaryTextColor.r,
+                                                  App.Style.primaryTextColor.g,
+                                                  App.Style.primaryTextColor.b, 0.06)
+                                    border.width: 1
+                                    border.color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.4)
+                                    scale: presetMouse.pressed ? 0.96 : 1.0
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Behavior on scale { NumberAnimation { duration: 80 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: presetMouse.containsMouse ? "white" : App.Style.primaryTextColor
+                                        font.pixelSize: App.Spacing.overallText - 1
+                                        font.family: App.Style.fontFamily
+                                        elide: Text.ElideRight
+                                    }
+                                    MouseArea {
+                                        id: presetMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: dashboard.applyPreset(modelData)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    SettingCategory {
+                        title: "Track Transition"
+                        description: "Animation between songs. Tap a chip to preview."
+
+                        NowPlayingButtonGrid {
+                            id: trackTransitionCtl
+                            options: ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip",
+                                      "Coverflow", "Conveyor", "Stack", "Depth", "Swing"]
+                            currentValue: settingsManager ? settingsManager.albumArtTransition : "Crossfade"
+                            onSelected: function(v) {
+                                if (!settingsManager) return
+                                settingsManager.save_album_art_transition(v)
+                                centerPip.previewTrackTransition(1, v)
+                            }
+                            Connections {
+                                target: settingsManager
+                                function onAlbumArtTransitionChanged() {
+                                    trackTransitionCtl.currentValue = settingsManager.albumArtTransition
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
+
 
     // ─────────────────────────────────────────── Spotify
     Component {
@@ -1197,6 +1156,7 @@ Flickable {
             }
         }
     }
+
 
     // ── Default rendering: stacked SettingsCards (Carousel/Hub/Dashboard layouts).
     //    Sidebar layout sets pageRoot.visible = false and renders the tile grid + popup instead.

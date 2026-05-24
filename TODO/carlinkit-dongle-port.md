@@ -1,0 +1,79 @@
+# Carlinkit Dongle Port (CarPlay + wireless Android Auto)
+
+**Status:** deferred — large new subsystem, no work started. Hardware ($60 dongle) required to develop and test.
+**Last updated:** 2026-05-24
+
+## Why this is parked here
+
+OCTAVE has no CarPlay support and its Android Auto path (`src/managers/androidautomanager.{h,cpp}`) launches Google's Desktop Head Unit subprocess and screen-scrapes its window with `QScreen::grabWindow()`. That:
+
+- only works on desktop (DHU is x86_64 + needs Android SDK installed),
+- is fragile (window focus, multi-monitor, DPI scaling all break it),
+- has never worked on the Raspberry Pi in the Jeep,
+- can't do CarPlay at all (no Apple-sanctioned SDK exists for non-automotive Linux).
+
+The **Carlinkit CPC200-CCPA** (wireless + wired) and **CCPW** (wired only) USB dongles solve both problems simultaneously. The dongle holds Apple's MFi certification and Google's AA certification on its own silicon — the phone's contract is with the dongle, not with OCTAVE. From the host app's perspective it's just a libusb device exposing an H.264 video stream, PCM audio, and a touch-input return channel over a documented (reverse-engineered) protocol.
+
+The reference implementation we'd port from is **LIVI** (`f-io/LIVI`, MIT licensed), specifically:
+
+- `src/main/services/projection/driver/dongle/dongleDriver.ts` — 775 lines, the full protocol state machine
+- `src/main/services/projection/messages/{common,readable,sendable}.ts` — message framing (`MessageHeader` + typed payloads)
+- `src/main/services/usb/{constants,helpers,USBService,USBWorker}.ts` — USB device matching + worker thread
+- `src/main/services/projection/services/ProjectionAudio.ts` — audio output handling
+- LIVI's prior art chain (cited in `CREDITS.md`): **node-carplay** (Rhys Morgan), **ludwig-v/wireless-carplay-dongle-reverse-engineering** (Ludwig), **lvalen91/CPC200-CCPA-Firmware-Dump** (Tachi91), **aasdk** (f1xpl for the AA protocol)
+
+A local copy is at `~/Downloads/LIVI-main/` — keep a snapshot before deleting it.
+
+## Scope
+
+A new C++ manager `src/managers/carlinkitmanager.{h,cpp}` exposed to QML as `carlinkitManager`. **C++ only** — this is mobile-eligible (Android sideload could use it once Android USB host mode + permissions are wired) and there is no Python peer for USB protocol code. Document the parity exemption in the commit per `CLAUDE.md`.
+
+Replaces `androidautomanager` for the wireless case but **keep DHU as a fallback** behind a setting (`useDHUForAndroidAuto`) until the dongle path proves stable in the Jeep.
+
+### Public API the QML expects
+
+Modeled on the existing `AndroidAutoManager` so `MediaRoom.qml` / future `CarPlay.qml` can reuse the image-provider pattern:
+
+```cpp
+Q_PROPERTY(bool dongleConnected READ ...)
+Q_PROPERTY(QString phoneMode READ ...)          // "carplay" | "androidauto" | "none"
+Q_PROPERTY(QString phoneName READ ...)          // last-paired BT name from BoxInfo
+Q_INVOKABLE void startProjection();
+Q_INVOKABLE void stopProjection();
+Q_INVOKABLE void sendTouch(qreal x, qreal y, int action);  // down/move/up
+Q_INVOKABLE void sendKey(int command);                     // siri, home, prev/next, etc.
+signals:
+    void dongleStateChanged();
+    void frameReady(int counter);                          // QML rebinds image://carplayframe/{counter}
+```
+
+Image provider name: `carplayframe` (mirrors existing `dhuframe` / `scrcpyframe`).
+
+## Prerequisites
+
+1. **Hardware** — buy a Carlinkit CPC200-CCPA. Don't start work without one; the dongle protocol can't be unit-tested without a real device + paired phone.
+2. **libusb dependency** — add `libusb-1.0` to `CMakeLists.txt` (`pkg_check_modules(LIBUSB libusb-1.0)`). Already a transitive dep on most Linux distros; needs vcpkg or homebrew formula on Windows/macOS.
+3. **H.264 decode path** — confirm QtMultimedia's `QVideoSink` can accept raw Annex-B H.264 NAL units, OR fall back to bundling `libavcodec` (FFmpeg, LGPL — same license posture as Qt itself, no licensing complication). LIVI uses GStreamer for this; for OCTAVE FFmpeg is more portable.
+4. **udev rule for Linux** — the dongle needs a `/etc/udev/rules.d/99-carlinkit.rules` granting non-root access. LIVI prompts to install it on first launch via pkexec — port that UX into a new `frontend/settings/CarPlaySettingsPage.qml`. Cross-references the same pattern needed for [[esp32-volume]] hardware on Linux.
+5. **Read the Ludwig reverse-engineering writeup first** — `github.com/ludwig-v/wireless-carplay-dongle-reverse-engineering` documents the exact message types and ordering that `dongleDriver.ts` implements. Saves a week of guessing.
+
+## Order of operations
+
+1. **Spike (1 day)** — write a throwaway C++ binary that opens the dongle by VID `0x1314` / PID `0x1520` or `0x1521`, sends the open message, and dumps incoming frames to stdout. Prove libusb + framing work before building a manager around them.
+2. **Port the message protocol** — `src/managers/carlinkit/messages.{h,cpp}` mirroring LIVI's `common.ts` + `readable.ts` + `sendable.ts`. Pure data classes, no I/O. Unit-testable.
+3. **Port the driver state machine** — `src/managers/carlinkit/driver.{h,cpp}` mirroring `dongleDriver.ts`. Heartbeat timer, error counting, mode switching (CarPlay ↔ Android Auto), BoxInfo parsing. Runs on a worker `QThread` — do NOT block the GUI thread on USB I/O.
+4. **H.264 decode + audio routing** — feed the video NAL units into a `QVideoSink` (or FFmpeg → `QImage` frames if QtMultimedia rejects raw H.264), route audio through the existing `VolumeController` so the global volume curve applies (per `CLAUDE.md`, never call manager `setVolume` directly).
+5. **QML surface** — `frontend/CarPlay.qml` showing the video, top-bar status (phone mode + connection), and a touch overlay that calls `carplayManager.sendTouch(...)` with normalized coordinates. New `frontend/settings/CarPlaySettingsPage.qml` for resolution / FPS / mic type config + udev rule install button.
+6. **Replace AA path** — once CarPlay is solid, plumb the same dongle into the Android Auto code path. Keep `androidautomanager` reachable behind a settings toggle (`mediaSettings.useDHUForAndroidAuto`) for ~1 release as a rollback.
+7. **Wiki updates** — new `wiki/carplay-manager.html`, update `wiki/hardware-managers.html`, `wiki/hardware-setup.html`, `wiki/signals-slots-reference.html`, rebuild search index per `CLAUDE.md`.
+
+## Things to watch out for
+
+- **MFi compliance noise** — this is the question that always comes up. The dongle holds the MFi cert; OCTAVE talks to the dongle, not to the phone. Same legal posture as every other open-source CarPlay head-unit project on the planet. Add the same disclaimer LIVI uses (see their README) to OCTAVE's README and the in-app About page.
+- **Android sideload (`TODO/android-cpp-port.md`)** — Android USB host mode + `UsbManager` permission flow is its own subproject. Get desktop working first; tackle Android USB after [[android-cpp-port]] Phase 4 ships.
+- **Don't add a Python peer.** USB protocol code has no place in the `backend/` Python tree — note the parity exemption in the commit message per `CLAUDE.md`.
+- **Heartbeat cadence matters.** The dongle drops the connection if heartbeats stall >2s. LIVI's `MAX_ERROR_COUNT = 5` and the `_heartbeatInterval` pattern are load-bearing — port them verbatim.
+
+## Delete this file when
+
+CarPlay is working in the Jeep on the Raspberry Pi for at least two weeks without manual intervention, the DHU fallback toggle has been removed, and the wiki pages above exist.

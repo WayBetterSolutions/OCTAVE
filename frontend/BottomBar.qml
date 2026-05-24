@@ -3011,7 +3011,6 @@ Rectangle {
                             { name: "Media", section: "mediaSettings" },
                             { name: "Display", section: "displaySettings" },
                             { name: "OBD", section: "obdSettings" },
-                            { name: "Phone Dock", section: "phoneDockSettings" },
                             { name: "Accessories", section: "accessoriesSettings" },
                             { name: "About", section: "about" }
                         ]

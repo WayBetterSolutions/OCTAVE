@@ -14,6 +14,8 @@ Item {
     property bool gestureEnabled: settingsManager ? settingsManager.gestureSensorEnabled : false
     property string gestureStatus: typeof gestureSensor !== "undefined" && gestureSensor
         ? gestureSensor.connectionStatus : "Disabled"
+    property bool phoneDockOn: settingsManager
+        && (settingsManager.androidAutoEnabled || settingsManager.phoneMirrorEnabled)
 
     Connections {
         target: typeof esp32VolumeManager !== "undefined" && esp32VolumeManager ? esp32VolumeManager : null
@@ -51,13 +53,9 @@ Item {
         }
 
         WidgetPill {
-            label: "Gesture"
-            value: widgetRoot.gestureStatus
-            statusColor: widgetRoot.gestureStatus === "Connected"
-                ? App.Style.statusConnected
-                : widgetRoot.gestureStatus === "Disabled"
-                    ? App.Style.statusDisconnected
-                    : App.Style.statusWarning
+            label: "Phone Dock"
+            value: widgetRoot.phoneDockOn ? "On" : "Off"
+            statusColor: widgetRoot.phoneDockOn ? App.Style.statusConnected : App.Style.statusDisconnected
         }
 
         Item { Layout.fillHeight: true }
@@ -75,6 +73,11 @@ Item {
             WidgetChip {
                 text: "Gesture Sensor"
                 onClicked: widgetRoot.navigateToSubSection("Gesture Sensor")
+            }
+
+            WidgetChip {
+                text: "Phone Dock"
+                onClicked: widgetRoot.navigateToSubSection("Phone Dock")
             }
         }
     }

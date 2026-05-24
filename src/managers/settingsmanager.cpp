@@ -91,10 +91,9 @@ QJsonObject SettingsManager::buildSettingsRegistry()
     reg[QStringLiteral("album_art_corner_radius")]    = entry("albumArtCornerRadius", "Corner Radius", "mediaSettings", "slider", "save_album_art_corner_radius", sliderParams(2, 32, 1));
     reg[QStringLiteral("show_album_art_shadow")]      = entry("showAlbumArtShadow", "Album Art Shadow", "mediaSettings", "toggle", "save_show_album_art_shadow");
     reg[QStringLiteral("vinyl_record_mode")]          = entry("vinylRecordMode", "Vinyl Record Mode", "mediaSettings", "toggle", "save_vinyl_record_mode");
-    reg[QStringLiteral("album_art_transition")]       = entry("albumArtTransition", "Album Art Transition", "mediaSettings", "chips", "save_album_art_transition",
-        chipParams({QStringLiteral("Crossfade"), QStringLiteral("Slide"), QStringLiteral("Vinyl Lift"), QStringLiteral("Dissolve"), QStringLiteral("Flip")}));
-    reg[QStringLiteral("album_art_3d_transition")]    = entry("albumArt3DTransition", "3D Preview Transition", "mediaSettings", "chips", "save_album_art_3d_transition",
-        chipParams({QStringLiteral("Coverflow"), QStringLiteral("Conveyor"), QStringLiteral("Stack"), QStringLiteral("Depth"), QStringLiteral("Swing")}));
+    reg[QStringLiteral("album_art_transition")]       = entry("albumArtTransition", "Track Transition", "mediaSettings", "chips", "save_album_art_transition",
+        chipParams({QStringLiteral("Crossfade"), QStringLiteral("Slide"), QStringLiteral("Vinyl Lift"), QStringLiteral("Dissolve"), QStringLiteral("Flip"),
+                    QStringLiteral("Coverflow"), QStringLiteral("Conveyor"), QStringLiteral("Stack"), QStringLiteral("Depth"), QStringLiteral("Swing")}));
     reg[QStringLiteral("background_overlay_opacity")] = entry("backgroundOverlayOpacity", "Overlay Opacity", "mediaSettings", "slider", "save_background_overlay_opacity", sliderParams(0, 100, 1));
     reg[QStringLiteral("side_card_opacity")]          = entry("sideCardOpacity", "Side Card Opacity", "mediaSettings", "slider", "save_side_card_opacity", sliderParams(0.1, 1.0, 0.05));
     reg[QStringLiteral("side_card_angle")]            = entry("sideCardAngle", "Side Card Angle", "mediaSettings", "slider", "save_side_card_angle", sliderParams(5, 60, 1));
@@ -141,7 +140,6 @@ QJsonObject SettingsManager::buildDefaultSettings() const
     d[QStringLiteral("obdSavedAdapters")]     = QStringLiteral("[]");
     d[QStringLiteral("obdFastMode")]          = true;
     d[QStringLiteral("obdAutoReconnectAttempts")] = 0;
-    d[QStringLiteral("showBackgroundOverlay")] = true;
     d[QStringLiteral("bottomBarOrientation")]  = QStringLiteral("bottom");
     d[QStringLiteral("showBottomBarMediaControls")] = true;
     d[QStringLiteral("fuelTankCapacity")]      = 15.0;
@@ -246,7 +244,6 @@ QJsonObject SettingsManager::buildDefaultSettings() const
     d[QStringLiteral("showAlbumArtShadow")]      = true;
     d[QStringLiteral("vinylRecordMode")]         = false;
     d[QStringLiteral("albumArtTransition")]      = QStringLiteral("Crossfade");
-    d[QStringLiteral("albumArt3DTransition")]    = QStringLiteral("Coverflow");
     d[QStringLiteral("backgroundOverlayOpacity")] = 80;
     d[QStringLiteral("sideCardOpacity")]         = 0.4;
     d[QStringLiteral("sideCardAngle")]           = 30;
@@ -405,7 +402,6 @@ SettingsManager::SettingsManager(QObject *parent)
     QDir().mkpath(m_mediaFolder);
 #endif
 
-    m_showBackgroundOverlay = s(QStringLiteral("showBackgroundOverlay")).toBool();
     m_fuelTankCapacity      = static_cast<float>(s(QStringLiteral("fuelTankCapacity")).toDouble());
     m_bottomBarOrientation  = s(QStringLiteral("bottomBarOrientation")).toString();
     m_showBottomBarMediaControls = s(QStringLiteral("showBottomBarMediaControls")).toBool();
@@ -476,7 +472,6 @@ SettingsManager::SettingsManager(QObject *parent)
     m_showAlbumArtShadow      = s(QStringLiteral("showAlbumArtShadow")).toBool();
     m_vinylRecordMode         = s(QStringLiteral("vinylRecordMode")).toBool();
     m_albumArtTransition      = s(QStringLiteral("albumArtTransition")).toString();
-    m_albumArt3DTransition    = s(QStringLiteral("albumArt3DTransition")).toString();
     m_backgroundOverlayOpacity = s(QStringLiteral("backgroundOverlayOpacity")).toInt();
     m_sideCardOpacity         = s(QStringLiteral("sideCardOpacity")).toDouble();
     m_sideCardAngle           = s(QStringLiteral("sideCardAngle")).toInt();
@@ -761,7 +756,6 @@ QString SettingsManager::backgroundGrid() const    { return m_backgroundGrid; }
 int     SettingsManager::screenWidth() const       { return m_screenWidth; }
 int     SettingsManager::screenHeight() const      { return m_screenHeight; }
 int     SettingsManager::backgroundBlurRadius() const { return m_backgroundBlurRadius; }
-bool    SettingsManager::showBackgroundOverlay() const { return m_showBackgroundOverlay; }
 QString SettingsManager::bottomBarOrientation() const  { return m_bottomBarOrientation; }
 bool    SettingsManager::showBottomBarMediaControls() const { return m_showBottomBarMediaControls; }
 QString SettingsManager::environmentTheme() const  { return m_environmentTheme; }
@@ -799,7 +793,6 @@ int     SettingsManager::albumArtCornerRadius() const    { return m_albumArtCorn
 bool    SettingsManager::showAlbumArtShadow() const      { return m_showAlbumArtShadow; }
 bool    SettingsManager::vinylRecordMode() const         { return m_vinylRecordMode; }
 QString SettingsManager::albumArtTransition() const      { return m_albumArtTransition; }
-QString SettingsManager::albumArt3DTransition() const    { return m_albumArt3DTransition; }
 int     SettingsManager::backgroundOverlayOpacity() const { return m_backgroundOverlayOpacity; }
 double  SettingsManager::sideCardOpacity() const         { return m_sideCardOpacity; }
 int     SettingsManager::sideCardAngle() const           { return m_sideCardAngle; }
@@ -972,14 +965,6 @@ void SettingsManager::save_background_blur_radius(int radius)
     m_backgroundBlurRadius = radius;
     updateSetting(QStringLiteral("backgroundBlurRadius"), radius);
     emit backgroundBlurRadiusChanged(radius);
-}
-
-void SettingsManager::save_show_background_overlay(bool show)
-{
-    qCDebug(lcSettings) << "Saving show background overlay:" << show;
-    m_showBackgroundOverlay = show;
-    updateSetting(QStringLiteral("showBackgroundOverlay"), show);
-    emit showBackgroundOverlayChanged(show);
 }
 
 void SettingsManager::save_bottom_bar_orientation(const QString &orientation)
@@ -1211,27 +1196,16 @@ void SettingsManager::save_album_art_transition(const QString &transition)
     static const QStringList valid = {
         QStringLiteral("Crossfade"), QStringLiteral("Slide"),
         QStringLiteral("Vinyl Lift"), QStringLiteral("Dissolve"),
-        QStringLiteral("Flip")
-    };
-    if (!valid.contains(transition))
-        return;
-    m_albumArtTransition = transition;
-    updateSetting(QStringLiteral("albumArtTransition"), transition);
-    emit albumArtTransitionChanged(transition);
-}
-
-void SettingsManager::save_album_art_3d_transition(const QString &transition)
-{
-    static const QStringList valid = {
+        QStringLiteral("Flip"),
         QStringLiteral("Coverflow"), QStringLiteral("Conveyor"),
         QStringLiteral("Stack"), QStringLiteral("Depth"),
         QStringLiteral("Swing")
     };
     if (!valid.contains(transition))
         return;
-    m_albumArt3DTransition = transition;
-    updateSetting(QStringLiteral("albumArt3DTransition"), transition);
-    emit albumArt3DTransitionChanged(transition);
+    m_albumArtTransition = transition;
+    updateSetting(QStringLiteral("albumArtTransition"), transition);
+    emit albumArtTransitionChanged(transition);
 }
 
 void SettingsManager::save_background_overlay_opacity(int opacity)
@@ -2088,9 +2062,6 @@ void SettingsManager::reset_to_defaults()
         m_mediaFolder = defaultMusic;
     emit mediaFolderChanged(m_mediaFolder);
 
-    m_showBackgroundOverlay = m_defaultSettings.value(QStringLiteral("showBackgroundOverlay")).toBool();
-    emit showBackgroundOverlayChanged(m_showBackgroundOverlay);
-
     m_fuelTankCapacity = static_cast<float>(m_defaultSettings.value(QStringLiteral("fuelTankCapacity")).toDouble());
     emit fuelTankCapacityChanged(m_fuelTankCapacity);
 
@@ -2194,9 +2165,6 @@ void SettingsManager::reset_to_defaults()
 
     m_albumArtTransition = m_defaultSettings.value(QStringLiteral("albumArtTransition")).toString();
     emit albumArtTransitionChanged(m_albumArtTransition);
-
-    m_albumArt3DTransition = m_defaultSettings.value(QStringLiteral("albumArt3DTransition")).toString();
-    emit albumArt3DTransitionChanged(m_albumArt3DTransition);
 
     m_backgroundOverlayOpacity = m_defaultSettings.value(QStringLiteral("backgroundOverlayOpacity")).toInt();
     emit backgroundOverlayOpacityChanged(m_backgroundOverlayOpacity);

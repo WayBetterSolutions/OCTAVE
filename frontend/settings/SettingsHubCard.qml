@@ -20,6 +20,43 @@ Rectangle {
     // Passed through from SettingsMenu so loaded pages can access them
     property var settingsMenu: null
 
+    // ── Tile-mode state (mirrors SettingsSidebarLayout) ─────────────────────
+    // When the loaded page exposes a `tileModel`, the card hides the page's
+    // Flickable and renders a tile grid + hero-morph popup, just like the
+    // sidebar's content area. Pages without a tileModel render normally.
+    property bool useTileLayout: false
+    property string detailCardId: ""
+    property var detailTile: null
+    // Rect of the clicked tile in cardContent coordinates — drives the
+    // popup's zoom-from-tile transition.
+    property rect originRect: Qt.rect(0, 0, 0, 0)
+
+    function openTile(cardId, rect) {
+        if (!pageLoader.item || typeof pageLoader.item.tileModel === "undefined")
+            return
+        var tm = pageLoader.item.tileModel
+        for (var i = 0; i < tm.length; i++) {
+            if (tm[i].cardId === cardId) {
+                detailTile = tm[i]
+                if (rect) originRect = rect
+                detailCardId = cardId
+                return
+            }
+        }
+    }
+
+    function closeTile() {
+        detailCardId = ""
+        // Null detailTile too so the popup's Loader unloads and the inner
+        // component's Component.onDestruction fires (e.g. Now Playing live PiP).
+        detailTile = null
+    }
+
+    // Close any open popup when the card scrolls away from center.
+    onIsCenterChanged: {
+        if (!isCenter) closeTile()
+    }
+
     color: "transparent"
     radius: dpMin(App.EnvironmentTheme.active.cardRadius, 2)
     clip: true
@@ -104,6 +141,12 @@ Rectangle {
             source: hubCard.pageSource ? ("../" + hubCard.pageSource) : ""
             active: hubCard.isCenter
 
+            onSourceChanged: {
+                hubCard.detailCardId = ""
+                hubCard.detailTile = null
+                hubCard.useTileLayout = false
+            }
+
             onLoaded: {
                 if (item) {
                     if (typeof item.mainWindow !== "undefined")
@@ -114,14 +157,85 @@ Rectangle {
                         item.currentSection = Qt.binding(function() { return hubCard.section })
                 }
 
-                // Restore saved scroll position
-                if (hubCard.section !== "") {
+                // Detect tile-mode page (exposes a tileModel array) and hide
+                // the page's own Flickable rendering — the tile grid replaces it.
+                var hasTiles = item && typeof item.tileModel !== "undefined"
+                hubCard.useTileLayout = hasTiles
+                if (hasTiles) {
+                    item.visible = false
+                }
+
+                // Restore saved scroll position only for non-tile pages
+                if (!hasTiles && hubCard.section !== "") {
                     var savedY = ScrollMemory.positions[hubCard.section]
                     if (item && typeof item.contentY !== "undefined" && savedY !== undefined && savedY > 0) {
                         scrollRestoreTimer.savedY = savedY
                         scrollRestoreTimer.restart()
                     }
                 }
+            }
+        }
+
+        // ── Tile grid (replaces page rendering when page exposes tileModel) ─
+        SettingsTilePage {
+            id: tileGrid
+            anchors.fill: parent
+            z: 2
+            visible: hubCard.useTileLayout
+            tileModel: hubCard.useTileLayout && pageLoader.item
+                ? pageLoader.item.tileModel : []
+            hiddenCardId: hubCard.detailCardId
+            onTileSelected: function(cardId, rect) {
+                // "Now Playing" hijacks the whole window via mainWindow,
+                // not the in-card popup, since it needs every pixel.
+                if (cardId === "media_now_playing"
+                    && hubCard.settingsMenu && hubCard.settingsMenu.mainWindow
+                    && typeof hubCard.settingsMenu.mainWindow.openNowPlayingStudio === "function") {
+                    // Map the tile's rect (in tilePage.parent coords) into
+                    // the scene root so the studio's hero-morph animation
+                    // can grow from exactly where the user tapped.
+                    var src = tileGrid.parent
+                    var p = src.mapToItem(null, rect.x, rect.y)
+                    hubCard.settingsMenu.mainWindow.openNowPlayingStudio(
+                        Qt.rect(p.x, p.y, rect.width, rect.height))
+                    return
+                }
+                hubCard.openTile(cardId, rect)
+            }
+        }
+
+        // ── Detail popup (hero/morph: grows from the clicked tile's rect) ───
+        SettingsCardPopup {
+            id: detailPopup
+            z: 3
+            visible: hubCard.useTileLayout && (openProgress > 0.001 || hubCard.detailCardId !== "")
+            title: hubCard.detailTile ? hubCard.detailTile.title : ""
+            contentComponent: hubCard.detailTile ? hubCard.detailTile.component : null
+
+            // 0.0 = collapsed onto the originating tile, 1.0 = filling cardContent.
+            property real openProgress: hubCard.detailCardId === "" ? 0.0 : 1.0
+
+            // Geometry interpolates between the tile rect and the full card body.
+            x: hubCard.originRect.x * (1.0 - openProgress)
+            y: hubCard.originRect.y * (1.0 - openProgress)
+            width: hubCard.originRect.width
+                + (parent.width - hubCard.originRect.width) * openProgress
+            height: hubCard.originRect.height
+                + (parent.height - hubCard.originRect.height) * openProgress
+
+            // Header + body fade in during the second half of the morph.
+            contentOpacity: Math.max(0.0, (openProgress - 0.45) / 0.55)
+
+            // Suppress animation on initial mount so the popup doesn't
+            // visibly animate at startup.
+            property bool _animEnabled: false
+            Component.onCompleted: Qt.callLater(function() { _animEnabled = true })
+
+            onBackRequested: hubCard.closeTile()
+
+            Behavior on openProgress {
+                enabled: detailPopup._animEnabled
+                NumberAnimation { duration: 320; easing.type: Easing.OutCubic }
             }
         }
 
@@ -142,10 +256,11 @@ Rectangle {
         }
 
         // Save scroll position continuously as the user scrolls
+        // (only fires for non-tile pages; tile-mode pages have their Flickable hidden)
         Connections {
             target: pageLoader.item
             function onContentYChanged() {
-                if (pageLoader.item && hubCard.section !== "")
+                if (pageLoader.item && hubCard.section !== "" && !hubCard.useTileLayout)
                     ScrollMemory.positions[hubCard.section] = pageLoader.item.contentY
             }
         }

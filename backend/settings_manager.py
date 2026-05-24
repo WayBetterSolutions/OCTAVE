@@ -56,14 +56,10 @@ SETTINGS_REGISTRY = {
         "controlType": "toggle", "saveSlot": "save_vinyl_record_mode"
     },
     "album_art_transition": {
-        "key": "albumArtTransition", "label": "Album Art Transition", "category": "mediaSettings",
+        "key": "albumArtTransition", "label": "Track Transition", "category": "mediaSettings",
         "controlType": "chips", "saveSlot": "save_album_art_transition",
-        "params": {"options": ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"]}
-    },
-    "album_art_3d_transition": {
-        "key": "albumArt3DTransition", "label": "3D Preview Transition", "category": "mediaSettings",
-        "controlType": "chips", "saveSlot": "save_album_art_3d_transition",
-        "params": {"options": ["Coverflow", "Conveyor", "Stack", "Depth", "Swing"]}
+        "params": {"options": ["Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip",
+                                "Coverflow", "Conveyor", "Stack", "Depth", "Swing"]}
     },
     "background_overlay_opacity": {
         "key": "backgroundOverlayOpacity", "label": "Overlay Opacity", "category": "mediaSettings",
@@ -188,7 +184,6 @@ class SettingsManager(QObject):
     obdParametersChanged = Signal()
     obdAutoReconnectAttemptsChanged = Signal(int)
     mediaFolderChanged = Signal(str)
-    showBackgroundOverlayChanged = Signal(bool)
     directoryHistoryChanged = Signal()
     homeOBDParametersChanged = Signal()
     supportedOBDParametersChanged = Signal()
@@ -240,7 +235,6 @@ class SettingsManager(QObject):
     showAlbumArtShadowChanged = Signal(bool)
     vinylRecordModeChanged = Signal(bool)
     albumArtTransitionChanged = Signal(str)
-    albumArt3DTransitionChanged = Signal(str)
     backgroundOverlayOpacityChanged = Signal(int)
     sideCardOpacityChanged = Signal(float)
     sideCardAngleChanged = Signal(int)
@@ -294,7 +288,6 @@ class SettingsManager(QObject):
             "obdSavedAdapters": "[]",
             "obdFastMode": True,
             "obdAutoReconnectAttempts": 0,  # 0 = disabled, 1-10 = number of attempts
-            "showBackgroundOverlay": True,
             "bottomBarOrientation": "bottom",
             "showBottomBarMediaControls": True,
             "fuelTankCapacity": 15.0,  # Add fuel tank capacity setting in gallons
@@ -446,8 +439,7 @@ class SettingsManager(QObject):
             "albumArtCornerRadius": 16,  # Corner radius in dp (2-32)
             "showAlbumArtShadow": True,  # Drop shadow on album art
             "vinylRecordMode": False,    # Spin album art like a vinyl record
-            "albumArtTransition": "Crossfade",  # "Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"
-            "albumArt3DTransition": "Coverflow",  # "Coverflow", "Conveyor", "Stack", "Depth", "Swing"
+            "albumArtTransition": "Crossfade",  # any of: "Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip", "Coverflow", "Conveyor", "Stack", "Depth", "Swing"
             "backgroundOverlayOpacity": 80,  # Dark overlay opacity percentage (0-100)
             "sideCardOpacity": 0.4,      # 3D preview side card opacity (0.1-1.0)
             "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
@@ -534,7 +526,6 @@ class SettingsManager(QObject):
         default_music = os.path.expanduser("~/Music")
         self._media_folder = self._settings.get("mediaFolder", "") or default_music
         os.makedirs(self._media_folder, exist_ok=True)
-        self._show_background_overlay = self._settings.get("showBackgroundOverlay", self._default_settings["showBackgroundOverlay"])
         self._fuel_tank_capacity = self._settings.get("fuelTankCapacity", self._default_settings["fuelTankCapacity"])
         self._home_obd_parameters = self._settings.get("homeOBDParameters", self._default_settings["homeOBDParameters"])
         self._bottom_bar_orientation = self._settings.get("bottomBarOrientation", self._default_settings["bottomBarOrientation"])
@@ -600,7 +591,6 @@ class SettingsManager(QObject):
         self._show_album_art_shadow = self._settings.get("showAlbumArtShadow", self._default_settings["showAlbumArtShadow"])
         self._vinyl_record_mode = self._settings.get("vinylRecordMode", self._default_settings["vinylRecordMode"])
         self._album_art_transition = self._settings.get("albumArtTransition", self._default_settings["albumArtTransition"])
-        self._album_art_3d_transition = self._settings.get("albumArt3DTransition", self._default_settings["albumArt3DTransition"])
         self._background_overlay_opacity = self._settings.get("backgroundOverlayOpacity", self._default_settings["backgroundOverlayOpacity"])
         self._side_card_opacity = self._settings.get("sideCardOpacity", self._default_settings["sideCardOpacity"])
         self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
@@ -904,10 +894,6 @@ class SettingsManager(QObject):
     def mediaFolder(self):
         return self._media_folder
     
-    @Property(bool, notify=showBackgroundOverlayChanged)
-    def showBackgroundOverlay(self):
-        return self._show_background_overlay
-    
     @Property('QVariantList', notify=directoryHistoryChanged)
     def directoryHistory(self):
         return self._directory_history
@@ -1149,12 +1135,6 @@ class SettingsManager(QObject):
         logger.debug(f"Saving media folder path: {folder_path}")
         self._media_folder = folder_path
         self.update_setting("mediaFolder", folder_path, self.mediaFolderChanged)
-        
-    @Slot(bool)
-    def save_show_background_overlay(self, show):
-        logger.debug(f"Saving show background overlay setting: {show}")
-        self._show_background_overlay = show
-        self.update_setting("showBackgroundOverlay", show, self.showBackgroundOverlayChanged)
         
     # Add new signal for fuel tank capacity
     fuelTankCapacityChanged = Signal(float)
@@ -1892,21 +1872,11 @@ class SettingsManager(QObject):
 
     @Slot(str)
     def save_album_art_transition(self, transition):
-        if transition not in ("Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"):
+        if transition not in ("Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip",
+                              "Coverflow", "Conveyor", "Stack", "Depth", "Swing"):
             return
         self._album_art_transition = transition
         self.update_setting("albumArtTransition", transition, self.albumArtTransitionChanged)
-
-    @Property(str, notify=albumArt3DTransitionChanged)
-    def albumArt3DTransition(self):
-        return self._album_art_3d_transition
-
-    @Slot(str)
-    def save_album_art_3d_transition(self, transition):
-        if transition not in ("Coverflow", "Conveyor", "Stack", "Depth", "Swing"):
-            return
-        self._album_art_3d_transition = transition
-        self.update_setting("albumArt3DTransition", transition, self.albumArt3DTransitionChanged)
 
     @Property(int, notify=backgroundOverlayOpacityChanged)
     def backgroundOverlayOpacity(self):
@@ -2268,9 +2238,6 @@ class SettingsManager(QObject):
         self._media_folder = self._default_settings["mediaFolder"] or default_music
         self.mediaFolderChanged.emit(self._media_folder)
 
-        self._show_background_overlay = self._default_settings["showBackgroundOverlay"]
-        self.showBackgroundOverlayChanged.emit(self._show_background_overlay)
-        
         self._fuel_tank_capacity = self._default_settings["fuelTankCapacity"]
         self.fuelTankCapacityChanged.emit(self._fuel_tank_capacity)
             
@@ -2366,9 +2333,6 @@ class SettingsManager(QObject):
 
         self._album_art_transition = self._default_settings["albumArtTransition"]
         self.albumArtTransitionChanged.emit(self._album_art_transition)
-
-        self._album_art_3d_transition = self._default_settings["albumArt3DTransition"]
-        self.albumArt3DTransitionChanged.emit(self._album_art_3d_transition)
 
         self._background_overlay_opacity = self._default_settings["backgroundOverlayOpacity"]
         self.backgroundOverlayOpacityChanged.emit(self._background_overlay_opacity)

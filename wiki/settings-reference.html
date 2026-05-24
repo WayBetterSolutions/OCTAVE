@@ -84,8 +84,7 @@
             <tr><td><code>albumArtCornerRadius</code></td><td>albumArtCornerRadius</td><td>int</td><td>16</td><td>2 - 32 (step 1)</td><td>Corner radius in dp when rounded album art is enabled</td></tr>
             <tr><td><code>showAlbumArtShadow</code></td><td>showAlbumArtShadow</td><td>bool</td><td>true</td><td>true/false</td><td>Drop shadow behind album art</td></tr>
             <tr><td><code>vinylRecordMode</code></td><td>vinylRecordMode</td><td>bool</td><td>false</td><td>true/false</td><td>Spin album art like a vinyl record during playback</td></tr>
-            <tr><td><code>albumArtTransition</code></td><td>albumArtTransition</td><td>str</td><td>"Crossfade"</td><td>"Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip"</td><td>Animation style when album art changes</td></tr>
-            <tr><td><code>albumArt3DTransition</code></td><td>albumArt3DTransition</td><td>str</td><td>"Coverflow"</td><td>"Coverflow", "Conveyor", "Stack", "Depth", "Swing"</td><td>3D preview card stack transition style</td></tr>
+            <tr><td><code>albumArtTransition</code></td><td>albumArtTransition</td><td>str</td><td>"Crossfade"</td><td>"Crossfade", "Slide", "Vinyl Lift", "Dissolve", "Flip", "Coverflow", "Conveyor", "Stack", "Depth", "Swing"</td><td>Track-change animation. Single setting regardless of 3D preview — when 3D preview is on, side cards animate along; when off, they're hidden and only the center card animates.</td></tr>
             <tr><td><code>backgroundOverlayOpacity</code></td><td>backgroundOverlayOpacity</td><td>int</td><td>80</td><td>0 - 100 (step 1)</td><td>Dark overlay opacity percentage over blurred album art background</td></tr>
             <tr><td><code>backgroundBlurRadius</code></td><td>backgroundBlurRadius</td><td>int</td><td>40</td><td>0 - 100 (step 1)</td><td>Gaussian blur radius for album art background</td></tr>
             <tr><td><code>sideCardOpacity</code></td><td>sideCardOpacity</td><td>float</td><td>0.4</td><td>0.1 - 1.0 (step 0.05)</td><td>Opacity of 3D preview side album cards</td></tr>
@@ -94,7 +93,6 @@
             <tr><td><code>textScrollSpeed</code></td><td>textScrollSpeed</td><td>int</td><td>5000</td><td>1000 - 10000 (step 500)</td><td>Marquee text scroll animation duration in milliseconds</td></tr>
             <tr><td><code>mediaFolder</code></td><td>mediaFolder</td><td>str</td><td>"~/Music"</td><td>Any valid path</td><td>Root music library directory</td></tr>
             <tr><td><code>mediaSource</code></td><td>mediaSource</td><td>str</td><td>"local"</td><td>"local", "spotify"</td><td>Active media source for playback</td></tr>
-            <tr><td><code>showBackgroundOverlay</code></td><td>showBackgroundOverlay</td><td>bool</td><td>true</td><td>true/false</td><td>Show dark overlay on album art background</td></tr>
             <tr><td><code>songLengthTransition</code></td><td>songLengthTransition</td><td>bool</td><td>false</td><td>true/false</td><td>Animate theme color transition over song duration</td></tr>
             <tr><td><code>musicButtonDefaultPage</code></td><td>musicButtonDefaultPage</td><td>str</td><td>"mediaRoom"</td><td>"mediaRoom", "mediaPlayer"</td><td>Which page the music nav button opens by default</td></tr>
             <tr><td><code>returnToLibraryAfterSelection</code></td><td>returnToLibraryAfterSelection</td><td>bool</td><td>false</td><td>true/false</td><td>Return to MediaPlayer view after selecting a song in library</td></tr>

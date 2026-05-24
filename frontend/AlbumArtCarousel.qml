@@ -4,12 +4,12 @@ import "." as App
 
 // Album art display with selectable transition animations.
 //
-// Two animation modes:
-//   Single-card (previewEnabled=false): Crossfade, Slide, Vinyl Lift, Dissolve, Flip
-//   3D preview  (previewEnabled=true):  Coverflow, Conveyor, Stack, Depth, Swing
-//
-// When 3D preview is active, prev/next side cards are visible at idle and
-// all three cards participate in the transition animation.
+// One unified transition list (transitionStyle picks any of the 10 names).
+// Each animation reads `previewEnabled` to know whether 3D side cards are
+// visible and adapts: 3D-flavored animations animate the side cards when
+// previewEnabled is true, and gracefully no-op the side-card portion when
+// it's false (cards are hidden anyway). 2D-flavored animations leave side
+// cards untouched in either mode.
 Item {
     // Local dp/dpMin wrappers — work around Qt Android singleton-function bug.
     function dp(size) { return Math.round(size * (App.Spacing.effectiveScale || 1.0)) }
@@ -58,7 +58,6 @@ Item {
     property bool animBusy: false
 
     property string transitionStyle: "Crossfade"
-    property string transition3DStyle: "Coverflow"
 
     // Settings
     property bool previewEnabled: false
@@ -130,43 +129,39 @@ Item {
     function triggerSlide() {
         _stopAll()
 
-        if (previewEnabled) {
-            _start3D()
-        } else {
-            _startSingle()
-        }
-    }
-
-    function _startSingle() {
         switch (transitionStyle) {
+        // 2D-flavored — center-card only; side cards (if visible) stay put.
         case "Slide":       _startSlide(); break
         case "Vinyl Lift":  _startVinylLift(); break
         case "Dissolve":    _startDissolve(); break
         case "Flip":        _startFlip(); break
+        case "Crossfade":   _startCrossfade(); break
+
+        // 3D-flavored — animates side cards when previewEnabled, otherwise
+        // the side-card portion fades against hidden cards (cfOpacity=0) and
+        // is invisible. The center/exit-snapshot motion still plays.
+        case "Coverflow":   _start3DCommon(); _startCoverflow(direction); break
+        case "Conveyor":    _start3DCommon(); _startConveyor(direction); break
+        case "Stack":       _start3DCommon(); _startStack(direction); break
+        case "Depth":       _start3DCommon(); _startDepth(direction); break
+        case "Swing":       _start3DCommon(); _startSwing(direction); break
+
         default:            _startCrossfade(); break
         }
     }
 
-    function _start3D() {
-        // Common setup: freeze exit snapshot, hide center
+    function _start3DCommon() {
+        // Common setup for 3D-flavored animations: freeze exit snapshot,
+        // hide center, set z-order so the entering card is on top.
         _showExit()
         centerCard.opacity = 0
 
-        // Z-order: entering card on top
         var dir = direction
         var enterCard = (dir === 1) ? nextCard : prevCard
         var farCard   = (dir === 1) ? prevCard : nextCard
         enterCard.z = 2
         farCard.z   = 0
         exitSnapshot.z = 1
-
-        switch (transition3DStyle) {
-        case "Conveyor":  _startConveyor(dir); break
-        case "Stack":     _startStack(dir); break
-        case "Depth":     _startDepth(dir); break
-        case "Swing":     _startSwing(dir); break
-        default:          _startCoverflow(dir); break
-        }
     }
 
     function _stopAll() {

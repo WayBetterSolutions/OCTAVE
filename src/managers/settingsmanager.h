@@ -39,7 +39,6 @@ class SettingsManager : public QObject
     Q_PROPERTY(int screenWidth READ screenWidth NOTIFY screenWidthChanged)
     Q_PROPERTY(int screenHeight READ screenHeight NOTIFY screenHeightChanged)
     Q_PROPERTY(int backgroundBlurRadius READ backgroundBlurRadius NOTIFY backgroundBlurRadiusChanged)
-    Q_PROPERTY(bool showBackgroundOverlay READ showBackgroundOverlay NOTIFY showBackgroundOverlayChanged)
     Q_PROPERTY(QString bottomBarOrientation READ bottomBarOrientation NOTIFY bottomBarOrientationChanged)
     Q_PROPERTY(bool showBottomBarMediaControls READ showBottomBarMediaControls NOTIFY showBottomBarMediaControlsChanged)
     Q_PROPERTY(QString environmentTheme READ environmentTheme NOTIFY environmentThemeChanged)
@@ -70,7 +69,6 @@ class SettingsManager : public QObject
     Q_PROPERTY(bool showAlbumArtShadow READ showAlbumArtShadow NOTIFY showAlbumArtShadowChanged)
     Q_PROPERTY(bool vinylRecordMode READ vinylRecordMode NOTIFY vinylRecordModeChanged)
     Q_PROPERTY(QString albumArtTransition READ albumArtTransition NOTIFY albumArtTransitionChanged)
-    Q_PROPERTY(QString albumArt3DTransition READ albumArt3DTransition NOTIFY albumArt3DTransitionChanged)
     Q_PROPERTY(int backgroundOverlayOpacity READ backgroundOverlayOpacity NOTIFY backgroundOverlayOpacityChanged)
     Q_PROPERTY(double sideCardOpacity READ sideCardOpacity NOTIFY sideCardOpacityChanged)
     Q_PROPERTY(int sideCardAngle READ sideCardAngle NOTIFY sideCardAngleChanged)
@@ -144,7 +142,6 @@ public:
     int screenWidth() const;
     int screenHeight() const;
     int backgroundBlurRadius() const;
-    bool showBackgroundOverlay() const;
     QString bottomBarOrientation() const;
     bool showBottomBarMediaControls() const;
     QString environmentTheme() const;
@@ -175,7 +172,6 @@ public:
     bool showAlbumArtShadow() const;
     bool vinylRecordMode() const;
     QString albumArtTransition() const;
-    QString albumArt3DTransition() const;
     int backgroundOverlayOpacity() const;
     double sideCardOpacity() const;
     int sideCardAngle() const;
@@ -244,7 +240,6 @@ signals:
     void screenWidthChanged(int value);
     void screenHeightChanged(int value);
     void backgroundBlurRadiusChanged(int value);
-    void showBackgroundOverlayChanged(bool value);
     void bottomBarOrientationChanged(const QString &value);
     void showBottomBarMediaControlsChanged(bool value);
     void environmentThemeChanged(const QString &value);
@@ -275,7 +270,6 @@ signals:
     void showAlbumArtShadowChanged(bool value);
     void vinylRecordModeChanged(bool value);
     void albumArtTransitionChanged(const QString &value);
-    void albumArt3DTransitionChanged(const QString &value);
     void backgroundOverlayOpacityChanged(int value);
     void sideCardOpacityChanged(double value);
     void sideCardAngleChanged(int value);
@@ -357,7 +351,6 @@ public slots:
     void save_screen_width(int width);
     void save_screen_height(int height);
     void save_background_blur_radius(int radius);
-    void save_show_background_overlay(bool show);
     void save_bottom_bar_orientation(const QString &orientation);
     void save_show_bottom_bar_media_controls(bool show);
     void save_environment_theme(const QString &theme);
@@ -389,7 +382,6 @@ public slots:
     void save_show_album_art_shadow(bool enabled);
     void save_vinyl_record_mode(bool enabled);
     void save_album_art_transition(const QString &transition);
-    void save_album_art_3d_transition(const QString &transition);
     void save_background_overlay_opacity(int opacity);
     void save_side_card_opacity(double opacity);
     void save_side_card_angle(int angle);
@@ -580,7 +572,6 @@ private:
     bool m_obdFastMode = true;
     int m_obdAutoReconnectAttempts = 0;
     QString m_mediaFolder;
-    bool m_showBackgroundOverlay = true;
     float m_fuelTankCapacity = 15.0f;
     QVariantList m_homeObdParameters;
     QString m_bottomBarOrientation;
@@ -635,7 +626,6 @@ private:
     bool m_showAlbumArtShadow = true;
     bool m_vinylRecordMode = false;
     QString m_albumArtTransition;
-    QString m_albumArt3DTransition;
     int m_backgroundOverlayOpacity = 80;
     double m_sideCardOpacity = 0.4;
     int m_sideCardAngle = 30;

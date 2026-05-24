@@ -16,6 +16,23 @@ Item {
     property StackView stackView
     property ApplicationWindow mainWindow
 
+    // Demo a track-transition without actually changing the track. Used by
+    // the Now Playing studio's chip selection so users see the chosen
+    // transition fire immediately. `style` overrides the carousel's bound
+    // value for this one animation; we re-bind right after so future
+    // settings changes still propagate live.
+    function previewTrackTransition(direction, style) {
+        if (!albumArtStack) return
+        if (style && style !== "")
+            albumArtStack.transitionStyle = style
+        albumArtStack.direction = (direction === -1) ? -1 : 1
+        albumArtStack.triggerSlide()
+        // Restore live binding so subsequent settings changes still flow.
+        albumArtStack.transitionStyle = Qt.binding(function() {
+            return settingsManager ? settingsManager.albumArtTransition : "Crossfade"
+        })
+    }
+
     // Navigate to cached DownloadPage, optionally pre-selecting a playlist
     function openDownloadPage(targetPlaylist) {
         var sv = mediaRoom.stackView
@@ -258,6 +275,11 @@ Item {
                     blurEnabled: true
                     blurMax: 64
                     blur: settingsManager ? Math.min(1.0, settingsManager.backgroundBlurRadius / 64) : 0.625
+                    // Without this, MultiEffect auto-pads the source to fit the
+                    // blur halo, and the halo bleeds past the page's bottom edge
+                    // into the BottomBar (StackView doesn't clip). Clipping the
+                    // halo to the source bounds keeps it inside the page.
+                    autoPaddingEnabled: false
                 }
 
                 Repeater {
@@ -288,14 +310,11 @@ Item {
                     }
                 }
             }
-            Rectangle { // Black layer
+            Rectangle { // Black layer — alpha is driven directly by the
+                // overlay opacity slider (0% = fully transparent = no overlay).
                 id: colorOverlay
                 anchors.fill: parent
                 color: Qt.rgba(0, 0, 0, (settingsManager ? settingsManager.backgroundOverlayOpacity : 80) / 100)
-                opacity: settingsManager && settingsManager.showBackgroundOverlay ? 1.0 : 0.0
-                Behavior on opacity {
-                    NumberAnimation { duration: 300; easing.type: Easing.InOutQuad }
-                }
                 layer.enabled: true
             }
         }
@@ -1026,7 +1045,6 @@ Item {
                     sideCardOpacity: settingsManager ? settingsManager.sideCardOpacity : 0.4
                     showShadow: settingsManager && settingsManager.showAlbumArtShadow
                     transitionStyle: settingsManager ? settingsManager.albumArtTransition : "Crossfade"
-                    transition3DStyle: settingsManager ? settingsManager.albumArt3DTransition : "Coverflow"
 
                     // Media state
                     artSource: mediaRoom._displayAlbumArt

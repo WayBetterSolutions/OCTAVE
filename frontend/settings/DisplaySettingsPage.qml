@@ -179,6 +179,21 @@ Flickable {
                     }
                 }
             }
+
+            SettingCategory {
+                title: "Settings Layout"
+                description: "Choose how the settings menu is organized."
+
+                SettingsChips {
+                    Layout.fillWidth: true
+                    options: ["Carousel", "Sidebar", "Hub", "Dashboard"]
+                    currentValue: settingsManager ? settingsManager.settingsLayoutStyle : "Carousel"
+                    onSelected: function(value) {
+                        if (settingsManager)
+                            settingsManager.save_settings_layout_style(value)
+                    }
+                }
+            }
         }
     }
 

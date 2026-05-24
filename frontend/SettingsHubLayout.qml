@@ -69,12 +69,6 @@ Item {
                     { label: "Autoplay", value: settingsManager.autoPlayOnStartup ? "On" : "Off" },
                     { label: "Visualizer", value: settingsManager.showWaveformVisualizer ? "On" : "Off" }
                 ]
-            case "phoneDockSettings":
-                return [
-                    { label: "Android Auto", value: settingsManager.androidAutoEnabled ? "Shown" : "Hidden" },
-                    { label: "Phone Mirror", value: settingsManager.phoneMirrorEnabled ? "Shown" : "Hidden" },
-                    { label: "Audio", value: settingsManager.scrcpyAudioEnabled ? "On" : "Off" }
-                ]
             case "obdSettings":
                 return [
                     { label: "Status", value: obdManager ? obdManager.get_connection_status() : "N/A" },
@@ -85,7 +79,8 @@ Item {
                 var espConnected = (typeof esp32VolumeManager !== "undefined" && esp32VolumeManager && esp32VolumeManager.is_connected())
                 return [
                     { label: "Knob", value: espConnected ? "Connected" : "Disconnected" },
-                    { label: "Gestures", value: settingsManager.gestureSensorEnabled ? "Enabled" : "Disabled" }
+                    { label: "Gestures", value: settingsManager.gestureSensorEnabled ? "Enabled" : "Disabled" },
+                    { label: "Phone Dock", value: (settingsManager.androidAutoEnabled || settingsManager.phoneMirrorEnabled) ? "On" : "Off" }
                 ]
             case "deviceSettings":
                 return [

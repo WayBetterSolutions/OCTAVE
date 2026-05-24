@@ -283,6 +283,15 @@ Item {
                                     ScrollMemory.positions[settingsMenu.currentSection] = contentLoader.item.contentY
                                 }
 
+                                // Sidebar navigation overrides the immersive Now Playing studio —
+                                // dismiss it so the user lands on the section they tapped instead
+                                // of the studio hanging over the new page. Mirrors the BottomBar
+                                // hook in Main.qml that closes the studio on stackView changes.
+                                if (settingsMenu && settingsMenu.mainWindow
+                                    && typeof settingsMenu.mainWindow.closeNowPlayingStudio === "function") {
+                                    settingsMenu.mainWindow.closeNowPlayingStudio()
+                                }
+
                                 if (settingsMenu) {
                                     settingsMenu.currentSection = parent.itemSection
                                     if (settingsManager)
@@ -336,6 +345,14 @@ Item {
 
             function closeTile() {
                 detailCardId = ""
+                // Null detailTile too so the popup's Loader unloads and the
+                // inner component's Component.onDestruction fires. Without
+                // this, page-scoped resources (e.g. the Now Playing live PiP)
+                // would persist after the user backs out of the tile. The
+                // popup's body has already faded out via contentOpacity by
+                // the time openProgress passes 0.45, so destroying the
+                // content is not visible.
+                detailTile = null
             }
 
             // HUD lines (spacecraft)
@@ -455,7 +472,19 @@ Item {
                 tileModel: contentArea.useTileLayout && contentLoader.item
                     ? contentLoader.item.tileModel : []
                 hiddenCardId: contentArea.detailCardId
-                onTileSelected: function(cardId, rect) { contentArea.openTile(cardId, rect) }
+                onTileSelected: function(cardId, rect) {
+                    // "Now Playing" hijacks the whole window — see SettingsHubCard.
+                    if (cardId === "media_now_playing"
+                        && settingsMenu && settingsMenu.mainWindow
+                        && typeof settingsMenu.mainWindow.openNowPlayingStudio === "function") {
+                        var src = tileGrid.parent
+                        var p = src.mapToItem(null, rect.x, rect.y)
+                        settingsMenu.mainWindow.openNowPlayingStudio(
+                            Qt.rect(p.x, p.y, rect.width, rect.height))
+                        return
+                    }
+                    contentArea.openTile(cardId, rect)
+                }
             }
 
             // ── Detail popup (hero/morph: grows from the clicked tile's rect) ───
