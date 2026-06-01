@@ -181,16 +181,48 @@ Flickable {
             }
 
             SettingCategory {
+                id: layoutCategory
                 title: "Settings Layout"
-                description: "Choose how the settings menu is organized."
+                description: "Sidebar is the default. The other layouts are experimental."
+
+                readonly property var experimentalLayouts: ["Carousel", "Hub", "Dashboard"]
+
+                // Reveal the experimental layouts if the user is already on one,
+                // or opts in via the toggle below. Derived from the active layout
+                // so the picker is always consistent — no extra persisted setting.
+                property bool showExperimental: settingsManager
+                    ? experimentalLayouts.indexOf(settingsManager.settingsLayoutStyle) !== -1
+                    : false
 
                 SettingsChips {
                     Layout.fillWidth: true
-                    options: ["Carousel", "Sidebar", "Hub", "Dashboard"]
-                    currentValue: settingsManager ? settingsManager.settingsLayoutStyle : "Carousel"
+                    options: layoutCategory.showExperimental
+                             ? ["Sidebar", "Carousel", "Hub", "Dashboard"]
+                             : ["Sidebar"]
+                    currentValue: settingsManager ? settingsManager.settingsLayoutStyle : "Sidebar"
                     onSelected: function(value) {
                         if (settingsManager)
                             settingsManager.save_settings_layout_style(value)
+                    }
+                }
+
+                SettingsToggle {
+                    compact: true
+                    Layout.alignment: Qt.AlignLeft
+                    Layout.topMargin: App.Spacing.rowSpacing
+                    text: "Show experimental layouts"
+                    checked: layoutCategory.showExperimental
+                    activeColor: App.Style.accent
+                    inactiveColor: App.Style.hoverColor
+
+                    onToggled: function(checked) {
+                        layoutCategory.showExperimental = checked
+                        // Hiding them while one is active would strand the user on
+                        // a now-invisible choice — fall back to the default.
+                        if (!checked && settingsManager
+                            && layoutCategory.experimentalLayouts.indexOf(settingsManager.settingsLayoutStyle) !== -1) {
+                            settingsManager.save_settings_layout_style("Sidebar")
+                        }
                     }
                 }
             }

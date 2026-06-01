@@ -24,7 +24,7 @@ Item {
     property color dimTextColor: App.Style.secondaryTextColor
     property color cardColor: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.08)
     property color cardBorderColor: Qt.rgba(accentColor.r, accentColor.g, accentColor.b, 0.2)
-    property color successColor: "#4CAF50"
+    property color successColor: App.Style.statusSuccess
 
     // On-screen keyboard state
     property bool showKeyboard: false
@@ -809,7 +809,7 @@ Item {
 
                 delegate: Rectangle {
                     id: songDelegate
-                    property color failedColor: "#e53935"
+                    property color failedColor: App.Style.statusDanger
                     property string songId: modelData.song_id || ""
                     property bool isDownloading: songId !== "" && downloadPage.activeDownloads.hasOwnProperty(songId)
                     property real dlProgress: isDownloading ? (downloadPage.activeDownloads[songId] || 0) : 0

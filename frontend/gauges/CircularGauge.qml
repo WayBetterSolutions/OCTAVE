@@ -59,7 +59,7 @@ Item {
     // ── Style ───────────────────────────────────────────────────────
     property color trackColor: Qt.darker(App.Style.obdBoxBackground, 1.15)
     property color fillColor: App.Style.obdBarColor
-    property color redlineColor: "#E74C3C"
+    property color redlineColor: App.Style.statusDanger
     property color labelColor: App.Style.obdLabelColor
     property color valueColor: App.Style.obdValueColor
     property color needleColor: App.Style.obdBarColor

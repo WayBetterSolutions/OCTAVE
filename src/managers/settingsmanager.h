@@ -41,7 +41,6 @@ class SettingsManager : public QObject
     Q_PROPERTY(int backgroundBlurRadius READ backgroundBlurRadius NOTIFY backgroundBlurRadiusChanged)
     Q_PROPERTY(QString bottomBarOrientation READ bottomBarOrientation NOTIFY bottomBarOrientationChanged)
     Q_PROPERTY(bool showBottomBarMediaControls READ showBottomBarMediaControls NOTIFY showBottomBarMediaControlsChanged)
-    Q_PROPERTY(QString environmentTheme READ environmentTheme NOTIFY environmentThemeChanged)
     Q_PROPERTY(QString settingsLayoutStyle READ settingsLayoutStyle NOTIFY settingsLayoutStyleChanged)
     Q_PROPERTY(QString albumArtColors READ albumArtColors NOTIFY albumArtColorsChanged)
     Q_PROPERTY(QString settingsMenuVisibility READ settingsMenuVisibility NOTIFY settingsMenuVisibilityChanged)
@@ -144,7 +143,6 @@ public:
     int backgroundBlurRadius() const;
     QString bottomBarOrientation() const;
     bool showBottomBarMediaControls() const;
-    QString environmentTheme() const;
     QString settingsLayoutStyle() const;
     QString albumArtColors() const;
     QString settingsMenuVisibility() const;
@@ -242,7 +240,6 @@ signals:
     void backgroundBlurRadiusChanged(int value);
     void bottomBarOrientationChanged(const QString &value);
     void showBottomBarMediaControlsChanged(bool value);
-    void environmentThemeChanged(const QString &value);
     void settingsLayoutStyleChanged(const QString &value);
     void albumArtColorsChanged(const QString &value);
     void settingsMenuVisibilityChanged();
@@ -353,7 +350,6 @@ public slots:
     void save_background_blur_radius(int radius);
     void save_bottom_bar_orientation(const QString &orientation);
     void save_show_bottom_bar_media_controls(bool show);
-    void save_environment_theme(const QString &theme);
     void save_settings_layout_style(const QString &style);
     void set_album_art_colors(const QString &colorsJson);
 
@@ -631,9 +627,6 @@ private:
     int m_sideCardAngle = 30;
     int m_buttonTiltDuration = 200;
     int m_textScrollSpeed = 5000;
-
-    // Environment theme
-    QString m_environmentTheme;
 
     // Settings layout
     QString m_settingsLayoutStyle;

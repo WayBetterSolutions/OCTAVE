@@ -283,7 +283,7 @@ Flags:
 
 ```bash
 python main.py --debug             # debug logging
-python dev/dev_main.py             # developer mode: simulated OBD + keyboard controls
+python -m dev.main_dev             # developer mode: simulated OBD + keyboard controls
 ```
 
 Lint and headless smoke tests (run by CI):

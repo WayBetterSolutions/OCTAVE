@@ -51,7 +51,7 @@ Item {
     property string orientation: "horizontal"  // "horizontal" or "vertical"
     property color trackColor: Qt.darker(App.Style.obdBoxBackground, 1.15)
     property color fillColor: App.Style.obdBarColor
-    property color warnColor: "#E74C3C"
+    property color warnColor: App.Style.statusDanger
     property color labelColor: App.Style.obdLabelColor
     property color valueColor: App.Style.obdValueColor
     property real warnAbove: NaN   // value at/above which the bar turns warnColor

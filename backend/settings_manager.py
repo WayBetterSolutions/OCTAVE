@@ -96,11 +96,6 @@ SETTINGS_REGISTRY = {
         "controlType": "chips", "saveSlot": "save_theme_setting",
         "params": {"optionsSource": "themeList"}
     },
-    "environment_theme": {
-        "key": "environmentTheme", "label": "Environment", "category": "displaySettings",
-        "controlType": "chips", "saveSlot": "save_environment_theme",
-        "params": {"options": ["Standard", "Spacecraft", "Deep Sea"]}
-    },
     "show_clock": {
         "key": "showClock", "label": "Show Clock", "category": "displaySettings",
         "controlType": "toggle", "saveSlot": "save_show_clock"
@@ -240,9 +235,6 @@ class SettingsManager(QObject):
     sideCardAngleChanged = Signal(int)
     buttonTiltDurationChanged = Signal(int)
     textScrollSpeedChanged = Signal(int)
-
-    # Environment theme signal
-    environmentThemeChanged = Signal(str)
 
     # Settings layout style signal
     settingsLayoutStyleChanged = Signal(str)
@@ -445,7 +437,6 @@ class SettingsManager(QObject):
             "sideCardAngle": 30,         # 3D preview side card rotation angle (5-60)
             "buttonTiltDuration": 200,   # Button tilt animation duration in ms (50-500)
             "textScrollSpeed": 5000,     # Text scroll animation duration in ms (1000-10000)
-            "environmentTheme": "Standard",  # Environment theme: "Standard", "Spacecraft", etc.
             "albumArtColors": "",            # Last-extracted album art theme JSON (persisted for instant restore on startup)
             "settingsLayoutStyle": "Sidebar",  # Settings menu layout: "Carousel", "Sidebar", "Hub", "Dashboard"
             # IMU sensor settings
@@ -596,9 +587,6 @@ class SettingsManager(QObject):
         self._side_card_angle = self._settings.get("sideCardAngle", self._default_settings["sideCardAngle"])
         self._button_tilt_duration = self._settings.get("buttonTiltDuration", self._default_settings["buttonTiltDuration"])
         self._text_scroll_speed = self._settings.get("textScrollSpeed", self._default_settings["textScrollSpeed"])
-
-        # Environment theme
-        self._environment_theme = self._settings.get("environmentTheme", self._default_settings["environmentTheme"])
 
         # Album art colors — last-extracted palette, restored on startup so the
         # placeholder Album Art theme doesn't flash before fresh extraction runs.
@@ -1923,18 +1911,6 @@ class SettingsManager(QObject):
         self._text_scroll_speed = max(1000, min(10000, speed))
         self.update_setting("textScrollSpeed", self._text_scroll_speed, self.textScrollSpeedChanged)
 
-    # ==================== Environment Theme ====================
-
-    @Property(str, notify=environmentThemeChanged)
-    def environmentTheme(self):
-        return self._environment_theme
-
-    @Slot(str)
-    def save_environment_theme(self, theme):
-        logger.debug(f"Saving environment theme: {theme}")
-        self._environment_theme = theme
-        self.update_setting("environmentTheme", theme, self.environmentThemeChanged)
-
     # ==================== Settings Layout Style ====================
 
     @Property(str, notify=settingsLayoutStyleChanged)
@@ -2089,7 +2065,6 @@ class SettingsManager(QObject):
             "showWaveformVisualizer": "show_waveform_visualizer",
             "uiScale": "ui_scale",
             "themeSetting": "theme_setting",
-            "environmentTheme": "environment_theme",
             "showClock": "show_clock",
             "showBottomBarMediaControls": "show_bottom_bar_media_controls",
             "backgroundBlurRadius": "background_blur_radius",

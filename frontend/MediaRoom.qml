@@ -81,12 +81,6 @@ Item {
     property color backgroundColor: "black"
     property color transparentColor: "transparent"
 
-    //property color textColor: "white"
-    property color sliderBackgroundColor: "#424242"
-    property color sliderGradientStart: "#000000"
-    property color sliderGradientEnd: "#a11212"
-    property color sliderHandleNormal: "#808080"
-    property color sliderHandlePressed: "#666666"
     property real buttonPressedOpacity: 0.7
     property real buttonNormalOpacity: 1.0
 
@@ -94,8 +88,6 @@ Item {
     property int position: 0
     property bool userSeeking: false
 
-    property color accent: "#a11212"
-    
     property bool isShuffleEnabled: false
 
     // Empty playlist detection — drives download button vs controls swap

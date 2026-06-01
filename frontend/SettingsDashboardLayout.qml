@@ -136,10 +136,6 @@ Item {
         visible: false
         opacity: 0
 
-        // Environment backgrounds (behind grid)
-        ContentSonar {}
-        ContentSolarSystem {}
-
         ColumnLayout {
             id: hubColumn
             anchors.fill: parent
@@ -241,9 +237,6 @@ Item {
                 color: Qt.rgba(App.Style.accent.r, App.Style.accent.g, App.Style.accent.b, 0.3)
                 visible: App.EnvironmentTheme.active.contentHudLines
             }
-
-            ContentSonar {}
-            ContentSolarSystem {}
 
             // ─── Heading bar ───
             Item {

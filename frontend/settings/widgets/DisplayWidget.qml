@@ -21,11 +21,6 @@ Item {
         }
 
         WidgetPill {
-            label: "Environment"
-            value: settingsManager ? settingsManager.environmentTheme : ""
-        }
-
-        WidgetPill {
             label: "Scale"
             value: settingsManager ? Math.round(settingsManager.uiScale * 100) + "%" : "100%"
         }

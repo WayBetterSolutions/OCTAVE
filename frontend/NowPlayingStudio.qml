@@ -202,16 +202,6 @@ Item {
         color: App.Style.backgroundColor
     }
 
-    // Optional environment textures (subtle, for vibes)
-    ContentSonar {
-        anchors.fill: parent
-        visible: App.EnvironmentTheme.active.contentSonar === true
-    }
-    ContentSolarSystem {
-        anchors.fill: parent
-        visible: App.EnvironmentTheme.active.contentSolarSystem === true
-    }
-
     // ── Dashboard region — fills the entire window so the PiP can hug the
     //    literal top-right corner and the left panel runs floor-to-ceiling.
     Item {

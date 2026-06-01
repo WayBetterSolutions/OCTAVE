@@ -101,8 +101,6 @@ QJsonObject SettingsManager::buildSettingsRegistry()
     reg[QStringLiteral("text_scroll_speed")]          = entry("textScrollSpeed", "Text Scroll Speed", "mediaSettings", "slider", "save_text_scroll_speed", sliderParams(1000, 10000, 500));
     reg[QStringLiteral("ui_scale")]                   = entry("uiScale", "UI Scaling", "displaySettings", "slider", "save_ui_scale", sliderParams(0.5, 2.0, 0.05));
     reg[QStringLiteral("theme_setting")]              = entry("themeSetting", "Theme", "displaySettings", "chips", "save_theme_setting", chipSource("themeList"));
-    reg[QStringLiteral("environment_theme")]          = entry("environmentTheme", "Environment", "displaySettings", "chips", "save_environment_theme",
-        chipParams({QStringLiteral("Standard"), QStringLiteral("Spacecraft"), QStringLiteral("Deep Sea")}));
     reg[QStringLiteral("show_clock")]                 = entry("showClock", "Show Clock", "displaySettings", "toggle", "save_show_clock");
     reg[QStringLiteral("bottom_bar_media_controls")]  = entry("showBottomBarMediaControls", "Nav Bar Media Controls", "displaySettings", "toggle", "save_show_bottom_bar_media_controls");
     reg[QStringLiteral("background_blur_radius")]     = entry("backgroundBlurRadius", "Album Art Blur", "mediaSettings", "slider", "save_background_blur_radius", sliderParams(0, 100, 1));
@@ -249,7 +247,6 @@ QJsonObject SettingsManager::buildDefaultSettings() const
     d[QStringLiteral("sideCardAngle")]           = 30;
     d[QStringLiteral("buttonTiltDuration")]      = 200;
     d[QStringLiteral("textScrollSpeed")]         = 5000;
-    d[QStringLiteral("environmentTheme")]        = QStringLiteral("Standard");
     d[QStringLiteral("settingsLayoutStyle")]     = QStringLiteral("Sidebar");
     d[QStringLiteral("albumArtColors")]          = QString();
 
@@ -478,8 +475,7 @@ SettingsManager::SettingsManager(QObject *parent)
     m_buttonTiltDuration      = s(QStringLiteral("buttonTiltDuration")).toInt();
     m_textScrollSpeed         = s(QStringLiteral("textScrollSpeed")).toInt();
 
-    // Environment / layout
-    m_environmentTheme   = s(QStringLiteral("environmentTheme")).toString();
+    // Layout
     m_settingsLayoutStyle = s(QStringLiteral("settingsLayoutStyle")).toString();
 
     // IMU
@@ -758,7 +754,6 @@ int     SettingsManager::screenHeight() const      { return m_screenHeight; }
 int     SettingsManager::backgroundBlurRadius() const { return m_backgroundBlurRadius; }
 QString SettingsManager::bottomBarOrientation() const  { return m_bottomBarOrientation; }
 bool    SettingsManager::showBottomBarMediaControls() const { return m_showBottomBarMediaControls; }
-QString SettingsManager::environmentTheme() const  { return m_environmentTheme; }
 QString SettingsManager::settingsLayoutStyle() const { return m_settingsLayoutStyle; }
 QString SettingsManager::albumArtColors() const    { return m_albumArtColors; }
 
@@ -981,14 +976,6 @@ void SettingsManager::save_show_bottom_bar_media_controls(bool show)
     m_showBottomBarMediaControls = show;
     updateSetting(QStringLiteral("showBottomBarMediaControls"), show);
     emit showBottomBarMediaControlsChanged(show);
-}
-
-void SettingsManager::save_environment_theme(const QString &theme)
-{
-    qCDebug(lcSettings) << "Saving environment theme:" << theme;
-    m_environmentTheme = theme;
-    updateSetting(QStringLiteral("environmentTheme"), theme);
-    emit environmentThemeChanged(theme);
 }
 
 void SettingsManager::save_settings_layout_style(const QString &style)
@@ -1926,7 +1913,6 @@ QString SettingsManager::get_pinned_settings_metadata()
         else if (attr == QStringLiteral("show_waveform_visualizer")) val = QVariant(m_showWaveformVisualizer);
         else if (attr == QStringLiteral("ui_scale"))             val = QVariant(m_uiScale);
         else if (attr == QStringLiteral("theme_setting"))        val = QVariant(m_themeSetting);
-        else if (attr == QStringLiteral("environment_theme"))    val = QVariant(m_environmentTheme);
         else if (attr == QStringLiteral("show_clock"))           val = QVariant(m_showClock);
         else if (attr == QStringLiteral("show_bottom_bar_media_controls")) val = QVariant(m_showBottomBarMediaControls);
         else if (attr == QStringLiteral("background_blur_radius")) val = QVariant(m_backgroundBlurRadius);
@@ -1968,7 +1954,6 @@ QString SettingsManager::keyToAttr(const QString &key) const
         {QStringLiteral("showWaveformVisualizer"),      QStringLiteral("show_waveform_visualizer")},
         {QStringLiteral("uiScale"),                     QStringLiteral("ui_scale")},
         {QStringLiteral("themeSetting"),                QStringLiteral("theme_setting")},
-        {QStringLiteral("environmentTheme"),            QStringLiteral("environment_theme")},
         {QStringLiteral("showClock"),                   QStringLiteral("show_clock")},
         {QStringLiteral("showBottomBarMediaControls"),  QStringLiteral("show_bottom_bar_media_controls")},
         {QStringLiteral("backgroundBlurRadius"),        QStringLiteral("background_blur_radius")},

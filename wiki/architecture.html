@@ -49,9 +49,13 @@
         <h2 id="high-level">High-Level Architecture</h2>
         <p>
           OCTAVE follows a clean <strong>backend/frontend separation</strong> connected by Qt's
-          signals and slots mechanism. The Python backend handles all business logic, hardware
-          communication, API calls, and data processing. The QML frontend handles all rendering,
-          animation, and user interaction.
+          signals and slots mechanism. OCTAVE maintains <strong>two parallel backends</strong> that
+          expose the same API to the shared frontend: a <strong>C++ / Qt 6</strong> backend
+          (<code>src/</code>) &mdash; the only shipped binary on every platform &mdash; and a
+          <strong>Python / PySide6</strong> backend (<code>backend/</code>) used for desktop development
+          and tinkering. Either one handles all business logic, hardware communication, API calls, and
+          data processing; the QML frontend handles all rendering, animation, and user interaction, and
+          works identically against either backend.
         </p>
 
         <div class="diagram">
@@ -59,7 +63,7 @@
 │                        OCTAVE Application                       │
 │                                                                 │
 │  ┌──────────────────────┐    Signals/Slots    ┌──────────────┐ │
-│  │    Python Backend     │ ◄────────────────► │  QML Frontend │ │
+│  │   Backend (C++ / Py)  │ ◄────────────────► │  QML Frontend │ │
 │  │                       │   Context Props     │              │ │
 │  │  ┌─────────────────┐ │                     │  Main.qml    │ │
 │  │  │ SettingsManager  │ │                     │  MediaPlayer │ │
@@ -79,8 +83,8 @@
 │  └──────────────────────┘                                      │
 │                                                                 │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │                   PySide6 / Qt6 Runtime                    │  │
-│  │   QApplication → QQmlApplicationEngine → Qt Event Loop     │  │
+│  │             Qt 6 Runtime  (C++  ·  or PySide6)             │  │
+│  │   (QGuiApplication / QApplication) → QQmlEngine → Event Loop│  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘</div>
 
@@ -93,21 +97,27 @@
           </thead>
           <tbody>
             <tr>
-              <td><strong>Backend</strong></td>
-              <td>Python 3.8+</td>
+              <td><strong>Backend</strong> (shipped)</td>
+              <td>C++ / Qt 6</td>
+              <td><code>src/</code></td>
+              <td>Business logic, hardware I/O, API calls, data processing, state management &mdash; the only binary shipped on every platform</td>
+            </tr>
+            <tr>
+              <td><strong>Backend</strong> (dev peer)</td>
+              <td>Python 3.8+ / PySide6</td>
               <td><code>backend/</code></td>
-              <td>Business logic, hardware I/O, API calls, data processing, state management</td>
+              <td>API-equivalent backend for desktop development, prototyping, and Raspberry&nbsp;Pi tinkering</td>
             </tr>
             <tr>
               <td><strong>Frontend</strong></td>
               <td>QML (Qt Quick 2.15)</td>
               <td><code>frontend/</code></td>
-              <td>UI rendering, animations, user interaction, layout</td>
+              <td>UI rendering, animations, user interaction, layout &mdash; identical against either backend</td>
             </tr>
             <tr>
               <td><strong>Bridge</strong></td>
-              <td>PySide6</td>
-              <td><code>main.py</code></td>
+              <td>C++ main / PySide6</td>
+              <td><code>src/main.cpp</code> &middot; <code>main.py</code></td>
               <td>Registers managers as context properties, wires signals, manages lifecycle</td>
             </tr>
           </tbody>

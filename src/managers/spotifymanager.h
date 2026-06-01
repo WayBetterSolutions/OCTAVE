@@ -97,7 +97,6 @@ public slots:
     Q_INVOKABLE void next_track();
     Q_INVOKABLE void previous_track();
     Q_INVOKABLE void set_position(int positionMs);
-    Q_INVOKABLE void seek(int positionMs);   // alias for set_position
     Q_INVOKABLE void set_volume(int volumePercent);
     Q_INVOKABLE void toggle_shuffle();
     Q_INVOKABLE void play_uri(const QString &uri);
@@ -105,11 +104,9 @@ public slots:
     // Device management
     Q_INVOKABLE void refresh_devices();
     Q_INVOKABLE void set_active_device(const QString &deviceId);
-    Q_INVOKABLE void select_device(const QString &deviceId); // alias
 
     // Playlist management
     Q_INVOKABLE void select_spotify_playlist(const QString &playlistId);
-    Q_INVOKABLE void load_playlist(const QString &playlistId); // alias
 
     // Getters (match Python @Slot(result=...) signatures)
     Q_INVOKABLE bool is_available();
@@ -131,7 +128,6 @@ public slots:
 
     Q_INVOKABLE QVariantList get_devices();
     Q_INVOKABLE QVariantList get_playlists();
-    Q_INVOKABLE QString get_active_device();
 
     Q_INVOKABLE QStringList get_spotify_playlist_names();
     Q_INVOKABLE QVariantList get_spotify_tracks();

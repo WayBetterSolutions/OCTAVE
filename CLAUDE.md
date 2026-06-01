@@ -59,7 +59,7 @@ python main.py
 python main.py --debug
 
 # Developer mode (simulated OBD data, keyboard controls for testing)
-python dev/dev_main.py
+python -m dev.main_dev
 
 # Lint (ruff — configured in pyproject.toml)
 source venv/bin/activate

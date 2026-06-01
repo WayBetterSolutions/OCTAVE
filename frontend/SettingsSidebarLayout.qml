@@ -380,9 +380,6 @@ Item {
                 visible: App.EnvironmentTheme.active.contentHudLines
             }
 
-            ContentSonar {}
-            ContentSolarSystem {}
-
             Loader {
                 id: contentLoader
                 anchors {

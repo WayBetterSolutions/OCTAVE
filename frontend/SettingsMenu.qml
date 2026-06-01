@@ -52,7 +52,7 @@ Item {
     property var hubModel: []
 
     // Current layout style
-    property string layoutStyle: settingsManager ? settingsManager.settingsLayoutStyle : "Carousel"
+    property string layoutStyle: settingsManager ? settingsManager.settingsLayoutStyle : "Sidebar"
 
     // True only on the very first layout load (app launch); false after a mid-session switch
     property bool isInitialLoad: true
@@ -175,7 +175,7 @@ Item {
             case "Sidebar":   return "SettingsSidebarLayout.qml"
             case "Hub":       return "SettingsHubLayout.qml"
             case "Dashboard": return "SettingsDashboardLayout.qml"
-            default:          return "SettingsCarouselLayout.qml"
+            default:          return "SettingsSidebarLayout.qml"
         }
     }
 
@@ -183,14 +183,6 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: App.Style.backgroundColor
-
-        // Environment backgrounds (for Carousel; other layouts have their own)
-        ContentSonar {
-            visible: layoutStyle === "Carousel"
-        }
-        ContentSolarSystem {
-            visible: layoutStyle === "Carousel"
-        }
 
         Loader {
             id: layoutLoader

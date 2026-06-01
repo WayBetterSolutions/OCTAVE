@@ -2,305 +2,106 @@
 pragma Singleton
 import QtQuick 2.15
 
+// Structural style tokens (radii, borders, spacing flags) consumed across the
+// settings component library via `EnvironmentTheme.active.*`.
+//
+// OCTAVE once shipped multiple selectable "environments" (Spacecraft, Deep Sea)
+// with their own canvas effect layers. Those presets were never finished and
+// the picker was removed, so only the single "Standard" look remains. This is
+// kept as a singleton exposing one fixed `active` object so the ~40 existing
+// `EnvironmentTheme.active.X` bindings keep working unchanged. If multiple
+// environments are ever revived, restore the map + a notifyable current-env
+// property here; the old presets live in git history.
 QtObject {
-    property string currentEnvironment: "Standard"
+    readonly property var active: ({
+        // Hub Card
+        hubCardRadius: 12,
 
-    // Signal when environment changes
-    signal environmentChanged()
+        // Card
+        cardRadius: 12,
+        cornerBrackets: false,
+        accentBorder: false,
+        accentBorderOpacity: 0,
 
-    // Define environment presets
-    readonly property var environments: ({
-        "Standard": {
-            // Hub Card
-            hubCardRadius: 12,
+        // Divider
+        dividerAnimated: false,
+        dividerGradient: false,
+        dividerHeight: 1,
 
-            // Card
-            cardRadius: 12,
-            cornerBrackets: false,
-            accentBorder: false,
-            accentBorderOpacity: 0,
+        // Button
+        buttonRadius: 6,
+        buttonGlowBorder: false,
+        buttonSolidFill: true,
 
-            // Divider
-            dividerAnimated: false,
-            dividerGradient: false,
-            dividerHeight: 1,
+        // Slider
+        sliderTickMarks: false,
+        sliderHandleGlow: false,
+        sliderHandleRadius: -1,
 
-            // Button
-            buttonRadius: 6,
-            buttonGlowBorder: false,
-            buttonSolidFill: true,
+        // Switch
+        switchRadius: 8,
+        switchKnobRadius: 6,
 
-            // Slider
-            sliderTickMarks: false,
-            sliderHandleGlow: false,
-            sliderHandleRadius: -1,
+        // Toggle
+        toggleTrackRadius: 10,
+        toggleHandleRadius: 8,
+        toggleRectShadow: false,
 
-            // Switch
-            switchRadius: 8,
-            switchKnobRadius: 6,
+        // Labels & Text
+        labelUppercase: false,
+        labelLetterSpacing: 0,
 
-            // Toggle
-            toggleTrackRadius: 10,
-            toggleHandleRadius: 8,
-            toggleRectShadow: false,
+        // Value Display
+        valueDisplayBrackets: false,
+        valueAccentColor: false,
 
-            // Labels & Text
-            labelUppercase: false,
-            labelLetterSpacing: 0,
+        // Sidebar / Nav
+        sidebarGrid: false,
+        navItemRadius: 8,
+        navAccentBarWidth: 3,
+        navAccentBarFullHeight: false,
 
-            // Value Display
-            valueDisplayBrackets: false,
-            valueAccentColor: false,
+        // Chips
+        chipRadius: 8,
+        chipAccentBorder: false,
 
-            // Sidebar / Nav
-            sidebarGrid: false,
-            navItemRadius: 8,
-            navAccentBarWidth: 3,
-            navAccentBarFullHeight: false,
+        // Section Header
+        sectionHeaderLines: false,
 
-            // Chips
-            chipRadius: 8,
-            chipAccentBorder: false,
+        // TextField
+        textFieldRadius: 4,
+        textFieldCornerMarks: false,
 
-            // Section Header
-            sectionHeaderLines: false,
+        // Dropdown
+        dropdownRadius: 4,
 
-            // TextField
-            textFieldRadius: 4,
-            textFieldCornerMarks: false,
+        // Checkbox
+        checkboxRadius: 4,
 
-            // Dropdown
-            dropdownRadius: 4,
+        // Segmented Control
+        segmentGlowBar: false,
 
-            // Checkbox
-            checkboxRadius: 4,
+        // Radio
+        radioSquare: false,
 
-            // Segmented Control
-            segmentGlowBar: false,
+        // Terminal
+        terminalRadius: 4,
+        terminalAccentBorder: false,
+        terminalCornerBrackets: false,
+        terminalScanlines: false,
+        terminalHeaderAccent: false,
+        terminalAccentScroll: false,
 
-            // Radio
-            radioSquare: false,
+        // Enhanced effects
+        scanlineOverlay: false,
+        pulsingElements: false,
+        contentHudLines: false,
+        dividerDiamondRotate: false,
 
-            // Terminal
-            terminalRadius: 4,
-            terminalAccentBorder: false,
-            terminalCornerBrackets: false,
-            terminalScanlines: false,
-            terminalHeaderAccent: false,
-            terminalAccentScroll: false,
-
-            // Enhanced effects
-            scanlineOverlay: false,
-            pulsingElements: false,
-            contentHudLines: false,
-            dividerDiamondRotate: false,
-
-            // Deep Sea effects
-            sidebarBubbles: false,
-            contentSonar: false,
-            dividerSonarPing: false,
-            cardGlassEffect: false
-        },
-
-        "Spacecraft": {
-            // Hub Card
-            hubCardRadius: 2,
-
-            // Card
-            cardRadius: 2,
-            cornerBrackets: true,
-            accentBorder: true,
-            accentBorderOpacity: 0.3,
-
-            // Divider
-            dividerAnimated: true,
-            dividerGradient: true,
-            dividerHeight: 2,
-
-            // Button
-            buttonRadius: 2,
-            buttonGlowBorder: true,
-            buttonSolidFill: false,
-
-            // Slider
-            sliderTickMarks: true,
-            sliderHandleGlow: true,
-            sliderHandleRadius: 4,
-
-            // Switch
-            switchRadius: 4,
-            switchKnobRadius: 4,
-
-            // Toggle
-            toggleTrackRadius: 6,
-            toggleHandleRadius: 8,
-            toggleRectShadow: true,
-
-            // Labels & Text
-            labelUppercase: true,
-            labelLetterSpacing: 1,
-
-            // Value Display
-            valueDisplayBrackets: true,
-            valueAccentColor: true,
-
-            // Sidebar / Nav
-            sidebarGrid: true,
-            navItemRadius: 2,
-            navAccentBarWidth: 2,
-            navAccentBarFullHeight: true,
-
-            // Chips
-            chipRadius: 4,
-            chipAccentBorder: true,
-
-            // Section Header
-            sectionHeaderLines: true,
-
-            // TextField
-            textFieldRadius: 2,
-            textFieldCornerMarks: true,
-
-            // Dropdown
-            dropdownRadius: 2,
-
-            // Checkbox
-            checkboxRadius: 1,
-
-            // Segmented Control
-            segmentGlowBar: true,
-
-            // Radio
-            radioSquare: true,
-
-            // Terminal
-            terminalRadius: 2,
-            terminalAccentBorder: true,
-            terminalCornerBrackets: true,
-            terminalScanlines: true,
-            terminalHeaderAccent: true,
-            terminalAccentScroll: true,
-
-            // Enhanced effects
-            scanlineOverlay: true,
-            pulsingElements: true,
-            contentHudLines: true,
-            dividerDiamondRotate: true,
-
-            // Deep Sea effects
-            sidebarBubbles: false,
-            contentSonar: false,
-            dividerSonarPing: false,
-            cardGlassEffect: false
-        },
-
-        "Deep Sea": {
-            // Hub Card
-            hubCardRadius: 16,
-
-            // Card
-            cardRadius: 16,
-            cornerBrackets: false,
-            accentBorder: true,
-            accentBorderOpacity: 0.12,
-
-            // Divider
-            dividerAnimated: false,
-            dividerGradient: false,
-            dividerHeight: 1,
-
-            // Button
-            buttonRadius: 12,
-            buttonGlowBorder: false,
-            buttonSolidFill: true,
-
-            // Slider
-            sliderTickMarks: false,
-            sliderHandleGlow: true,
-            sliderHandleRadius: -1,
-
-            // Switch
-            switchRadius: 13,
-            switchKnobRadius: 10,
-
-            // Toggle
-            toggleTrackRadius: -1,
-            toggleHandleRadius: -1,
-            toggleRectShadow: false,
-
-            // Labels & Text
-            labelUppercase: false,
-            labelLetterSpacing: 0.5,
-
-            // Value Display
-            valueDisplayBrackets: false,
-            valueAccentColor: true,
-
-            // Sidebar / Nav
-            sidebarGrid: false,
-            navItemRadius: 12,
-            navAccentBarWidth: 4,
-            navAccentBarFullHeight: false,
-
-            // Chips
-            chipRadius: -1,
-            chipAccentBorder: false,
-
-            // Section Header
-            sectionHeaderLines: false,
-
-            // TextField
-            textFieldRadius: 10,
-            textFieldCornerMarks: false,
-
-            // Dropdown
-            dropdownRadius: 10,
-
-            // Checkbox
-            checkboxRadius: 6,
-
-            // Segmented Control
-            segmentGlowBar: false,
-
-            // Radio
-            radioSquare: false,
-
-            // Terminal
-            terminalRadius: 10,
-            terminalAccentBorder: true,
-            terminalCornerBrackets: false,
-            terminalScanlines: false,
-            terminalHeaderAccent: true,
-            terminalAccentScroll: true,
-
-            // Enhanced effects
-            scanlineOverlay: false,
-            pulsingElements: true,
-            contentHudLines: false,
-            dividerDiamondRotate: false,
-
-            // Deep Sea effects
-            sidebarBubbles: true,
-            contentSonar: true,
-            dividerSonarPing: true,
-            cardGlassEffect: true
-        }
+        // Deep Sea effects
+        sidebarBubbles: false,
+        contentSonar: false,
+        dividerSonarPing: false,
+        cardGlassEffect: false
     })
-
-    // Active environment object - bindings re-evaluate when currentEnvironment changes
-    property var active: environments[currentEnvironment] || environments["Standard"]
-
-    // Environments other than Standard are temporarily disabled — see Display
-    // settings. The presets remain in `environments` for the future redo, but
-    // the public API only exposes Standard so nothing can switch the look.
-    function setEnvironment(name) {
-        if (currentEnvironment !== "Standard") {
-            currentEnvironment = "Standard"
-            environmentChanged()
-        }
-    }
-
-    function getAllEnvironmentNames() {
-        return ["Standard"]
-    }
 }

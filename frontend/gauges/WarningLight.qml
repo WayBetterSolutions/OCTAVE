@@ -56,7 +56,7 @@ Item {
 
     // ── Style ───────────────────────────────────────────────────────
     property string label: ""                 // short text shown inside the light
-    property color activeColor: "#E74C3C"     // red by default
+    property color activeColor: App.Style.statusDanger   // theme danger color (red by default)
     property color inactiveColor: Qt.darker(App.Style.obdBoxBackground, 1.3)
     property color labelColor: App.Style.obdLabelColor
     property color activeLabelColor: "white"

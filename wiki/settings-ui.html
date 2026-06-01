@@ -176,7 +176,6 @@
         <span class="kw">case</span> <span class="str">"displaySettings"</span>:
             <span class="kw">return</span> [
                 { <span class="prop">label</span>: <span class="str">"Theme"</span>, <span class="prop">value</span>: settingsManager.themeSetting },
-                { <span class="prop">label</span>: <span class="str">"Environment"</span>, <span class="prop">value</span>: settingsManager.environmentTheme },
                 { <span class="prop">label</span>: <span class="str">"Scale"</span>, <span class="prop">value</span>: Math.<span class="fn">round</span>(settingsManager.uiScale * <span class="num">100</span>) + <span class="str">"%"</span> }
             ]
         <span class="cmt">// ... similar for each section</span>
@@ -319,7 +318,7 @@
   <span class="prop">subSections</span>: [] }</code></pre>
           </li>
 
-          <li><strong>Add visibility default</strong> &mdash; Ensure <code>settingsManager.is_settings_section_visible("mySettings")</code> returns <code>true</code> by default in the Python backend.</li>
+          <li><strong>Add visibility default</strong> &mdash; Ensure <code>settingsManager.is_settings_section_visible("mySettings")</code> returns <code>true</code> by default in both backends (C++ and Python).</li>
 
           <li><strong>Test all four layouts</strong> &mdash; Verify the page appears correctly in Carousel, Sidebar, Hub, and Dashboard modes.</li>
         </ol>
@@ -422,23 +421,6 @@ ExpandedCards.<span class="fn">load</span>(settingsManager)
 }</code></pre>
 
         <p>The <code>.pragma library</code> pattern makes this a true singleton across all QML components, ensuring consistent state without per-card disk reads.</p>
-
-        <!-- Environment Backgrounds -->
-        <h2 id="environment-backgrounds">Environment Backgrounds</h2>
-
-        <p>The Carousel layout (and other layouts that need it) can display environment-specific animated backgrounds:</p>
-
-        <pre><code><span class="cmt">// Sonar ping animation (Deep Sea environment)</span>
-<span class="cls">ContentSonar</span> {
-    <span class="prop">visible</span>: layoutStyle === <span class="str">"Carousel"</span>
-}
-
-<span class="cmt">// Orbiting planetary system (custom environments)</span>
-<span class="cls">ContentSolarSystem</span> {
-    <span class="prop">visible</span>: layoutStyle === <span class="str">"Carousel"</span>
-}</code></pre>
-
-        <p>These ambient background components are defined in <span class="file-path">frontend/settings/ContentSonar.qml</span> and <span class="file-path">frontend/settings/ContentSolarSystem.qml</span>.</p>
 
         <div class="related-pages">
           <h3>Related Pages</h3>

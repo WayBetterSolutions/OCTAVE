@@ -673,11 +673,6 @@ void SpotifyManager::set_position(int positionMs)
            });
 }
 
-void SpotifyManager::seek(int positionMs)
-{
-    set_position(positionMs);
-}
-
 void SpotifyManager::set_volume(int volumePercent)
 {
     if (!m_isConnected) return;
@@ -857,11 +852,6 @@ void SpotifyManager::set_active_device(const QString &deviceId)
            });
 }
 
-void SpotifyManager::select_device(const QString &deviceId)
-{
-    set_active_device(deviceId);
-}
-
 // ══════════════════════════════════════════════════════════════════════
 // Playlist Management
 // ══════════════════════════════════════════════════════════════════════
@@ -974,11 +964,6 @@ void SpotifyManager::select_spotify_playlist(const QString &playlistId)
            [this](const QString &err) {
                qCWarning(lcSpotify) << "Playlist tracks fetch error:" << err;
            });
-}
-
-void SpotifyManager::load_playlist(const QString &playlistId)
-{
-    select_spotify_playlist(playlistId);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1273,17 +1258,6 @@ QVariantList SpotifyManager::get_devices()
 QVariantList SpotifyManager::get_playlists()
 {
     return m_playlists;
-}
-
-QString SpotifyManager::get_active_device()
-{
-    // Return device name, not ID
-    for (const auto &d : m_devices) {
-        const auto dm = d.toMap();
-        if (dm.value(QStringLiteral("id")).toString() == m_activeDeviceId)
-            return dm.value(QStringLiteral("name")).toString();
-    }
-    return {};
 }
 
 QStringList SpotifyManager::get_spotify_playlist_names()

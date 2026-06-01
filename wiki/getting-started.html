@@ -52,7 +52,7 @@
             <tr>
               <td><strong>Python</strong></td>
               <td>3.8+</td>
-              <td>3.11 required for Android builds (must match PySide6 wheel ABI)</td>
+              <td>Desktop developer backend only &mdash; not used for Android (C++/Qt) builds</td>
             </tr>
             <tr>
               <td><strong>OS</strong></td>
@@ -238,68 +238,49 @@ python3 setup.py</code></pre>
         <!-- Android -->
         <h2 id="platform-android">Android Build</h2>
         <p>
-          OCTAVE can be compiled as an Android APK using
-          <a href="https://github.com/kivy/buildozer">Buildozer</a> with the python-for-android Qt bootstrap.
-          This is an experimental feature.
+          The Android app is built from the <strong>C++ / Qt 6</strong> tree in <code>src/</code> as a
+          native <code>.apk</code> &mdash; <em>not</em> from Python. The Python backend in
+          <code>backend/</code> is a desktop-only developer backend and is never packaged for mobile.
+          (The old Buildozer / python-for-android path has been removed and will not be reintroduced.)
         </p>
+
+        <div class="info-box info">
+          <div class="info-box-title">Full toolchain lives in BUILD.md</div>
+          The complete step-by-step Android setup &mdash; Qt for Android 6.7.3, OpenJDK 17, the
+          Android SDK + NDK <code>26.1.10909125</code>, environment variables, and APK signing &mdash;
+          is documented in <span class="file-path">BUILD.md</span> under <em>Android build</em>. The
+          summary here is orientation only.
+        </div>
 
         <h3>Prerequisites</h3>
         <ul>
-          <li><strong>Linux host</strong> &mdash; Building Android APKs requires Linux</li>
-          <li><strong>Python 3.11</strong> &mdash; Must match the PySide6 wheel ABI</li>
-          <li><strong>Android SDK</strong> with platform tools</li>
-          <li><strong>Android NDK r26b</strong> (<code>26.1.10909125</code>)</li>
-          <li><strong>Buildozer</strong> and <strong>python-for-android</strong> (develop branch)</li>
+          <li><strong>Linux host</strong> &mdash; with roughly 40&ndash;60 GB free on the <code>$HOME</code> disk</li>
+          <li><strong>Qt for Android 6.7.3</strong> (<code>android_arm64_v8a</code>) plus the matching host Qt</li>
+          <li><strong>OpenJDK 17</strong> &mdash; required by Android Gradle Plugin 8.x (not 11, not 21)</li>
+          <li><strong>Android SDK</strong> (platform <code>android-34</code>) and <strong>NDK</strong> <code>26.1.10909125</code></li>
         </ul>
 
-        <pre><code><span class="cmt"># Install build tools</span>
-pip install buildozer
-pip install <span class="str">"python-for-android @ git+https://github.com/kivy/python-for-android@develop"</span>
-
-<span class="cmt"># Install NDK via SDK Manager</span>
-sdkmanager <span class="str">"ndk;26.1.10909125"</span></code></pre>
-
-        <h3>PySide6 Android Wheels</h3>
+        <h3>Build the APK</h3>
         <p>
-          Download pre-built PySide6 and shiboken6 wheels for Android aarch64 from
-          <a href="https://download.qt.io/official_releases/QtForPython/">Qt for Python releases</a>
-          and place them in <code>deployment/wheels/</code>:
+          With the toolchain environment variables set (see <span class="file-path">BUILD.md</span>),
+          configure and build with Qt's <code>qt-cmake</code> cross-compile wrapper. OpenSSL for
+          Android is wired in at build time via the KDAB <code>android_openssl</code> CMake project &mdash;
+          no separate install step:
         </p>
-        <ul>
-          <li><code>pyside6-6.11.0-6.11.0-cp311-cp311-android_aarch64.whl</code></li>
-          <li><code>shiboken6-6.11.0-6.11.0-cp311-cp311-android_aarch64.whl</code></li>
-        </ul>
-        <p>Or set <code>OCTAVE_WHEELS_DIR</code> to point to a different directory.</p>
+        <pre><code><span class="cmt"># arm64-v8a, Android 11+ (see BUILD.md for the full flag set incl. signing)</span>
+qt-cmake -S . -B build-android \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DANDROID_PLATFORM=android-30
 
-        <h3>Configure & Build</h3>
-        <ol class="steps">
-          <li>
-            Edit <code>deployment/buildozer.spec</code> and set <code>android.ndk_path</code>,
-            <code>android.sdk_path</code>, and the <code>--sdk-dir</code>/<code>--ndk-dir</code> values
-            in <code>p4a.extra_args</code> to your local paths.
-          </li>
-          <li>
-            Edit <code>pysidedeploy.spec</code> and set <code>ndk_path</code>, <code>sdk_path</code>,
-            and <code>python_path</code>.
-          </li>
-          <li>
-            Build the APK:
-            <pre><code>cd deployment
-buildozer android debug</code></pre>
-            Output APK in <code>dist/</code>.
-          </li>
-        </ol>
-
-        <div class="info-box warning">
-          <div class="info-box-title">Known Issue: pip corruption</div>
-          The python-for-android build venv ships with pip 24.0, which has a broken <code>resolvelib</code>.
-          If the build fails during package installation, delete the build venv:
-          <pre><code>rm -rf deployment/.buildozer/android/platform/build-arm64-v8a/build/venv</code></pre>
-          Then re-run the build.
-        </div>
+cmake --build build-android -j
+<span class="cmt"># androiddeployqt produces the .apk under build-android/</span></code></pre>
 
         <h3>Android Feature Differences</h3>
-        <p>On Android, several features use platform-specific implementations:</p>
+        <p>
+          On Android everything runs through the C++ backend; platform-specific behavior is gated
+          behind <code>#ifdef Q_OS_ANDROID</code> in the relevant managers (there is no Python mirror
+          for mobile). The desktop &harr; Android feature split:
+        </p>
         <table>
           <thead>
             <tr><th>Feature</th><th>Desktop</th><th>Android</th></tr>
@@ -307,33 +288,33 @@ buildozer android debug</code></pre>
           <tbody>
             <tr>
               <td>OBD-II</td>
-              <td>USB ELM327 via <code>python-obd</code></td>
-              <td>Bluetooth ELM327 via <code>AndroidOBDManager</code></td>
+              <td>USB / Bluetooth ELM327</td>
+              <td>Bluetooth &amp; BLE ELM327 (C++)</td>
             </tr>
             <tr>
-              <td>IMU Sensors</td>
-              <td>BerryIMU v3 via I2C (<code>smbus2</code>)</td>
-              <td>Device accelerometer/gyro via <code>AndroidSensorManager</code></td>
+              <td>Spotify</td>
+              <td>Full Web API integration</td>
+              <td>Excluded from the build (simpler OAuth, smaller footprint)</td>
             </tr>
             <tr>
-              <td>Phone Mirror</td>
-              <td>scrcpy-based screen mirroring</td>
-              <td>Disabled (stub)</td>
-            </tr>
-            <tr>
-              <td>Android Auto</td>
-              <td>Google DHU capture</td>
-              <td>Disabled (stub)</td>
+              <td>IMU / Gesture Sensors</td>
+              <td>BerryIMU + PAJ7620U2 via I2C (<code>smbus2</code>)</td>
+              <td>Not applicable (desktop/Pi hardware)</td>
             </tr>
             <tr>
               <td>Volume Knob</td>
               <td>ESP32 via USB serial</td>
-              <td>Disabled (stub)</td>
+              <td>Not applicable (desktop/Pi hardware)</td>
             </tr>
             <tr>
-              <td>Gesture Sensor</td>
-              <td>PAJ7620U2 via I2C</td>
-              <td>Disabled (stub)</td>
+              <td>Phone Mirror</td>
+              <td>scrcpy-based screen mirroring</td>
+              <td>Not applicable</td>
+            </tr>
+            <tr>
+              <td>Android Auto</td>
+              <td>Google DHU capture</td>
+              <td>Not applicable</td>
             </tr>
           </tbody>
         </table>
@@ -372,14 +353,14 @@ python main.py</code></pre>
 
         <!-- Dev Mode -->
         <h2 id="dev-mode">Developer Mode</h2>
-        <span class="file-path">dev/dev_main.py</span>
+        <span class="file-path">dev/main_dev.py</span>
         <p>
           Developer mode provides simulated OBD data and keyboard controls for testing without
           hardware or a vehicle connection. The <code>dev/</code> directory is fully isolated from
           production code and is gitignored.
         </p>
         <pre><code><span class="kw">source</span> venv/bin/activate
-python dev/dev_main.py</code></pre>
+python -m dev.main_dev</code></pre>
 
         <div class="info-box info">
           <div class="info-box-title">Dev Mode Features</div>
@@ -447,7 +428,6 @@ python dev/dev_main.py</code></pre>
 │   ├── settings/        <span class="cmt"># Settings pages and components</span>
 │   └── assets/          <span class="cmt"># Icons, fonts, 3D models</span>
 ├── <span class="prop">build_scripts/</span>       <span class="cmt"># Platform-specific build automation</span>
-├── <span class="prop">deployment/</span>          <span class="cmt"># Android build config and wheels</span>
 ├── <span class="prop">dev/</span>                 <span class="cmt"># Development tools (gitignored)</span>
 ├── <span class="prop">hardware/</span>            <span class="cmt"># 3D printed mount CAD files</span>
 ├── <span class="prop">tools/</span>               <span class="cmt"># Bundled utilities (scrcpy)</span>

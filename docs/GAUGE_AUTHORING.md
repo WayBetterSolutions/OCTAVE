@@ -169,7 +169,7 @@ Binary tell-tale indicator bound to a threshold condition. Small (ideally square
 | `triggerAbove`      | real   | `NaN`                                     | Light turns on when `value >= triggerAbove`.                       |
 | `triggerBelow`      | real   | `NaN`                                     | Light turns on when `value <= triggerBelow`. Both may be set.      |
 | `label`             | string | `""`                                      | Short text shown inside the light (e.g. `"TEMP"`, `"!"`, `"FUEL"`).|
-| `activeColor`       | color  | `"#E74C3C"` (red)                         | Bright color when lit.                                             |
+| `activeColor`       | color  | theme danger (`Style.statusDanger`, red) | Bright color when lit.                                             |
 | `inactiveColor`     | color  | dark tint of `obdBoxBackground`           | Dim color when off.                                                |
 | `activeLabelColor`  | color  | `"white"`                                 | Label color when lit.                                              |
 | `labelColor`        | color  | `App.Style.obdLabelColor`                 | Label color when off.                                              |

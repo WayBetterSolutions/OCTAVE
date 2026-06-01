@@ -34,7 +34,7 @@
         <!-- Architecture Overview -->
         <h2 id="architecture">QML Architecture Overview</h2>
 
-        <p>OCTAVE's frontend is built with <strong>Qt Quick 2.15</strong> (QML) using PySide6. The QML layer handles all visual presentation, animations, and user interaction. Business logic lives in Python backend manager classes that are exposed to QML as <strong>context properties</strong>.</p>
+        <p>OCTAVE's frontend is built with <strong>Qt Quick 2.15</strong> (QML). The QML layer handles all visual presentation, animations, and user interaction. Business logic lives in backend manager classes &mdash; C++ / Qt 6 in <code>src/</code> (the shipped binary) or the parallel Python / PySide6 backend in <code>backend/</code> &mdash; that are exposed to QML as <strong>context properties</strong>. The frontend works identically against either backend.</p>
 
         <div class="diagram">
 <pre>
@@ -331,10 +331,6 @@ settingsManager.<span class="fn">save_theme_setting</span>(newTheme)
         <span class="kw">if</span> (currentFile)
             mediaManager.<span class="fn">extract_colors_from_album_art</span>(currentFile)
     }
-}
-
-<span class="kw">function</span> <span class="fn">onEnvironmentThemeChanged</span>() {
-    App.EnvironmentTheme.<span class="fn">setEnvironment</span>(settingsManager.environmentTheme)
 }
 
 <span class="kw">function</span> <span class="fn">onFontSettingChanged</span>() {

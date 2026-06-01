@@ -127,6 +127,16 @@
           <strong>Tare Calibration:</strong> Mount the BerryIMU in any orientation, then use the "Calibrate Tare" button in the sensor page to set the current position as zero reference. The tare offset is stored as a quaternion and applied to all subsequent readings.
         </div>
 
+        <div class="info-box warning">
+          <div class="info-box-title">Enable I2C bus 2 first</div>
+          OCTAVE opens the BerryIMU and PAJ7620 on <strong>I2C bus 2</strong> (<code>/dev/i2c-2</code>),
+          which is <em>not</em> exposed on the Raspberry Pi's GPIO header by default &mdash; pins 3/5 are
+          <code>i2c-1</code> out of the box. Expose bus 2 with a device-tree overlay in
+          <code>/boot/firmware/config.txt</code> (e.g. an <code>i2c-gpio</code> overlay mapping SDA/SCL to
+          your wired pins), reboot, and confirm <code>ls /dev/i2c-2</code> succeeds before launching &mdash;
+          otherwise the sensors fail with &ldquo;device not found.&rdquo;
+        </div>
+
         <h3>Startup Sequence</h3>
         <ol class="steps">
           <li>1 second delay after app start (QTimer.singleShot)</li>

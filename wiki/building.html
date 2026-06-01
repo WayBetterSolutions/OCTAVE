@@ -230,10 +230,10 @@ LSMinimumSystemVersion: <span class="str">'10.14.0'</span>
         <!-- Android -->
         <h2 id="android">Android APK Build</h2>
         <span class="platform-badge android">Android</span>
-        <p>Android builds use Buildozer with a <code>buildozer.spec</code> configuration. The Android port uses stub managers from <span class="file-path">backend/stubs.py</span> to replace hardware-dependent features (OBD, IMU, gesture sensor, ESP32) with no-op implementations.</p>
+        <p>The Android <code>.apk</code> is built from the <strong>C++ / Qt 6</strong> tree in <span class="file-path">src/</span> using Qt's <code>qt-cmake</code> cross-compile wrapper &mdash; not from Python. The Python backend is desktop-only and is never packaged for mobile; platform-specific behavior is gated behind <code>#ifdef Q_OS_ANDROID</code> in the C++ managers. (The former Buildozer / python-for-android path has been removed.)</p>
 
         <div class="info-box info">
-          <strong>Platform Detection:</strong> <span class="file-path">backend/platform_config.py</span> detects Android via <code>hasattr(sys, 'getandroidapilevel')</code> or the <code>ANDROID_ROOT</code> environment variable. Android-specific data paths use the app's working directory.
+          <strong>Full toolchain:</strong> See <span class="file-path">BUILD.md</span> (<em>Android build</em>) for the complete setup &mdash; Qt for Android 6.7.3, OpenJDK 17, Android SDK + NDK <code>26.1.10909125</code>, and APK signing. A condensed walkthrough is on the <a href="getting-started.html#platform-android">Getting Started</a> page.
         </div>
 
         <!-- Troubleshooting -->

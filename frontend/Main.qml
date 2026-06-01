@@ -166,11 +166,6 @@ ApplicationWindow {
             // Set the UI scale from settings (now a user preference multiplier)
             App.Spacing.globalScale = settingsManager.uiScale
 
-            // Load environment theme
-            if (settingsManager.environmentTheme) {
-                App.EnvironmentTheme.setEnvironment(settingsManager.environmentTheme)
-            }
-
             // Load color transition speed
             App.Style.colorTransitionMs = settingsManager.colorTransitionMs
 
@@ -289,12 +284,6 @@ ApplicationWindow {
             }
         }
 
-        function onEnvironmentThemeChanged() {
-            if (settingsManager) {
-                App.EnvironmentTheme.setEnvironment(settingsManager.environmentTheme)
-            }
-        }
-
         function onFontSettingChanged() {
             if (settingsManager) {
                 App.Style.setFont(settingsManager.fontSetting)
@@ -385,7 +374,7 @@ ApplicationWindow {
             "OBDHome.qml":          { file: "OBDHome.qml",          props: { stackView: stackView, mainWindow: mainWindow } },
             "OBDMenu.qml":          { file: "OBDMenu.qml",          props: { stackView: stackView, mainWindow: mainWindow } },
             "OBDDiagnostics.qml":   { file: "OBDDiagnostics.qml",   props: { stackView: stackView, mainWindow: mainWindow } },
-            "SettingsMenu.qml":     { file: "SettingsMenu.qml",     props: { stackView: stackView, mainWindow: mainWindow } },
+            "SettingsMenu.qml":     { file: "SettingsMenu.qml",     props: { stackView: stackView, mainWindow: mainWindow, initialSection: "displaySettings" } },
             "PhoneMirrorView.qml":  { file: "PhoneMirrorView.qml",  props: { stackView: stackView } },
             "AndroidAutoView.qml":  { file: "AndroidAutoView.qml",  props: { stackView: stackView } },
             "SensorHome.qml":       { file: "SensorHome.qml",       props: { stackView: stackView, mainWindow: mainWindow } },
@@ -414,6 +403,34 @@ ApplicationWindow {
     function navigateHome() {
         stackView.pop(null)  // pop to the initial item
         console.log("[NAV] Returned to home")
+    }
+
+    // Open Settings on a specific section. Settings is special-cased because
+    // SettingsMenu has a `required property string initialSection` — the
+    // generic navigateTo() can't push it without one. Used by the command
+    // server / screenshot sweeper to walk every settings page. If already on
+    // Settings, switches section in place instead of stacking a new copy.
+    function navigateToSettings(section) {
+        var target = (section && section !== "") ? section : "displaySettings"
+        if (stackView.currentItem && stackView.currentItem.objectName === "settingsMenu") {
+            stackView.currentItem.navigateToCategory(target)
+            console.log("[NAV] Settings section ->", target)
+            return
+        }
+        var comp = Qt.createComponent("SettingsMenu.qml")
+        if (comp.status !== Component.Ready) {
+            console.warn("[NAV] SettingsMenu load failed:", comp.errorString())
+            return
+        }
+        var page = comp.createObject(stackView, {
+            stackView: stackView,
+            mainWindow: mainWindow,
+            initialSection: target
+        })
+        if (page) {
+            stackView.push(page)
+            console.log("[NAV] Pushed Settings ->", target)
+        }
     }
 
     function navigateBack() {

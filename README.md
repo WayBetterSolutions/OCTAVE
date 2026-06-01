@@ -117,7 +117,7 @@ After setup:
 source venv/bin/activate            # Windows: venv\Scripts\activate
 python main.py                       # normal run
 python main.py --debug               # verbose logging
-python dev/dev_main.py               # simulated OBD + keyboard controls
+python -m dev.main_dev               # simulated OBD + keyboard controls
 ```
 
 ### Running the C++ Build

@@ -1,7 +1,7 @@
 # Dashboards Roadmap — "Tony Hawk Create-A-Park for OBD Dashboards"
 
-**Status:** Phase 1 in progress. Phases 2 & 3 deferred.
-**Last updated:** 2026-04-19
+**Status:** Phase 1 complete. Phase 2 (JSON-defined dashboards) substantially landed — `DashboardRenderer.qml` + `DashboardManager` (C++ **and** Python peers) + JSON presets shipped and wired into `OBDMenu.qml`. Remaining Phase 2 polish (validation, user-dir hot-reload, side-by-side visual parity check) and Phase 3 (in-app editor) deferred.
+**Last updated:** 2026-05-24
 
 ---
 
@@ -9,7 +9,7 @@
 
 End goal: users build their own OBD dashboards from within the app, Tony-Hawk-create-a-park style. Drag gauge primitives onto a grid, wire them to PIDs, tweak thresholds and colors, save with a name. No code edits required.
 
-Today: dashboards are hand-written QML files under `frontend/dashboards/`, registered in `OBDMenu.qml`'s `dashboardRegistry` array. Three built-ins ship: Sport, Minimal, Full Grid.
+Today: dashboards are **JSON specs** under `frontend/dashboards/presets/`, rendered by `frontend/dashboards/DashboardRenderer.qml` and enumerated by `DashboardManager` (C++ `src/managers/dashboardmanager.{h,cpp}` + Python `backend/dashboard_manager.py`), which populates `OBDMenu.qml`'s `dashboardRegistry`. Four built-ins ship: Sport, Minimal, Full Grid, Performance.
 
 ---
 
@@ -19,7 +19,7 @@ The editor (Phase 3) is only tractable on top of a data-driven dashboard format 
 
 ---
 
-## Phase 1 — More primitives *(in progress)*
+## Phase 1 — More primitives *(complete)*
 
 Add gauge primitives to `frontend/gauges/` to widen what can be composed into a dashboard. Still hand-writing dashboard QML files; no new systems.
 
@@ -50,9 +50,12 @@ Each new primitive requires:
 
 ---
 
-## Phase 2 — JSON-defined dashboards *(deferred)*
+## Phase 2 — JSON-defined dashboards *(substantially landed)*
 
 **This is the hinge.** Do not attempt Phase 3 without this.
+
+**Landed:** `DashboardRenderer.qml` (spec → grid); four JSON presets in `frontend/dashboards/presets/` (`sport`, `minimal`, `fullgrid`, `performance`) all carrying `"schema": 1`; `DashboardManager` shipped in **both** backends (`src/managers/dashboardmanager.{h,cpp}` and `backend/dashboard_manager.py`) and wired into `OBDMenu.qml` via `dashboardRegistry` / `_rebuildRegistry()`.
+**Still to verify / finish:** spec validation against `OBDParameterModel` + the type whitelist (work item 5), the `"source"` QML-fallback field (item 6), user-dashboard dir hot-reload, and a side-by-side visual parity check vs. the old hand-written versions.
 
 ### Core idea
 
@@ -94,7 +97,7 @@ Stop hand-writing dashboard QML files. Define dashboards as data:
 2. **Spec location split:**
    - Built-ins: `frontend/dashboards/presets/*.json` (read-only, shipped in the bundle)
    - User-defined: `~/.config/OCTAVE/dashboards/*.json` on Linux (or platform equivalent via `QStandardPaths::AppConfigLocation`) — writable, survives across installs; parallels the existing `settingsConfigure.json` persistence pattern in `src/managers/settingsmanager.cpp`
-3. **Registry refactor in `OBDMenu.qml`:** instead of hardcoding `dashboardRegistry`, populate it from (built-in presets ∪ user dashboards). A new `src/managers/dashboardmanager.{h,cpp}` (C++ / Qt 6) enumerates both sources and exposes the list as a QML context property. (The Python `backend/` tree is legacy — all new manager work lands in C++. See CLAUDE.md.)
+3. **Registry refactor in `OBDMenu.qml`:** instead of hardcoding `dashboardRegistry`, populate it from (built-in presets ∪ user dashboards). `src/managers/dashboardmanager.{h,cpp}` (C++ / Qt 6) enumerates both sources and exposes the list as a QML context property, with a parallel `backend/dashboard_manager.py` peer for the Python dev backend (dual-backend parity — see CLAUDE.md). *(shipped)*
 4. **Schema versioning:** include `"schema": 1` in every spec so the format can evolve. If `DashboardRenderer` sees a newer schema than it supports, degrade gracefully (render a "this dashboard requires a newer OCTAVE" placeholder).
 5. **Validation:** on load, verify every `paramId` exists in `OBDParameterModel.allParameters` and every `type` exists in a small whitelist (the primitives listed above). Skip invalid cells with a log warning rather than crashing the whole dashboard.
 6. **Keep QML fallback:** a `"source": "path/to/Custom.qml"` field lets a dashboard bypass the JSON renderer entirely when someone needs to do something the grid can't express. Retains the current hand-written option for power users.
