@@ -22,12 +22,13 @@
             <li><a href="#overview">Overview</a></li>
             <li><a href="#primitives">Gauge primitives</a></li>
             <li><a href="#dashboards">Built-in dashboards</a></li>
+            <li><a href="#editor">Dashboard editor</a></li>
             <li><a href="#authoring">Authoring new gauges &amp; dashboards</a></li>
           </ul>
         </nav>
 
         <h2 id="overview">Overview</h2>
-        <p>OCTAVE ships with a small library of gauge primitives under <span class="file-path">frontend/gauges/</span> and three pre-built dashboards under <span class="file-path">frontend/dashboards/</span>. Dashboards render <strong>inline inside the OBD menu</strong> via a <code>Loader</code> — the default view is the parameter-card grid, and selecting a dashboard swaps the grid for the chosen layout in place. Selection is persisted as the <code>activeDashboard</code> setting.</p>
+        <p>OCTAVE ships with a small library of gauge primitives under <span class="file-path">frontend/gauges/</span> and a set of pre-built dashboards defined as <strong>JSON specs</strong> under <span class="file-path">frontend/dashboards/presets/</span>, rendered by <span class="file-path">frontend/dashboards/DashboardRenderer.qml</span>. Dashboards render <strong>inline inside the OBD menu</strong> — the default view is the parameter-card grid, and selecting a dashboard swaps the grid for the chosen layout in place. Selection is persisted as the <code>activeDashboard</code> setting. <code>DashboardManager</code> (C++ and Python, full parity) enumerates built-in presets plus user-authored dashboards from the OS config dir and exposes save / delete / duplicate.</p>
         <p>Entry point: a "Dashboards" pill at the top-right of the OBD menu opens a modal chooser listing "Parameter Cards" plus each registered dashboard. Tapping a choice swaps the content and closes the popup.</p>
         <p>Gauges bind to the <strong>OBDParameterModel</strong> singleton by <code>paramId</code> (e.g. <code>"RPM"</code>, <code>"SPEED"</code>) — title, unit, min and max are auto-populated from the model, and the live value updates reactively as the backend polls each PID. No manual signal wiring is required.</p>
 
@@ -42,8 +43,13 @@
             <tr><td><code>ArcGauge</code></td><td>Half-dial (180° top arc with readout below the chord). Compact, wide-aspect alternative to <code>CircularGauge</code> for speedometer-style layouts. Shares the same arc/tick/needle/redline engine.</td></tr>
             <tr><td><code>SparklineGauge</code></td><td>Rolling history line showing recent values. Use when motion matters more than absolute value — boost, load, fuel trim. Timer-sampled so the x-axis scale stays stable; <code>autoScale</code> rescales the y-axis to the visible window for small-swing PIDs.</td></tr>
             <tr><td><code>WarningLight</code></td><td>Binary tell-tale indicator bound to a <code>triggerAbove</code> / <code>triggerBelow</code> threshold. Composable — drop several into a row for an idiot-light strip, or overlay one atop a larger gauge as a critical alert.</td></tr>
+            <tr><td><code>GForceGauge</code></td><td>2D G-force dot with concentric rings, fading trail and total-G readout. Self-binding (no PID) — reads lateral/longitudinal acceleration from the BerryIMU.</td></tr>
+            <tr><td><code>CompassGauge</code></td><td>Rotating compass card with cardinal letters, fixed lubber line, and degrees/cardinal readout. Self-binding (no PID) — reads the BerryIMU magnetometer heading.</td></tr>
+            <tr><td><code>NowPlayingWidget</code></td><td>Album art + title + artist + progress for the active media source (local or Spotify, following the app-wide source setting). Self-binding, display-only.</td></tr>
+            <tr><td><code>MediaControlsWidget</code></td><td>Previous / play-pause / next transport buttons driving the active media source. Interactive in rendered dashboards.</td></tr>
           </tbody>
         </table>
+        <p>Sensor data also flows through the regular PID system: the BerryIMU publishes <code>PITCH</code>, <code>ROLL</code>, <code>HEADING</code>, <code>ALTITUDE</code>, <code>ACCEL_MAG</code>, <code>LATERAL_G</code>, <code>LONGITUDINAL_G</code> and <code>BARO_TEMP</code> as parameters in <code>OBDParameterModel</code>, so any gauge can bind them (lateral G on a sparkline, pitch on a linear gauge…), they appear in the editor's PID picker, and demo mode sweeps them like any other PID.</p>
 
         <h2 id="dashboards">Built-in dashboards</h2>
         <table>
@@ -52,12 +58,25 @@
             <tr><td><strong>Sport</strong></td><td>Huge digital speed readout + large RPM dial with redline, vitals strip (coolant / oil / fuel / throttle) along the bottom.</td></tr>
             <tr><td><strong>Minimal</strong></td><td>Three round circular gauges across the screen: Speed, RPM (with redline), Fuel.</td></tr>
             <tr><td><strong>Full Grid</strong></td><td>4×2 grid of compact circular gauges covering Speed, RPM, Coolant, Oil, Throttle, Engine Load, Fuel, and System Voltage.</td></tr>
+            <tr><td><strong>Performance</strong></td><td>Arc speedometer + rolling sparklines for load / boost / trim, with warning lights for overtemp and overrev.</td></tr>
           </tbody>
         </table>
 
+        <h2 id="editor">Dashboard editor</h2>
+        <p>Custom dashboards are built <strong>in-app</strong>, no file editing required. In the dashboard chooser, tap <strong>+ New</strong> to start from a blank grid, or use the action buttons on each card: <strong>Copy</strong> duplicates any dashboard (the only way to derive from a read-only built-in), and <strong>Edit</strong> / <strong>Delete</strong> appear on user-authored dashboards. Deleting asks for a confirming second tap.</p>
+        <p>The editor is hybrid tap-and-drag, designed for an in-car touchscreen:</p>
+        <ul>
+          <li><strong>Tap an empty grid cell</strong> (marked <code>+</code>) to open the widget palette and place a primitive there. The PID picker opens immediately after placing.</li>
+          <li><strong>Drag a placed widget</strong> to move it — it snaps to the grid, with a live green/red highlight showing whether the drop is valid. Invalid drops bounce back.</li>
+          <li><strong>Tap a placed widget</strong> to select it. A floating panel (docked to whichever side is away from the selection, so the canvas never rescales) edits its PID (searchable picker, filtered to the kinds the widget supports), column / row / width / height via stepper buttons, and per-widget options such as needle, redline, warn and trigger thresholds.</li>
+          <li><strong>Demo data</strong> (top bar toggle) sweeps plausible fake values through every PID so dashboards can be built and sized without a live OBD connection. It is editor-only and force-disabled when the editor closes.</li>
+        </ul>
+        <p>Leaving the editor without saving (e.g. switching menus mid-build) stashes the work as a draft — the chooser then shows a <strong>Resume draft</strong> button next to <strong>+ New</strong>. Saving or explicitly discarding clears the draft. Widgets scale their typography to their cell size and are clipped at the cell boundary, so no size you choose can spill data outside a widget's bounds.</p>
+        <p>Saving writes a schema-1 JSON spec through <code>dashboardManager.saveDashboard()</code> into the user dashboards directory, and the new dashboard appears in the chooser immediately. The widget set, palette metadata, and editable options all come from the <code>WidgetCatalog</code> singleton (<span class="file-path">frontend/dashboards/WidgetCatalog.qml</span>); editor sources live under <span class="file-path">frontend/dashboards/editor/</span>.</p>
+
         <h2 id="authoring">Authoring new gauges &amp; dashboards</h2>
         <p>The complete API reference, all 93 supported PID IDs, theme tokens, needle-angle math, and step-by-step recipes for adding a new dashboard or a new primitive live in <span class="file-path">docs/GAUGE_AUTHORING.md</span>. That document is the source of truth — update it whenever the gauge API changes.</p>
-        <p>Quick recipe: create <span class="file-path">frontend/dashboards/MyDashboard.qml</span> that composes gauge primitives in a layout, then append <code>{ id, label, source }</code> to the <code>dashboardRegistry</code> array in <span class="file-path">OBDMenu.qml</span>. The chooser popup picks it up automatically.</p>
+        <p>Quick recipe: build the dashboard in the in-app editor, or write a schema-1 JSON spec by hand — drop it in <span class="file-path">frontend/dashboards/presets/</span> to ship it as a built-in, or in the user dashboards directory (e.g. <span class="file-path">~/.config/OCTAVE/dashboards/</span> on Linux) for a local custom board. New gauge primitives must implement the shared binding API and be registered in <code>WidgetCatalog</code> to render and appear in the editor palette.</p>
 
         <div class="related-pages">
           <h3>Related Pages</h3>

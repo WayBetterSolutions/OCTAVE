@@ -57,7 +57,9 @@ That's it. The gauge is live, animated, and themed.
 
 ## 3. Primitives (frontend/gauges/)
 
-All four primitives share the same binding API:
+The PID-bound primitives share the same binding API (the self-binding widgets
+in §3.8–§3.11 are the exception — they read their data source directly and
+take no `paramId`):
 
 | Property       | Type    | Default                     | Notes                                                          |
 | -------------- | ------- | --------------------------- | -------------------------------------------------------------- |
@@ -177,6 +179,51 @@ Binary tell-tale indicator bound to a threshold condition. Small (ideally square
 
 Keep pulse off by default. Blinking is visually loud and in a car infotainment context should be used sparingly (overtemp, overrev, low oil pressure — not fuel trim drift).
 
+### 3.8 `GForceGauge` *(self-binding)*
+
+2D G-force dot: concentric rings + crosshair, a dot driven by lateral (x) and
+longitudinal (y) acceleration, optional fading trail and total-G readout.
+Reads `LATERAL_G` / `LONGITUDINAL_G` from `OBDParameterModel` (fed by
+`berryIMU`) — **no `paramId`**, `octaveSupportedKinds: []`.
+
+| Property    | Type | Default | Notes                              |
+| ----------- | ---- | ------- | ---------------------------------- |
+| `maxG`      | real | `1.5`   | g at the outer ring.               |
+| `showTrail` | bool | `true`  | 2-second fading dot trail.         |
+| `showValue` | bool | `true`  | Total-G readout, bottom center.    |
+
+### 3.9 `CompassGauge` *(self-binding)*
+
+Rotating compass card (ticks + cardinal letters, letters counter-rotated to
+stay upright) under a fixed lubber line, with optional center degrees + the
+cardinal abbreviation. Reads `HEADING` from `OBDParameterModel` (fed by
+`berryIMU`) — **no `paramId`**, `octaveSupportedKinds: []`. This is the
+CompassGauge the dashboards roadmap deferred until heading data existed.
+
+| Property      | Type | Default | Notes                       |
+| ------------- | ---- | ------- | --------------------------- |
+| `showDegrees` | bool | `true`  | Center "247° / WSW" readout.|
+
+### 3.10 `NowPlayingWidget` *(self-binding, lives in `frontend/dashboards/widgets/`)*
+
+Album art + title + artist + progress bar for the active media source. Follows
+the app-wide source rule (`settingsManager.mediaSource == "spotify"` AND
+Spotify connected → Spotify, else local media) and re-resolves on source /
+connection / track changes. Display-only.
+
+| Property       | Type | Default | Notes                  |
+| -------------- | ---- | ------- | ---------------------- |
+| `showArt`      | bool | `true`  | Album art square.      |
+| `showArtist`   | bool | `true`  | Artist line.           |
+| `showProgress` | bool | `true`  | Position/duration bar. |
+
+### 3.11 `MediaControlsWidget` *(self-binding, lives in `frontend/dashboards/widgets/`)*
+
+Previous / play-pause / next transport buttons driving the active media source
+(same source rule as `NowPlayingWidget`). Interactive in rendered dashboards;
+inside the editor canvas the selection/drag layer sits on top, so taps select
+the cell instead of skipping tracks. No editable props.
+
 ---
 
 ## 4. Styling & theme tokens
@@ -245,13 +292,27 @@ Per cell: `type` matches a widget file in `frontend/gauges/` (`CircularGauge`, `
 
 ### 5.3 Add a user dashboard
 
-Drop a JSON file with the same schema under the OS config dir:
+**Primary path — the in-app editor (Phase 3, shipped).** In the dashboard
+chooser (square Dashboards button at the top-right of `OBDMenu.qml`), tap
+**+ New** — or **Edit** on a user dashboard, or **Copy** to fork a built-in.
+The editor is hybrid tap-and-drag: tap an empty grid cell to place a widget
+from the palette, drag a placed widget to move it (snaps to the grid, invalid
+drops bounce back), tap a widget to select it and edit its PID / position /
+span / curated props in the side panel. Saving writes the JSON below through
+`dashboardManager.saveDashboard()` and the chooser refreshes immediately.
+Editor sources live in `frontend/dashboards/editor/` (`DashboardEditor`,
+`EditorCanvas`, `PalettePopup`, `PIDPicker`, `PropertiesPanel`); the widget
+set, palette metadata, and curated editable props all come from the
+`WidgetCatalog` singleton (`frontend/dashboards/WidgetCatalog.qml`).
+
+**Manual path.** Drop a JSON file with the same schema under the OS config dir:
 
 - Linux: `~/.config/OCTAVE/dashboards/my-board.json`
 - macOS: `~/Library/Application Support/OCTAVE/dashboards/my-board.json`
 - Windows: `%APPDATA%/OCTAVE/dashboards/my-board.json`
 
-The app re-scans when `DashboardManager.refresh()` is called. The future in-app editor (Phase 3) will do this automatically; today, restart the app or call `dashboardManager.refresh()` from QML for a live re-scan.
+The app re-scans when `DashboardManager.refresh()` is called; for a hand-dropped
+file, restart the app or call `dashboardManager.refresh()` from QML.
 
 ### 5.4 Registry rules
 
@@ -323,8 +384,25 @@ EGR / emissions: `COMMANDED_EGR`, `EGR_ERROR`.
 Misc: `ABSOLUTE_LOAD`, `MAX_MAF`, `HYBRID_BATTERY_REMAINING`,
 `ELM_VOLTAGE`.
 
+### Sensor parameters (BerryIMU, not OBD)
+
+Fed into `OBDParameterModel.paramValues` by the `berryIMU` manager instead of
+`obdManager`, but otherwise identical: any gauge can bind them by `paramId`,
+the PID picker lists them, and the editor's demo mode sweeps them.
+
+| `paramId`        | Title           | Unit | Min  | Max  | Kind          |
+| ---------------- | --------------- | ---- | ---- | ---- | ------------- |
+| `PITCH`          | Pitch           | °    |  -90 |   90 | bidirectional |
+| `ROLL`           | Roll            | °    | -180 |  180 | bidirectional |
+| `HEADING`        | Heading         | °    |    0 |  360 | numeric       |
+| `ALTITUDE`       | Altitude        | m    |    0 | 3000 | numeric       |
+| `ACCEL_MAG`      | G Magnitude     | g    |    0 |    3 | numeric       |
+| `LATERAL_G`      | Lateral G       | g    |   -2 |    2 | bidirectional |
+| `LONGITUDINAL_G` | Longitudinal G  | g    |   -2 |    2 | bidirectional |
+| `BARO_TEMP`      | Cabin Baro Temp | °C   |  -20 |   60 | temperature   |
+
 Full metadata (units, min, max) lives in `frontend/OBDParameterModel.qml`
-lines 8–103 — grep there when in doubt.
+— grep there when in doubt.
 
 ---
 
@@ -339,7 +417,15 @@ lines 8–103 — grep there when in doubt.
    the raw `value` — that's upstream.
 4. Use `Shape` + `ShapePath` + `PathAngleArc` for curves (GPU-accelerated).
    Use `Rectangle` + `transformOrigin` + `rotation` for small marks.
-5. Add an entry to this document under §3.
+5. Declare `octaveSupportedKinds` (array of PID `kind` strings, or `["*"]`)
+   near the top — the editor's PID picker filters on it.
+6. Register the widget in `frontend/dashboards/WidgetCatalog.qml`: type, url,
+   display name, palette glyph, default span, `supportedKinds` (must mirror
+   step 5), and the curated `editableProps` (with honest `def` values) the
+   editor's properties panel exposes. The renderer, palette, and properties
+   panel all read from the catalog — a widget missing there won't render or
+   be placeable.
+7. Add an entry to this document under §3.
 
 ### Needle/angle math cheat sheet
 
@@ -386,9 +472,22 @@ frontend/
 │   ├── DigitalReadout.qml     big number + label + unit
 │   ├── ArcGauge.qml           half-dial (top arc) with readout below
 │   ├── SparklineGauge.qml     rolling history line (timer-sampled)
-│   └── WarningLight.qml       binary tell-tale indicator bound to a threshold
+│   ├── WarningLight.qml       binary tell-tale indicator bound to a threshold
+│   ├── GForceGauge.qml        2D G-dot + trail (self-binding: LATERAL_G/LONGITUDINAL_G)
+│   └── CompassGauge.qml       rotating compass card (self-binding: HEADING)
 ├── dashboards/
+│   ├── widgets/               self-binding non-gauge dashboard widgets
+│   │   ├── NowPlayingWidget.qml    art + title + artist + progress (media/Spotify)
+│   │   └── MediaControlsWidget.qml prev / play-pause / next transport
 │   ├── DashboardRenderer.qml  JSON spec → grid of widget instances
+│   ├── WidgetCatalog.qml      singleton: type → url + palette metadata +
+│   │                          supportedKinds + curated editableProps
+│   ├── editor/                Phase 3 in-app editor ("create-a-park")
+│   │   ├── DashboardEditor.qml   full-screen page; owns the working spec
+│   │   ├── EditorCanvas.qml      tap-to-place targets + drag-to-move grid
+│   │   ├── PalettePopup.qml      widget palette (reads WidgetCatalog)
+│   │   ├── PIDPicker.qml         searchable PID list, kind-filtered
+│   │   └── PropertiesPanel.qml   PID / position / span / props inspector
 │   └── presets/               built-in dashboard JSON specs (ship with bundle)
 │       ├── sport.json         big speed + RPM dial + vitals strip
 │       ├── minimal.json       three round gauges: speed, RPM, fuel

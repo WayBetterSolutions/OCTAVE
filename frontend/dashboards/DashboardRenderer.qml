@@ -45,22 +45,12 @@ Item {
     // by DashboardManager; can also be an inline object literal for testing.
     property var spec: null
 
-    // Widget registry: type-string → absolute QML source URL. Resolved via
-    // Qt.resolvedUrl() against this file's location (frontend/dashboards/),
-    // so the `../gauges/` prefix works from any loading context (main view
-    // or chooser miniatures).
-    readonly property var _widgetRegistry: ({
-        "CircularGauge":  Qt.resolvedUrl("../gauges/CircularGauge.qml"),
-        "ArcGauge":       Qt.resolvedUrl("../gauges/ArcGauge.qml"),
-        "BarGauge":       Qt.resolvedUrl("../gauges/BarGauge.qml"),
-        "LinearGauge":    Qt.resolvedUrl("../gauges/LinearGauge.qml"),
-        "DigitalReadout": Qt.resolvedUrl("../gauges/DigitalReadout.qml"),
-        "SparklineGauge": Qt.resolvedUrl("../gauges/SparklineGauge.qml"),
-        "WarningLight":   Qt.resolvedUrl("../gauges/WarningLight.qml")
-    })
-
+    // Widget registry: type-string → absolute QML source URL. Owned by the
+    // App.WidgetCatalog singleton so the renderer, the editor palette, and the
+    // editor properties panel all agree on the supported primitive set without
+    // drift (see frontend/dashboards/WidgetCatalog.qml).
     function sourceForType(typeName) {
-        return _widgetRegistry[typeName] || ""
+        return App.WidgetCatalog.urlFor(typeName)
     }
 
     function _coerce(v) {
@@ -103,6 +93,9 @@ Item {
             y: root._margin + _row * (root._cellH + root._spacing)
             width:  _colSpan * root._cellW + (_colSpan - 1) * root._spacing
             height: _rowSpan * root._cellH + (_rowSpan - 1) * root._spacing
+            // Hard backstop: a widget's content may never paint outside its
+            // cell, however small the user sizes it.
+            clip: true
 
             Loader {
                 id: widgetLoader
@@ -125,7 +118,10 @@ Item {
 
                     // Bind PID first so widget metadata (title/unit/min/max)
                     // auto-populates before any explicit prop overrides.
-                    if (modelData.paramId !== undefined) {
+                    // Skipped for empty ids and for self-binding widgets
+                    // that have no paramId property (Now Playing, G-Force…).
+                    if (modelData.paramId !== undefined && modelData.paramId !== ""
+                            && item.paramId !== undefined) {
                         item.paramId = modelData.paramId
                     }
 

@@ -55,6 +55,16 @@ Item {
     property int alignment: Qt.AlignHCenter   // Qt.AlignLeft / AlignHCenter / AlignRight
 
     // ── Computed ────────────────────────────────────────────────────
+    // Shrink the whole stack when the cell is shorter than the natural
+    // height of title + value + unit at default sizes, so the readout
+    // scales with its widget instead of spilling out of a small cell.
+    readonly property real _naturalH:
+        (showTitle && title.length > 0 ? App.Spacing.overallText * 0.85 : 0)
+      + App.Spacing.overallText * valueScale
+      + (showUnit && unit.length > 0 ? App.Spacing.overallText * 0.85 : 0)
+      + App.Spacing.dp(6)
+    readonly property real _vfit: Math.min(1, height / Math.max(1, _naturalH))
+
     readonly property string _formatted: {
         var v = value.toFixed(decimals)
         if (padDigits > 0) {
@@ -77,7 +87,7 @@ Item {
             visible: root.showTitle && root.title.length > 0
             text: root.title
             color: root.labelColor
-            font.pixelSize: App.Spacing.overallText * 0.85
+            font.pixelSize: Math.max(1, App.Spacing.overallText * 0.85 * root._vfit)
             font.family: App.Style.fontFamily
             width: parent.width
             horizontalAlignment: root.alignment
@@ -87,7 +97,7 @@ Item {
         Text {
             text: root._formatted
             color: root.valueColor
-            font.pixelSize: App.Spacing.overallText * root.valueScale
+            font.pixelSize: Math.max(1, App.Spacing.overallText * root.valueScale * root._vfit)
             font.bold: true
             font.family: App.Style.fontFamily
             width: parent.width
@@ -95,14 +105,14 @@ Item {
             // Keep digits from jumping in width as they change
             font.styleName: "Bold"
             fontSizeMode: Text.HorizontalFit
-            minimumPixelSize: App.Spacing.overallText
+            minimumPixelSize: 1
         }
 
         Text {
             visible: root.showUnit && root.unit.length > 0
             text: root.unit
             color: root.unitColor
-            font.pixelSize: App.Spacing.overallText * 0.85
+            font.pixelSize: Math.max(1, App.Spacing.overallText * 0.85 * root._vfit)
             font.family: App.Style.fontFamily
             width: parent.width
             horizontalAlignment: root.alignment

@@ -80,6 +80,11 @@ Item {
 
     readonly property bool _horizontal: orientation === "horizontal"
 
+    // Shrink typography in cells smaller than the size the default type was
+    // tuned for, so labels never spill out of a small editor cell.
+    readonly property real _fontFit: Math.max(0.1, Math.min(1,
+        height / App.Spacing.dp(70), width / App.Spacing.dp(140)))
+
     // ── Layout ──────────────────────────────────────────────────────
     // Horizontal:  [ Title ........ Value Unit ]
     //              [ ===========════════════    ]   ← bar
@@ -101,7 +106,9 @@ Item {
             anchors.top: parent.top
             anchors.right: parent.right
             height: root.showLabel || root.showValue
-                    ? Math.max(App.Spacing.overallText, App.Spacing.dp(14)) : 0
+                    ? Math.min(Math.max(App.Spacing.overallText, App.Spacing.dp(14)),
+                               root.height * 0.4)
+                    : 0
             spacing: App.Spacing.dp(6)
 
             Text {
@@ -109,7 +116,7 @@ Item {
                 visible: root.showLabel
                 text: root.title
                 color: root.labelColor
-                font.pixelSize: App.Spacing.overallText * 0.9
+                font.pixelSize: Math.max(1, App.Spacing.overallText * 0.9 * root._fontFit)
                 font.family: App.Style.fontFamily
                 anchors.verticalCenter: parent.verticalCenter
                 elide: Text.ElideRight
@@ -118,7 +125,7 @@ Item {
                 visible: root.showValue
                 text: root.value.toFixed(root.decimals) + (root.unit ? " " + root.unit : "")
                 color: root.valueColor
-                font.pixelSize: App.Spacing.overallText * 0.95
+                font.pixelSize: Math.max(1, App.Spacing.overallText * 0.95 * root._fontFit)
                 font.bold: true
                 font.family: App.Style.fontFamily
                 anchors.verticalCenter: parent.verticalCenter
@@ -131,7 +138,7 @@ Item {
             visible: !root._horizontal && root.showLabel
             text: root.title
             color: root.labelColor
-            font.pixelSize: App.Spacing.overallText * 0.85
+            font.pixelSize: Math.max(1, App.Spacing.overallText * 0.85 * root._fontFit)
             font.family: App.Style.fontFamily
             anchors.top: parent.top
             anchors.horizontalCenter: parent.horizontalCenter
@@ -146,7 +153,7 @@ Item {
             visible: !root._horizontal && root.showValue
             text: root.value.toFixed(root.decimals) + (root.unit ? " " + root.unit : "")
             color: root.valueColor
-            font.pixelSize: App.Spacing.overallText * 0.95
+            font.pixelSize: Math.max(1, App.Spacing.overallText * 0.95 * root._fontFit)
             font.bold: true
             font.family: App.Style.fontFamily
             anchors.bottom: parent.bottom

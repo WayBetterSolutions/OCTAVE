@@ -207,10 +207,14 @@ Item {
         anchors.verticalCenterOffset: root.showNeedle ? -root._arcR * 0.45 : 0
         spacing: App.Spacing.dp(2)
 
+        // Font sizes are capped by the arc radius so the readout scales
+        // with the gauge — editor cells can be tiny, and the default
+        // App.Spacing sizes would spill outside a small dial.
         Text {
             text: root.title
             color: root.labelColor
-            font.pixelSize: App.Spacing.overallText * 0.85
+            font.pixelSize: Math.max(1, Math.min(App.Spacing.overallText * 0.85,
+                                                 root._arcR * 0.22))
             font.family: App.Style.fontFamily
             anchors.horizontalCenter: parent.horizontalCenter
             horizontalAlignment: Text.AlignHCenter
@@ -220,8 +224,9 @@ Item {
         Text {
             text: root.value.toFixed(root.decimals)
             color: root.valueColor
-            font.pixelSize: root.showNeedle ? App.Spacing.overallText * 1.3
-                                            : App.Spacing.overallText * 1.9
+            font.pixelSize: root.showNeedle
+                            ? Math.max(1, Math.min(App.Spacing.overallText * 1.3, root._arcR * 0.3))
+                            : Math.max(1, Math.min(App.Spacing.overallText * 1.9, root._arcR * 0.42))
             font.bold: true
             font.family: App.Style.fontFamily
             anchors.horizontalCenter: parent.horizontalCenter
@@ -229,7 +234,8 @@ Item {
         Text {
             text: root.unit
             color: root.labelColor
-            font.pixelSize: App.Spacing.overallText * 0.75
+            font.pixelSize: Math.max(1, Math.min(App.Spacing.overallText * 0.75,
+                                                 root._arcR * 0.18))
             font.family: App.Style.fontFamily
             anchors.horizontalCenter: parent.horizontalCenter
         }

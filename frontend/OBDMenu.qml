@@ -69,6 +69,11 @@ Item {
         if (settingsManager) settingsManager.save_setting("activeDashboard", id)
     }
 
+    // Unsaved editor work rescued by DashboardEditor's Component.onDestruction
+    // (e.g. user switched menus mid-build). Refreshed each time the chooser opens;
+    // non-empty shows the "Resume draft" button.
+    property string _editorDraft: ""
+
     // Display label for the currently-active dashboard, derived from the
     // registry so custom user dashboards show their real name in the header.
     readonly property string activeDashboardLabel: {
@@ -582,7 +587,14 @@ Item {
         // hiding the gauge value-binding animation that would otherwise
         // play out after the popup is already visible.
         property bool preloadMinis: false
-        onAboutToShow: preloadMinis = true
+        onAboutToShow: {
+            preloadMinis = true
+            // Re-check for an abandoned editor draft (saved when the editor
+            // page is destroyed mid-edit, e.g. by switching menus).
+            obdPage._editorDraft = settingsManager
+                ? settingsManager.get_setting_with_default("dashboardEditorDraft", "")
+                : ""
+        }
         onClosed: preloadMinis = false
 
         background: Rectangle {
@@ -623,6 +635,93 @@ Item {
                     height: 1
                     color: Qt.darker(App.Style.obdBarColor, 1.8)
                     opacity: 0.6
+                }
+            }
+
+            // Launch the Phase 3 editor on a blank spec. Edit/Duplicate/Delete
+            // live as per-card action buttons below.
+            Rectangle {
+                id: newDashboardButton
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.topMargin: App.Spacing.mediaRoomMargin
+                anchors.leftMargin: App.Spacing.mediaRoomMargin
+                height: App.Spacing.bottomBarNavButtonHeight
+                width: newDashboardLabel.implicitWidth + dp(24)
+                radius: dpMin(8, 2)
+                color: "transparent"
+                border.color: App.Style.accent
+                border.width: 1
+                scale: newDashboardMouse.pressed ? 0.9 : 1.0
+                Behavior on scale {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                }
+
+                Text {
+                    id: newDashboardLabel
+                    anchors.centerIn: parent
+                    text: "+ New"
+                    color: App.Style.accent
+                    font.pixelSize: App.Spacing.overallText
+                    font.bold: true
+                    font.family: obdPage.globalFont
+                }
+
+                MouseArea {
+                    id: newDashboardMouse
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        dashboardChooserPopup.close()
+                        obdPage.stackView.push("dashboards/editor/DashboardEditor.qml", {
+                            stackView: obdPage.stackView,
+                            callerPage: obdPage
+                        })
+                    }
+                }
+            }
+
+            // Resume an editor draft rescued from a mid-build menu switch.
+            Rectangle {
+                id: resumeDraftButton
+                visible: obdPage._editorDraft.length > 0
+                anchors.top: parent.top
+                anchors.left: newDashboardButton.right
+                anchors.topMargin: App.Spacing.mediaRoomMargin
+                anchors.leftMargin: dp(8)
+                height: App.Spacing.bottomBarNavButtonHeight
+                width: resumeDraftLabel.implicitWidth + dp(24)
+                radius: dpMin(8, 2)
+                color: "transparent"
+                border.color: App.Style.accent
+                border.width: 1
+                scale: resumeDraftMouse.pressed ? 0.9 : 1.0
+                Behavior on scale {
+                    NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 }
+                }
+
+                Text {
+                    id: resumeDraftLabel
+                    anchors.centerIn: parent
+                    text: "▲ Resume draft"
+                    color: App.Style.accent
+                    font.pixelSize: App.Spacing.overallText
+                    font.bold: true
+                    font.family: obdPage.globalFont
+                }
+
+                MouseArea {
+                    id: resumeDraftMouse
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        dashboardChooserPopup.close()
+                        obdPage.stackView.push("dashboards/editor/DashboardEditor.qml", {
+                            stackView: obdPage.stackView,
+                            callerPage: obdPage,
+                            draftJson: obdPage._editorDraft
+                        })
+                    }
                 }
             }
 
@@ -720,6 +819,44 @@ Item {
                         model: obdPage.dashboardRegistry
                         delegate: Rectangle {
                             id: card
+
+                            // The dashboard entry — aliased so the nested
+                            // action-button Repeater (whose own modelData
+                            // shadows this one) can still reach it.
+                            readonly property var dash: modelData
+
+                            // Two-tap delete confirm ("Delete" → "Sure?").
+                            property bool confirmingDelete: false
+                            Timer {
+                                id: deleteConfirmTimer
+                                interval: 3000
+                                onTriggered: card.confirmingDelete = false
+                            }
+
+                            function triggerAction(action) {
+                                if (action === "edit") {
+                                    dashboardChooserPopup.close()
+                                    obdPage.stackView.push("dashboards/editor/DashboardEditor.qml", {
+                                        stackView: obdPage.stackView,
+                                        callerPage: obdPage,
+                                        editingId: card.dash.id
+                                    })
+                                } else if (action === "duplicate") {
+                                    // Empty label → manager appends " (Copy)".
+                                    dashboardManager.duplicateDashboard(card.dash.id, "")
+                                } else if (action === "delete") {
+                                    if (!card.confirmingDelete) {
+                                        card.confirmingDelete = true
+                                        deleteConfirmTimer.restart()
+                                        return
+                                    }
+                                    card.confirmingDelete = false
+                                    var wasActive = obdPage.activeDashboardId === card.dash.id
+                                    if (dashboardManager.deleteDashboard(card.dash.id) && wasActive)
+                                        obdPage.setActiveDashboard("grid")
+                                }
+                            }
+
                             Layout.fillWidth: true
                             Layout.preferredHeight: width * 0.72
                             radius: dpMin(12, 4)
@@ -857,6 +994,57 @@ Item {
                                 onClicked: {
                                     obdPage.setActiveDashboard(modelData.id)
                                     dashboardChooserPopup.close()
+                                }
+                            }
+
+                            // Card actions (Phase 3 Milestone C): always-visible
+                            // buttons, no long-press (discoverability-hostile in
+                            // a glance-and-go in-car UI — see roadmap). Duplicate
+                            // on every JSON dashboard; Edit/Delete only on
+                            // user-authored ones. The "grid" sentinel (Parameter
+                            // Cards) has no JSON spec, so no actions at all.
+                            Row {
+                                visible: card.dash.id !== "grid"
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.topMargin: dp(8)
+                                anchors.rightMargin: dp(8)
+                                spacing: dp(6)
+                                z: 2
+
+                                Repeater {
+                                    model: [
+                                        { "action": "edit",      "label": "Edit",   "danger": false, "show": card.dash.builtIn === false },
+                                        { "action": "duplicate", "label": "Copy",   "danger": false, "show": true },
+                                        { "action": "delete",    "label": "Delete", "danger": true,  "show": card.dash.builtIn === false }
+                                    ]
+                                    delegate: Rectangle {
+                                        visible: modelData.show
+                                        width: actionLabel.implicitWidth + dp(16)
+                                        height: actionLabel.implicitHeight + dp(10)
+                                        radius: dpMin(6, 2)
+                                        color: Qt.rgba(0, 0, 0, actionMouse.pressed ? 0.7 : 0.45)
+                                        border.color: modelData.danger ? App.Style.statusDanger : App.Style.accent
+                                        border.width: 1
+
+                                        Text {
+                                            id: actionLabel
+                                            anchors.centerIn: parent
+                                            text: (modelData.action === "delete" && card.confirmingDelete)
+                                                  ? "Sure?" : modelData.label
+                                            color: modelData.danger ? App.Style.statusDanger : App.Style.accent
+                                            font.pixelSize: App.Spacing.overallText * 0.75
+                                            font.bold: true
+                                            font.family: obdPage.globalFont
+                                        }
+
+                                        MouseArea {
+                                            id: actionMouse
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: card.triggerAction(modelData.action)
+                                        }
+                                    }
                                 }
                             }
                         }

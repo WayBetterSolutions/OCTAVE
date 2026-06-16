@@ -1,7 +1,7 @@
 # Dashboards Roadmap — "Tony Hawk Create-A-Park for OBD Dashboards"
 
-**Status:** Phase 1 complete. Phase 2 (JSON-defined dashboards) substantially landed — `DashboardRenderer.qml` + `DashboardManager` (C++ **and** Python peers) + JSON presets shipped and wired into `OBDMenu.qml`. Remaining Phase 2 polish (validation, user-dir hot-reload, side-by-side visual parity check) and Phase 3 (in-app editor) deferred.
-**Last updated:** 2026-05-24
+**Status:** Phases 1–2 complete. **Phase 3 editor code-complete (Milestones A–D landed 2026-06-10)** — tap-to-place + drag-to-move canvas, palette, PID picker, properties panel with curated props, and chooser New/Edit/Copy/Delete affordances all shipped; docs + wiki updated. Awaiting on-device verification (qmllint unavailable in the WSL env used to write it — venv built on another machine). Remaining work: the deferred Phase 2 fast-follow (renderer validation + user-dir hot-reload).
+**Last updated:** 2026-06-10
 
 ---
 
@@ -39,7 +39,7 @@ Pick these up if a dashboard needs them — low priority until a concrete use ca
 
 - **`SegmentedBar`** — staircase/boost-gauge style bar with discrete cells. Aesthetic; could be achieved with BarGauge + visual styling for now.
 - **`MultiReadout`** — stacked mini digits for related PIDs (e.g. short/long fuel trim side-by-side). Niche; compose from multiple DigitalReadouts first.
-- **`CompassGauge`** — rotation-based dial. Only useful once we have heading data; BerryIMU publishes magnetometer but there's no `HEADING` PID yet.
+- ~~**`CompassGauge`** — rotation-based dial. Only useful once we have heading data; BerryIMU publishes magnetometer but there's no `HEADING` PID yet.~~ *(delivered 2026-06-10: `HEADING` + 7 more BerryIMU parameters now flow through `OBDParameterModel`, and `CompassGauge`/`GForceGauge` plus music widgets (`NowPlayingWidget`, `MediaControlsWidget` in `frontend/dashboards/widgets/`) shipped as self-binding editor widgets — `supportedKinds: []` hides the PID picker for them.)*
 
 Each new primitive requires:
 1. Implement in `frontend/gauges/` following the shared binding API (see `docs/GAUGE_AUTHORING.md` §3 and §7)
@@ -118,47 +118,123 @@ Stop hand-writing dashboard QML files. Define dashboards as data:
 
 ---
 
-## Phase 3 — In-app editor ("create-a-park mode") *(deferred)*
+## Phase 3 — In-app editor ("create-a-park mode") *(in progress)*
 
-Only meaningful once Phase 2 is in place. The editor is fundamentally "a GUI for the Phase 2 JSON format."
+The editor is fundamentally "a GUI for the Phase 2 JSON format." Phase 2 is in
+place, so this is unblocked.
 
-### UX sketch
+### The backend is already done
 
-- Chooser popup (`OBDMenu.qml` currently) gets three new actions:
-  - **"New"** button pinned at the top — opens editor on a blank spec
-  - **"Duplicate"** on long-press of any built-in card — clones to user dir, opens editor
-  - **"Edit"** on long-press of any user card — opens editor on existing spec
-  - **"Delete"** on long-press of user cards (built-ins can't be deleted)
-- Editor = full-screen page (new `frontend/dashboards/DashboardEditor.qml`), StackView-pushed from the chooser:
-  - **Canvas** (center, majority) — live grid showing current spec, renders in real time
-  - **Palette** (left side) — scrollable list of primitive types. Drag-drop onto canvas.
-  - **Properties panel** (right side) — appears when a cell is selected; PID picker, range overrides, color overrides, threshold props
-  - **Top bar** — name field, Save, Cancel, Delete (if editing existing)
-- Interaction model:
-  - **Tap cell** to select (properties panel populates)
-  - **Long-press-drag** to move (avoids fighting the scroll-to-pan Flickable gesture used elsewhere)
-  - **Resize handles** on selected cell, snap to grid
-  - **Tap empty grid cell** to add a new cell (opens palette)
+**Critical correction to the original plan:** `DashboardManager` (C++
+`src/managers/dashboardmanager.{h,cpp}` **and** Python
+`backend/dashboard_manager.py`, full parity) already ships everything the editor
+needs to persist:
 
-### Work items
+- `saveDashboard(QVariantMap spec) -> QString id` — writes user JSON; **requires
+  both `id` and `label` in the spec**, rejects collisions with a built-in id,
+  returns `""` on failure. (User-id collisions overwrite — the editor must
+  generate a unique id itself; see below.)
+- `deleteDashboard(QString id) -> bool` — removes user JSON, refuses built-ins
+- `duplicateDashboard(QString sourceId, QString newLabel) -> QString id` —
+  clones to user dir with an auto-slugified unique id
+- `loadDashboard(QString id) -> QVariant`, `isBuiltIn(QString id) -> bool`,
+  `refresh()`, and the `dashboardsChanged()` signal (already auto-rebuilds
+  `OBDMenu.qml`'s `dashboardRegistry`).
 
-1. `frontend/dashboards/DashboardEditor.qml` — the editor page itself
-2. `frontend/dashboards/editor/` subfolder with:
-   - `Palette.qml` — draggable primitive list
-   - `PropertiesPanel.qml` — inspector for selected cell
-   - `CanvasGrid.qml` — the editable grid (shares rendering with `DashboardRenderer` but adds selection/drag affordances)
-   - `PIDPicker.qml` — searchable list of all 93 PIDs grouped by category
-3. Backend additions to `src/managers/dashboardmanager.{h,cpp}` (C++):
-   - `Q_INVOKABLE saveDashboard(QVariantMap spec) -> QString id` — writes JSON to user dir
-   - `Q_INVOKABLE deleteDashboard(QString id)` — removes user JSON (no-op on built-ins)
-   - `Q_INVOKABLE duplicateDashboard(QString sourceId, QString newName) -> QString id` — copies built-in/user to a new user file
+**Consequence: the editor MVP is pure QML.** No `CMakeLists.txt` / `main.py`
+churn, no C++↔Python parity work for the MVP. The only thing the backend
+doesn't expose is "generate a unique id from a label" — the editor does this in
+QML (slugify + uniquify against `dashboardManager.dashboards`), mirroring the
+manager's internal `_slugify`/`_uniqueId` logic, so no new slot is needed.
+
+### Interaction model — HYBRID (amended 2026-06-10, shipped)
+
+Originally tap-to-place only (decided 2026-05-31). Amended per user preference:
+the drag-vs-scroll worry only ever applied to the chooser's Flickable, and the
+editor canvas is a full-screen non-scrolling page, so drag is safe there. The
+shipped model:
+
+- **Tap an empty grid cell** ([+] target) → palette popup → pick a primitive →
+  it fills that cell at its default span (clamped + shrunk to fit free space),
+  and the PID picker opens immediately.
+- **Drag a placed cell** → moves it, snapping to the grid on release. A live
+  highlight shows the candidate cell (accent = valid, danger = overlap/out of
+  bounds); invalid drops bounce back.
+- **Tap a placed cell** → selects; the properties panel populates (PID,
+  position/size `◄ ►` steppers, curated per-type props, remove).
+- **Tap the background** → deselects.
+
+### Chooser affordances — EXPLICIT BUTTONS, not long-press
+
+Carry the same reliability principle into the chooser: each card gets small,
+visible **Edit / Duplicate / Delete** action buttons (revealed on the card)
+rather than a hidden long-press, plus a permanent **New** button. Long-press is
+discoverability-hostile on a glance-and-go in-car UI.
+
+### Architecture
+
+```
+frontend/dashboards/
+├── WidgetCatalog.qml (singleton)   NEW — single source of truth: type → QML url
+│                                   + display name + default span + curated
+│                                   editable props. Registered in frontend/qmldir.
+├── DashboardRenderer.qml           refactored to read its registry from WidgetCatalog
+└── editor/                         NEW subtree
+    ├── DashboardEditor.qml         full-screen page (StackView-pushed): top bar
+    │                               (name, Save, Cancel) + canvas + panels
+    ├── EditorCanvas.qml            renders the working spec; empty cells = [+] tap
+    │                               targets; placed cells get selection border
+    ├── PalettePopup.qml            the 7 primitives; tap one to fill the chosen cell
+    ├── PropertiesPanel.qml         inspector for the selected cell
+    └── PIDPicker.qml               searchable PID list, grouped by OBDParameterModel `kind`
+```
+
+`WidgetCatalog` is the key consolidation: the type→url map currently lives inline
+in `DashboardRenderer.qml`. Lifting it into a singleton lets the renderer,
+palette, and properties panel agree on the 7 supported types (and their editable
+props) without drift. It also becomes the natural home for the type whitelist the
+deferred renderer validation will use.
+
+### Milestones (MVP-first) — ALL LANDED 2026-06-10
+
+**A — Scaffold + prove the save round-trip.** ✓ `WidgetCatalog` singleton;
+`DashboardRenderer` refactored onto it; `DashboardEditor.qml` shell (name field,
+Save, Cancel, live canvas via `DashboardRenderer`, plus a *temporary* "add sample
+gauge" button); a *temporary* "New" button in the chooser that pushes the editor.
+Exit: create a (near-empty) dashboard, name it, Save, see it appear in the
+chooser and render. De-risks the StackView push + `saveDashboard` loop before any
+editing UI exists.
+
+**B — Place / select / edit (hits the Phase 3 exit criterion).** ✓ `EditorCanvas`
+with `[+]` empty-cell targets + selection overlay; `PalettePopup`;
+`PropertiesPanel` with `PIDPicker` + span steppers + delete-cell. After this you
+can tap New, place gauges, bind each to a PID, name it, Save — no files touched.
+
+**C — Chooser affordances.** ✓ Permanent New button; Edit / Duplicate / Delete
+action buttons on cards (Edit/Delete user-only; Duplicate on all). Remove the
+temporary scaffolding buttons from Milestone A and the placeholder comment at
+`OBDMenu.qml:632`.
+
+**D — Polish.** ✓ Curated per-type threshold props in the panel (redline for
+Circular/Arc, `warnAbove` for Bar, `triggerAbove/Below` for WarningLight — all
+declared in `WidgetCatalog` with honest defaults); reposition shipped as
+drag-to-move (supersedes the tap-to-reposition idea); `docs/GAUGE_AUTHORING.md`
+§5/§7/§9 + `wiki/gauges-dashboards.html` updated and search index rebuilt.
+
+### Fast-follow (the deferred Phase 2 polish)
+
+Renderer `paramId`/`type` validation (against `OBDParameterModel.allParameters`
+and the `WidgetCatalog` type list) and user-dir hot-reload. Not MVP blockers —
+the editor only ever emits valid specs — fold in after Milestone B.
 
 ### Dependencies
-- Phase 2 complete (obviously)
-- Consider whether the touchscreen drag gesture conflicts with the Flickable touch-scroll added to the chooser popup — long-press-to-pick-up is the standard resolution and should work here too
+- Phase 2 complete ✓
+- No backend dependencies for the MVP (see "backend is already done" above)
 
 ### Exit criteria for Phase 3
-- A new user can tap "New," drag three gauges onto the canvas, bind each to a PID, name the dashboard, save, and see it appear in the chooser alongside the built-ins — all without touching a file
+- A new user can tap "New," place three gauges onto the canvas, bind each to a
+  PID, name the dashboard, save, and see it appear in the chooser alongside the
+  built-ins — all without touching a file
 
 ---
 
@@ -170,11 +246,11 @@ Only meaningful once Phase 2 is in place. The editor is fundamentally "a GUI for
 
 ## Order of operations
 
-1. Phase 1 (in progress — see commits). Primitives + GAUGE_AUTHORING.md + wiki.
-2. Ship at least one new dashboard showcasing the new primitives (Phase 1 exit criteria).
-3. Phase 2 JSON spec. Migrate existing dashboards, add `DashboardRenderer`, add user dashboards dir.
-4. Ship Phase 2 for a release; let user dashboards (authored by hand-editing JSON) exist in the wild for a bit so real-world pain points show up before building the editor on top.
-5. Phase 3 editor.
+1. ~~Phase 1 — primitives + GAUGE_AUTHORING.md + wiki.~~ ✓
+2. ~~Ship a dashboard showcasing the new primitives (Phase 1 exit criteria).~~ ✓
+3. ~~Phase 2 JSON spec — migrate dashboards, add `DashboardRenderer`, user dir.~~ ✓
+4. **Phase 3 editor (now)** — tap-to-place, MVP-first. Milestones A→B→C→D above.
+   Then fold in the deferred Phase 2 validation/hot-reload fast-follow.
 
 ---
 

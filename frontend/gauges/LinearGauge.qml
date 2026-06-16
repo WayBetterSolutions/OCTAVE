@@ -70,6 +70,11 @@ Item {
 
     readonly property real _zeroT: (min < 0 && max > 0) ? (-min) / (max - min) : 0
 
+    // Shrink typography in cells smaller than the size the default type was
+    // tuned for, so labels never spill out of a small editor cell.
+    readonly property real _fontFit: Math.max(0.1, Math.min(1,
+        height / App.Spacing.dp(80), width / App.Spacing.dp(160)))
+
     Column {
         anchors.fill: parent
         spacing: App.Spacing.dp(4)
@@ -77,12 +82,13 @@ Item {
         // Header
         Item {
             width: parent.width
-            height: Math.max(App.Spacing.overallText, App.Spacing.dp(14))
+            height: Math.min(Math.max(App.Spacing.overallText, App.Spacing.dp(14)),
+                             root.height * 0.35)
 
             Text {
                 text: root.title
                 color: root.labelColor
-                font.pixelSize: App.Spacing.overallText * 0.9
+                font.pixelSize: Math.max(1, App.Spacing.overallText * 0.9 * root._fontFit)
                 font.family: App.Style.fontFamily
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
@@ -92,7 +98,7 @@ Item {
             Text {
                 text: root.value.toFixed(root.decimals) + (root.unit ? " " + root.unit : "")
                 color: root.valueColor
-                font.pixelSize: App.Spacing.overallText * 0.95
+                font.pixelSize: Math.max(1, App.Spacing.overallText * 0.95 * root._fontFit)
                 font.bold: true
                 font.family: App.Style.fontFamily
                 anchors.right: parent.right

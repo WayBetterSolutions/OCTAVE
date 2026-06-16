@@ -211,10 +211,13 @@ Item {
         spacing: App.Spacing.dp(2)
         width: root._outerR * 1.6
 
+        // Font sizes capped by the arc radius so the readout scales with
+        // the gauge instead of spilling out of a small editor cell.
         Text {
             text: root.title
             color: root.labelColor
-            font.pixelSize: App.Spacing.overallText * 0.85
+            font.pixelSize: Math.max(1, Math.min(App.Spacing.overallText * 0.85,
+                                                 root._outerR * 0.2))
             font.family: App.Style.fontFamily
             anchors.horizontalCenter: parent.horizontalCenter
             horizontalAlignment: Text.AlignHCenter
@@ -224,7 +227,8 @@ Item {
         Text {
             text: root.value.toFixed(root.decimals)
             color: root.valueColor
-            font.pixelSize: App.Spacing.overallText * 1.6
+            font.pixelSize: Math.max(1, Math.min(App.Spacing.overallText * 1.6,
+                                                 root._outerR * 0.36))
             font.bold: true
             font.family: App.Style.fontFamily
             anchors.horizontalCenter: parent.horizontalCenter
@@ -232,7 +236,8 @@ Item {
         Text {
             text: root.unit
             color: root.labelColor
-            font.pixelSize: App.Spacing.overallText * 0.75
+            font.pixelSize: Math.max(1, Math.min(App.Spacing.overallText * 0.75,
+                                                 root._outerR * 0.16))
             font.family: App.Style.fontFamily
             anchors.horizontalCenter: parent.horizontalCenter
             visible: root.unit !== ""

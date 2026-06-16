@@ -110,7 +110,20 @@ QtObject {
         { id: "LONG_O2_TRIM_B2", title: "Long O2 Trim B2", unit: "%", min: -100, max: 100, kind: "bidirectional" },
         { id: "RELATIVE_ACCEL_POS", title: "Rel. Accel Pos", unit: "%", min: 0, max: 100, kind: "percentage" },
         { id: "HYBRID_BATTERY_REMAINING", title: "Hybrid Battery", unit: "%", min: 0, max: 100, kind: "percentage" },
-        { id: "ELM_VOLTAGE", title: "ELM Voltage", unit: "V", min: 0, max: 65, kind: "voltage" }
+        { id: "ELM_VOLTAGE", title: "ELM Voltage", unit: "V", min: 0, max: 65, kind: "voltage" },
+        // ── Sensor (BerryIMU) parameters ──────────────────────────────
+        // Fed by the berryIMU manager (see _imuConnections below), not
+        // obdManager. They flow through paramValues like any OBD PID, so
+        // every gauge, the PID picker, and the editor's demo mode all work
+        // with them unchanged.
+        { id: "PITCH", title: "Pitch", unit: "°", min: -90, max: 90, kind: "bidirectional" },
+        { id: "ROLL", title: "Roll", unit: "°", min: -180, max: 180, kind: "bidirectional" },
+        { id: "HEADING", title: "Heading", unit: "°", min: 0, max: 360, kind: "numeric" },
+        { id: "ALTITUDE", title: "Altitude", unit: "m", min: 0, max: 3000, kind: "numeric" },
+        { id: "ACCEL_MAG", title: "G Magnitude", unit: "g", min: 0, max: 3, kind: "numeric" },
+        { id: "LATERAL_G", title: "Lateral G", unit: "g", min: -2, max: 2, kind: "bidirectional" },
+        { id: "LONGITUDINAL_G", title: "Longitudinal G", unit: "g", min: -2, max: 2, kind: "bidirectional" },
+        { id: "BARO_TEMP", title: "Cabin Baro Temp", unit: "°C", min: -20, max: 60, kind: "temperature" }
     ]
 
     // ── Original 18 parameter IDs (default-enabled) ──────────────────
@@ -152,6 +165,7 @@ QtObject {
     property var paramValues: ({})
 
     function updateParamValue(paramId, value) {
+        if (simulationActive) return;   // demo mode owns paramValues
         var newValues = Object.assign({}, paramValues);
         newValues[paramId] = value;
         paramValues = newValues;
@@ -161,6 +175,48 @@ QtObject {
         return paramValues[paramId] || 0;
     }
 
+    // ── Simulated data (dashboard-editor demo mode) ───────────────────
+    // Pure-QML fake data so dashboards can be built/tested without a live
+    // OBD connection: every parameter sweeps a sine between its min/max,
+    // with period and phase varied per parameter so the screen doesn't
+    // pulse in lockstep. While active, real backend updates are ignored
+    // (see guard above); on deactivation paramValues resets so stale fake
+    // readings can never linger in the real OBD views.
+    property bool simulationActive: false
+
+    onSimulationActiveChanged: {
+        if (simulationActive) {
+            _simEpoch = Date.now();
+            _simTick();
+        } else {
+            paramValues = ({});
+        }
+    }
+
+    property real _simEpoch: 0
+
+    function _simTick() {
+        var t = (Date.now() - _simEpoch) / 1000.0;
+        var newValues = {};
+        for (var i = 0; i < allParameters.length; i++) {
+            var p = allParameters[i];
+            var period = 4 + (i % 7) * 2;          // 4–16 s sweeps
+            var phase = i * 0.7;
+            var norm = 0.5 * (1 + Math.sin(2 * Math.PI * t / period + phase));
+            var v = p.min + (p.max - p.min) * norm;
+            // Round the big-range integers so readouts look like real data
+            newValues[p.id] = (p.max - p.min) > 20 ? Math.round(v) : Math.round(v * 100) / 100;
+        }
+        paramValues = newValues;
+    }
+
+    property var _simTimer: Timer {
+        interval: 100
+        repeat: true
+        running: root.simulationActive
+        onTriggered: root._simTick()
+    }
+
     // ── Helper functions ─────────────────────────────────────────────
     function isOriginalParameter(command) {
         return originalParameters.indexOf(command) !== -1;
@@ -168,6 +224,23 @@ QtObject {
 
     function getParamInfo(paramId) {
         return parameterInfo[paramId] || { title: paramId, unit: "", minValue: 0, maxValue: 100 };
+    }
+
+    // ── Signal connections to berryIMU for the sensor parameters ─────
+    // Same pattern as _obdConnections below; guarded because the IMU
+    // manager may legitimately be absent (e.g. stripped-down builds).
+    property var _imuConnections: Connections {
+        target: (typeof berryIMU !== "undefined" && berryIMU) ? berryIMU : null
+        ignoreUnknownSignals: true
+
+        function onPitchChanged(v) { root.updateParamValue("PITCH", v); }
+        function onRollChanged(v) { root.updateParamValue("ROLL", v); }
+        function onHeadingChanged(v) { root.updateParamValue("HEADING", v); }
+        function onAltitudeChanged(v) { root.updateParamValue("ALTITUDE", v); }
+        function onAccelMagnitudeChanged(v) { root.updateParamValue("ACCEL_MAG", v); }
+        function onLateralGChanged(v) { root.updateParamValue("LATERAL_G", v); }
+        function onLongitudinalGChanged(v) { root.updateParamValue("LONGITUDINAL_G", v); }
+        function onBaroTempChanged(v) { root.updateParamValue("BARO_TEMP", v); }
     }
 
     // ── Signal connections to obdManager for all 93 parameters ───────
