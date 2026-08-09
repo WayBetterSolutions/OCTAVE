@@ -2703,9 +2703,7 @@ void MediaManager::_precache_neighbors_start()
     const QStringList playlist = m_currentPlaylist; // snapshot
     const int n = playlist.size();
     // Bail on the "no current track" sentinel (-1) or a stale index that
-    // outlived a playlist shrink. C++'s truncation-toward-zero modulo would
-    // otherwise let a negative (idx+offset+n) produce a negative index and
-    // trip QList::at's assert.
+    // outlived a playlist shrink.
     if (n == 0 || idx < 0 || idx >= n)
         return;
 
@@ -2713,8 +2711,20 @@ void MediaManager::_precache_neighbors_start()
     for (int offset = -3; offset <= 3; ++offset) {
         if (offset == 0)
             continue;
-        neighbors.append(playlist[(idx + offset + n) % n]);
+        // Euclidean modulo. C++ truncates toward zero, so a single "+ n" only
+        // normalises while |offset| <= n — a 2-track playlist at idx 0 with
+        // offset -3 yields -1 % 2 == -1 and trips QList::at's assert.
+        const int j = ((idx + offset) % n + n) % n;
+        const QString &track = playlist.at(j);
+        // Playlists shorter than the +/-3 window wrap onto themselves; don't
+        // re-cache the current track or queue the same file repeatedly.
+        if (j == idx || neighbors.contains(track))
+            continue;
+        neighbors.append(track);
     }
+
+    if (neighbors.isEmpty())
+        return;
 
     // Run in a detached thread via QtConcurrent
     QtConcurrent::run([this, neighbors]() {

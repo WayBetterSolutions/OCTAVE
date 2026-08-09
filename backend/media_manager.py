@@ -2288,13 +2288,23 @@ class MediaManager(QObject):
         idx = self._current_index
         playlist = list(self._current_playlist)  # snapshot
         n = len(playlist)
-        if n == 0:
+        # Bail on the "no current track" sentinel (-1) or a stale index that
+        # outlived a playlist shrink (mirrors the C++ guard).
+        if n == 0 or idx < 0 or idx >= n:
             return
         neighbors = []
         for offset in range(-3, 4):
             if offset == 0:
                 continue
-            neighbors.append(playlist[(idx + offset) % n])
+            j = (idx + offset) % n
+            track = playlist[j]
+            # Playlists shorter than the +/-3 window wrap onto themselves; don't
+            # re-cache the current track or queue the same file repeatedly.
+            if j == idx or track in neighbors:
+                continue
+            neighbors.append(track)
+        if not neighbors:
+            return
         threading.Thread(
             target=self._precache_tracks,
             args=(neighbors,),
