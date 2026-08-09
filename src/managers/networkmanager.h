@@ -36,6 +36,9 @@ class NetworkManager : public QObject
     Q_PROPERTY(QString updateMessage READ updateMessage NOTIFY updateMessageChanged)
     Q_PROPERTY(QString remoteCommit READ remoteCommit NOTIFY remoteCommitChanged)
     Q_PROPERTY(QString remoteCommitMsg READ remoteCommitMsg NOTIFY remoteCommitMsgChanged)
+    // True when the checkout has uncommitted changes. Self-update hard-resets the
+    // tree, so the UI must be able to hide that button before it eats real work.
+    Q_PROPERTY(bool workingTreeDirty READ workingTreeDirty NOTIFY workingTreeDirtyChanged)
 
     // Self-update
     Q_PROPERTY(QString selfUpdateStatus READ selfUpdateStatus NOTIFY selfUpdateStatusChanged)
@@ -53,6 +56,7 @@ public:
     QString updateMessage() const;
     QString remoteCommit() const;
     QString remoteCommitMsg() const;
+    bool workingTreeDirty() const;
     QString selfUpdateStatus() const;
     QString selfUpdateMessage() const;
     bool canSelfUpdate() const;
@@ -75,6 +79,7 @@ signals:
     void updateMessageChanged(const QString &message);
     void remoteCommitChanged(const QString &commit);
     void remoteCommitMsgChanged(const QString &msg);
+    void workingTreeDirtyChanged(bool dirty);
 
     // Self-update signals
     void selfUpdateStatusChanged(const QString &status);
@@ -94,6 +99,14 @@ private:
     void startNetworkNameCheck();
     QString repoDir() const;
     bool checkCanSelfUpdate();
+    // Blocking git invocation for the short, cheap queries below. These run on the
+    // GUI thread deliberately: they gate a destructive action, so their answer must
+    // be current at the moment of the click, not whatever an async check last cached.
+    QString runGitSync(const QStringList &args, bool *ok = nullptr, int timeoutMs = 10000) const;
+    bool refreshWorkingTreeDirty();
+    // "same" | "behind" | "ahead" | "diverged" — how local HEAD relates to the
+    // remote commit reported by the GitHub API.
+    QString localVsRemote(const QString &remoteShort, const QString &localShort) const;
     void runSelfUpdateStep();
     void rollback();
     void finishSelfUpdate(const QString &status, const QString &message);
@@ -111,6 +124,7 @@ private:
     QString m_updateMessage;
     QString m_remoteCommit;
     QString m_remoteCommitMsg;
+    bool m_workingTreeDirty = false;
 
     // Self-update
     QString m_selfUpdateStatus;

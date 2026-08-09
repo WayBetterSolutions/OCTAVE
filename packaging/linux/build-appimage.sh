@@ -143,6 +143,25 @@ else
     TAGLIB_ARG="--library=$TAGLIB_SO"
 fi
 
+# ---- 6b. Qt Quick 3D asset importers ------------------------------------
+# linuxdeploy-plugin-qt bundles a fixed set of plugin categories (platforms,
+# imageformats, styles, ...) and does not know about "assetimporters". Without
+# it QtQuick3D's RuntimeLoader loads but cannot parse frontend/assets/cam.glb,
+# so the 3D vehicle view renders an empty scene and logs
+#   Failed to load asset import plugin with key: "assimp"
+# Copy the directory in ourselves; skip quietly when Quick3D isn't installed
+# (the build is valid without it — the Sensors hub greys out the 3D card).
+# CMake wrote this in step 1 iff it found Quick3D — it names the plugin root of the
+# Qt the build actually linked against, which PATH lookups can easily get wrong.
+QT_PLUGIN_ROOT="$(cat "$BUILD_DIR/qt_plugins_path.txt" 2>/dev/null || true)"
+if [ -n "$QT_PLUGIN_ROOT" ] && [ -d "$QT_PLUGIN_ROOT/assetimporters" ]; then
+    echo "==> Bundling Qt Quick 3D asset importers from $QT_PLUGIN_ROOT/assetimporters"
+    mkdir -p "$APPDIR/usr/plugins/assetimporters"
+    cp -a "$QT_PLUGIN_ROOT/assetimporters/." "$APPDIR/usr/plugins/assetimporters/"
+else
+    echo "==> No Qt Quick 3D asset importers found; 3D vehicle view will be unavailable"
+fi
+
 # ---- 7. Run linuxdeploy --------------------------------------------------
 cd "$REPO_ROOT"
 

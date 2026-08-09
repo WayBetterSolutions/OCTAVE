@@ -148,8 +148,15 @@ Item {
                     RuntimeLoader {
                         id: modelLoader
                         source: "./assets/cam.glb"
+                        // RuntimeLoader exposes `status` + `errorString`; there is no
+                        // `statusString`, so the old handler threw a ReferenceError and
+                        // swallowed the very message needed to diagnose a failed load
+                        // (e.g. a missing assimp asset-import plugin).
                         onStatusChanged: {
-                            console.log("Model status:", status, statusString)
+                            if (status === RuntimeLoader.Error)
+                                console.warn("[CarMenu] Model load failed:", modelLoader.errorString)
+                            else
+                                console.log("[CarMenu] Model status:", status)
                         }
                     }
                 }

@@ -209,6 +209,10 @@ Flickable {
                                     case "checking":    return App.Style.accent
                                     case "up-to-date":  return "#4CAF50"
                                     case "update-available": return "#FF9800"
+                                    // Running a source checkout that is ahead of / diverged from
+                                    // origin/main is normal for development, not a fault.
+                                    case "ahead":       return App.Style.accent
+                                    case "diverged":    return "#FF9800"
                                     case "error":       return "#F44336"
                                     default:            return App.Style.secondaryTextColor
                                 }
@@ -273,11 +277,35 @@ Flickable {
                             Layout.topMargin: App.Spacing.overallSpacing * 0.3
                             spacing: App.Spacing.overallSpacing * 0.5
 
+                            // Uncommitted work present — self-update would hard-reset over it,
+                            // so explain the situation instead of offering the button below.
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: App.Spacing.overallSpacing * 0.5
+                                visible: networkManager && networkManager.canSelfUpdate
+                                         && networkManager.workingTreeDirty
+
+                                Rectangle {
+                                    width: dp(8); height: dp(8); radius: width / 2
+                                    color: "#FF9800"
+                                }
+
+                                Text {
+                                    text: "Uncommitted changes in the working tree — commit or stash them to enable updating"
+                                    color: "#FF9800"
+                                    font.pixelSize: App.Spacing.overallText * 0.75
+                                    font.family: App.Style.fontFamily
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+                            }
+
                             // "Update Now" button with confirmation (when git self-update is available)
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: App.Spacing.overallSpacing
                                 visible: networkManager && networkManager.canSelfUpdate
+                                         && !networkManager.workingTreeDirty
                                          && networkManager.selfUpdateStatus !== "fetching"
                                          && networkManager.selfUpdateStatus !== "restart-required"
                                          && networkManager.selfUpdateStatus !== "error"

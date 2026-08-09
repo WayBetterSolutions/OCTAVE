@@ -11,6 +11,26 @@ if(ANDROID)
     list(APPEND OCTAVE_QT_COMPONENTS Sensors)
 endif()
 find_package(Qt6 REQUIRED COMPONENTS ${OCTAVE_QT_COMPONENTS})
+
+# Quick3D backs the 3D vehicle-attitude view (frontend/CarMenu.qml). It is
+# optional at build time: the QML is loaded lazily and SensorHome probes for the
+# module, greying out the "3D View" card when it is absent. Linking it when
+# present is what makes the deploy tools (windeployqt / macdeployqt /
+# androiddeployqt / linuxdeploy) bundle the QML module into a package.
+find_package(Qt6 QUIET COMPONENTS Quick3D)
+if(Qt6Quick3D_FOUND)
+    message(STATUS "QtQuick3D found — 3D vehicle view enabled")
+    # Record the plugin root of the Qt that CMake actually selected. The AppImage
+    # packaging script needs the "assetimporters" plugin dir (linuxdeploy-plugin-qt
+    # doesn't know that category) and cannot reliably re-derive it from PATH, where
+    # qmake6 may well resolve to an Android kit instead of this desktop one.
+    file(WRITE "${CMAKE_BINARY_DIR}/qt_plugins_path.txt"
+         "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_PLUGINS}")
+else()
+    message(STATUS "QtQuick3D NOT found — 3D vehicle view will be unavailable at runtime. "
+                   "Install it to enable (Arch: qt6-quick3d, Debian/Ubuntu: qt6-quick3d-dev, "
+                   "macOS: brew install qt, or add the Quick3D module in the Qt online installer).")
+endif()
 # Qt6::CorePrivate is an imported target provided by Qt6::Core — not a
 # separately-findable component. Linking it grants access to private headers
 # (QtAndroidPrivate::requestPermission on Android).
@@ -102,6 +122,9 @@ target_link_libraries(octave PRIVATE
     Qt6::SerialPort
     Qt6::Bluetooth
 )
+if(Qt6Quick3D_FOUND)
+    target_link_libraries(octave PRIVATE Qt6::Quick3D)
+endif()
 if(ANDROID)
     target_link_libraries(octave PRIVATE Qt6::Sensors Qt6::CorePrivate)
 elseif(WIN32)

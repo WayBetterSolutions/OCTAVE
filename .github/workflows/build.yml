@@ -87,7 +87,7 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2019_64'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity'
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtquick3d'
 
       - name: Install TagLib (vcpkg)
         shell: bash
@@ -157,7 +157,7 @@ jobs:
           version: '6.7.3'
           host: 'mac'
           target: 'desktop'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity'
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtquick3d'
 
       - name: Install TagLib
         run: brew install taglib pkg-config
@@ -261,7 +261,7 @@ jobs:
           version: '6.7.3'
           host: 'linux'
           target: 'desktop'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat qtshadertools'
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat qtshadertools qtquick3d'
 
       - name: Install Qt 6 (Android arm64)
         uses: jurplel/install-qt-action@v4
@@ -270,7 +270,7 @@ jobs:
           host: 'linux'
           target: 'android'
           arch: 'android_arm64_v8a'
-          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat qtshadertools'
+          modules: 'qtmultimedia qtnetworkauth qtserialport qtconnectivity qtsensors qt5compat qtshadertools qtquick3d'
 
       - name: Set up Android SDK + NDK
         uses: android-actions/setup-android@v3

@@ -40,6 +40,7 @@ class NetworkManager(QObject):
     updateMessageChanged = Signal(str)      # Human-readable status message
     remoteCommitChanged = Signal(str)       # Latest remote commit hash
     remoteCommitMsgChanged = Signal(str)    # Latest remote commit message
+    workingTreeDirtyChanged = Signal(bool)  # Checkout has uncommitted changes
 
     # Self-update signals
     selfUpdateStatusChanged = Signal(str)   # "idle", "fetching", "error", "restart-required"
@@ -53,6 +54,7 @@ class NetworkManager(QObject):
         self._network_name = ""
         self._is_connected = False
         self._update_status = ""
+        self._working_tree_dirty = False
         self._update_message = ""
         self._remote_commit = ""
         self._remote_commit_msg = ""
@@ -103,6 +105,12 @@ class NetworkManager(QObject):
     @Property(str, notify=remoteCommitChanged)
     def remoteCommit(self):
         return self._remote_commit
+
+    @Property(bool, notify=workingTreeDirtyChanged)
+    def workingTreeDirty(self):
+        # Self-update hard-resets the tree, so the UI must be able to hide that
+        # button before it eats real work.
+        return self._working_tree_dirty
 
     @Property(str, notify=remoteCommitMsgChanged)
     def remoteCommitMsg(self):
@@ -308,19 +316,32 @@ class NetworkManager(QObject):
             remote_hash = data.get("sha", "")[:7]
             remote_msg = data.get("commit", {}).get("message", "").split('\n')[0]
 
-            if remote_hash == local_hash:
+            relation = self._local_vs_remote_sync(remote_hash, local_hash)
+            dirty = self._working_tree_dirty_sync()
+
+            if relation == "same":
                 status = "up-to-date"
                 message = "You're running the latest version"
+            elif relation == "ahead":
+                status = "ahead"
+                message = "Dev build — ahead of origin/main"
+            elif relation == "diverged":
+                status = "diverged"
+                message = "Local branch has diverged from origin/main"
             else:
                 status = "update-available"
                 message = f"Update available (latest: {remote_hash})"
 
-            logger.info(f"Update check: local={local_hash}, remote={remote_hash}, status={status}")
+            logger.info(
+                f"Update check: local={local_hash}, remote={remote_hash}, "
+                f"relation={relation}, dirty={dirty}, status={status}"
+            )
             return {
                 "status": status,
                 "message": message,
                 "remote_hash": remote_hash,
                 "remote_msg": remote_msg,
+                "dirty": dirty,
             }
 
         except Exception as e:
@@ -346,6 +367,69 @@ class NetworkManager(QObject):
         if remote_msg is not None:
             self._remote_commit_msg = remote_msg
             self.remoteCommitMsgChanged.emit(remote_msg)
+
+        dirty = result.get("dirty")
+        if dirty is not None and dirty != self._working_tree_dirty:
+            self._working_tree_dirty = dirty
+            self.workingTreeDirtyChanged.emit(dirty)
+
+    @staticmethod
+    def _repo_dir():
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    @classmethod
+    def _run_git_sync(cls, args, timeout=10):
+        """Run a short git query. Returns (ok, stdout-stripped)."""
+        try:
+            result = subprocess.run(
+                ['git'] + args,
+                cwd=cls._repo_dir(),
+                capture_output=True, text=True, timeout=timeout
+            )
+            return result.returncode == 0, result.stdout.strip()
+        except Exception as e:
+            logger.debug(f"git {' '.join(args)} failed: {e}")
+            return False, ""
+
+    @classmethod
+    def _working_tree_dirty_sync(cls):
+        """True when the checkout has uncommitted changes.
+
+        On failure assume dirty: this gates a `git reset --hard`, so the safe
+        default when we cannot tell is the one that refuses to destroy anything.
+        """
+        ok, out = cls._run_git_sync(['status', '--porcelain'])
+        return bool(out) if ok else True
+
+    @classmethod
+    def _local_vs_remote_sync(cls, remote_short, local_short):
+        """Classify local HEAD against the remote commit: same/behind/ahead/diverged.
+
+        A plain `remote != local` test cannot tell "behind" from "ahead": running
+        from a source checkout with local commits reported an update to a commit
+        *older* than HEAD, and self-update would then hard-reset onto it.
+        """
+        if not remote_short:
+            return "behind"
+        if remote_short == local_short:
+            return "same"
+
+        # Do we even have the remote commit locally? If the object is missing we
+        # cannot be a descendant of it, so this is a normal "remote moved ahead".
+        have_remote, _ = cls._run_git_sync(['cat-file', '-e', f'{remote_short}^{{commit}}'], timeout=5)
+        if have_remote:
+            is_ancestor, _ = cls._run_git_sync(
+                ['merge-base', '--is-ancestor', remote_short, 'HEAD'], timeout=5)
+            if is_ancestor:
+                return "ahead"  # remote commit is already in our history
+
+        # Remote commit is unknown to us. If we also carry commits the last-fetched
+        # origin/main lacks, both sides moved — that is a divergence, not an update.
+        ok, count = cls._run_git_sync(['rev-list', '--count', 'origin/main..HEAD'], timeout=5)
+        if ok and count.isdigit() and int(count) > 0:
+            return "diverged"
+
+        return "behind"
 
     @staticmethod
     def _get_local_commit_hash_sync():
@@ -390,6 +474,32 @@ class NetworkManager(QObject):
             return
         if self._pending_future and not self._pending_future.done():
             return
+
+        # Step 2 of this process is `git reset --hard origin/main`. Re-verify the
+        # preconditions right here rather than trusting the cached update status:
+        # the tree can be dirtied, or commits made, long after the last check ran.
+        dirty = self._working_tree_dirty_sync()
+        if dirty != self._working_tree_dirty:
+            self._working_tree_dirty = dirty
+            self.workingTreeDirtyChanged.emit(dirty)
+        if dirty:
+            logger.warning("Self-update refused: working tree has uncommitted changes")
+            self._self_update_status = "error"
+            self.selfUpdateStatusChanged.emit("error")
+            self._self_update_message = "Uncommitted changes — commit or stash them first"
+            self.selfUpdateMessageChanged.emit(self._self_update_message)
+            return
+        if self._update_status in ("ahead", "diverged"):
+            logger.warning(
+                f"Self-update refused: local branch is {self._update_status} "
+                f"relative to origin/main"
+            )
+            self._self_update_status = "error"
+            self.selfUpdateStatusChanged.emit("error")
+            self._self_update_message = "Local commits would be lost — refusing to reset"
+            self.selfUpdateMessageChanged.emit(self._self_update_message)
+            return
+
         self._updating = True
 
         self._self_update_status = "fetching"

@@ -34,6 +34,64 @@ Rectangle {
         }
     }
     
+    // Build + push a sensor page, returning true on success. Every failure is
+    // logged — a silently-swallowed load error here reads to the user as "the
+    // sensor button is dead" with nothing in the console to explain it.
+    function _pushSensorPage(qmlFile) {
+        var component = Qt.createComponent(qmlFile)
+        if (component.status !== Component.Ready) {
+            console.warn("[BottomBar] Failed to load", qmlFile, "-", component.errorString())
+            return false
+        }
+        var page = component.createObject(stackView, {
+            stackView: bottomBar.stackView,
+            mainWindow: stackView.parent.Window.window
+        })
+        if (!page) {
+            console.warn("[BottomBar] Failed to instantiate", qmlFile)
+            return false
+        }
+        stackView.push(page)
+        return true
+    }
+
+    // Sensor nav button. Opens the last-visited sensor subpage when we have one,
+    // falling back to SensorHome if that page can no longer load — e.g. CarMenu
+    // needs the QtQuick3D module, which is an optional runtime dependency. The
+    // stale preference is cleared so the shortcut doesn't dead-end again.
+    function openSensorSection() {
+        var currentItem = stackView.currentItem
+        var name = currentItem ? currentItem.objectName : ""
+
+        if (name === "sensorHome")
+            return  // already on Sensor Home
+
+        var isSensorSubpage = name.indexOf("sensor") === 0 || name === "carMenu"
+
+        if (isSensorSubpage) {
+            // On a sensor subpage — pop back to SensorHome
+            while (stackView.depth > 1) {
+                var item = stackView.currentItem
+                if (item && item.objectName === "sensorHome")
+                    return
+                stackView.pop()
+            }
+            _pushSensorPage("SensorHome.qml")
+            return
+        }
+
+        // From a non-sensor page — jump to the last-visited sensor subpage
+        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastSensorPage", "") : ""
+        if (lastPage !== "" && lastPage !== "SensorHome.qml") {
+            if (_pushSensorPage(lastPage))
+                return
+            console.warn("[BottomBar] Clearing unusable lastSensorPage:", lastPage)
+            if (settingsManager)
+                settingsManager.save_setting("lastSensorPage", "")
+        }
+        _pushSensorPage("SensorHome.qml")
+    }
+
     function updateLayout() {
         if (isVertical) {
             // Release anchors first to prevent binding loops
@@ -1037,53 +1095,7 @@ Rectangle {
                                 height: parent.height * 1.5
                                 anchors.centerIn: parent
                                 hoverEnabled: true
-                                onClicked: {
-                                    var currentItem = stackView.currentItem
-                                    var name = currentItem ? currentItem.objectName : ""
-
-                                    if (name === "sensorHome") {
-                                        // Already on Sensor Home — do nothing
-                                        return
-                                    }
-
-                                    var isSensorSubpage = name.indexOf("sensor") === 0 || name === "carMenu"
-
-                                    if (isSensorSubpage) {
-                                        // On a sensor subpage — pop back to SensorHome
-                                        var found = false
-                                        while (stackView.depth > 1) {
-                                            var item = stackView.currentItem
-                                            if (item && item.objectName === "sensorHome") {
-                                                found = true
-                                                break
-                                            }
-                                            stackView.pop()
-                                        }
-                                        if (!found) {
-                                            var component = Qt.createComponent("SensorHome.qml")
-                                            if (component.status === Component.Ready) {
-                                                var page = component.createObject(stackView, {
-                                                    stackView: bottomBar.stackView,
-                                                    mainWindow: stackView.parent.Window.window
-                                                })
-                                                if (page) stackView.push(page)
-                                            }
-                                        }
-                                    } else {
-                                        // From a non-sensor page — jump to the last-visited sensor subpage if remembered
-                                        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastSensorPage", "") : ""
-                                        var target = (lastPage !== "") ? lastPage : "SensorHome.qml"
-
-                                        var component = Qt.createComponent(target)
-                                        if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window
-                                            })
-                                            if (page) stackView.push(page)
-                                        }
-                                    }
-                                }
+                                onClicked: bottomBar.openSensorSection()
                             }
                         }
 
@@ -2434,53 +2446,7 @@ Rectangle {
                                 height: parent.height * 1.5
                                 anchors.centerIn: parent
                                 hoverEnabled: true
-                                onClicked: {
-                                    var currentItem = stackView.currentItem
-                                    var name = currentItem ? currentItem.objectName : ""
-
-                                    if (name === "sensorHome") {
-                                        // Already on Sensor Home — do nothing
-                                        return
-                                    }
-
-                                    var isSensorSubpage = name.indexOf("sensor") === 0 || name === "carMenu"
-
-                                    if (isSensorSubpage) {
-                                        // On a sensor subpage — pop back to SensorHome
-                                        var found = false
-                                        while (stackView.depth > 1) {
-                                            var item = stackView.currentItem
-                                            if (item && item.objectName === "sensorHome") {
-                                                found = true
-                                                break
-                                            }
-                                            stackView.pop()
-                                        }
-                                        if (!found) {
-                                            var component = Qt.createComponent("SensorHome.qml")
-                                            if (component.status === Component.Ready) {
-                                                var page = component.createObject(stackView, {
-                                                    stackView: bottomBar.stackView,
-                                                    mainWindow: stackView.parent.Window.window
-                                                })
-                                                if (page) stackView.push(page)
-                                            }
-                                        }
-                                    } else {
-                                        // From a non-sensor page — jump to the last-visited sensor subpage if remembered
-                                        var lastPage = settingsManager ? settingsManager.get_setting_with_default("lastSensorPage", "") : ""
-                                        var target = (lastPage !== "") ? lastPage : "SensorHome.qml"
-
-                                        var component = Qt.createComponent(target)
-                                        if (component.status === Component.Ready) {
-                                            var page = component.createObject(stackView, {
-                                                stackView: bottomBar.stackView,
-                                                mainWindow: stackView.parent.Window.window
-                                            })
-                                            if (page) stackView.push(page)
-                                        }
-                                    }
-                                }
+                                onClicked: bottomBar.openSensorSection()
                             }
                         }
 

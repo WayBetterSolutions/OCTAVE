@@ -94,6 +94,11 @@ QString NetworkManager::remoteCommitMsg() const
     return m_remoteCommitMsg;
 }
 
+bool NetworkManager::workingTreeDirty() const
+{
+    return m_workingTreeDirty;
+}
+
 QString NetworkManager::selfUpdateStatus() const
 {
     return m_selfUpdateStatus;
@@ -190,18 +195,32 @@ void NetworkManager::checkForUpdates()
                                     .value(QStringLiteral("message")).toString()
                                     .section(QLatin1Char('\n'), 0, 0);
 
+            // A plain `remoteSha != localHash` test cannot tell "behind" from
+            // "ahead": running from a source checkout with local commits reported
+            // an update to a commit *older* than HEAD, and the self-update path
+            // would then hard-reset onto it. Classify the relationship instead.
+            const QString relation = localVsRemote(remoteSha, localHash);
+            const bool dirty = refreshWorkingTreeDirty();
+
             QString status;
             QString message;
-            if (remoteSha == localHash) {
+            if (relation == QLatin1String("same")) {
                 status = QStringLiteral("up-to-date");
                 message = QStringLiteral("You're running the latest version");
+            } else if (relation == QLatin1String("ahead")) {
+                status = QStringLiteral("ahead");
+                message = QStringLiteral("Dev build — ahead of origin/main");
+            } else if (relation == QLatin1String("diverged")) {
+                status = QStringLiteral("diverged");
+                message = QStringLiteral("Local branch has diverged from origin/main");
             } else {
                 status = QStringLiteral("update-available");
                 message = QStringLiteral("Update available (latest: %1)").arg(remoteSha);
             }
 
             qCInfo(lcNetwork) << "Update check: local=" << localHash
-                              << "remote=" << remoteSha << "status=" << status;
+                              << "remote=" << remoteSha << "relation=" << relation
+                              << "dirty=" << dirty << "status=" << status;
 
             m_updateStatus = status;
             emit updateStatusChanged(status);
@@ -239,6 +258,28 @@ void NetworkManager::applySelfUpdate()
     // Hard lock — prevents double-tap even if UI is slow to update
     if (m_updating)
         return;
+
+    // Step 2 of this process is `git reset --hard origin/main`. Re-verify the
+    // preconditions right here rather than trusting the cached update status:
+    // the tree can be dirtied, or commits made, long after the last check ran.
+    if (refreshWorkingTreeDirty()) {
+        qCWarning(lcNetwork) << "Self-update refused: working tree has uncommitted changes";
+        m_selfUpdateStatus = QStringLiteral("error");
+        emit selfUpdateStatusChanged(m_selfUpdateStatus);
+        m_selfUpdateMessage = QStringLiteral("Uncommitted changes — commit or stash them first");
+        emit selfUpdateMessageChanged(m_selfUpdateMessage);
+        return;
+    }
+    if (m_updateStatus == QLatin1String("ahead") || m_updateStatus == QLatin1String("diverged")) {
+        qCWarning(lcNetwork) << "Self-update refused: local branch is" << m_updateStatus
+                             << "relative to origin/main";
+        m_selfUpdateStatus = QStringLiteral("error");
+        emit selfUpdateStatusChanged(m_selfUpdateStatus);
+        m_selfUpdateMessage = QStringLiteral("Local commits would be lost — refusing to reset");
+        emit selfUpdateMessageChanged(m_selfUpdateMessage);
+        return;
+    }
+
     m_updating = true;
 
     m_selfUpdateStatus = QStringLiteral("fetching");
@@ -878,6 +919,66 @@ QString NetworkManager::repoDir() const
     // (assuming the binary lives in a build/ or bin/ subdirectory).
     // This mirrors the Python approach of going up from backend/ to the repo root.
     return QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral(".."));
+}
+
+QString NetworkManager::runGitSync(const QStringList &args, bool *ok, int timeoutMs) const
+{
+    QProcess proc;
+    proc.setWorkingDirectory(repoDir());
+    proc.start(QStringLiteral("git"), args);
+    const bool finished = proc.waitForStarted(timeoutMs) && proc.waitForFinished(timeoutMs);
+    const bool success = finished && proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0;
+    if (ok)
+        *ok = success;
+    if (!finished)
+        proc.kill();
+    return QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+}
+
+bool NetworkManager::refreshWorkingTreeDirty()
+{
+    bool ok = false;
+    const QString out = runGitSync({QStringLiteral("status"), QStringLiteral("--porcelain")}, &ok);
+    // On failure assume dirty: this gates a `git reset --hard`, so the safe
+    // default when we cannot tell is the one that refuses to destroy anything.
+    const bool dirty = ok ? !out.isEmpty() : true;
+    if (dirty != m_workingTreeDirty) {
+        m_workingTreeDirty = dirty;
+        emit workingTreeDirtyChanged(dirty);
+    }
+    return dirty;
+}
+
+QString NetworkManager::localVsRemote(const QString &remoteShort, const QString &localShort) const
+{
+    if (remoteShort.isEmpty())
+        return QStringLiteral("behind");
+    if (remoteShort == localShort)
+        return QStringLiteral("same");
+
+    // Do we even have the remote commit locally? If the object is missing we
+    // cannot be a descendant of it, so this is a normal "remote moved ahead".
+    bool haveRemote = false;
+    runGitSync({QStringLiteral("cat-file"), QStringLiteral("-e"),
+                remoteShort + QStringLiteral("^{commit}")}, &haveRemote, 5000);
+
+    if (haveRemote) {
+        bool isAncestor = false;
+        runGitSync({QStringLiteral("merge-base"), QStringLiteral("--is-ancestor"),
+                    remoteShort, QStringLiteral("HEAD")}, &isAncestor, 5000);
+        if (isAncestor)
+            return QStringLiteral("ahead");  // remote commit is already in our history
+    }
+
+    // Remote commit is unknown to us. If we also carry commits the last-fetched
+    // origin/main lacks, both sides moved — that is a divergence, not an update.
+    bool ok = false;
+    const QString aheadCount = runGitSync({QStringLiteral("rev-list"), QStringLiteral("--count"),
+                                           QStringLiteral("origin/main..HEAD")}, &ok, 5000);
+    if (ok && aheadCount.toInt() > 0)
+        return QStringLiteral("diverged");
+
+    return QStringLiteral("behind");
 }
 
 bool NetworkManager::checkCanSelfUpdate()

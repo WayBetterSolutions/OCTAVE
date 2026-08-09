@@ -183,12 +183,16 @@ NetworkManager
               with a <code>User-Agent: OCTAVE-Updater</code> header.
             </li>
             <li>
-              <strong>Compare hashes</strong> -- Truncates the remote SHA to 7 characters and compares with the local hash.
+              <strong>Classify the relationship</strong> -- Truncates the remote SHA to 7 characters. A bare
+              inequality test cannot distinguish "behind" from "ahead", so the check also asks git how the two
+              commits relate: if the remote commit is already an ancestor of local <code>HEAD</code>, the checkout
+              is <em>ahead</em> (a dev build), not out of date. If the remote commit is unknown locally but local
+              commits exist that the last-fetched <code>origin/main</code> lacks, the branch has <em>diverged</em>.
             </li>
             <li>
               <strong>Emit result</strong> -- Sets <code>updateStatus</code> to one of: <code>"up-to-date"</code>,
-              <code>"update-available"</code>, or <code>"error"</code>. Also populates the remote commit hash
-              and message for display in the UI.
+              <code>"update-available"</code>, <code>"ahead"</code>, <code>"diverged"</code>, or <code>"error"</code>.
+              Also populates the remote commit hash and message, and refreshes <code>workingTreeDirty</code>.
             </li>
           </ol>
 
@@ -196,8 +200,16 @@ NetworkManager
           <pre><code><span class="cmt"># updateStatus can be one of:</span>
 <span class="str">"checking"</span>          <span class="cmt"># Currently checking</span>
 <span class="str">"up-to-date"</span>        <span class="cmt"># Local matches remote</span>
-<span class="str">"update-available"</span>  <span class="cmt"># Remote has newer commits</span>
+<span class="str">"update-available"</span>  <span class="cmt"># Local is strictly behind the remote</span>
+<span class="str">"ahead"</span>             <span class="cmt"># Source checkout with local commits (dev build)</span>
+<span class="str">"diverged"</span>          <span class="cmt"># Both sides moved -- not a safe update</span>
 <span class="str">"error"</span>             <span class="cmt"># Check failed (no internet, API error)</span></code></pre>
+
+          <p>
+            Only <code>"update-available"</code> raises the update badge and offers the self-update button.
+            <code>"ahead"</code> and <code>"diverged"</code> are normal states when running from the source
+            tree and must never trigger an "update" that would move the checkout backwards.
+          </p>
         </section>
 
         <!-- Self-Update -->
@@ -208,6 +220,21 @@ NetworkManager
             <div class="info-box-title">Availability</div>
             Self-update is only available when running from source (not a frozen PyInstaller build or Android).
             The <code>canSelfUpdate</code> property checks for git availability and non-frozen execution.
+          </div>
+
+          <div class="info-box warning">
+            <div class="info-box-title">Preconditions (checked at click time)</div>
+            Step 2 below is <code>git reset --hard origin/main</code>, which discards every uncommitted change
+            to tracked files. <code>applySelfUpdate()</code> therefore re-verifies state at the moment it is
+            called -- not from the cached update status, which may be minutes stale -- and refuses to run when:
+            <ul>
+              <li>the working tree is dirty (<code>git status --porcelain</code> is non-empty), or</li>
+              <li><code>updateStatus</code> is <code>"ahead"</code> or <code>"diverged"</code>, since resetting
+                  would discard local commits.</li>
+            </ul>
+            If git itself cannot be queried, the tree is assumed dirty -- the safe default is the one that
+            destroys nothing. The UI additionally hides the update button while
+            <code>workingTreeDirty</code> is true.
           </div>
 
           <h3>Pre-Conditions</h3>
@@ -323,6 +350,7 @@ Windows: shutdown /s /t 5</code></pre>
               <tr><td><code>updateMessageChanged</code></td><td><code>str</code></td><td>Human-readable update status</td></tr>
               <tr><td><code>remoteCommitChanged</code></td><td><code>str</code></td><td>Latest remote commit hash</td></tr>
               <tr><td><code>remoteCommitMsgChanged</code></td><td><code>str</code></td><td>Latest remote commit message</td></tr>
+              <tr><td><code>workingTreeDirtyChanged</code></td><td><code>bool</code></td><td>Checkout gained/lost uncommitted changes</td></tr>
               <tr><td><code>selfUpdateStatusChanged</code></td><td><code>str</code></td><td>Self-update state machine</td></tr>
               <tr><td><code>selfUpdateMessageChanged</code></td><td><code>str</code></td><td>Self-update progress text</td></tr>
               <tr><td><code>canSelfUpdateChanged</code></td><td><code>bool</code></td><td>Whether git-based update is possible</td></tr>
@@ -344,6 +372,7 @@ Windows: shutdown /s /t 5</code></pre>
               <tr><td><code>updateMessage</code></td><td><code>str</code></td><td><code>updateMessageChanged</code></td><td>Human-readable update message</td></tr>
               <tr><td><code>remoteCommit</code></td><td><code>str</code></td><td><code>remoteCommitChanged</code></td><td>Latest remote commit short hash</td></tr>
               <tr><td><code>remoteCommitMsg</code></td><td><code>str</code></td><td><code>remoteCommitMsgChanged</code></td><td>Latest remote commit message</td></tr>
+              <tr><td><code>workingTreeDirty</code></td><td><code>bool</code></td><td><code>workingTreeDirtyChanged</code></td><td>Checkout has uncommitted changes; self-update is refused while true</td></tr>
               <tr><td><code>selfUpdateStatus</code></td><td><code>str</code></td><td><code>selfUpdateStatusChanged</code></td><td>Self-update state</td></tr>
               <tr><td><code>selfUpdateMessage</code></td><td><code>str</code></td><td><code>selfUpdateMessageChanged</code></td><td>Self-update progress message</td></tr>
               <tr><td><code>canSelfUpdate</code></td><td><code>bool</code></td><td><code>canSelfUpdateChanged</code></td><td>Git-based self-update available</td></tr>

@@ -36,23 +36,37 @@ Item {
         }
     }
 
+    // Remember the subpage only once it actually opened. Persisting up front
+    // meant a page that can no longer load (CarMenu without the optional
+    // QtQuick3D module) became the bottom bar's remembered target, so the
+    // sensor button silently did nothing on every later launch.
     function pushSubpage(qmlFile) {
+        var component = Qt.createComponent(qmlFile)
+        if (component.status !== Component.Ready) {
+            console.warn("[SensorHome] Failed to load", qmlFile, "-", component.errorString())
+            return false
+        }
+        var page = component.createObject(stackView, {
+            stackView: sensorHome.stackView,
+            mainWindow: sensorHome.mainWindow
+        })
+        if (!page) {
+            console.warn("[SensorHome] Failed to instantiate", qmlFile)
+            return false
+        }
+        stackView.push(page)
         if (settingsManager) {
             settingsManager.save_setting("lastSensorPage", qmlFile)
             lastSubpage = qmlFile
         }
-        var component = Qt.createComponent(qmlFile)
-        if (component.status === Component.Ready) {
-            var page = component.createObject(stackView, {
-                stackView: sensorHome.stackView,
-                mainWindow: sensorHome.mainWindow
-            })
-            if (page) {
-                stackView.push(page)
-            }
-        } else {
-            console.warn("[SensorHome] Failed to load", qmlFile, component.errorString())
-        }
+        return true
+    }
+
+    // QtQuick3D is an optional runtime dependency; probe it once so the 3D View
+    // card can say so instead of looking clickable and doing nothing.
+    property bool has3DView: {
+        var probe = Qt.createComponent("CarMenu.qml", Component.PreferSynchronous)
+        return probe.status === Component.Ready
     }
 
     Rectangle {
@@ -167,13 +181,15 @@ Item {
                            : Qt.darker(backgroundColor, 0.85)
                     border.color: lastSubpage === "CarMenu.qml" ? accentColor : "transparent"
                     border.width: lastSubpage === "CarMenu.qml" ? 2 : 0
+                    opacity: sensorHome.has3DView ? 1.0 : 0.5
 
                     Behavior on color { ColorAnimation { duration: 150 } }
 
                     MouseArea {
                         id: viewMouse
                         anchors.fill: parent
-                        hoverEnabled: true
+                        hoverEnabled: sensorHome.has3DView
+                        enabled: sensorHome.has3DView
                         cursorShape: Qt.PointingHandCursor
                         onClicked: sensorHome.pushSubpage("CarMenu.qml")
                     }
@@ -219,7 +235,8 @@ Item {
                         }
 
                         Text {
-                            text: "Live vehicle attitude"
+                            text: sensorHome.has3DView ? "Live vehicle attitude"
+                                                       : "Requires the QtQuick3D module"
                             color: labelColor
                             font.pixelSize: App.Spacing.overallText * 0.85
                             font.family: sensorHome.globalFont
